@@ -1,0 +1,15 @@
+# Root & General
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Frontend (Node / Vite)
+frontendFarmShift/node_modules/
+frontendFarmShift/dist/
+frontendFarmShift/.env.local
+
+# Backend (Spring Boot / Maven / Gradle)
+backendFarmShift/target/
+backendFarmShift/.mvn/
+backendFarmShift/HELP.md
