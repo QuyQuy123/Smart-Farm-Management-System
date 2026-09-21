@@ -1,0 +1,204 @@
+/* ============================================================
+   Dashboard.module.css
+   Component styling for dashboard views based on DESIGN.md
+   ============================================================ */
+
+/* ── Grid Layouts ───────────────────────────────────────── */
+.grid {
+  display: grid;
+  gap: var(--sp-lg);
+  margin-bottom: var(--sp-xl);
+}
+
+.gridCols3 { grid-template-columns: repeat(3, 1fr); }
+.gridCols4 { grid-template-columns: repeat(4, 1fr); }
+.gridCols2 { grid-template-columns: repeat(2, 1fr); }
+
+@media (max-width: 1024px) {
+  .gridCols3, .gridCols4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .gridCols2, .gridCols3, .gridCols4 { grid-template-columns: 1fr; }
+}
+
+/* ── Stat Cards (demo-grid-card style) ──────────────────── */
+.statCard {
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  padding: var(--sp-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.statHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-md);
+}
+
+.statTitle {
+  font-size: var(--fs-body-md);
+  color: var(--color-muted);
+  font-weight: var(--fw-medium);
+}
+
+.statIcon {
+  color: var(--color-info);
+  padding: 8px;
+  background-color: rgba(37, 79, 173, 0.08); /* faint info tint */
+  border-radius: var(--rounded-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.statValue {
+  font-family: 'Haas Groot Disp', 'Inter Display', sans-serif;
+  font-size: var(--fs-display-md);
+  font-weight: 400;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.statChange {
+  margin-top: var(--sp-xs);
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+}
+.statChange.positive { color: var(--color-success); }
+.statChange.negative { color: var(--color-signature-coral); }
+
+/* ── Section Blocks ─────────────────────────────────────── */
+.section {
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  padding: var(--sp-xl);
+  margin-bottom: var(--sp-xl);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-lg);
+}
+
+.sectionTitle {
+  font-size: var(--fs-title-lg);
+  font-weight: var(--fw-regular);
+  color: var(--color-ink);
+}
+
+/* ── Tables (pricing-comparison-row style) ──────────────── */
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-muted);
+  font-weight: var(--fw-medium);
+  padding: var(--sp-sm) var(--sp-md);
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.table td {
+  font-size: var(--fs-body-md);
+  color: var(--color-body);
+  padding: var(--sp-md);
+  border-bottom: 1px solid var(--color-hairline);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Status Pills ───────────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--rounded-pill);
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+}
+
+.pillSuccess {
+  background-color: rgba(0, 100, 0, 0.08);
+  color: var(--color-success);
+}
+
+.pillWarning {
+  background-color: rgba(217, 164, 65, 0.15); /* signature-mustard */
+  color: var(--color-signature-coral); /* coral text for contrast */
+}
+
+.pillInfo {
+  background-color: rgba(37, 79, 173, 0.08);
+  color: var(--color-info);
+}
+
+.pillNeutral {
+  background-color: var(--color-surface-strong);
+  color: var(--color-muted);
+}
+
+/* ── Task List ──────────────────────────────────────────── */
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-sm);
+}
+
+.taskItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-sm);
+  background-color: var(--color-canvas);
+  transition: border-color var(--transition-fast);
+}
+
+.taskItem:hover {
+  border-color: var(--color-border-strong);
+}
+
+.taskContent {
+  flex: 1;
+}
+
+.taskTitle {
+  font-size: var(--fs-label-md);
+  font-weight: var(--fw-medium);
+  color: var(--color-ink);
+  margin-bottom: var(--sp-xxs);
+}
+
+.taskDesc {
+  font-size: var(--fs-body-md);
+  color: var(--color-muted);
+}
+
+.taskMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  margin-top: var(--sp-sm);
+  font-size: 12px;
+  color: var(--color-muted);
+}

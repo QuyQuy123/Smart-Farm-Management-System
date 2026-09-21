@@ -1,0 +1,235 @@
+/* ============================================================
+   Layout.module.css
+   Dashboard shell layout using DESIGN.md editorial style.
+   ============================================================ */
+
+.layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--color-surface-soft);
+  font-family: var(--font-family);
+}
+
+/* ── Sidebar ────────────────────────────────────────────── */
+.sidebar {
+  width: 240px;
+  background-color: var(--color-canvas);
+  border-right: 1px solid var(--color-hairline);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: transform var(--transition-base);
+  z-index: 40;
+}
+
+.sidebarHeader {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-md);
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-medium);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.logoIcon {
+  width: 32px;
+  height: 32px;
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--rounded-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.navGroup {
+  padding: var(--sp-md) 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.navTitle {
+  padding: 0 var(--sp-md);
+  margin-bottom: var(--sp-xs);
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-muted);
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: 10px var(--sp-md);
+  font-size: var(--fs-body-md);
+  color: var(--color-body);
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  margin: 2px var(--sp-xs);
+  border-radius: var(--rounded-sm);
+}
+
+.navItem:hover {
+  background-color: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+
+.navItemActive {
+  background-color: rgba(27, 97, 201, 0.08); /* slight link blue tint */
+  color: var(--color-link);
+  font-weight: var(--fw-medium);
+}
+
+.sidebarFooter {
+  padding: var(--sp-md);
+  border-top: 1px solid var(--color-hairline);
+}
+
+.logoutBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  width: 100%;
+  padding: 10px var(--sp-sm);
+  background: none;
+  border: none;
+  color: var(--color-signature-coral);
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  border-radius: var(--rounded-sm);
+  transition: background var(--transition-fast);
+  text-align: left;
+}
+
+.logoutBtn:hover {
+  background-color: rgba(170, 45, 0, 0.08);
+}
+
+/* ── Main Content Area ──────────────────────────────────── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── TopNav ─────────────────────────────────────────────── */
+.topNav {
+  height: 64px;
+  background-color: var(--color-canvas);
+  border-bottom: 1px solid var(--color-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-lg);
+  flex-shrink: 0;
+}
+
+.navLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+}
+
+.menuBtn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--color-ink);
+  cursor: pointer;
+  padding: var(--sp-xs);
+}
+
+.pageTitle {
+  font-size: var(--fs-title-lg);
+  font-weight: var(--fw-regular);
+  color: var(--color-ink);
+}
+
+.navRight {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+}
+
+.userProfile {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  font-size: var(--fs-body-md);
+  color: var(--color-ink);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rounded-full);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--fw-medium);
+}
+
+/* ── Scrollable Content ─────────────────────────────────── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-xl) var(--sp-lg);
+  /* Use section padding globally inside components, but this is the container padding */
+}
+
+.contentInner {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ── Mobile Responsive ──────────────────────────────────── */
+@media (max-width: 768px) {
+  .menuBtn {
+    display: block;
+  }
+  
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 30;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-base);
+  }
+
+  .overlayOpen {
+    opacity: 1;
+    visibility: visible;
+  }
+}

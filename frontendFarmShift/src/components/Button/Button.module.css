@@ -1,0 +1,94 @@
+/* ============================================================
+   Button.module.css
+   Implements DESIGN.md: button-primary, button-secondary
+   ============================================================ */
+
+/* ── Base ────────────────────────────────────────────────── */
+.btn {
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             var(--sp-xs);
+  font-family:     var(--font-family);
+  font-size:       var(--fs-button);       /* 16px */
+  font-weight:     var(--fw-medium);       /* 500 — never 700 */
+  line-height:     var(--lh-body);         /* 1.4 */
+  letter-spacing:  0;
+  border:          none;
+  outline:         none;
+  cursor:          pointer;
+  white-space:     nowrap;
+  user-select:     none;
+  transition:      background-color var(--transition-fast),
+                   opacity          var(--transition-fast),
+                   box-shadow       var(--transition-fast);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor:  not-allowed;
+  pointer-events: none;
+}
+
+.fullWidth { width: 100%; }
+
+/* ── Primary — button-primary ────────────────────────────── */
+/* "#181d26 near-black, white text, 12px radius, 16×24px pad" */
+.primary {
+  background-color: var(--color-primary);
+  color:            var(--color-on-primary);
+  border-radius:    var(--rounded-lg);    /* 12px */
+  padding:          16px 24px;
+  /* subtle drop shadow from spec ("soft drop with blue-tinted glow") */
+  box-shadow:       0 1px 3px rgba(24,29,38,.18),
+                    0 0 0 0 transparent;
+}
+
+.primary:active:not(:disabled) {
+  background-color: var(--color-primary-active);
+  box-shadow:       0 0 0 0 transparent;
+}
+
+/* Keyboard focus ring — 2px blue ring */
+.primary:focus-visible {
+  outline:        2px solid var(--color-info-border);
+  outline-offset: 3px;
+}
+
+/* ── Secondary — button-secondary ──────────────────────────── */
+/* "White, ink text, hairline 1px outline, 12px radius" */
+.secondary {
+  background-color: var(--color-canvas);
+  color:            var(--color-ink);
+  border:           1px solid var(--color-hairline);
+  border-radius:    var(--rounded-lg);
+  padding:          16px 24px;
+}
+
+.secondary:active:not(:disabled) {
+  background-color: var(--color-surface-soft);
+}
+
+.secondary:focus-visible {
+  outline:        2px solid var(--color-info-border);
+  outline-offset: 3px;
+}
+
+/* ── Spinner inside button ──────────────────────────────── */
+.spinner {
+  width:  16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btnSpin .7s linear infinite;
+}
+
+.primary.secondary .spinner {
+  border-color: rgba(24,29,38,.2);
+  border-top-color: var(--color-ink);
+}
+
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
