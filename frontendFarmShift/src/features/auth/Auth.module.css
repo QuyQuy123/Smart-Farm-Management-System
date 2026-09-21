@@ -1,0 +1,208 @@
+/* ============================================================
+   Auth.module.css
+   Quiet, editorial layout for authentication.
+   "White canvas, dark ink type, generous whitespace"
+   ============================================================ */
+
+.page {
+  display:          flex;
+  min-height:       100vh;
+  align-items:      center;
+  justify-content:  center;
+  background-color: var(--color-surface-soft); /* #f8fafc */
+  font-family:      var(--font-family);
+  padding:          var(--sp-section) var(--sp-lg);
+}
+
+.panel {
+  width:            100%;
+  max-width:        400px;
+  background-color: var(--color-canvas); /* #ffffff */
+  border:           1px solid var(--color-hairline);
+  border-radius:    var(--rounded-lg);   /* 12px */
+  padding:          var(--sp-xxl);       /* 48px */
+  /* No shadows per DESIGN.md elevation philosophy */
+}
+
+/* ── Header ────────────────────────────────────────────── */
+.cardHeader {
+  margin-bottom: var(--sp-xl); /* 32px */
+  text-align:    center;
+}
+
+.logo {
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  width:           48px;
+  height:          48px;
+  background-color: var(--color-primary);
+  color:           var(--color-on-primary);
+  border-radius:   var(--rounded-md);
+  font-size:       24px;
+  margin-bottom:   var(--sp-lg);
+}
+
+.title {
+  font-size:     var(--fs-display-md);  /* 32px */
+  font-weight:   var(--fw-regular);     /* 400 */
+  line-height:   var(--lh-display);
+  color:         var(--color-ink);
+  margin-bottom: var(--sp-xs);
+  letter-spacing: 0;
+}
+
+.subtitle {
+  font-size:     var(--fs-body-md);     /* 14px */
+  font-weight:   var(--fw-regular);
+  line-height:   var(--lh-prose);
+  color:         var(--color-body);
+}
+
+.emailHighlight {
+  font-weight: var(--fw-medium);
+  color:       var(--color-ink);
+}
+
+/* ── Form ──────────────────────────────────────────────── */
+.form {
+  display:        flex;
+  flex-direction: column;
+  gap:            var(--sp-md);         /* 16px */
+}
+
+.formFoot {
+  display:        flex;
+  flex-direction: column;
+  gap:            var(--sp-lg);         /* 24px */
+  margin-top:     var(--sp-md);
+}
+
+/* ── Links ─────────────────────────────────────────────── */
+.textLink {
+  font-size:       var(--fs-body-md);
+  color:           var(--color-link);
+  text-align:      center;
+  background:      none;
+  border:          none;
+  padding:         0;
+  cursor:          pointer;
+  font-family:     var(--font-family);
+  font-weight:     var(--fw-medium);
+  transition:      color var(--transition-fast);
+  text-decoration: none;
+  display:         inline-block;
+}
+.textLink:hover {
+  color: var(--color-link-active);
+  text-decoration: underline;
+}
+
+.backLink {
+  display:         inline-flex;
+  align-items:     center;
+  gap:             var(--sp-xs);
+  font-size:       var(--fs-body-md);
+  font-weight:     var(--fw-medium);
+  color:           var(--color-muted);
+  margin-bottom:   var(--sp-lg);
+  text-decoration: none;
+  transition:      color var(--transition-fast);
+}
+.backLink:hover {
+  color: var(--color-ink);
+}
+
+/* ── Alerts ────────────────────────────────────────────── */
+.alert {
+  padding:       12px var(--sp-md);
+  border-radius: var(--rounded-sm);
+  font-size:     var(--fs-body-md);
+  font-weight:   var(--fw-medium);
+  line-height:   var(--lh-body);
+  margin-bottom: var(--sp-lg);
+  animation:     alertIn .2s ease;
+}
+
+@keyframes alertIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+.alertError {
+  background-color: rgba(170,45,0,.08);
+  border:           1px solid rgba(170,45,0,.25);
+  color:            var(--color-signature-coral);
+}
+
+.alertSuccess {
+  background-color: rgba(0,100,0,.07);
+  border:           1px solid rgba(57,191,69,.35);
+  color:            var(--color-success);
+}
+
+/* ── OTP row ───────────────────────────────────────────── */
+.otpRow {
+  display:         flex;
+  gap:             var(--sp-xs);
+  justify-content: center;
+}
+
+.otpCell {
+  width:           48px;
+  height:          56px;
+  flex-shrink:     0;
+  font-family:     var(--font-family);
+  font-size:       var(--fs-title-lg);
+  font-weight:     var(--fw-medium);
+  text-align:      center;
+  color:           var(--color-ink);
+  background:      var(--color-canvas);
+  border:          1px solid var(--color-hairline);
+  border-radius:   var(--rounded-sm);
+  outline:         none;
+  transition:      border-color var(--transition-fast),
+                   box-shadow   var(--transition-fast);
+  -webkit-appearance: none;
+}
+
+.otpCell:focus {
+  border-color: var(--color-info-border);
+  box-shadow:   0 0 0 3px rgba(69,143,255,.15);
+}
+
+.divider {
+  display:     flex;
+  align-items: center;
+  gap:         var(--sp-md);
+  color:       var(--color-muted);
+  font-size:   var(--fs-body-md);
+  margin:      var(--sp-lg) 0;
+}
+
+.divider::before,
+.divider::after {
+  content:          '';
+  flex:             1;
+  height:           1px;
+  background-color: var(--color-hairline);
+}
+
+/* ── Password strength ──────────────────────────────────── */
+.strengthRow {
+  display:    flex;
+  gap:        var(--sp-xxs);
+  margin-top: var(--sp-xs);
+}
+
+.strengthBar {
+  flex:          1;
+  height:        4px;
+  border-radius: var(--rounded-pill);
+  background:    var(--color-surface-strong);
+  transition:    background var(--transition-base);
+}
+
+.strengthBar.active0 { background: var(--color-signature-coral); }
+.strengthBar.active1 { background: var(--color-signature-mustard); }
+.strengthBar.active2 { background: var(--color-success); }
