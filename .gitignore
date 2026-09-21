@@ -11,5 +11,6 @@ frontendFarmShift/.env.local
 
 # Backend (Spring Boot / Maven / Gradle)
 backendFarmShift/target/
+backendFarmShift/src/main/resources/application-local.properties
 backendFarmShift/.mvn/
 backendFarmShift/HELP.md
