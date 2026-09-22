@@ -95,6 +95,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173", // Local dev
+                "https://admin-ae1mzp943-acet-ech291.vercel.app", // Vercel Production
+                "https://admin-flax-eta-71.vercel.app" // Vercel Aliased
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
