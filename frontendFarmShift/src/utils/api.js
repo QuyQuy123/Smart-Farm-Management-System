@@ -33,3 +33,15 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+api.uploadFile = async (file, folder = 'avatars') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
+  const response = await api.post('/files/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data; // { success: true, data: { url: "..." } }
+};

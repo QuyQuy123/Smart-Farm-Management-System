@@ -89,6 +89,13 @@
 			<optional>true</optional>
 		</dependency>
 
+		<!-- AWS S3 (for Cloudflare R2) -->
+		<dependency>
+			<groupId>com.amazonaws</groupId>
+			<artifactId>aws-java-sdk-s3</artifactId>
+			<version>1.12.720</version>
+		</dependency>
+
 		<!-- Test -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
