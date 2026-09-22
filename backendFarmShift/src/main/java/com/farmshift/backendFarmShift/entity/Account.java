@@ -29,7 +29,7 @@ public class Account {
     @Column(name = "full_name", length = 100)
     private String fullName;
 
-    @Column(name = "avatar_url")
+    @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl;
 
     @Column(name = "is_active")

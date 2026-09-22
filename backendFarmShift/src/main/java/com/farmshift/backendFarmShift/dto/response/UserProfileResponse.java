@@ -1,4 +1,4 @@
-package com.farmshift.backendFarmShift.dto.user;
+package com.farmshift.backendFarmShift.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,4 +14,8 @@ public class UserProfileResponse {
     private String role;
     private String fullName;
     private String avatarUrl;
+    private String phone;
+    private String citizenId;
+    private String address;
+    private String dateOfBirth;
 }

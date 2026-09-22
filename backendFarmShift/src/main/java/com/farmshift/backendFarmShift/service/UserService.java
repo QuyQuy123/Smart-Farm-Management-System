@@ -1,17 +1,21 @@
 package com.farmshift.backendFarmShift.service;
 
-import com.farmshift.backendFarmShift.dto.user.ChangePasswordRequest;
-import com.farmshift.backendFarmShift.dto.user.UpdateProfileRequest;
-import com.farmshift.backendFarmShift.dto.user.UserProfileResponse;
+import com.farmshift.backendFarmShift.dto.request.ChangePasswordRequest;
+import com.farmshift.backendFarmShift.dto.request.UpdateProfileRequest;
+import com.farmshift.backendFarmShift.dto.response.UserProfileResponse;
 import com.farmshift.backendFarmShift.entity.Account;
+import com.farmshift.backendFarmShift.entity.Customer;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.AccountRepository;
+import com.farmshift.backendFarmShift.repository.CustomerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDate;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -19,11 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final AccountRepository accountRepository;
+    private final CustomerRepository customerRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UserProfileResponse getUserProfile(String email) {
         Account account = getAccountByEmail(email);
-        return mapToResponse(account);
+        Optional<Customer> customerOpt = customerRepository.findByAccount(account);
+        return mapToResponse(account, customerOpt.orElse(null));
     }
 
     @Transactional
@@ -36,9 +42,25 @@ public class UserService {
         }
 
         account = accountRepository.save(account);
+
+        Customer customer = customerRepository.findByAccount(account).orElse(new Customer());
+        customer.setAccount(account);
+        customer.setFullName(account.getFullName());
+        customer.setAvatarUrl(account.getAvatarUrl());
+        
+        if (request.getPhone() != null) customer.setPhone(request.getPhone().trim());
+        if (request.getCitizenId() != null) customer.setCitizenId(request.getCitizenId().trim());
+        if (request.getAddress() != null) customer.setAddress(request.getAddress().trim());
+        
+        if (request.getDateOfBirth() != null) {
+            customer.setDateOfBirth(request.getDateOfBirth());
+        }
+
+        customerRepository.save(customer);
+
         log.info("Profile updated for user: {}", email);
         
-        return mapToResponse(account);
+        return mapToResponse(account, customer);
     }
 
     @Transactional
@@ -61,13 +83,23 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found for email: " + email));
     }
 
-    private UserProfileResponse mapToResponse(Account account) {
+    private UserProfileResponse mapToResponse(Account account, Customer customer) {
         String roleName = (account.getRole() != null) ? account.getRole().getName() : "";
-        return UserProfileResponse.builder()
+        
+        UserProfileResponse response = UserProfileResponse.builder()
                 .email(account.getEmail())
                 .role(roleName)
                 .fullName(account.getFullName())
                 .avatarUrl(account.getAvatarUrl())
                 .build();
+                
+        if (customer != null) {
+            response.setPhone(customer.getPhone());
+            response.setCitizenId(customer.getCitizenId());
+            response.setAddress(customer.getAddress());
+            response.setDateOfBirth(customer.getDateOfBirth() != null ? customer.getDateOfBirth().toString() : null);
+        }
+        
+        return response;
     }
 }
