@@ -325,9 +325,34 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
         <AvatarCropperModal
           imageSrc={selectedImageToCrop}
           onClose={() => setSelectedImageToCrop(null)}
-          onCropComplete={(croppedBase64) => {
-            setAvatarUrl(croppedBase64);
-            setSelectedImageToCrop(null);
+          onCropComplete={async (croppedBase64) => {
+            try {
+              // Convert base64 to File object
+              const arr = croppedBase64.split(',');
+              const mime = arr[0].match(/:(.*?);/)[1];
+              const bstr = atob(arr[1]);
+              let n = bstr.length;
+              const u8arr = new Uint8Array(n);
+              while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+              }
+              const file = new File([u8arr], `avatar-${Date.now()}.png`, { type: mime });
+
+              // Upload to backend
+              const { api } = await import('../../utils/api');
+              const res = await api.uploadFile(file, 'avatars');
+              
+              if (res.success && res.data?.url) {
+                setAvatarUrl(res.data.url);
+              } else {
+                setProfileMessage({ type: 'error', text: 'Failed to upload avatar URL.' });
+              }
+            } catch (err) {
+              console.error('Failed to upload avatar:', err);
+              setProfileMessage({ type: 'error', text: 'Failed to upload avatar to server.' });
+            } finally {
+              setSelectedImageToCrop(null);
+            }
           }}
         />
       )}
