@@ -47,31 +47,31 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // Disable CSRF — not needed for stateless JWT APIs
-            .csrf(AbstractHttpConfigurer::disable)
+                // Disable CSRF — not needed for stateless JWT APIs
+                .csrf(AbstractHttpConfigurer::disable)
 
-            // Enable CORS using our configured source
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // Enable CORS using our configured source
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-            // No HTTP session — every request must carry its own JWT
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // No HTTP session — every request must carry its own JWT
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-            // Authorization rules
-            .authorizeHttpRequests(auth -> auth
-                // Authentication endpoints are public
-                .requestMatchers("/api/auth/**").permitAll()
-                // Actuator health check (add more granular rules as needed)
-                .requestMatchers("/actuator/health").permitAll()
-                // All other endpoints require an authenticated JWT
-                .anyRequest().authenticated()
-            )
+                // Authorization rules
+                .authorizeHttpRequests(auth -> auth
+                        // Authentication endpoints are public
+                        .requestMatchers("/api/auth/**").permitAll()
+                        // Actuator health check (add more granular rules as needed)
+                        .requestMatchers("/actuator/health").permitAll()
+                        // All other endpoints require an authenticated JWT
+                        .anyRequest().authenticated()
+                )
 
-            // Plug in our JWT filter before Spring's UsernamePasswordAuthenticationFilter
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Plug in our JWT filter before Spring's UsernamePasswordAuthenticationFilter
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
-            // Wire our custom UserDetailsService + BCrypt provider
-            .authenticationProvider(authenticationProvider());
+                // Wire our custom UserDetailsService + BCrypt provider
+                .authenticationProvider(authenticationProvider());
 
         return http.build();
     }
@@ -95,7 +95,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",   // Vite dev server
-                "http://localhost:3000"    // Alternative React dev port
+                "http://localhost:3000",   // Alternative React dev port
+                "https://smartfarm-wheat.vercel.app" // Vercel Production
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
