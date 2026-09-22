@@ -34,7 +34,11 @@ export const AuthProvider = ({ children }) => {
               setUser(prev => ({
                 ...prev,
                 name: profile.fullName,
-                avatarUrl: profile.avatarUrl
+                avatarUrl: profile.avatarUrl,
+                phone: profile.phone,
+                citizenId: profile.citizenId,
+                address: profile.address,
+                dateOfBirth: profile.dateOfBirth
               }));
             } catch (err) {
               console.error("Failed to fetch profile on init:", err);
@@ -63,9 +67,24 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const login = (token, email, role) => {
+  const login = async (token, email, role) => {
     localStorage.setItem('token', token);
     setUser({ email, role });
+    
+    try {
+      const profile = await getProfile();
+      setUser(prev => ({
+        ...prev,
+        name: profile.fullName,
+        avatarUrl: profile.avatarUrl,
+        phone: profile.phone,
+        citizenId: profile.citizenId,
+        address: profile.address,
+        dateOfBirth: profile.dateOfBirth
+      }));
+    } catch (err) {
+      console.error("Failed to fetch profile after login:", err);
+    }
   };
 
   const logout = () => {

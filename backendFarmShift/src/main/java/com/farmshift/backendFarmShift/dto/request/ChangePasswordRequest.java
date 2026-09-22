@@ -1,4 +1,4 @@
-package com.farmshift.backendFarmShift.dto.user;
+package com.farmshift.backendFarmShift.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

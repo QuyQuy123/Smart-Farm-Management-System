@@ -31,7 +31,7 @@ public class Customer {
 
     private String address;
 
-    @Column(name = "avatar_url")
+    @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl;
 
     @Column(name = "date_of_birth")

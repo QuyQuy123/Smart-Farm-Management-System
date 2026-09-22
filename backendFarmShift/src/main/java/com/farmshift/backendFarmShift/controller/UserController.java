@@ -1,9 +1,9 @@
 package com.farmshift.backendFarmShift.controller;
 
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
-import com.farmshift.backendFarmShift.dto.user.ChangePasswordRequest;
-import com.farmshift.backendFarmShift.dto.user.UpdateProfileRequest;
-import com.farmshift.backendFarmShift.dto.user.UserProfileResponse;
+import com.farmshift.backendFarmShift.dto.request.ChangePasswordRequest;
+import com.farmshift.backendFarmShift.dto.request.UpdateProfileRequest;
+import com.farmshift.backendFarmShift.dto.response.UserProfileResponse;
 import com.farmshift.backendFarmShift.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
