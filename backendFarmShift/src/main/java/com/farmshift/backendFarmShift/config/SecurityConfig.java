@@ -94,9 +94,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
-                "http://localhost:5173",   // Vite dev server
-                "http://localhost:3000",   // Alternative React dev port
-                "https://smartfarm-wheat.vercel.app" // Vercel Production
+                "http://localhost:5173", // Local dev
+                "https://smart-farm-rosy-one.vercel.app/", // Vercel Production
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
