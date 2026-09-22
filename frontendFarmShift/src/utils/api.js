@@ -1,9 +1,8 @@
 // d:\Smart-Farm-Management-System\frontendFarmShift\src\utils\api.js
 import axios from 'axios';
 
-// The base URL should match the Spring Boot backend
 export const api = axios.create({
-  baseURL: 'http://localhost:8080/api', // Assuming backend is on 8080
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
   headers: {
     'Content-Type': 'application/json',
   },
