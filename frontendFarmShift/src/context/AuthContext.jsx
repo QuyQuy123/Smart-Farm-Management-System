@@ -51,6 +51,16 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
+
+    // Listen for unauthorized events from api interceptor
+    const handleUnauthorized = () => {
+      logout();
+    };
+    window.addEventListener('unauthorized', handleUnauthorized);
+
+    return () => {
+      window.removeEventListener('unauthorized', handleUnauthorized);
+    };
   }, []);
 
   const login = (token, email, role) => {

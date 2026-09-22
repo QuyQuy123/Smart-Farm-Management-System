@@ -32,7 +32,7 @@ public class GlobalExceptionHandler {
         });
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error("Validation failed"));
+                .body(ApiResponse.error("Validation failed", errors));
     }
 
     /** Wrong email/password combination. */

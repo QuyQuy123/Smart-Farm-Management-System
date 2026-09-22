@@ -27,8 +27,8 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       // Clear token and force re-login if unauthorized
       localStorage.removeItem('token');
-      // A full reload or custom event could be dispatched here 
-      // if not relying purely on AuthContext reactivity.
+      // Dispatch event for AuthContext to catch and clear user state
+      window.dispatchEvent(new Event('unauthorized'));
     }
     return Promise.reject(error);
   }
