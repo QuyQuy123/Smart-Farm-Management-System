@@ -1,0 +1,276 @@
+/* ============================================================
+   Batch.module.css — Quản lý Lứa gà thịt
+   ============================================================ */
+
+/* ── Page header ────────────────────────────────────────────── */
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--sp-lg);
+  gap: var(--sp-md);
+}
+.pageTitle {
+  font-size: var(--fs-title-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+.pageSub {
+  font-size: var(--fs-body-md);
+  color: var(--color-muted);
+}
+.headerActions {
+  display: flex;
+  gap: var(--sp-sm);
+  flex-shrink: 0;
+}
+
+/* ── Detail layout ──────────────────────────────────────────── */
+.detailLayout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--sp-lg);
+  align-items: start;
+}
+
+/* ── Info card ──────────────────────────────────────────────── */
+.infoCard {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  padding: var(--sp-lg);
+  margin-bottom: var(--sp-md);
+}
+.infoCardTitle {
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--sp-md);
+}
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-hairline);
+  font-size: 14px;
+}
+.infoRow:last-child { border-bottom: none; }
+.infoLabel { color: var(--color-muted); }
+.infoValue { font-weight: var(--fw-medium); color: var(--color-ink); }
+
+/* ── KPI strip ──────────────────────────────────────────────── */
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-md);
+  margin-bottom: var(--sp-lg);
+}
+.kpiCard {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  padding: var(--sp-md) var(--sp-lg);
+}
+.kpiLabel { font-size: 12px; color: var(--color-muted); margin-bottom: 4px; }
+.kpiValue { font-size: 22px; font-weight: var(--fw-semibold); color: var(--color-ink); }
+.kpiSub   { font-size: 12px; color: var(--color-muted); margin-top: 2px; }
+
+/* ── Tabs ───────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  border-bottom: 2px solid var(--color-hairline);
+  margin-bottom: var(--sp-lg);
+  gap: 0;
+}
+.tab {
+  padding: 10px var(--sp-lg);
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-medium);
+  color: var(--color-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+.tab:hover { color: var(--color-ink); }
+.tabActive {
+  color: var(--color-farm-green);
+  border-bottom-color: var(--color-farm-green);
+}
+
+/* ── Daily log timeline ─────────────────────────────────────── */
+.logTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-sm);
+}
+.logEntry {
+  display: flex;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  align-items: flex-start;
+  transition: box-shadow var(--transition-fast);
+}
+.logEntry:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.logDate {
+  font-size: 13px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-ink);
+  white-space: nowrap;
+  min-width: 100px;
+}
+.logStats {
+  display: flex;
+  gap: var(--sp-lg);
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.logStat { display: flex; gap: 6px; }
+.logStatLabel { color: var(--color-muted); }
+.logStatValue { font-weight: var(--fw-medium); color: var(--color-ink); }
+.logNote {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+/* ── Daily log form ─────────────────────────────────────────── */
+.logForm {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  padding: var(--sp-xl);
+  max-width: 600px;
+  margin: 0 auto;
+}
+.logFormTitle {
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-ink);
+  margin-bottom: var(--sp-lg);
+}
+.formGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-md);
+  margin-bottom: var(--sp-md);
+}
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--sp-md);
+}
+.formLabel {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--color-ink);
+}
+.formInput, .formTextarea, .formSelect {
+  padding: 8px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-sm);
+  font-size: var(--fs-body-md);
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  transition: border-color var(--transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+}
+.formInput:focus, .formTextarea:focus, .formSelect:focus {
+  outline: none;
+  border-color: var(--color-farm-green);
+  box-shadow: 0 0 0 3px rgba(45,138,78,0.12);
+}
+.formTextarea { resize: vertical; min-height: 80px; }
+.formActions {
+  display: flex;
+  gap: var(--sp-sm);
+  justify-content: flex-end;
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--color-hairline);
+  margin-top: var(--sp-md);
+}
+
+/* ── Vaccine schedule table ─────────────────────────────────── */
+.vaccineTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.vaccineTable th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--sp-xs) var(--sp-md);
+  border-bottom: 2px solid var(--color-hairline);
+  background: var(--color-surface-soft);
+}
+.vaccineTable td {
+  padding: var(--sp-sm) var(--sp-md);
+  border-bottom: 1px solid var(--color-hairline);
+  vertical-align: middle;
+}
+.vaccineTable tr:last-child td { border-bottom: none; }
+.vaccineTable tr:hover td { background: var(--color-surface-soft); }
+
+/* ── Cost breakdown ─────────────────────────────────────────── */
+.costSection {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-lg);
+}
+.costTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.costTable th {
+  text-align: left;
+  padding: var(--sp-xs) var(--sp-sm);
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--color-hairline);
+}
+.costTable td { padding: var(--sp-sm); border-bottom: 1px solid var(--color-hairline); }
+.costTable tr:last-child td { border-bottom: none; }
+.costTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-md);
+  background: var(--color-surface-soft);
+  border-radius: var(--rounded-sm);
+  margin-top: var(--sp-md);
+  font-weight: var(--fw-semibold);
+  font-size: 15px;
+}
+.profitBox {
+  padding: var(--sp-lg);
+  border-radius: var(--rounded-md);
+  text-align: center;
+}
+.profitBoxGreen { background: #e8f5ee; border: 1px solid var(--color-farm-green); }
+.profitBoxRed   { background: #fee2e2; border: 1px solid var(--color-farm-red); }
+.profitBoxLabel { font-size: 13px; color: var(--color-muted); margin-bottom: 4px; }
+.profitBoxValue { font-size: 28px; font-weight: 700; }
+.profitPos { color: var(--color-farm-green); }
+.profitNeg { color: var(--color-farm-red); }

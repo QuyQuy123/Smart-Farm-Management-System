@@ -2,7 +2,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=farmshift_db
 DB_USERNAME=postgres
-DB_PASSWORD=your_password_here
+DB_PASSWORD=123456
 
 JWT_SECRET:dGhpc2lzYXZlcnlsb25nc2VjcmV0a2V5Zm9yZmFybXNoaWZ0
 JWT_EXPIRATION_MS:86400000
@@ -12,8 +12,8 @@ MAIL_PORT=587
 MAIL_USERNAME=your_email here
 MAIL_PASSWORD=your_password_mail_application_here
 
-R2_ACCESS_KEY=4184e9d7a57bc6fb787931fc49b2fa19
-R2_SECRET_KEY=a46b07e656155ef4cb41169caf6a23b70e4afe14fd4c475f5cb4af8b85931b73
+R2_ACCESS_KEY=4184e9d7a57bc6fb787931fd49b2fb19
+R2_SECRET_KEY=a46b07e656155ef4cb41169caf6a23b70e4afc14fd4c475f5cb4af8b85931b73
 R2_ENDPOINT_URL=https://9b0593eccba8fabf413f0d5f32e3ee93.r2.cloudflarestorage.com
 R2_BUCKET_NAME=farmshift-storage
 R2_PUBLIC_URL=https://pub-4c5e9879537d44899ce135f0e8fdeed1.r2.dev

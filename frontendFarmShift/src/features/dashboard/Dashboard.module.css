@@ -113,7 +113,7 @@
 /* ── Content Grid ────────────────────────────────────────── */
 .contentGrid {
   display:               grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 1.5fr;
   gap:                   var(--sp-lg);
   margin-bottom:         var(--sp-lg);
   align-items:           start;

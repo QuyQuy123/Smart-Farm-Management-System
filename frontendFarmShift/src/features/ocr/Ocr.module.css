@@ -1,0 +1,165 @@
+/* src/features/ocr/Ocr.module.css */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  background: var(--color-canvas);
+  border-radius: var(--rounded-lg);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-lg);
+  border-bottom: 1px solid var(--color-hairline);
+  background: #f8fafc;
+}
+
+.title {
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-bold);
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 4px;
+}
+.closeBtn:hover { color: var(--color-ink); }
+
+.body {
+  padding: var(--sp-lg);
+  overflow-y: auto;
+}
+
+/* ── Upload Area ────────────────────────────────────────── */
+.uploadArea {
+  border: 2px dashed var(--color-hairline);
+  border-radius: var(--rounded-md);
+  padding: var(--sp-xl);
+  text-align: center;
+  cursor: pointer;
+  background: #f8fafc;
+  transition: all 0.2s;
+}
+.uploadArea:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+.uploadIcon {
+  color: #94a3b8;
+  margin-bottom: var(--sp-sm);
+}
+
+/* ── Scanning Animation ─────────────────────────────────── */
+.scanContainer {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  background: #e2e8f0;
+  border-radius: var(--rounded-md);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--sp-md);
+}
+
+.scanImage {
+  max-width: 100%;
+  max-height: 100%;
+  opacity: 0.5;
+  filter: grayscale(100%);
+}
+
+.scanLine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: #3b82f6;
+  box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.6);
+  animation: scan 2s linear infinite alternate;
+}
+
+@keyframes scan {
+  from { top: 0; }
+  to { top: 100%; }
+}
+
+.scanOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(59, 130, 246, 0.2) 0%, transparent 100%);
+  animation: scan 2s linear infinite alternate;
+  pointer-events: none;
+}
+
+/* ── Form Data ──────────────────────────────────────────── */
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-md);
+  margin-top: var(--sp-lg);
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.formInput {
+  padding: 8px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-sm);
+  font-size: 14px;
+}
+.formInput:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.footer {
+  padding: var(--sp-lg);
+  border-top: 1px solid var(--color-hairline);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-sm);
+  background: #f8fafc;
+}

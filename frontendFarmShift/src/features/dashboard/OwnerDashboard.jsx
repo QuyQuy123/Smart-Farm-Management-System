@@ -1,14 +1,13 @@
 // src/features/dashboard/OwnerDashboard.jsx
-// Farm Owner Dashboard — matches UI_FarmShift.pdf page 1
-// Layout: Staff cards row → Task list + Metric cards → Chart + Events table
+// Farm Owner Dashboard — Trang trại Miền Bình (Gà thịt)
+// Layout: Module cards → Task list + Metric cards → Chart + Events table
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { MetricCard } from '../../components/MetricCard/MetricCard';
 import { Badge } from '../../components/Badge/Badge';
 import { Button } from '../../components/Button/Button';
 import {
-  Scale, Leaf, Thermometer, Briefcase,
-  TrendingUp, DollarSign, Clock, Star,
+  Thermometer, DollarSign, Clock, Bird,
   Plus, RefreshCw
 } from 'lucide-react';
 import styles from './Dashboard.module.css';
@@ -18,40 +17,39 @@ import styles from './Dashboard.module.css';
    ─────────────────────────────────────────────────────────── */
 const MOCK_DATA = {
   farm: {
-    name: 'Livestock Farm',
-    count: 2,
-    sub: 'Quản lý vật nuôi / Trang trại của bạn',
+    name: 'Trang trại Miền Bình',
+    count: 3,
+    sub: 'Quản lý lứa gà thịt · 3 chuồng đang hoạt động',
   },
   staff: [
-    { id: 1, name: 'Khẩu phần ăn', role: 'Quản lý khẩu phần', avatar: '🥩', color: '#e8f5ee' },
-    { id: 2, name: 'Vật nuôi',     role: 'Theo dõi vật nuôi',  avatar: '🐄', color: '#fff4e6' },
-    { id: 3, name: 'Môi trường',   role: 'Giám sát môi trường', avatar: '🌿', color: '#eff6ff' },
-    { id: 4, name: 'Công việc',    role: 'Quản lý công việc',  avatar: '📋', color: '#faf5ff' },
+    { id: 1, name: 'Lứa nuôi',   role: 'Quản lý lứa gà thịt',   avatar: '🐔', color: '#e8f5ee' },
+    { id: 2, name: 'Kho vật tư', role: 'Cám, thuốc, vaccine',    avatar: '📦', color: '#fff4e6' },
+    { id: 3, name: 'Nhiệt độ',   role: 'Giám sát chuồng trại',  avatar: '🌡️', color: '#eff6ff' },
+    { id: 4, name: 'Tài chính',  role: 'Doanh thu & Công nợ',   avatar: '💰', color: '#faf5ff' },
   ],
   tasks: [
-    { id: 1, name: 'ĐÀNO8 - Ngựa nhóm Tầm vóc trung 1770Kg', time: '08:00 - 11:00 Sáng', dot: 'green' },
-    { id: 2, name: 'ĐÀNO9 - Trâu bò - Vỗ béo 1780Kg',         time: '01:00 - 03:00 Chiều', dot: 'orange' },
-    { id: 3, name: 'ĐÀNO10 - Ngựa nhóm 2 - 1890Kg',            time: '04:00 - 05:00 Chiều', dot: 'blue' },
+    { id: 1, name: 'Chuồng 1 – Lứa GÀ-2024-08 | 45 ngày tuổi | 1,950 con', time: '07:00 – 08:00 Sáng', dot: 'green'  },
+    { id: 2, name: 'Chuồng 2 – Lứa GÀ-2024-09 | 30 ngày tuổi | 1,980 con', time: '08:00 – 09:00 Sáng', dot: 'orange' },
+    { id: 3, name: 'Chuồng 3 – Lứa GÀ-2024-10 | 12 ngày tuổi | 3,950 con', time: '09:00 – 10:00 Sáng', dot: 'blue'   },
   ],
   metrics: [
-    { id: 'm1', label: 'Sản lượng', value: '125 Kg',        icon: <Scale size={18}/>,      color: 'green'  },
-    { id: 'm2', label: 'Thu nhập',  value: '6,000,000đ',    icon: <DollarSign size={18}/>, color: 'orange' },
-    { id: 'm3', label: 'Trạng thái', value: '0d',           icon: <Clock size={18}/>,      color: 'blue'   },
-    { id: 'm4', label: 'Đánh giá',  value: '5/5',           icon: <Star size={18}/>,       color: 'green'  },
+    { id: 'm1', label: 'Tổng đàn đang nuôi', value: '7,880 con',           icon: <Bird size={18}/>,        color: 'green'  },
+    { id: 'm2', label: 'Chi phí tháng này',  value: '42,500,000đ',          icon: <DollarSign size={18}/>,  color: 'orange' },
+    { id: 'm3', label: 'Lứa sắp xuất bán',  value: '1 lứa (~15 ngày)',     icon: <Clock size={18}/>,       color: 'blue'   },
+    { id: 'm4', label: 'Cảnh báo nhiệt độ', value: '0 cảnh báo',           icon: <Thermometer size={18}/>, color: 'green'  },
   ],
   chart: {
-    title: 'Thống kê sản lượng',
+    title: 'Phân bố đàn gà theo chuồng',
     segments: [
-      { label: 'Trâu bò',  value: 40, color: '#2D8A4E' },
-      { label: 'Heo',      value: 25, color: '#F4820A' },
-      { label: 'Gà vịt',   value: 20, color: '#3B82F6' },
-      { label: 'Khác',     value: 15, color: '#9CA3AF' },
+      { label: 'Chuồng 1 (1,950 con)', value: 25, color: '#2D8A4E' },
+      { label: 'Chuồng 2 (1,980 con)', value: 25, color: '#F4820A' },
+      { label: 'Chuồng 3 (3,950 con)', value: 50, color: '#3B82F6' },
     ],
   },
   events: [
-    { id: 'E001', type: 'Nhập',   desc: 'CẢBO2 3 | Ngựa 3, Ngựa 2 Ngựa 1', time: 'Vừa xong', amount: '+500,000đ', status: 'success' },
-    { id: 'E002', type: 'Xuất',   desc: 'Tên C2 | Ngựa 3A, Ngựa 2C Trâu bò...', time: '2p',    amount: '-200,000đ', status: 'warning' },
-    { id: 'E003', type: 'Nhập',   desc: 'B.C Địa Công Dịch Gia Súc Chửa...', time: '5p',    amount: '+150,000đ', status: 'success' },
+    { id: 'E001', type: 'Nhập kho',     desc: 'Cám CP 511 – 50 bao | Chuồng 1 & 2 | NCC: Cty CP',          time: 'Vừa xong',    amount: '-4,500,000đ',  status: 'success' },
+    { id: 'E002', type: 'Tiêm vaccine', desc: 'Vaccine ND-IB | Chuồng 3 – Lứa GÀ-2024-10 (12 ngày tuổi)', time: '2 giờ trước', amount: '-350,000đ',    status: 'success' },
+    { id: 'E003', type: 'Xuất bán',     desc: 'Lứa GÀ-2024-07 – 1,850 con · 3,700 kg | KH: Anh Hùng',     time: 'Hôm qua',     amount: '+62,900,000đ', status: 'warning' },
   ],
 };
 
