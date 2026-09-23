@@ -1,18 +1,20 @@
 /* ============================================================
-   Layout.module.css
-   Dashboard shell layout using DESIGN.md editorial style.
+   Layout.module.css — FarmShift Dashboard Shell
+   Left sidebar 240px + top header 56px + scrollable content
+   Matches the farmgo UI design from UI_FarmShift.pdf
    ============================================================ */
 
+/* ── Shell ───────────────────────────────────────────────── */
 .layout {
   display: flex;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
   background-color: var(--color-surface-soft);
-  font-family: var(--font-family);
+  font-family: var(--font-sans);
 }
 
-/* ── Sidebar ────────────────────────────────────────────── */
+/* ── Sidebar ─────────────────────────────────────────────── */
 .sidebar {
   width: 240px;
   background-color: var(--color-canvas);
@@ -20,83 +22,171 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: transform var(--transition-base);
+  overflow-y: auto;
+  overflow-x: hidden;
   z-index: 40;
+  transition: transform var(--transition-base);
 }
 
-.sidebarHeader {
-  height: 64px;
+/* ── Sidebar: Logo ───────────────────────────────────────── */
+.sidebarLogo {
+  height: 56px;
   display: flex;
   align-items: center;
   padding: 0 var(--sp-md);
   border-bottom: 1px solid var(--color-hairline);
-}
-
-.logo {
-  display: flex;
-  align-items: center;
+  flex-shrink: 0;
   gap: var(--sp-xs);
-  font-size: var(--fs-title-sm);
-  font-weight: var(--fw-medium);
-  color: var(--color-ink);
   text-decoration: none;
 }
 
-.logoIcon {
-  width: 32px;
-  height: 32px;
-  background-color: var(--color-primary);
-  color: var(--color-on-primary);
-  border-radius: var(--rounded-md);
+.logoMark {
+  width: 28px;
+  height: 28px;
+  background-color: var(--color-farm-green);
+  border-radius: var(--rounded-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  flex-shrink: 0;
+  color: var(--color-on-primary);
+  font-size: 14px;
+  font-weight: var(--fw-semibold);
 }
 
-.navGroup {
-  padding: var(--sp-md) 0;
+.logoText {
+  font-size: var(--fs-label-md);
+  font-weight: var(--fw-medium);
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+}
+
+.logoText span {
+  color: var(--color-farm-green);
+}
+
+/* ── Sidebar: Nav ────────────────────────────────────────── */
+.navScroll {
   flex: 1;
   overflow-y: auto;
+  padding: var(--sp-sm) 0 var(--sp-md);
 }
 
-.navTitle {
-  padding: 0 var(--sp-md);
+.navSection {
   margin-bottom: var(--sp-xs);
-  font-size: 12px;
-  font-weight: var(--fw-medium);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--color-muted);
 }
 
+.navSectionLabel {
+  padding: var(--sp-xs) var(--sp-md) var(--sp-xxs);
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-muted);
+  user-select: none;
+}
+
+/* Top-level nav item */
 .navItem {
   display: flex;
   align-items: center;
   gap: var(--sp-sm);
-  padding: 10px var(--sp-md);
+  padding: 8px var(--sp-md);
   font-size: var(--fs-body-md);
+  font-weight: var(--fw-regular);
   color: var(--color-body);
   text-decoration: none;
+  border-radius: 0;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
   transition: background var(--transition-fast), color var(--transition-fast);
-  margin: 2px var(--sp-xs);
-  border-radius: var(--rounded-sm);
+  position: relative;
 }
 
 .navItem:hover {
-  background-color: var(--color-surface-soft);
-  color: var(--color-ink);
+  background-color: var(--color-farm-green-light);
+  color: var(--color-farm-green);
 }
 
 .navItemActive {
-  background-color: rgba(27, 97, 201, 0.08); /* slight link blue tint */
-  color: var(--color-link);
+  background-color: var(--color-farm-green-light);
+  color: var(--color-farm-green) !important;
   font-weight: var(--fw-medium);
 }
 
+/* Active indicator bar */
+.navItemActive::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: var(--color-farm-green);
+  border-radius: 0 2px 2px 0;
+}
+
+.navItemIcon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.navItemActive .navItemIcon {
+  opacity: 1;
+}
+
+.navChevron {
+  margin-left: auto;
+  transition: transform var(--transition-fast);
+  opacity: 0.5;
+}
+
+.navChevronOpen {
+  transform: rotate(90deg);
+}
+
+/* Sub-items */
+.navSubList {
+  overflow: hidden;
+  transition: max-height var(--transition-base);
+}
+
+.navSubItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: 7px var(--sp-md) 7px 40px;
+  font-size: 13px;
+  color: var(--color-body);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.navSubItem:hover {
+  background-color: var(--color-farm-green-light);
+  color: var(--color-farm-green);
+}
+
+.navSubItemActive {
+  color: var(--color-farm-green);
+  font-weight: var(--fw-medium);
+  background-color: var(--color-farm-green-light);
+}
+
+/* ── Sidebar: Footer ─────────────────────────────────────── */
 .sidebarFooter {
-  padding: var(--sp-md);
+  padding: var(--sp-sm) var(--sp-sm);
   border-top: 1px solid var(--color-hairline);
+  flex-shrink: 0;
 }
 
 .logoutBtn {
@@ -104,33 +194,35 @@
   align-items: center;
   gap: var(--sp-sm);
   width: 100%;
-  padding: 10px var(--sp-sm);
+  padding: 8px var(--sp-sm);
   background: none;
   border: none;
   color: var(--color-signature-coral);
   font-size: var(--fs-body-md);
+  font-family: var(--font-sans);
   font-weight: var(--fw-medium);
   cursor: pointer;
   border-radius: var(--rounded-sm);
-  transition: background var(--transition-fast);
   text-align: left;
+  transition: background var(--transition-fast);
 }
 
 .logoutBtn:hover {
   background-color: rgba(170, 45, 0, 0.08);
 }
 
-/* ── Main Content Area ──────────────────────────────────── */
+/* ── Main Content Area ───────────────────────────────────── */
 .main {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 
-/* ── TopNav ─────────────────────────────────────────────── */
-.topNav {
-  height: 64px;
+/* ── Top Header ──────────────────────────────────────────── */
+.topHeader {
+  height: 56px;
   background-color: var(--color-canvas);
   border-bottom: 1px solid var(--color-hairline);
   display: flex;
@@ -138,12 +230,14 @@
   justify-content: space-between;
   padding: 0 var(--sp-lg);
   flex-shrink: 0;
+  gap: var(--sp-md);
 }
 
-.navLeft {
+.headerLeft {
   display: flex;
   align-items: center;
-  gap: var(--sp-md);
+  gap: var(--sp-sm);
+  min-width: 0;
 }
 
 .menuBtn {
@@ -152,60 +246,214 @@
   border: none;
   color: var(--color-ink);
   cursor: pointer;
-  padding: var(--sp-xs);
+  padding: var(--sp-xxs);
+  border-radius: var(--rounded-sm);
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.pageTitle {
-  font-size: var(--fs-title-lg);
-  font-weight: var(--fw-regular);
+/* Breadcrumb */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-body-md);
+  color: var(--color-muted);
+  min-width: 0;
+}
+
+.breadcrumbCrumb {
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.breadcrumbSep {
+  color: var(--color-hairline);
+  font-size: 12px;
+}
+
+.breadcrumbActive {
+  color: var(--color-ink);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* Center Search */
+.headerCenter {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.searchWrap {
+  position: relative;
+  width: 100%;
+}
+
+.searchInput {
+  width: 100%;
+  height: 34px;
+  padding: 0 var(--sp-sm) 0 36px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-pill);
+  background-color: var(--color-surface-soft);
+  font-size: var(--fs-body-md);
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.searchInput::placeholder {
+  color: var(--color-muted);
+}
+
+.searchInput:focus {
+  border-color: var(--color-info-border);
+  background-color: var(--color-canvas);
+}
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+/* Right cluster */
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  flex-shrink: 0;
+}
+
+.iconBtn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-full);
+  color: var(--color-muted);
+  cursor: pointer;
+  position: relative;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.iconBtn:hover {
+  border-color: var(--color-border-strong);
   color: var(--color-ink);
 }
 
-.navRight {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-md);
+.notifBadge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--rounded-full);
+  background-color: var(--color-farm-red);
+  border: 2px solid var(--color-canvas);
 }
 
+/* User Profile */
 .userProfile {
   display: flex;
   align-items: center;
   gap: var(--sp-xs);
-  font-size: var(--fs-body-md);
+  cursor: pointer;
+  padding: 4px var(--sp-xs);
+  border-radius: var(--rounded-sm);
+  transition: background var(--transition-fast);
+}
+
+.userProfile:hover {
+  background-color: var(--color-surface-soft);
+}
+
+.userMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.userName {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
   color: var(--color-ink);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.userRole {
+  font-size: 11px;
+  color: var(--color-muted);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .avatar {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--rounded-full);
-  background-color: var(--color-primary);
+  background-color: var(--color-farm-green);
   color: var(--color-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: var(--fw-medium);
+  font-size: 13px;
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid var(--color-canvas);
+  box-shadow: 0 0 0 1px var(--color-hairline);
 }
 
-/* ── Scrollable Content ─────────────────────────────────── */
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Content Area ────────────────────────────────────────── */
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--sp-xl) var(--sp-lg);
-  /* Use section padding globally inside components, but this is the container padding */
+  padding: var(--sp-lg);
 }
 
 .contentInner {
-  max-width: 1280px;
+  max-width: 1400px;
   margin: 0 auto;
+  animation: fadeIn 0.2s ease;
 }
 
-/* ── Mobile Responsive ──────────────────────────────────── */
+/* ── Mobile Overlay ──────────────────────────────────────── */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 30;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+/* ── Responsive — Mobile (<768px) ────────────────────────── */
 @media (max-width: 768px) {
   .menuBtn {
-    display: block;
+    display: flex;
   }
-  
+
   .sidebar {
     position: fixed;
     top: 0;
@@ -216,20 +464,34 @@
 
   .sidebarOpen {
     transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   }
 
   .overlay {
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.4);
-    z-index: 30;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity var(--transition-base);
+    display: block;
   }
 
-  .overlayOpen {
+  .overlayVisible {
     opacity: 1;
-    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .headerCenter {
+    display: none;
+  }
+
+  .userMeta {
+    display: none;
+  }
+
+  .content {
+    padding: var(--sp-md);
+  }
+}
+
+/* ── Responsive — Tablet (768–1024px) ────────────────────── */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .headerCenter {
+    max-width: 240px;
   }
 }

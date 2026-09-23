@@ -1,0 +1,38 @@
+/* TabBar.module.css */
+
+.tabBar {
+  display:          flex;
+  align-items:      center;
+  gap:              2px;
+  border-bottom:    1px solid var(--color-hairline);
+  overflow-x:       auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width:  none;
+}
+
+.tabBar::-webkit-scrollbar { display: none; }
+
+.tab {
+  padding:          10px var(--sp-md);
+  font-family:      var(--font-sans);
+  font-size:        var(--fs-body-md);
+  font-weight:      var(--fw-regular);
+  color:            var(--color-muted);
+  background:       none;
+  border:           none;
+  border-bottom:    2px solid transparent;
+  cursor:           pointer;
+  white-space:      nowrap;
+  transition:       color var(--transition-fast), border-color var(--transition-fast);
+  margin-bottom:    -1px;
+}
+
+.tab:hover {
+  color: var(--color-ink);
+}
+
+.tabActive {
+  color:        var(--color-farm-green);
+  font-weight:  var(--fw-medium);
+  border-bottom-color: var(--color-farm-green);
+}

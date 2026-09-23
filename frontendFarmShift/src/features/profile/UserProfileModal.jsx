@@ -162,7 +162,10 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
 
         {/* Profile Details Section */}
         <div className={styles.section}>
-          <h3 className={styles.sectionTitle}>Personal Information</h3>
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionIcon}>👤</div>
+            <h3 className={styles.sectionTitle}>Personal Information</h3>
+          </div>
 
           {profileMessage && (
             <div className={`${styles.alert} ${profileMessage.type === 'error' ? styles.alertError : styles.alertSuccess}`}>
@@ -267,8 +270,8 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
               </div>
             </div>
 
-            <div style={{ marginTop: '16px' }}>
-              <Button type="submit" loading={loadingProfile}>
+            <div className={styles.submitRow}>
+              <Button variant="green" type="submit" loading={loadingProfile}>
                 Save Changes
               </Button>
             </div>
@@ -277,7 +280,10 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
 
         {/* Change Password Section */}
         <div className={styles.section}>
-          <h3 className={styles.sectionTitle}>Change Password</h3>
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionIcon}>🔒</div>
+            <h3 className={styles.sectionTitle}>Change Password</h3>
+          </div>
 
           {passwordMessage && (
             <div className={`${styles.alert} ${passwordMessage.type === 'error' ? styles.alertError : styles.alertSuccess}`}>
@@ -310,8 +316,8 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
               required
             />
 
-            <div style={{ marginTop: '16px' }}>
-              <Button type="submit" loading={loadingPassword}>
+            <div className={styles.submitRow}>
+              <Button variant="green" type="submit" loading={loadingPassword}>
                 Update Password
               </Button>
             </div>

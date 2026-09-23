@@ -1,0 +1,33 @@
+/* Orders.module.css */
+
+.metricsRow {
+  display:               grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:                   var(--sp-md);
+  margin-bottom:         var(--sp-md);
+}
+
+.moreBtn {
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  width:           28px;
+  height:          28px;
+  background:      none;
+  border:          1px solid transparent;
+  border-radius:   var(--rounded-sm);
+  color:           var(--color-muted);
+  cursor:          pointer;
+  transition:      background var(--transition-fast);
+}
+.moreBtn:hover {
+  background-color: var(--color-surface-soft);
+  border-color:     var(--color-hairline);
+}
+
+@media (max-width: 768px) {
+  .metricsRow { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .metricsRow { grid-template-columns: 1fr; }
+}

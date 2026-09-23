@@ -1,17 +1,20 @@
 // src/components/Button/Button.jsx
+// Design-system Button — DESIGN.md button-primary, button-secondary, + farmgo variants
 import React from 'react';
 import styles from './Button.module.css';
 
 /**
- * Design-system Button — implements DESIGN.md button-primary & button-secondary.
+ * FarmShift design-system Button.
  *
- * @param {'primary'|'secondary'} variant
+ * @param {'primary'|'secondary'|'green'|'orange'|'ghost'|'danger'|'link'} variant
+ * @param {'sm'|'md'|'lg'} size
  * @param {boolean} fullWidth
- * @param {boolean} loading   — shows inline spinner, disables interaction
+ * @param {boolean} loading  — inline spinner, disables interaction
  */
 export const Button = ({
   children,
-  variant = 'primary',
+  variant  = 'primary',
+  size     = 'md',
   fullWidth = false,
   loading  = false,
   className = '',
@@ -22,6 +25,7 @@ export const Button = ({
   const cls = [
     styles.btn,
     styles[variant],
+    size !== 'md' ? styles[size] : '',
     fullWidth ? styles.fullWidth : '',
     className,
   ].filter(Boolean).join(' ');
