@@ -7,7 +7,7 @@
 /* ── Shell ───────────────────────────────────────────────── */
 .layout {
   display: flex;
-  height: 100vh;
+  height: 100dvh; /* Mobile friendly viewport height */
   width: 100vw;
   overflow: hidden;
   background-color: var(--color-surface-soft);
@@ -24,6 +24,7 @@
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   z-index: 40;
   transition: transform var(--transition-base);
 }
@@ -69,6 +70,7 @@
 .navScroll {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: var(--sp-sm) 0 var(--sp-md);
 }
 
@@ -428,6 +430,7 @@
 .content {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: var(--sp-lg);
 }
 
