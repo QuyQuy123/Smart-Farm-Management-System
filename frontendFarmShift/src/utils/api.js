@@ -11,7 +11,7 @@ export const api = axios.create({
 // Request interceptor to attach JWT token to every request
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,7 +26,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       // Clear token and force re-login if unauthorized
-      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
       // Dispatch event for AuthContext to catch and clear user state
       window.dispatchEvent(new Event('unauthorized'));
     }
