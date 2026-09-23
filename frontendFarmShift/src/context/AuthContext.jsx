@@ -11,7 +11,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Check for existing token on mount
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
       try {
         const decoded = jwtDecode(token);
@@ -68,7 +68,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (token, email, role) => {
-    localStorage.setItem('token', token);
+    sessionStorage.setItem('token', token);
     setUser({ email, role });
     
     try {
@@ -88,7 +88,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
     setUser(null);
   };
 
