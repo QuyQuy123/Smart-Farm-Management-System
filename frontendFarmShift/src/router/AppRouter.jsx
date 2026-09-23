@@ -22,6 +22,27 @@ import { StockRecords }      from '../features/orders/StockRecords';
 import { AccountantDashboard } from '../features/dashboard/AccountantDashboard';
 import { WorkerDashboard }     from '../features/dashboard/WorkerDashboard';
 
+/* ── Barn Management ────────────────────────────────────────── */
+import { BarnList }   from '../features/barn/BarnList';
+import { BarnDetail } from '../features/barn/BarnDetail';
+
+/* ── Batch Management ───────────────────────────────────────── */
+import { BatchList }    from '../features/batch/BatchList';
+import { BatchDetail }  from '../features/batch/BatchDetail';
+import { DailyLogForm } from '../features/batch/DailyLogForm';
+
+/* ── Finance / Sprint 2 ────────────────────────────────────── */
+import { SupplierList }  from '../features/finance/SupplierList';
+import { DebtTracking } from '../features/finance/DebtTracking';
+import { CustomerList } from '../features/finance/CustomerList';
+import { SalesList }    from '../features/finance/SalesList';
+import { BatchPnL }     from '../features/finance/BatchPnL';
+import { FundLedger }   from '../features/finance/FundLedger';
+import { CustomerDebt } from '../features/finance/CustomerDebt';
+import { InternalTransfer } from '../features/inventory/InternalTransfer';
+import { EmployeeList } from '../features/employee/EmployeeList';
+import { IotDashboard } from '../features/iot/IotDashboard';
+
 /* ── ProtectedRoute ─────────────────────────────────────────── */
 /**
  * Guards a route by auth state and optional role.
@@ -151,7 +172,147 @@ export const AppRouter = () => {
         }
       />
 
-      {/* ── Accountant Routes ─────────────────────────────── */}
+      {/* ── Barn Routes ───────────────────────────────────── */}
+      <Route
+        path="/owner-dashboard/barns"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <BarnList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/owner-dashboard/barns/:barnId"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <BarnDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Batch Routes ──────────────────────────────────── */}
+      <Route
+        path="/owner-dashboard/batches"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <BatchList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/owner-dashboard/batches/:batchId"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <BatchDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/owner-dashboard/batches/:batchId/log"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}>
+            <DailyLogForm />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Sprint 2: Supplier Routes ───────────────────────── */}
+      <Route
+        path="/owner-dashboard/suppliers"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
+            <SupplierList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/owner-dashboard/suppliers/debts"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
+            <DebtTracking />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Sprint 2: Customer & Sales Routes ────────────────── */}
+      <Route
+        path="/owner-dashboard/customers"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
+            <CustomerList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/owner-dashboard/sales"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
+            <SalesList />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Sprint 2: P&L Report ───────────────────────────── */}
+      <Route
+        path="/owner-dashboard/pnl"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
+            <BatchPnL />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Tài liệu: Feature 3 – Sổ quỹ ───────────────────────── */}
+      <Route
+        path="/owner-dashboard/fund-ledger"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
+            <FundLedger />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Tài liệu: Feature 7 – Xuất nhập nội bộ ─────────────── */}
+      <Route
+        path="/owner-dashboard/internal-transfers"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}>
+            <InternalTransfer />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Tài liệu: Feature 9 – Công nợ thương lái ───────────── */}
+      <Route
+        path="/owner-dashboard/customers/debts"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
+            <CustomerDebt />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Tài liệu: Feature 1 – Nhân sự ──────────────────────── */}
+      <Route
+        path="/owner-dashboard/workers"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <EmployeeList />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Tài liệu: Feature 11 – Giám sát IoT ────────────────── */}
+      <Route
+        path="/owner-dashboard/iot"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <IotDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Accountant Routes ────────────────────────────── */}
       <Route
         path="/accountant-dashboard"
         element={

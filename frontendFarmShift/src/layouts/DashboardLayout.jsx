@@ -6,10 +6,13 @@ import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
   Menu, X, LogOut, Search, Bell, Settings, ChevronRight,
   LayoutDashboard, Beef, Package, ShoppingCart, ClipboardList,
-  Warehouse, BarChart3, Users, FileText, TrendingUp
+  Warehouse, BarChart3, Users, FileText, TrendingUp,
+  ArrowLeftRight, Receipt, DollarSign, Activity
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { UserProfileModal } from '../features/profile/UserProfileModal';
+import { AIChatbot } from '../components/AIChatbot/AIChatbot';
+import logoFarm from '../assets/logo_Farm.png';
 import styles from './Layout.module.css';
 
 /* ── Navigation structure per role ─────────────────────── */
@@ -21,18 +24,24 @@ const OWNER_NAV = [
     ],
   },
   {
-    section: 'QUẢN LÝ',
+    section: 'CHĂN NUÔI',
     items: [
       {
-        label: 'Đàn',
-        icon: Beef,
+        label: 'Chuồng trại',
+        icon: Warehouse,
         children: [
-          { label: 'Danh sách đàn', path: '/owner-dashboard/livestock' },
-          { label: 'Thêm đàn mới', path: '/owner-dashboard/livestock/add' },
+          { label: 'Danh sách chuồng', path: '/owner-dashboard/barns' },
         ],
       },
       {
-        label: 'Hàng hóa',
+        label: 'Lứa gà thịt',
+        icon: Beef,
+        children: [
+          { label: 'Danh sách lứa', path: '/owner-dashboard/batches' },
+        ],
+      },
+      {
+        label: 'Kho vật tư',
         icon: Package,
         children: [
           { label: 'Danh sách hàng hóa', path: '/owner-dashboard/inventory' },
@@ -41,11 +50,45 @@ const OWNER_NAV = [
         ],
       },
       {
-        label: 'Đơn hàng',
+        label: 'Nhập kho / Đơn hàng',
         icon: ShoppingCart,
         children: [
-          { label: 'Nhà đơn đặt hàng', path: '/owner-dashboard/orders' },
+          { label: 'Phiếu đặt hàng', path: '/owner-dashboard/orders' },
           { label: 'Tồn kho / Phiếu', path: '/owner-dashboard/orders/stock' },
+        ],
+      },
+      {
+        label: 'Xuất nhập nội bộ',
+        icon: ArrowLeftRight,
+        children: [
+          { label: 'Phiếu xuất kho → Chuồng', path: '/owner-dashboard/internal-transfers' },
+        ],
+      },
+      {
+        label: 'Giám sát IoT',
+        icon: Activity,
+        path: '/owner-dashboard/iot',
+      },
+    ],
+  },
+  {
+    section: 'NHÀ CUNG CẤP & BÁN HÀNG',
+    items: [
+      {
+        label: 'Nhà cung cấp',
+        icon: Users,
+        children: [
+          { label: 'Danh sách NCC', path: '/owner-dashboard/suppliers' },
+          { label: 'Theo dõi công nợ', path: '/owner-dashboard/suppliers/debts' },
+        ],
+      },
+      {
+        label: 'Khách hàng & Bán gà',
+        icon: TrendingUp,
+        children: [
+          { label: 'Danh sách khách hàng', path: '/owner-dashboard/customers' },
+          { label: 'Quản lý bán gà', path: '/owner-dashboard/sales' },
+          { label: 'Công nợ thương lái', path: '/owner-dashboard/customers/debts' },
         ],
       },
     ],
@@ -53,7 +96,8 @@ const OWNER_NAV = [
   {
     section: 'TÀI CHÍNH',
     items: [
-      { label: 'Báo cáo tài chính', path: '/owner-dashboard/finance', icon: BarChart3 },
+      { label: 'Sổ quỹ tiền mặt', path: '/owner-dashboard/fund-ledger', icon: Receipt },
+      { label: 'Báo cáo Lãi/Lỗ từng lứa', path: '/owner-dashboard/pnl', icon: BarChart3 },
       { label: 'Nhân công', path: '/owner-dashboard/workers', icon: Users },
     ],
   },
@@ -64,6 +108,7 @@ const OWNER_NAV = [
     ],
   },
 ];
+
 
 const ACCOUNTANT_NAV = [
   {
@@ -196,11 +241,8 @@ export const DashboardLayout = ({
       {/* ── Sidebar ────────────────────────────────────────── */}
       <aside className={`${styles.sidebar} ${isMobileOpen ? styles.sidebarOpen : ''}`}>
         {/* Logo */}
-        <Link to="/" className={styles.sidebarLogo} onClick={closeSidebar}>
-          <div className={styles.logoMark}>🌿</div>
-          <span className={styles.logoText}>
-            Smart<span> Farm</span>
-          </span>
+        <Link to="/" className={styles.sidebarLogo} onClick={closeSidebar} style={{ height: '80px', justifyContent: 'center' }}>
+          <img src={logoFarm} alt="FarmShift Logo" style={{ height: '64px', objectFit: 'contain' }} />
         </Link>
 
         {/* Navigation */}
@@ -319,6 +361,9 @@ export const DashboardLayout = ({
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
       />
+
+      {/* Feature 12: AI Chatbot thả nổi góc màn hình */}
+      <AIChatbot />
     </div>
   );
 };

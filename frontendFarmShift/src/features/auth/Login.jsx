@@ -6,6 +6,7 @@ import { Button } from '../../components/Button/Button';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../utils/api';
 import { AuthLayout } from './AuthLayout';
+import logoFarm from '../../assets/logo_Farm.png';
 import styles from './Auth.module.css';
 
 export const Login = () => {
@@ -52,7 +53,7 @@ export const Login = () => {
   return (
     <AuthLayout>
       <div className={styles.cardHeader}>
-        <div className={styles.logo}>🌿</div>
+        <img src={logoFarm} alt="FarmShift Logo" style={{ height: '100px', objectFit: 'contain', marginBottom: '16px' }} />
         <h1 className={styles.title}>Chào mừng trở lại</h1>
         <p className={styles.subtitle}>Đăng nhập vào hệ thống quản lý trang trại</p>
       </div>

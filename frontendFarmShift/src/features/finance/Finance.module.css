@@ -1,0 +1,257 @@
+/* ============================================================
+   Finance.module.css — Supplier, Sales, P&L
+   ============================================================ */
+
+/* ── Page layout ────────────────────────────────────────────── */
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--sp-lg);
+  gap: var(--sp-md);
+}
+.pageTitle {
+  font-size: var(--fs-title-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+.pageSub {
+  font-size: var(--fs-body-md);
+  color: var(--color-muted);
+}
+.headerActions {
+  display: flex;
+  gap: var(--sp-sm);
+  flex-shrink: 0;
+}
+
+/* ── KPI strip ──────────────────────────────────────────────── */
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-md);
+  margin-bottom: var(--sp-lg);
+}
+.kpiCard {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  padding: var(--sp-md) var(--sp-lg);
+}
+.kpiLabel { font-size: 12px; color: var(--color-muted); margin-bottom: 4px; }
+.kpiValue { font-size: 20px; font-weight: var(--fw-semibold); color: var(--color-ink); line-height: 1.2; }
+.kpiSub   { font-size: 12px; color: var(--color-muted); margin-top: 3px; }
+
+/* ── Section card ───────────────────────────────────────────── */
+.card {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  overflow: hidden;
+  margin-bottom: var(--sp-lg);
+}
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-md) var(--sp-lg);
+  border-bottom: 1px solid var(--color-hairline);
+  background: var(--color-surface-soft);
+}
+.cardTitle {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-semibold);
+  color: var(--color-ink);
+}
+
+/* ── Standard table ─────────────────────────────────────────── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--color-hairline);
+  background: var(--color-surface-soft);
+  white-space: nowrap;
+}
+.table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-hairline);
+  vertical-align: middle;
+}
+.table tr:last-child td { border-bottom: none; }
+.tableRow { cursor: pointer; transition: background 0.1s; }
+.tableRow:hover td { background: var(--color-surface-soft); }
+
+/* ── Detail layout ──────────────────────────────────────────── */
+.detailLayout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: var(--sp-lg);
+  align-items: start;
+}
+.infoCard {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  padding: var(--sp-lg);
+  margin-bottom: var(--sp-md);
+}
+.infoCardTitle {
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--sp-md);
+}
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-hairline);
+  font-size: 14px;
+}
+.infoRow:last-child { border-bottom: none; }
+.infoLabel { color: var(--color-muted); }
+.infoValue { font-weight: var(--fw-medium); color: var(--color-ink); }
+
+/* ── Debt status bar ────────────────────────────────────────── */
+.debtBar {
+  height: 8px;
+  border-radius: var(--rounded-full);
+  background: var(--color-surface-strong);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.debtBarFill {
+  height: 100%;
+  border-radius: var(--rounded-full);
+  background: var(--color-farm-green);
+  transition: width 0.6s ease;
+}
+.debtBarFillDanger { background: var(--color-farm-red); }
+
+/* ── P&L summary box ────────────────────────────────────────── */
+.pnlBox {
+  border-radius: var(--rounded-md);
+  padding: var(--sp-lg);
+  text-align: center;
+  margin-bottom: var(--sp-md);
+}
+.pnlBoxGreen { background: #e8f5ee; border: 2px solid var(--color-farm-green); }
+.pnlBoxRed   { background: #fee2e2; border: 2px solid var(--color-farm-red); }
+.pnlBoxLabel { font-size: 13px; color: var(--color-muted); margin-bottom: 6px; }
+.pnlBoxValue { font-size: 28px; font-weight: 700; line-height: 1; }
+.pnlPos { color: var(--color-farm-green); }
+.pnlNeg { color: var(--color-farm-red); }
+
+/* ── Filter bar ─────────────────────────────────────────────── */
+.filterBar {
+  display: flex;
+  gap: var(--sp-sm);
+  align-items: center;
+  margin-bottom: var(--sp-md);
+  flex-wrap: wrap;
+}
+.filterSelect {
+  padding: 6px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-sm);
+  font-size: 14px;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+.filterCount {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin-left: auto;
+}
+
+/* ── Modal overlay ──────────────────────────────────────────── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--sp-lg);
+}
+.modal {
+  background: var(--color-canvas);
+  border-radius: var(--rounded-lg);
+  padding: var(--sp-xl);
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modalTitle {
+  font-size: var(--fs-title-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-ink);
+  margin-bottom: var(--sp-lg);
+}
+.formGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-md);
+}
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--sp-md);
+}
+.formLabel {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--color-ink);
+}
+.formInput, .formSelect, .formTextarea {
+  padding: 8px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-sm);
+  font-size: var(--fs-body-md);
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  transition: border-color var(--transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+}
+.formInput:focus, .formSelect:focus, .formTextarea:focus {
+  outline: none;
+  border-color: var(--color-farm-green);
+  box-shadow: 0 0 0 3px rgba(45,138,78,0.12);
+}
+.formTextarea { resize: vertical; min-height: 72px; }
+.modalActions {
+  display: flex;
+  gap: var(--sp-sm);
+  justify-content: flex-end;
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--color-hairline);
+  margin-top: var(--sp-md);
+}
+
+/* ── Empty state ────────────────────────────────────────────── */
+.emptyState {
+  text-align: center;
+  padding: var(--sp-xxl);
+  color: var(--color-muted);
+}
+.emptyIcon { font-size: 40px; margin-bottom: var(--sp-sm); }
+.emptyText { font-size: var(--fs-body-md); }

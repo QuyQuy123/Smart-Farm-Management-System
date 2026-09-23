@@ -1,5 +1,5 @@
 // src/features/auth/ResetPassword.jsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Input } from '../../components/Input/Input';
 import { Button } from '../../components/Button/Button';
@@ -27,6 +27,27 @@ export const ResetPassword = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Timer state for resend code
+  const [timer, setTimer] = useState(60);
+
+  useEffect(() => {
+    let interval;
+    if (timer > 0 && step === 1) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timer, step]);
+
+  // Auto-submit OTP
+  useEffect(() => {
+    const otpString = otp.join('');
+    if (otpString.length === 6 && step === 1 && !loading) {
+      verifyOtpAction(otpString);
+    }
+  }, [otp, step]); // Do not include loading to avoid double calls
 
   if (!email) {
     return <Navigate to="/forgot-password" replace />;
@@ -61,24 +82,42 @@ export const ResetPassword = () => {
     }
   };
 
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    const otpString = otp.join('');
-    
-    if (otpString.length !== 6) {
-      setError('Please enter all 6 digits of the verification code.');
-      return;
-    }
-    
+  const verifyOtpAction = async (otpString) => {
     setError('');
     setLoading(true);
 
     try {
-      // Step 1: Verify OTP only (calls our new endpoint)
       await api.post('/auth/verify-otp', { email, otp: otpString });
-      setStep(2); // Proceed to password reset step
+      setStep(2);
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid verification code. Please try again.');
+      setError(err.response?.data?.message || 'Mã xác thực không hợp lệ. Vui lòng thử lại.');
+      // Clear OTP on error so user can re-enter easily
+      setOtp(['', '', '', '', '', '']);
+      otpRefs.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = (e) => {
+    e.preventDefault();
+    const otpString = otp.join('');
+    if (otpString.length === 6) {
+      verifyOtpAction(otpString);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (timer > 0 || loading) return;
+    try {
+      setLoading(true);
+      setError('');
+      await api.post('/auth/forgot-password', { email });
+      setTimer(60);
+      setSuccess('Mã xác thực mới đã được gửi!');
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError('Lỗi khi gửi lại mã. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -181,10 +220,26 @@ export const ResetPassword = () => {
             </div>
           </div>
           
-          <div className={styles.formFoot}>
-            <Button variant="green" type="submit" fullWidth loading={loading}>
+          <div className={styles.formFoot} style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+            <Button variant="green" type="submit" fullWidth loading={loading} disabled={otp.join('').length < 6}>
               Verify Code
             </Button>
+            
+            <div style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+              Không nhận được mã?{' '}
+              {timer > 0 ? (
+                <span style={{ fontWeight: 600 }}>Gửi lại sau {timer}s</span>
+              ) : (
+                <button 
+                  type="button" 
+                  onClick={handleResendCode}
+                  disabled={loading}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-farm-green)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                >
+                  Gửi lại mã
+                </button>
+              )}
+            </div>
           </div>
         </form>
       )}
