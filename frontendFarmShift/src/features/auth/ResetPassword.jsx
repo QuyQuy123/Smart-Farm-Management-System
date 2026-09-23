@@ -182,7 +182,7 @@ export const ResetPassword = () => {
           </div>
           
           <div className={styles.formFoot}>
-            <Button type="submit" fullWidth loading={loading}>
+            <Button variant="green" type="submit" fullWidth loading={loading}>
               Verify Code
             </Button>
           </div>
@@ -224,7 +224,7 @@ export const ResetPassword = () => {
           </div>
           
           <div className={styles.formFoot}>
-            <Button type="submit" fullWidth loading={loading} disabled={success !== ''}>
+            <Button variant="green" type="submit" fullWidth loading={loading} disabled={success !== ''}>
               Reset Password
             </Button>
           </div>

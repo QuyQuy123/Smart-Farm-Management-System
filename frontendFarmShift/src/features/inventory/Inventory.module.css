@@ -1,0 +1,117 @@
+/* Inventory.module.css */
+
+.metricsRow {
+  display:               grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:                   var(--sp-md);
+  margin-bottom:         var(--sp-md);
+}
+
+.tabCard {
+  background-color: var(--color-canvas);
+  border:           1px solid var(--color-hairline);
+  border-radius:    var(--rounded-md) var(--rounded-md) 0 0;
+  overflow:         hidden;
+  margin-bottom:    -1px; /* merge with table top border */
+}
+
+.searchSmall {
+  height:        34px;
+  padding:       0 var(--sp-sm);
+  border:        1px solid var(--color-hairline);
+  border-radius: var(--rounded-sm);
+  background:    var(--color-surface-soft);
+  color:         var(--color-body);
+  font-family:   var(--font-sans);
+  font-size:     var(--fs-body-md);
+  outline:       none;
+  width:         160px;
+}
+
+.searchSmall:focus {
+  border-color:     var(--color-info-border);
+  background-color: var(--color-canvas);
+}
+
+.moreBtn {
+  display:          flex;
+  align-items:      center;
+  justify-content:  center;
+  width:            28px;
+  height:           28px;
+  background:       none;
+  border:           1px solid transparent;
+  border-radius:    var(--rounded-sm);
+  color:            var(--color-muted);
+  cursor:           pointer;
+  transition:       background var(--transition-fast);
+}
+.moreBtn:hover {
+  background-color: var(--color-surface-soft);
+  border-color:     var(--color-hairline);
+}
+
+/* ── WarehousePermissions ─────────────────────────────────── */
+.permRow {
+  display:         flex;
+  align-items:     center;
+  padding:         var(--sp-sm) var(--sp-md);
+  border-bottom:   1px solid var(--color-hairline);
+  gap:             var(--sp-md);
+}
+
+.permRow:last-child { border-bottom: none; }
+
+.permZoneName {
+  min-width:   140px;
+  font-weight: var(--fw-medium);
+  color:       var(--color-ink);
+}
+
+.permAvatars {
+  display:     flex;
+  align-items: center;
+  gap:         -6px;
+  flex:        1;
+}
+
+.permAvatar {
+  width:         32px;
+  height:        32px;
+  border-radius: var(--rounded-full);
+  border:        2px solid var(--color-canvas);
+  margin-left:   -8px;
+  font-size:     16px;
+  display:       flex;
+  align-items:   center;
+  justify-content: center;
+  background:    var(--color-surface-soft);
+  flex-shrink:   0;
+}
+
+.permAvatar:first-child { margin-left: 0; }
+
+.editLink {
+  font-size:   var(--fs-body-md);
+  color:       var(--color-link);
+  cursor:      pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  font-weight: var(--fw-medium);
+  flex-shrink: 0;
+}
+.editLink:hover {
+  color: var(--color-link-active);
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .metricsRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .metricsRow {
+    grid-template-columns: 1fr;
+  }
+}

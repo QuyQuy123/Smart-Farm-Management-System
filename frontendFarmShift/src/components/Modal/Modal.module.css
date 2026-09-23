@@ -1,0 +1,85 @@
+/* Modal.module.css */
+
+.overlay {
+  position:         fixed;
+  inset:            0;
+  background-color: rgba(24, 29, 38, 0.5); /* --color-primary at 50% */
+  z-index:          100;
+  display:          flex;
+  align-items:      center;
+  justify-content:  center;
+  padding:          var(--sp-lg);
+  animation:        fadeIn 0.15s ease;
+}
+
+.panel {
+  background-color: var(--color-canvas);
+  border-radius:    var(--rounded-lg);
+  border:           1px solid var(--color-hairline);
+  display:          flex;
+  flex-direction:   column;
+  max-height:       90vh;
+  overflow:         hidden;
+  animation:        slideInLeft 0.15s ease;
+}
+
+/* Sizes */
+.sm { width: 100%; max-width: 400px; }
+.md { width: 100%; max-width: 560px; }
+.lg { width: 100%; max-width: 760px; }
+
+/* ── Header ───────────────────────────────────────────────── */
+.header {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         var(--sp-md) var(--sp-lg);
+  border-bottom:   1px solid var(--color-hairline);
+  flex-shrink:     0;
+}
+
+.title {
+  font-size:   var(--fs-title-md);
+  font-weight: var(--fw-medium);
+  color:       var(--color-ink);
+  margin:      0;
+  line-height: var(--lh-title);
+}
+
+.closeBtn {
+  width:            32px;
+  height:           32px;
+  display:          flex;
+  align-items:      center;
+  justify-content:  center;
+  background:       none;
+  border:           1px solid var(--color-hairline);
+  border-radius:    var(--rounded-full);
+  color:            var(--color-muted);
+  cursor:           pointer;
+  transition:       background var(--transition-fast), color var(--transition-fast);
+  flex-shrink:      0;
+}
+
+.closeBtn:hover {
+  background-color: var(--color-surface-soft);
+  color:            var(--color-ink);
+}
+
+/* ── Body ─────────────────────────────────────────────────── */
+.body {
+  padding:    var(--sp-lg);
+  overflow-y: auto;
+  flex:       1;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+.footer {
+  display:         flex;
+  align-items:     center;
+  justify-content: flex-end;
+  gap:             var(--sp-sm);
+  padding:         var(--sp-md) var(--sp-lg);
+  border-top:      1px solid var(--color-hairline);
+  flex-shrink:     0;
+}

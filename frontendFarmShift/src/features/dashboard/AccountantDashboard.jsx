@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { getAccountantDashboardData } from '../../services/dashboardService';
 import { DollarSign, FileText, Activity } from 'lucide-react';
-import styles from './Dashboard.module.css';
+import { Badge } from '../../components/Badge/Badge';
 import { Button } from '../../components/Button/Button';
+import styles from './Dashboard.module.css';
 
 export const AccountantDashboard = () => {
   const [data, setData] = useState(null);
@@ -23,10 +24,14 @@ export const AccountantDashboard = () => {
     fetchData();
   }, []);
 
+  const BREADCRUMBS = [
+    { label: 'Tổng quan tài chính' },
+  ];
+
   if (loading) {
     return (
-      <DashboardLayout title="Financial Overview">
-        <div style={{ color: 'var(--color-muted)' }}>Loading financial records...</div>
+      <DashboardLayout breadcrumbs={BREADCRUMBS}>
+        <div style={{ color: 'var(--color-muted)', padding: 'var(--sp-xl)' }}>Đang tải dữ liệu tài chính...</div>
       </DashboardLayout>
     );
   }
@@ -34,7 +39,7 @@ export const AccountantDashboard = () => {
   const { metrics, transactions } = data;
 
   return (
-    <DashboardLayout title="Financial Overview">
+    <DashboardLayout breadcrumbs={BREADCRUMBS}>
       {/* Metrics Grid */}
       <div className={`${styles.grid} ${styles.gridCols3}`}>
         

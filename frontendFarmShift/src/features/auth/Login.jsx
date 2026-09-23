@@ -52,9 +52,9 @@ export const Login = () => {
   return (
     <AuthLayout>
       <div className={styles.cardHeader}>
-        <div className={styles.logo}>🚜</div>
-        <h2 className={styles.title}>Sign in</h2>
-        <p className={styles.subtitle}>Welcome back to your workspace</p>
+        <div className={styles.logo}>🌿</div>
+        <h1 className={styles.title}>Chào mừng trở lại</h1>
+        <p className={styles.subtitle}>Đăng nhập vào hệ thống quản lý trang trại</p>
       </div>
 
       {error && (
@@ -67,7 +67,7 @@ export const Login = () => {
         <Input 
           label="Email" 
           type="email" 
-          placeholder="you@example.com"
+          placeholder="email@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -76,9 +76,9 @@ export const Login = () => {
         />
         
         <Input 
-          label="Password" 
+          label="Mật khẩu" 
           type="password" 
-          placeholder="Enter your password"
+          placeholder="Nhập mật khẩu..."
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
@@ -86,12 +86,12 @@ export const Login = () => {
         />
         
         <div className={styles.formFoot}>
-          <Button type="submit" fullWidth loading={loading}>
-            Sign In
+          <Button variant="green" type="submit" fullWidth loading={loading}>
+            Đăng nhập
           </Button>
           
           <Link to="/forgot-password" className={styles.textLink}>
-            Forgot your password?
+            Quên mật khẩu?
           </Link>
         </div>
       </form>

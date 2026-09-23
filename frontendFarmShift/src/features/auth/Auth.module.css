@@ -1,208 +1,211 @@
 /* ============================================================
-   Auth.module.css
-   Quiet, editorial layout for authentication.
-   "White canvas, dark ink type, generous whitespace"
+   Auth.module.css — Premium authentication UI
+   Green brand identity • Sharp card • Micro-interactions
    ============================================================ */
 
+/* ── Page scaffold ─────────────────────────────────────── */
 .page {
   display:          flex;
   min-height:       100vh;
   align-items:      center;
   justify-content:  center;
-  background-color: var(--color-surface-soft); /* #f8fafc */
-  font-family:      var(--font-family);
-  padding:          var(--sp-section) var(--sp-lg);
+  background:       linear-gradient(150deg, #f0f7f4 0%, #eaf5ef 50%, #f4f8fb 100%);
+  font-family:      var(--font-sans);
+  padding:          var(--sp-xl) var(--sp-lg);
 }
 
+/* ── Card panel ────────────────────────────────────────── */
 .panel {
   width:            100%;
-  max-width:        400px;
-  background-color: var(--color-canvas); /* #ffffff */
-  border:           1px solid var(--color-hairline);
-  border-radius:    var(--rounded-lg);   /* 12px */
-  padding:          var(--sp-xxl);       /* 48px */
-  /* No shadows per DESIGN.md elevation philosophy */
+  max-width:        420px;
+  background-color: #ffffff;
+  border:           1px solid rgba(0,0,0,0.07);
+  border-radius:    18px;
+  padding:          44px 40px 40px;
+  box-shadow:       0 4px 32px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04);
+  animation:        panelIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* ── Header ────────────────────────────────────────────── */
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Header text ───────────────────────────────────────── */
 .cardHeader {
-  margin-bottom: var(--sp-xl); /* 32px */
   text-align:    center;
+  margin-bottom: 28px;
 }
 
+/* Logo container rendered from JSX as a div */
 .logo {
   display:         inline-flex;
   align-items:     center;
   justify-content: center;
-  width:           48px;
-  height:          48px;
-  background-color: var(--color-primary);
-  color:           var(--color-on-primary);
-  border-radius:   var(--rounded-md);
-  font-size:       24px;
-  margin-bottom:   var(--sp-lg);
+  width:           60px;
+  height:          60px;
+  background:      linear-gradient(135deg, var(--color-farm-green) 0%, #3bab62 100%);
+  color:           #ffffff;
+  border-radius:   16px;
+  font-size:       28px;
+  margin-bottom:   20px;
+  box-shadow:      0 6px 16px rgba(45, 138, 78, 0.32);
 }
 
 .title {
-  font-size:     var(--fs-display-md);  /* 32px */
-  font-weight:   var(--fw-regular);     /* 400 */
-  line-height:   var(--lh-display);
-  color:         var(--color-ink);
-  margin-bottom: var(--sp-xs);
-  letter-spacing: 0;
+  font-size:      26px;
+  font-weight:    700;
+  line-height:    1.25;
+  color:          var(--color-ink);
+  margin-bottom:  6px;
+  letter-spacing: -0.4px;
 }
 
 .subtitle {
-  font-size:     var(--fs-body-md);     /* 14px */
-  font-weight:   var(--fw-regular);
-  line-height:   var(--lh-prose);
-  color:         var(--color-body);
+  font-size:   14px;
+  font-weight: 400;
+  line-height: 1.55;
+  color:       var(--color-body);
 }
 
 .emailHighlight {
-  font-weight: var(--fw-medium);
+  font-weight: 600;
   color:       var(--color-ink);
 }
 
-/* ── Form ──────────────────────────────────────────────── */
+/* ── Form layout ───────────────────────────────────────── */
 .form {
   display:        flex;
   flex-direction: column;
-  gap:            var(--sp-md);         /* 16px */
+  gap:            16px;
 }
 
 .formFoot {
   display:        flex;
   flex-direction: column;
-  gap:            var(--sp-lg);         /* 24px */
-  margin-top:     var(--sp-md);
+  gap:            12px;
+  margin-top:     6px;
 }
 
 /* ── Links ─────────────────────────────────────────────── */
 .textLink {
-  font-size:       var(--fs-body-md);
-  color:           var(--color-link);
+  font-size:       14px;
+  color:           var(--color-farm-green);
   text-align:      center;
   background:      none;
   border:          none;
   padding:         0;
   cursor:          pointer;
-  font-family:     var(--font-family);
-  font-weight:     var(--fw-medium);
-  transition:      color var(--transition-fast);
+  font-family:     var(--font-sans);
+  font-weight:     500;
+  transition:      color 0.15s ease;
   text-decoration: none;
   display:         inline-block;
 }
 .textLink:hover {
-  color: var(--color-link-active);
+  color:           var(--color-farm-green-dark);
   text-decoration: underline;
 }
 
 .backLink {
   display:         inline-flex;
   align-items:     center;
-  gap:             var(--sp-xs);
-  font-size:       var(--fs-body-md);
-  font-weight:     var(--fw-medium);
+  gap:             6px;
+  font-size:       14px;
+  font-weight:     500;
   color:           var(--color-muted);
-  margin-bottom:   var(--sp-lg);
+  margin-bottom:   20px;
   text-decoration: none;
-  transition:      color var(--transition-fast);
+  transition:      color 0.15s ease;
 }
-.backLink:hover {
-  color: var(--color-ink);
-}
+.backLink:hover { color: var(--color-ink); }
 
 /* ── Alerts ────────────────────────────────────────────── */
 .alert {
-  padding:       12px var(--sp-md);
-  border-radius: var(--rounded-sm);
-  font-size:     var(--fs-body-md);
-  font-weight:   var(--fw-medium);
-  line-height:   var(--lh-body);
-  margin-bottom: var(--sp-lg);
+  padding:       11px 14px;
+  border-radius: 9px;
+  font-size:     13.5px;
+  font-weight:   500;
+  line-height:   1.45;
+  margin-bottom: 16px;
   animation:     alertIn .2s ease;
 }
 
 @keyframes alertIn {
   from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0);    }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .alertError {
-  background-color: rgba(170,45,0,.08);
-  border:           1px solid rgba(170,45,0,.25);
+  background-color: rgba(170,45,0,.07);
+  border:           1px solid rgba(170,45,0,.2);
   color:            var(--color-signature-coral);
 }
 
 .alertSuccess {
-  background-color: rgba(0,100,0,.07);
-  border:           1px solid rgba(57,191,69,.35);
-  color:            var(--color-success);
+  background-color: rgba(45,138,78,.07);
+  border:           1px solid rgba(45,138,78,.25);
+  color:            var(--color-farm-green);
 }
 
-/* ── OTP row ───────────────────────────────────────────── */
+/* ── OTP cells ─────────────────────────────────────────── */
 .otpRow {
   display:         flex;
-  gap:             var(--sp-xs);
+  gap:             8px;
   justify-content: center;
 }
 
 .otpCell {
-  width:           48px;
-  height:          56px;
-  flex-shrink:     0;
-  font-family:     var(--font-family);
-  font-size:       var(--fs-title-lg);
-  font-weight:     var(--fw-medium);
-  text-align:      center;
-  color:           var(--color-ink);
-  background:      var(--color-canvas);
-  border:          1px solid var(--color-hairline);
-  border-radius:   var(--rounded-sm);
-  outline:         none;
-  transition:      border-color var(--transition-fast),
-                   box-shadow   var(--transition-fast);
+  width:              48px;
+  height:             58px;
+  flex-shrink:        0;
+  font-family:        var(--font-sans);
+  font-size:          22px;
+  font-weight:        600;
+  text-align:         center;
+  color:              var(--color-ink);
+  background:         #ffffff;
+  border:             1.5px solid var(--color-hairline);
+  border-radius:      10px;
+  outline:            none;
+  transition:         border-color 0.15s ease, box-shadow 0.15s ease;
   -webkit-appearance: none;
 }
-
 .otpCell:focus {
-  border-color: var(--color-info-border);
-  box-shadow:   0 0 0 3px rgba(69,143,255,.15);
+  border-color: var(--color-farm-green);
+  box-shadow:   0 0 0 3px rgba(45,138,78,.15);
 }
 
+/* ── Divider ────────────────────────────────────────────── */
 .divider {
   display:     flex;
   align-items: center;
-  gap:         var(--sp-md);
+  gap:         12px;
   color:       var(--color-muted);
-  font-size:   var(--fs-body-md);
-  margin:      var(--sp-lg) 0;
+  font-size:   13px;
+  margin:      20px 0;
 }
-
 .divider::before,
 .divider::after {
-  content:          '';
-  flex:             1;
-  height:           1px;
-  background-color: var(--color-hairline);
+  content:    '';
+  flex:       1;
+  height:     1px;
+  background: var(--color-hairline);
 }
 
-/* ── Password strength ──────────────────────────────────── */
+/* ── Password strength bars ─────────────────────────────── */
 .strengthRow {
   display:    flex;
-  gap:        var(--sp-xxs);
-  margin-top: var(--sp-xs);
+  gap:        4px;
+  margin-top: 8px;
 }
-
 .strengthBar {
   flex:          1;
-  height:        4px;
-  border-radius: var(--rounded-pill);
+  height:        3px;
+  border-radius: 99px;
   background:    var(--color-surface-strong);
-  transition:    background var(--transition-base);
+  transition:    background 0.2s ease;
 }
-
 .strengthBar.active0 { background: var(--color-signature-coral); }
 .strengthBar.active1 { background: var(--color-signature-mustard); }
-.strengthBar.active2 { background: var(--color-success); }
+.strengthBar.active2 { background: var(--color-farm-green); }

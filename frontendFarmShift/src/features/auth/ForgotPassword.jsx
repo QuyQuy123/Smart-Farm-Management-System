@@ -62,7 +62,7 @@ export const ForgotPassword = () => {
         />
         
         <div className={styles.formFoot}>
-          <Button type="submit" fullWidth loading={loading}>
+          <Button variant="green" type="submit" fullWidth loading={loading}>
             Send reset code
           </Button>
         </div>

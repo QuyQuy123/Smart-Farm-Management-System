@@ -23,10 +23,14 @@ export const WorkerDashboard = () => {
     fetchData();
   }, []);
 
+  const BREADCRUMBS = [
+    { label: 'Nhiệm vụ hôm nay' },
+  ];
+
   if (loading) {
     return (
-      <DashboardLayout title="My Tasks">
-        <div style={{ color: 'var(--color-muted)' }}>Loading your schedule...</div>
+      <DashboardLayout breadcrumbs={BREADCRUMBS}>
+        <div style={{ color: 'var(--color-muted)', padding: 'var(--sp-xl)' }}>Đang tải lịch công việc...</div>
       </DashboardLayout>
     );
   }
@@ -34,7 +38,7 @@ export const WorkerDashboard = () => {
   const { tasks } = data;
 
   return (
-    <DashboardLayout title="My Tasks">
+    <DashboardLayout breadcrumbs={BREADCRUMBS}>
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>Today's Schedule</h2>

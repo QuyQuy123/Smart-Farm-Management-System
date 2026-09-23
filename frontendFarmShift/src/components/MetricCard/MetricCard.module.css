@@ -1,0 +1,93 @@
+/* MetricCard.module.css */
+/* Matches the farmgo green KPI cards from UI_FarmShift.pdf page 1 */
+
+.card {
+  background-color: var(--color-canvas);
+  border:           1px solid var(--color-hairline);
+  border-radius:    var(--rounded-md);
+  padding:          var(--sp-md) var(--sp-lg);
+  display:          flex;
+  flex-direction:   column;
+  gap:              var(--sp-xxs);
+  position:         relative;
+  overflow:         hidden;
+  min-width:        0;
+  animation:        fadeIn 0.3s ease;
+}
+
+.top {
+  display:         flex;
+  justify-content: flex-end;
+  margin-bottom:   var(--sp-xs);
+}
+
+.iconWrap {
+  width:            36px;
+  height:           36px;
+  border-radius:    var(--rounded-full);
+  display:          flex;
+  align-items:      center;
+  justify-content:  center;
+  background-color: rgba(255, 255, 255, 0.25);
+  color:            inherit;
+  flex-shrink:      0;
+}
+
+.value {
+  font-family:  var(--font-display);
+  font-size:    24px;
+  font-weight:  var(--fw-medium);
+  line-height:  1.2;
+  color:        inherit;
+  white-space:  nowrap;
+  overflow:     hidden;
+  text-overflow: ellipsis;
+}
+
+.label {
+  font-size:   var(--fs-body-md);
+  font-weight: var(--fw-regular);
+  color:       inherit;
+  opacity:     0.85;
+}
+
+.sub {
+  font-size: 12px;
+  opacity:   0.7;
+  margin-top: 2px;
+}
+
+/* ── Color Variants ───────────────────────────────────────── */
+.default {
+  color: var(--color-ink);
+}
+
+.green {
+  background-color: var(--color-farm-green);
+  border-color:     var(--color-farm-green-dark);
+  color:            var(--color-on-primary);
+}
+
+.orange {
+  background-color: var(--color-farm-orange);
+  border-color:     #c2690a;
+  color:            var(--color-on-primary);
+}
+
+.blue {
+  background-color: var(--color-farm-blue);
+  border-color:     #2563eb;
+  color:            var(--color-on-primary);
+}
+
+.red {
+  background-color: var(--color-farm-red);
+  border-color:     #b91c1c;
+  color:            var(--color-on-primary);
+}
+
+.teal {
+  background-color: #0d9488;
+  border-color:     #0f766e;
+  color:            var(--color-on-primary);
+}

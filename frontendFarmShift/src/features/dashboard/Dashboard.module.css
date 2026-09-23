@@ -1,204 +1,310 @@
-/* ============================================================
-   Dashboard.module.css
-   Component styling for dashboard views based on DESIGN.md
-   ============================================================ */
+/* Dashboard.module.css — FarmShift Owner Dashboard */
 
-/* ── Grid Layouts ───────────────────────────────────────── */
-.grid {
-  display: grid;
-  gap: var(--sp-lg);
-  margin-bottom: var(--sp-xl);
-}
-
-.gridCols3 { grid-template-columns: repeat(3, 1fr); }
-.gridCols4 { grid-template-columns: repeat(4, 1fr); }
-.gridCols2 { grid-template-columns: repeat(2, 1fr); }
-
-@media (max-width: 1024px) {
-  .gridCols3, .gridCols4 { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 768px) {
-  .gridCols2, .gridCols3, .gridCols4 { grid-template-columns: 1fr; }
-}
-
-/* ── Stat Cards (demo-grid-card style) ──────────────────── */
-.statCard {
-  background-color: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--rounded-md);
-  padding: var(--sp-lg);
-  display: flex;
-  flex-direction: column;
-}
-
-.statHeader {
-  display: flex;
-  align-items: center;
+/* ── Page Header ─────────────────────────────────────────── */
+.pageHeader {
+  display:         flex;
+  align-items:     center;
   justify-content: space-between;
-  margin-bottom: var(--sp-md);
+  margin-bottom:   var(--sp-lg);
+  flex-wrap:       wrap;
+  gap:             var(--sp-sm);
 }
 
-.statTitle {
-  font-size: var(--fs-body-md);
-  color: var(--color-muted);
-  font-weight: var(--fw-medium);
-}
-
-.statIcon {
-  color: var(--color-info);
-  padding: 8px;
-  background-color: rgba(37, 79, 173, 0.08); /* faint info tint */
-  border-radius: var(--rounded-full);
-  display: flex;
+.farmName {
+  display:     flex;
   align-items: center;
-  justify-content: center;
+  gap:         var(--sp-xs);
 }
 
-.statValue {
-  font-family: 'Haas Groot Disp', 'Inter Display', sans-serif;
-  font-size: var(--fs-display-md);
-  font-weight: 400;
-  color: var(--color-ink);
-  line-height: 1;
-}
-
-.statChange {
-  margin-top: var(--sp-xs);
-  font-size: 13px;
+.farmTitle {
+  font-size:   var(--fs-title-lg);
   font-weight: var(--fw-medium);
-}
-.statChange.positive { color: var(--color-success); }
-.statChange.negative { color: var(--color-signature-coral); }
-
-/* ── Section Blocks ─────────────────────────────────────── */
-.section {
-  background-color: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--rounded-lg);
-  padding: var(--sp-xl);
-  margin-bottom: var(--sp-xl);
+  color:       var(--color-ink);
+  margin:      0;
 }
 
-.sectionHeader {
-  display: flex;
+.farmBadge {
+  display:          inline-flex;
+  align-items:      center;
+  justify-content:  center;
+  width:            20px;
+  height:           20px;
+  background-color: var(--color-farm-green);
+  color:            var(--color-on-primary);
+  border-radius:    var(--rounded-full);
+  font-size:        11px;
+  font-weight:      var(--fw-semibold);
+}
+
+.farmSub {
+  font-size:   var(--fs-body-md);
+  color:       var(--color-muted);
+  margin:      4px 0 0;
+}
+
+.headerActions {
+  display:     flex;
   align-items: center;
-  justify-content: space-between;
+  gap:         var(--sp-xs);
+}
+
+/* ── Staff Cards Row ─────────────────────────────────────── */
+.staffRow {
+  display:    grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:        var(--sp-md);
   margin-bottom: var(--sp-lg);
 }
 
-.sectionTitle {
-  font-size: var(--fs-title-lg);
-  font-weight: var(--fw-regular);
-  color: var(--color-ink);
-}
-
-/* ── Tables (pricing-comparison-row style) ──────────────── */
-.tableWrapper {
-  overflow-x: auto;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.table th {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--color-muted);
-  font-weight: var(--fw-medium);
-  padding: var(--sp-sm) var(--sp-md);
-  border-bottom: 1px solid var(--color-hairline);
-}
-
-.table td {
-  font-size: var(--fs-body-md);
-  color: var(--color-body);
-  padding: var(--sp-md);
-  border-bottom: 1px solid var(--color-hairline);
-  vertical-align: middle;
-}
-
-.table tr:last-child td {
-  border-bottom: none;
-}
-
-/* ── Status Pills ───────────────────────────────────────── */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: var(--rounded-pill);
-  font-size: 12px;
-  font-weight: var(--fw-medium);
-}
-
-.pillSuccess {
-  background-color: rgba(0, 100, 0, 0.08);
-  color: var(--color-success);
-}
-
-.pillWarning {
-  background-color: rgba(217, 164, 65, 0.15); /* signature-mustard */
-  color: var(--color-signature-coral); /* coral text for contrast */
-}
-
-.pillInfo {
-  background-color: rgba(37, 79, 173, 0.08);
-  color: var(--color-info);
-}
-
-.pillNeutral {
-  background-color: var(--color-surface-strong);
-  color: var(--color-muted);
-}
-
-/* ── Task List ──────────────────────────────────────────── */
-.taskList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-sm);
-}
-
-.taskItem {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-md);
-  padding: var(--sp-md);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--rounded-sm);
+.staffCard {
+  display:          flex;
+  align-items:      center;
+  gap:              var(--sp-sm);
+  padding:          var(--sp-sm) var(--sp-md);
   background-color: var(--color-canvas);
-  transition: border-color var(--transition-fast);
+  border:           1px solid var(--color-hairline);
+  border-radius:    var(--rounded-md);
+  transition:       border-color var(--transition-fast);
 }
 
-.taskItem:hover {
+.staffCard:hover {
   border-color: var(--color-border-strong);
 }
 
-.taskContent {
+.staffAvatar {
+  width:            40px;
+  height:           40px;
+  border-radius:    var(--rounded-full);
+  background-color: var(--color-surface-soft);
+  overflow:         hidden;
+  flex-shrink:      0;
+  display:          flex;
+  align-items:      center;
+  justify-content:  center;
+  font-size:        18px;
+}
+
+.staffAvatar img {
+  width:       100%;
+  height:      100%;
+  object-fit:  cover;
+}
+
+.staffInfo {
   flex: 1;
+  min-width: 0;
 }
 
-.taskTitle {
-  font-size: var(--fs-label-md);
-  font-weight: var(--fw-medium);
-  color: var(--color-ink);
-  margin-bottom: var(--sp-xxs);
+.staffName {
+  font-size:     var(--fs-body-md);
+  font-weight:   var(--fw-medium);
+  color:         var(--color-ink);
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
 }
 
-.taskDesc {
-  font-size: var(--fs-body-md);
-  color: var(--color-muted);
-}
-
-.taskMeta {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-sm);
-  margin-top: var(--sp-sm);
+.staffRole {
   font-size: 12px;
-  color: var(--color-muted);
+  color:     var(--color-muted);
+  margin-top: 2px;
+}
+
+/* ── Content Grid ────────────────────────────────────────── */
+.contentGrid {
+  display:               grid;
+  grid-template-columns: 1fr 320px;
+  gap:                   var(--sp-lg);
+  margin-bottom:         var(--sp-lg);
+  align-items:           start;
+}
+
+/* ── Section Card ────────────────────────────────────────── */
+.sectionCard {
+  background-color: var(--color-canvas);
+  border:           1px solid var(--color-hairline);
+  border-radius:    var(--rounded-md);
+  overflow:         hidden;
+}
+
+.sectionCardHeader {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         var(--sp-md) var(--sp-md);
+  border-bottom:   1px solid var(--color-hairline);
+}
+
+.sectionTitle {
+  font-size:   var(--fs-body-md);
+  font-weight: var(--fw-medium);
+  color:       var(--color-ink);
+  margin:      0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 12px;
+}
+
+/* ── Task List ───────────────────────────────────────────── */
+.taskList {
+  display:        flex;
+  flex-direction: column;
+}
+
+.taskItem {
+  display:         flex;
+  align-items:     center;
+  gap:             var(--sp-sm);
+  padding:         var(--sp-sm) var(--sp-md);
+  border-bottom:   1px solid var(--color-surface-soft);
+  transition:      background var(--transition-fast);
+}
+
+.taskItem:last-child { border-bottom: none; }
+.taskItem:hover { background-color: var(--color-surface-soft); }
+
+.taskDot {
+  width:         8px;
+  height:        8px;
+  border-radius: var(--rounded-full);
+  flex-shrink:   0;
+}
+
+.taskDotGreen  { background-color: var(--color-farm-green); }
+.taskDotOrange { background-color: var(--color-farm-orange); }
+.taskDotRed    { background-color: var(--color-farm-red); }
+.taskDotBlue   { background-color: var(--color-farm-blue); }
+
+.taskName {
+  flex:          1;
+  font-size:     var(--fs-body-md);
+  color:         var(--color-body);
+  min-width:     0;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+  white-space:   nowrap;
+}
+
+.taskTime {
+  font-size:   12px;
+  color:       var(--color-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Metric Cards Grid (right column) ───────────────────── */
+.metricsGrid {
+  display:               grid;
+  grid-template-columns: 1fr 1fr;
+  gap:                   var(--sp-sm);
+}
+
+/* ── Bottom Row ──────────────────────────────────────────── */
+.bottomGrid {
+  display:               grid;
+  grid-template-columns: 1fr 1fr;
+  gap:                   var(--sp-lg);
+}
+
+/* ── Chart Area ──────────────────────────────────────────── */
+.chartWrap {
+  padding: var(--sp-md);
+}
+
+.chartTitle {
+  font-size:   var(--fs-body-md);
+  font-weight: var(--fw-medium);
+  color:       var(--color-ink);
+  margin-bottom: var(--sp-sm);
+}
+
+/* SVG Donut chart */
+.donutWrap {
+  display:         flex;
+  justify-content: center;
+  align-items:     center;
+  gap:             var(--sp-lg);
+}
+
+.donutSvg {
+  flex-shrink: 0;
+}
+
+.donutLegend {
+  display:        flex;
+  flex-direction: column;
+  gap:            6px;
+}
+
+.legendItem {
+  display:     flex;
+  align-items: center;
+  gap:         var(--sp-xs);
+  font-size:   12px;
+  color:       var(--color-body);
+}
+
+.legendDot {
+  width:         10px;
+  height:        10px;
+  border-radius: var(--rounded-full);
+  flex-shrink:   0;
+}
+
+/* ── Recent Events Table ─────────────────────────────────── */
+.eventsTable {
+  width:           100%;
+  border-collapse: collapse;
+  font-size:       var(--fs-body-md);
+}
+
+.eventsTable th {
+  padding:       8px var(--sp-md);
+  font-size:     11px;
+  font-weight:   var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color:         var(--color-muted);
+  text-align:    left;
+  background-color: var(--color-surface-soft);
+}
+
+.eventsTable td {
+  padding:       9px var(--sp-md);
+  border-bottom: 1px solid var(--color-surface-soft);
+  color:         var(--color-body);
+  vertical-align: middle;
+}
+
+.eventsTable tr:last-child td { border-bottom: none; }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+  .metricsGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .staffRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .bottomGrid {
+    grid-template-columns: 1fr;
+  }
+  .metricsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .staffRow {
+    grid-template-columns: 1fr;
+  }
+  .metricsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

@@ -1,79 +1,78 @@
 /* ============================================================
-   Input.module.css
-   Implements DESIGN.md: text-input, text-input-focus
+   Input.module.css — DESIGN.md text-input + text-input-focus
    ============================================================ */
 
 .wrapper {
   display:        flex;
   flex-direction: column;
-  gap:            var(--sp-xxs);       /* 4px */
-  width:          100%;
+  gap:            var(--sp-xxs);
 }
 
-/* ── Label ─────────────────────────────────────────────── */
 .label {
-  font-size:   var(--fs-body-md);      /* 14px */
-  font-weight: var(--fw-medium);       /* 500 */
-  line-height: var(--lh-body);
+  font-size:   var(--fs-body-md);
+  font-weight: var(--fw-medium);
   color:       var(--color-ink);
-  user-select: none;
+  line-height: var(--lh-body);
 }
 
-/* ── Input field — text-input spec ─────────────────────── */
-/* bg:canvas, ink text, 6px radius, 12×16 padding, 44px h  */
+/* Base input — DESIGN.md text-input */
 .field {
   width:            100%;
-  height:           44px;
-  padding:          12px 16px;
-  font-family:      var(--font-family);
-  font-size:        var(--fs-body-md);  /* 14px */
-  font-weight:      var(--fw-regular);  /* 400 */
-  line-height:      var(--lh-prose);    /* 1.25 */
-  color:            var(--color-ink);
+  height:           40px;
+  padding:          0 var(--sp-md);
   background-color: var(--color-canvas);
-  border:           1px solid var(--color-hairline); /* #dddddd */
+  color:            var(--color-ink);
+  font-family:      var(--font-sans);
+  font-size:        var(--fs-body-md);
+  font-weight:      var(--fw-regular);
+  line-height:      var(--lh-body);
+  border:           1px solid var(--color-hairline);
   border-radius:    var(--rounded-sm);  /* 6px */
   outline:          none;
   transition:       border-color var(--transition-fast),
                     box-shadow   var(--transition-fast);
   -webkit-appearance: none;
-  appearance:       none;
 }
 
 .field::placeholder {
   color: var(--color-muted);
 }
 
-/* text-input-focus: border shifts to info-border */
+/* Focus state — DESIGN.md text-input-focus */
 .field:focus {
-  border-color: var(--color-info-border);  /* #458fff */
-  box-shadow:   0 0 0 3px rgba(69, 143, 255, .15);
+  border-color: var(--color-info-border);
+  box-shadow:   0 0 0 3px rgba(69, 143, 255, 0.15);
 }
 
 /* Error state */
-.field.hasError {
+.hasError {
   border-color: var(--color-signature-coral);
 }
-.field.hasError:focus {
-  box-shadow: 0 0 0 3px rgba(170, 45, 0, .12);
+
+.hasError:focus {
+  border-color: var(--color-signature-coral);
+  box-shadow:   0 0 0 3px rgba(170, 45, 0, 0.12);
 }
 
-/* ── Helper / error text ───────────────────────────────── */
-.helper {
-  font-size:   var(--fs-body-md);   /* 14px */
-  font-weight: var(--fw-regular);
-  line-height: var(--lh-body);
-  color:       var(--color-muted);
-}
-
+/* Messages */
 .errorMsg {
-  font-size:   var(--fs-body-md);
-  font-weight: var(--fw-medium);    /* 500 */
-  color:       var(--color-signature-coral);
-  animation:   fadeSlide .18s ease;
+  font-size:  var(--fs-body-md);
+  color:      var(--color-signature-coral);
+  font-weight: var(--fw-medium);
+  animation:  fadeIn 0.15s ease;
 }
 
-@keyframes fadeSlide {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0);    }
+.helper {
+  font-size: var(--fs-body-md);
+  color:     var(--color-muted);
+}
+
+/* ── Select variant ───────────────────────────────────────── */
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2341454d' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
 }
