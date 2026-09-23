@@ -448,8 +448,8 @@
   transition: opacity var(--transition-base);
 }
 
-/* ── Responsive — Mobile (<768px) ────────────────────────── */
-@media (max-width: 768px) {
+/* ── Responsive — Tablet & Mobile (<1024px) ────────────────────────── */
+@media (max-width: 1024px) {
   .menuBtn {
     display: flex;
   }
@@ -489,9 +489,9 @@
   }
 }
 
-/* ── Responsive — Tablet (768–1024px) ────────────────────── */
-@media (max-width: 1024px) and (min-width: 769px) {
-  .headerCenter {
-    max-width: 240px;
+/* ── Responsive — Mobile (<768px) ────────────────────────── */
+@media (max-width: 768px) {
+  .content {
+    padding: var(--sp-sm);
   }
 }
