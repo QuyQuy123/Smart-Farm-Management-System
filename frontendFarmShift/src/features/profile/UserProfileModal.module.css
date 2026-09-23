@@ -248,3 +248,11 @@
   justify-content: flex-end;
   margin-top:      8px;
 }
+
+/* ── Responsive Mobile ─────────────────────────────────── */
+@media (max-width: 480px) {
+  .overlay { padding: 16px; }
+  .modal { max-height: 95vh; border-radius: 12px; }
+  .header, .section { padding: 16px; }
+  .formGrid { grid-template-columns: 1fr; }
+}
