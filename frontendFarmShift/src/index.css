@@ -9,6 +9,10 @@
 /* ── Google Fonts ────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;475;500;600&family=Inter+Display:wght@400;475;500&display=swap');
 
+/* ── Global CSS Imports ──────────────────────────────────── */
+@import url('./assets/global.css');
+@import url('./assets/responsive.css');
+
 /* ── Design Tokens ───────────────────────────────────────── */
 :root {
   /* === Colors — Brand ================================== */

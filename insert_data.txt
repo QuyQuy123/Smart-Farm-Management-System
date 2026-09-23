@@ -7,42 +7,30 @@
 -- ---------------------------------------------------------------------
 -- 1. Chèn dữ liệu các Vai trò (Roles)
 -- ---------------------------------------------------------------------
-INSERT INTO roles (name, description) 
-VALUES 
-    ('ROLE_FARM_OWNER', 'Chủ trang trại: Quản lý tổng quan, xem báo cáo tài chính/P&L, nhận cảnh báo khẩn cấp'), 
-    ('ROLE_ACCOUNTANT', 'Kế toán: Quản lý dữ liệu nhà cung cấp, theo dõi công nợ và thanh toán'), 
-    ('ROLE_FARM_WORKER', 'Công nhân trang trại: Nhập liệu nhật ký hằng ngày, xem lịch tiêm vật nuôi, cập nhật trạng thái công việc')
+INSERT INTO roles (name, description)
+VALUES ('ROLE_FARM_OWNER', 'Chủ trang trại: Quản lý tổng quan, xem báo cáo tài chính/P&L, nhận cảnh báo khẩn cấp'),
+       ('ROLE_ACCOUNTANT', 'Kế toán: Quản lý dữ liệu nhà cung cấp, theo dõi công nợ và thanh toán'),
+       ('ROLE_FARM_WORKER', 'Công nhân trang trại: Nhập liệu nhật ký hằng ngày, xem lịch tiêm vật nuôi, cập nhật trạng thái công việc')
 ON CONFLICT (name) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- 2. Chèn dữ liệu Tài khoản (Accounts)
--- Tài khoản test mặc định dành cho Chủ trang trại.
 -- [QUAN TRỌNG] TÀI KHOẢN ĐỂ TEAM TEST:
--- Email đăng nhập: hiepgacute1989@gmail.com
--- Mật khẩu đăng nhập (chưa mã hóa): 123456
+-- Pass dùng chung cho tất cả các tài khoản là (chưa mã hóa): 123456
 -- ---------------------------------------------------------------------
-INSERT INTO accounts (email, password, role_id, full_name, is_active) 
-VALUES 
-    (
-        'hiepgacute1989@gmail.com', 
-        '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 
-        (SELECT id FROM roles WHERE name = 'ROLE_FARM_OWNER'), 
-        'Miến Bình', 
-        TRUE
-    )
+INSERT INTO accounts (email, password, role_id, full_name, is_active)
+VALUES ('hiepgacute1989@gmail.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Admin', TRUE),
+       ('mienbinh@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Miến Bình', TRUE),
+       ('ketoan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 2, 'Trần Kế Toán', TRUE),
+       ('congnhan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 3, 'Lê Công Nhân', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- 3. Chèn dữ liệu Hồ sơ Khách hàng/Người dùng (Customers)
--- Liên kết 1-1 với tài khoản test vừa tạo thông qua account_id.
 -- ---------------------------------------------------------------------
-INSERT INTO customers (account_id, full_name, phone, citizen_id, address) 
-VALUES 
-    (
-        (SELECT id FROM accounts WHERE email = 'hiepgacute1989@gmail.com'), 
-        'Miến Bình', 
-        '0989149421', 
-        '001000000000', 
-        'Hà Nội'
-    )
+INSERT INTO customers (account_id, full_name, phone, citizen_id, address)
+VALUES (1, 'Admin', '0989149421', '001000000000', 'Hà Nội'),
+       (2, 'Miến Bình', '0988111222', '001204000001', 'Vĩnh Phúc'),
+       (3, 'Trần Kế Toán', '0977222333', '001204000002', 'Vĩnh Phúc'),
+       (4, 'Lê Công Nhân', '0966333444', '001204000003', 'Vĩnh Phúc')
 ON CONFLICT (account_id) DO NOTHING;

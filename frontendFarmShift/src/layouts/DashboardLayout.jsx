@@ -1,7 +1,7 @@
 // src/layouts/DashboardLayout.jsx
 // FarmShift Dashboard Shell — Sidebar + Header + Content
 // Matches the farmgo UI from UI_FarmShift.pdf
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
   Menu, X, LogOut, Search, Bell, Settings, ChevronRight,
@@ -207,6 +207,15 @@ export const DashboardLayout = ({
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  useEffect(() => {
+    if (breadcrumbs && breadcrumbs.length > 0) {
+      const currentPage = breadcrumbs[breadcrumbs.length - 1].label;
+      document.title = `${currentPage} - FarmShift`;
+    } else {
+      document.title = 'FarmShift';
+    }
+  }, [breadcrumbs]);
 
   const handleLogout = () => {
     logout();

@@ -1,0 +1,70 @@
+/* ============================================================
+   responsive.css — Global Media Queries for Mobile/Tablet
+   Ensures grids collapse to single columns and tables scroll
+   horizontally on smaller devices.
+   ============================================================ */
+
+/* ── Tablet (<= 1024px) ──────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* 4-column stat cards become 2 columns */
+  div[class*="statsGrid"], 
+  div[class*="metricsRow"], 
+  div[class*="kpiGrid"], 
+  div[class*="grid4"],
+  div[class*="metricsGrid"] { 
+    grid-template-columns: repeat(2, 1fr) !important; 
+  }
+
+  /* 2-column forms become 1 column */
+  div[class*="splitGrid"], 
+  div[class*="formGrid2"], 
+  div[class*="topGrid"], 
+  div[class*="layoutGrid"] { 
+    grid-template-columns: 1fr !important; 
+  }
+}
+
+/* ── Mobile (<= 768px) ───────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Make tables horizontally scrollable */
+  div[class*="tableWrap"], 
+  div[class*="tableContainer"], 
+  div[class*="tableWrapper"] {
+    display: block !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Fallback for naked tables not wrapped in divs */
+  table {
+    display: block !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* ── Smartphone (<= 480px) ───────────────────────────────── */
+@media (max-width: 480px) {
+  /* 2-column stat cards become 1 column */
+  div[class*="statsGrid"], 
+  div[class*="metricsRow"], 
+  div[class*="kpiGrid"], 
+  div[class*="grid4"], 
+  div[class*="gridList"],
+  div[class*="metricsGrid"] { 
+    grid-template-columns: 1fr !important; 
+  }
+
+  /* Stack header actions vertically */
+  div[class*="headerActions"] { 
+    flex-direction: column !important; 
+    width: 100% !important; 
+    align-items: stretch !important; 
+  }
+  div[class*="headerActions"] button { 
+    width: 100% !important; 
+    margin-bottom: 8px;
+  }
+}

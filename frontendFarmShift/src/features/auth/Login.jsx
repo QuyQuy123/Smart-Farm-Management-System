@@ -1,5 +1,5 @@
 // src/features/auth/Login.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Input } from '../../components/Input/Input';
 import { Button } from '../../components/Button/Button';
@@ -17,6 +17,10 @@ export const Login = () => {
   
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = 'Đăng nhập - FarmShift';
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();

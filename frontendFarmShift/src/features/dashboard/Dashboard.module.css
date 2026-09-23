@@ -256,6 +256,9 @@
   width:           100%;
   border-collapse: collapse;
   font-size:       var(--fs-body-md);
+  display:         block;
+  overflow-x:      auto;
+  white-space:     nowrap;
 }
 
 .eventsTable th {
@@ -305,6 +308,6 @@
     grid-template-columns: 1fr;
   }
   .metricsGrid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
 }
