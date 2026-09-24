@@ -312,7 +312,7 @@ export const DashboardLayout = ({
             {breadcrumbs.length > 0 && (
               <nav className={styles.breadcrumb} aria-label="Breadcrumb">
                 {breadcrumbs.map((crumb, idx) => (
-                  <React.Fragment key={idx}>
+                  <React.Fragment key={`${crumb.label}-${idx}`}>
                     {idx > 0 && <span className={styles.breadcrumbSep}>/</span>}
                     {crumb.path && idx < breadcrumbs.length - 1 ? (
                       <Link to={crumb.path} className={styles.breadcrumbCrumb}>
@@ -417,7 +417,12 @@ export const DashboardLayout = ({
 
                   <button 
                     className={styles.settingsItem}
-                    onClick={() => { setIsSettingsOpen(false); navigate('/owner-dashboard/settings'); }}
+                    onClick={() => {
+                      setIsSettingsOpen(false);
+                      if (user?.role === 'ROLE_FARM_OWNER') {
+                        navigate('/owner-dashboard/settings');
+                      }
+                    }}
                   >
                     <Settings size={16} /> Đi tới Cài đặt
                   </button>

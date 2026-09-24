@@ -1,6 +1,6 @@
 // src/features/dashboard/AccountantDashboard.jsx
 // Kế toán Dashboard — Trang trại Miền Bình (Gà thịt)
-import React, { useState } from 'react';
+import React from 'react';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { DollarSign, FileText, TrendingDown, TrendingUp } from 'lucide-react';
 import { Badge } from '../../components/Badge/Badge';

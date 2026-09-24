@@ -135,7 +135,7 @@ export const BatchDetail = () => {
       {/* ── Tabs ────────────────────────────────────────────── */}
       <div className={styles.tabs}>
         {TABS.map((t, i) => (
-          <button key={i} className={`${styles.tab} ${activeTab === i ? styles.tabActive : ''}`}
+          <button key={t} className={`${styles.tab} ${activeTab === i ? styles.tabActive : ''}`}
             onClick={() => setActiveTab(i)}>
             {t}
           </button>
@@ -164,8 +164,8 @@ export const BatchDetail = () => {
             <div className={styles.infoCard}>
               <div className={styles.infoCardTitle}>Nhật ký 5 ngày gần nhất</div>
               <div className={styles.logTimeline}>
-                {batch.nhatKy.slice(0, 5).map((entry, i) => (
-                  <div key={i} className={styles.logEntry}>
+                {batch.nhatKy.slice(0, 5).map((entry) => (
+                  <div key={entry.ngay} className={styles.logEntry}>
                     <div className={styles.logDate}>📅 {entry.ngay}</div>
                     <div style={{ flex: 1 }}>
                       <div className={styles.logStats}>
@@ -191,8 +191,8 @@ export const BatchDetail = () => {
             </Button>
           </div>
           <div className={styles.logTimeline}>
-            {batch.nhatKy.map((entry, i) => (
-              <div key={i} className={styles.logEntry}>
+            {batch.nhatKy.map((entry) => (
+              <div key={entry.ngay} className={styles.logEntry}>
                 <div className={styles.logDate}>
                   📅 {entry.ngay}<br/>
                   <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>({entry.ngayTuoi} ngày tuổi)</span>
@@ -226,8 +226,8 @@ export const BatchDetail = () => {
               </tr>
             </thead>
             <tbody>
-              {batch.vaccine.map((v, i) => (
-                <tr key={i}>
+              {batch.vaccine.map((v) => (
+                <tr key={`${v.tenVaccine}-${v.ngayTuoi}`}>
                   <td style={{ fontWeight: 600 }}>Ngày {v.ngayTuoi}</td>
                   <td style={{ fontWeight: 500 }}>{v.tenVaccine}</td>
                   <td style={{ color: 'var(--color-muted)' }}>{v.loai}</td>
@@ -263,8 +263,8 @@ export const BatchDetail = () => {
               <table className={styles.costTable}>
                 <thead><tr><th>Loại cám</th><th>Kg tiêu thụ</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
                 <tbody>
-                  {batch.chiPhi.cam.map((c, i) => (
-                    <tr key={i}>
+                  {batch.chiPhi.cam.map((c) => (
+                    <tr key={c.loai}>
                       <td>{c.loai}</td>
                       <td style={{ textAlign: 'right' }}>{c.kgTieu.toLocaleString()}</td>
                       <td style={{ textAlign: 'right' }}>{c.donGia.toLocaleString()}đ</td>
@@ -282,8 +282,8 @@ export const BatchDetail = () => {
               <table className={styles.costTable}>
                 <thead><tr><th>Tên</th><th>SL</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
                 <tbody>
-                  {batch.chiPhi.thuoc.map((t, i) => (
-                    <tr key={i}>
+                  {batch.chiPhi.thuoc.map((t) => (
+                    <tr key={t.ten}>
                       <td>{t.ten}</td>
                       <td style={{ textAlign: 'right' }}>{t.soLuong} {t.don}</td>
                       <td style={{ textAlign: 'right' }}>{t.donGia.toLocaleString()}đ</td>

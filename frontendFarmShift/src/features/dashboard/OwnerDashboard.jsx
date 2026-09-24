@@ -83,9 +83,9 @@ function DonutChart({ segments }) {
         {/* Background ring */}
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f1f5f9" strokeWidth={14} />
         {/* Segments */}
-        {arcs.map((arc, i) => (
+        {arcs.map((arc) => (
           <circle
-            key={i}
+            key={arc.label}
             cx={cx}
             cy={cy}
             r={r}
@@ -100,8 +100,8 @@ function DonutChart({ segments }) {
       </svg>
       {/* Legend */}
       <div className={styles.donutLegend}>
-        {segments.map((seg, i) => (
-          <div key={i} className={styles.legendItem}>
+        {segments.map((seg) => (
+          <div key={seg.label} className={styles.legendItem}>
             <span className={styles.legendDot} style={{ backgroundColor: seg.color }} />
             <span>{seg.label}</span>
             <span style={{ marginLeft: 'auto', fontWeight: 500, paddingLeft: 12 }}>
