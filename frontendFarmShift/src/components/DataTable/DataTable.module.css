@@ -65,6 +65,7 @@
   color:       var(--color-body);
   vertical-align: middle;
   line-height: 1.4;
+  white-space: nowrap;
 }
 
 /* ── Empty / Loading ──────────────────────────────────────── */

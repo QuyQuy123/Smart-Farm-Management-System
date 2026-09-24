@@ -178,3 +178,16 @@
 
 .profitPos { color: var(--color-farm-green); font-weight: var(--fw-semibold); }
 .profitNeg { color: var(--color-farm-red);   font-weight: var(--fw-semibold); }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .barnGrid {
+    grid-template-columns: 1fr;
+  }
+}

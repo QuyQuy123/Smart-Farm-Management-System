@@ -24,13 +24,21 @@ export const Login = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!email || !password) return;
+    
+    // Fallback to DOM values if React state is out of sync due to autofill
+    const currentEmail = (e.target.email?.value || email).trim();
+    const currentPassword = e.target.password?.value || password;
+
+    if (!currentEmail || !currentPassword) {
+      setError('Vui lòng nhập email và mật khẩu.');
+      return;
+    }
     
     setError('');
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email: currentEmail, password: currentPassword });
       if (response.data && response.data.accessToken) {
         const { accessToken, email: userEmail, role } = response.data;
         login(accessToken, userEmail, role);
@@ -70,18 +78,22 @@ export const Login = () => {
 
       <form className={styles.form} onSubmit={handleLogin} noValidate>
         <Input 
+          id="email"
           label="Email" 
+          name="email"
           type="email" 
           placeholder="email@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          autoComplete="email"
+          autoComplete="username"
           autoFocus
         />
         
         <Input 
+          id="password"
           label="Mật khẩu" 
+          name="password"
           type="password" 
           placeholder="Nhập mật khẩu..."
           value={password}

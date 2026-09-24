@@ -274,3 +274,38 @@
 .profitBoxValue { font-size: 28px; font-weight: 700; }
 .profitPos { color: var(--color-farm-green); }
 .profitNeg { color: var(--color-farm-red); }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .detailLayout {
+    grid-template-columns: 1fr;
+  }
+  .kpiStrip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .pageHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .headerActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .kpiStrip {
+    grid-template-columns: 1fr;
+  }
+  .formGrid2 {
+    grid-template-columns: 1fr;
+  }
+  .costSection {
+    grid-template-columns: 1fr;
+  }
+  .tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+}
