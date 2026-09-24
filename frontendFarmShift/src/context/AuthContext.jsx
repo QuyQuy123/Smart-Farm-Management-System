@@ -10,6 +10,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true; // abort flag to prevent setState after unmount
+
     // Check for existing token on mount
     const token = sessionStorage.getItem('token');
     if (token) {
@@ -19,41 +21,43 @@ export const AuthProvider = ({ children }) => {
         // Check if token is expired
         if (decoded.exp * 1000 < Date.now()) {
           logout();
-          setLoading(false);
+          if (isMounted) setLoading(false);
         } else {
           // The backend embeds roles in the JWT. For simplicity, assume first role.
           const role = decoded.roles && decoded.roles.length > 0 ? decoded.roles[0] : null;
           
           // First set basic info from token
-          setUser({ email: decoded.sub, role });
+          if (isMounted) setUser({ email: decoded.sub, role });
           
           // Then fetch full profile asynchronously
           const fetchProfile = async () => {
             try {
               const profile = await getProfile();
-              setUser(prev => ({
-                ...prev,
-                name: profile.fullName,
-                avatarUrl: profile.avatarUrl,
-                phone: profile.phone,
-                citizenId: profile.citizenId,
-                address: profile.address,
-                dateOfBirth: profile.dateOfBirth
-              }));
+              if (isMounted) {
+                setUser(prev => ({
+                  ...prev,
+                  name: profile.fullName,
+                  avatarUrl: profile.avatarUrl,
+                  phone: profile.phone,
+                  citizenId: profile.citizenId,
+                  address: profile.address,
+                  dateOfBirth: profile.dateOfBirth
+                }));
+              }
             } catch (err) {
               console.error("Failed to fetch profile on init:", err);
             } finally {
-              setLoading(false);
+              if (isMounted) setLoading(false);
             }
           };
           fetchProfile();
         }
       } catch (e) {
         logout(); // Invalid token
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     } else {
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
 
     // Listen for unauthorized events from api interceptor
@@ -63,6 +67,7 @@ export const AuthProvider = ({ children }) => {
     window.addEventListener('unauthorized', handleUnauthorized);
 
     return () => {
+      isMounted = false; // prevent any pending setState calls
       window.removeEventListener('unauthorized', handleUnauthorized);
     };
   }, []);

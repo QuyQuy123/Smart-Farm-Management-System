@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, Upload, Trash2 } from 'lucide-react';
 import { Input } from '../../components/Input/Input';
 import { Button } from '../../components/Button/Button';
@@ -25,7 +25,7 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
   // Cropper State
   const [selectedImageToCrop, setSelectedImageToCrop] = useState(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (user) {
       setName(user.name || '');
       setAvatarUrl(user.avatarUrl || '');

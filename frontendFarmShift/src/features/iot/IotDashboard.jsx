@@ -72,7 +72,6 @@ export const IotDashboard = () => {
   const maxTempChart = 40;
   const chartHeight = 240;
   const getY = t => chartHeight - ((t - minTempChart) / (maxTempChart - minTempChart)) * chartHeight;
-  const points = tempData.map((t, i) => `${(i / (tempData.length - 1)) * 100}%,${getY(t)}`).join(' ');
 
   const BREADCRUMBS = [
     { label: 'Trang trại Miền Bình', path: '/owner-dashboard' },

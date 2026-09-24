@@ -241,7 +241,7 @@ export const DebtTracking = () => {
                 <div style={{ marginTop: 'var(--sp-sm)', borderTop: '1px solid var(--color-hairline)', paddingTop: 'var(--sp-sm)' }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-muted)', marginBottom: 6 }}>LỊCH SỬ THANH TOÁN</div>
                   {d.lichSuThanhToan.slice(0, 3).map((h, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: i < d.lichSuThanhToan.slice(0,3).length - 1 ? '1px solid var(--color-hairline)' : 'none' }}>
+                    <div key={`${h.ngay}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: i < d.lichSuThanhToan.slice(0,3).length - 1 ? '1px solid var(--color-hairline)' : 'none' }}>
                       <span style={{ color: 'var(--color-muted)' }}>{h.ngay} · {h.ghiChu}</span>
                       <span style={{ color: 'var(--color-farm-green)', fontWeight: 600 }}>{h.soTien.toLocaleString('vi-VN')}đ</span>
                     </div>

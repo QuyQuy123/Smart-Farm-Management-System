@@ -5,7 +5,7 @@ import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { Badge } from '../../components/Badge/Badge';
 import { Button } from '../../components/Button/Button';
 import { Plus, X, Save, Edit, Trash2, Key, Shield, User } from 'lucide-react';
-import styles from '../finance/Finance.module.css';
+import styles from './Employee.module.css';
 
 /* ── Mock data ──────────────────────────────────────────── */
 const INIT_EMPLOYEES = [

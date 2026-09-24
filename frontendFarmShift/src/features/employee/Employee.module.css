@@ -1,0 +1,172 @@
+/* Employee.module.css — Quản lý Nhân sự */
+/* Re-exports the shared Finance layout patterns as a proper, 
+   decoupled CSS file for the employee feature. */
+
+/* ── Page Header ──────────────────────────────────────────── */
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--sp-lg);
+  gap: var(--sp-md);
+  flex-wrap: wrap;
+}
+.pageTitle {
+  font-size: var(--fs-title-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+.pageSub {
+  font-size: var(--fs-body-md);
+  color: var(--color-muted);
+}
+.headerActions {
+  display: flex;
+  gap: var(--sp-sm);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* ── KPI Strip ─────────────────────────────────────────────── */
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-md);
+  margin-bottom: var(--sp-lg);
+}
+.kpiCard {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  padding: var(--sp-md) var(--sp-lg);
+}
+.kpiLabel { font-size: 12px; color: var(--color-muted); margin-bottom: 4px; }
+.kpiValue { font-size: 22px; font-weight: var(--fw-semibold); color: var(--color-ink); }
+.kpiSub   { font-size: 12px; color: var(--color-muted); margin-top: 2px; }
+
+/* ── Filter Bar ────────────────────────────────────────────── */
+.filterBar {
+  display: flex;
+  gap: var(--sp-sm);
+  align-items: center;
+  margin-bottom: var(--sp-md);
+  flex-wrap: wrap;
+}
+
+/* ── Card & Table ──────────────────────────────────────────── */
+.card {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.table th {
+  text-align: left;
+  padding: var(--sp-sm) var(--sp-lg);
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-hairline);
+  background: var(--color-surface-soft);
+}
+.table td {
+  padding: var(--sp-sm) var(--sp-lg);
+  border-bottom: 1px solid var(--color-hairline);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td { border-bottom: none; }
+.tableRow { cursor: default; transition: background var(--transition-fast); }
+.tableRow:hover td { background: var(--color-surface-soft); }
+
+/* ── Modal ─────────────────────────────────────────────────── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-lg);
+}
+.modal {
+  background: var(--color-canvas);
+  border-radius: var(--rounded-lg);
+  border: 1px solid var(--color-hairline);
+  padding: var(--sp-xl);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modalTitle {
+  font-size: var(--fs-title-md);
+  font-weight: var(--fw-semibold);
+  color: var(--color-ink);
+  margin-bottom: var(--sp-lg);
+}
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-sm);
+  margin-top: var(--sp-lg);
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--color-hairline);
+}
+.formGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-md);
+}
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--sp-md);
+}
+.formLabel {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--color-ink);
+}
+.formInput, .formSelect {
+  padding: 8px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-sm);
+  font-size: var(--fs-body-md);
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  transition: border-color var(--transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+}
+.formInput:focus, .formSelect:focus {
+  outline: none;
+  border-color: var(--color-farm-green);
+  box-shadow: 0 0 0 3px rgba(45,138,78,0.12);
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pageHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .headerActions { width: 100%; }
+  .kpiStrip { grid-template-columns: repeat(2, 1fr); }
+  .formGrid2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .kpiStrip { grid-template-columns: 1fr; }
+}
