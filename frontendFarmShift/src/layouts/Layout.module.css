@@ -367,6 +367,125 @@
   border: 2px solid var(--color-canvas);
 }
 
+/* Notifications Dropdown */
+.notifDropdown {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  width: 320px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeIn var(--transition-fast);
+}
+
+.notifHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-sm) var(--sp-md);
+  border-bottom: 1px solid var(--color-hairline);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-body-md);
+  color: var(--color-ink);
+}
+
+.notifClear {
+  font-size: var(--fs-caption);
+  color: var(--color-link);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.notifList {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.notifItem {
+  padding: var(--sp-sm) var(--sp-md);
+  border-bottom: 1px solid var(--color-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.notifItem:hover {
+  background: var(--color-surface-soft);
+}
+
+.notifItem.unread {
+  background: var(--color-farm-green-light);
+}
+
+.notifItem.unread:hover {
+  background: #dcf2e6;
+}
+
+.notifTitle {
+  font-weight: var(--fw-medium);
+  color: var(--color-ink);
+  font-size: var(--fs-body-md);
+}
+
+.notifTime {
+  font-size: var(--fs-legal);
+  color: var(--color-muted);
+}
+
+/* Settings Dropdown */
+.settingsDropdown {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  width: 220px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-xs) 0;
+  animation: fadeIn var(--transition-fast);
+}
+
+.settingsItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  color: var(--color-ink);
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.settingsItem:hover {
+  background: var(--color-surface-soft);
+}
+
+.settingsDivider {
+  height: 1px;
+  background-color: var(--color-hairline);
+  margin: var(--sp-xs) 0;
+}
+
 /* User Profile */
 .userProfile {
   display: flex;
@@ -463,6 +582,7 @@
     left: 0;
     bottom: 0;
     transform: translateX(-100%);
+    transition: transform var(--transition-base);
   }
 
   .sidebarOpen {
@@ -472,6 +592,7 @@
 
   .overlay {
     display: block;
+    pointer-events: none;
   }
 
   .overlayVisible {
@@ -480,7 +601,11 @@
   }
 
   .headerCenter {
-    display: none;
+    display: none !important;
+  }
+
+  .breadcrumb {
+    display: none !important;
   }
 
   .userMeta {

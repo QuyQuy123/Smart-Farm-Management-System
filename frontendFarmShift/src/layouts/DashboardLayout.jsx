@@ -4,10 +4,11 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
-  Menu, X, LogOut, Search, Bell, Settings, ChevronRight,
+  Menu, X, LogOut, Search, Bell, Settings, ChevronRight, History,
   LayoutDashboard, Beef, Package, ShoppingCart, ClipboardList,
   Warehouse, BarChart3, Users, FileText, TrendingUp,
-  ArrowLeftRight, Receipt, DollarSign, Activity
+  ArrowLeftRight, Receipt, DollarSign, Activity,
+  Sun, Moon, Monitor
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { UserProfileModal } from '../features/profile/UserProfileModal';
@@ -105,6 +106,7 @@ const OWNER_NAV = [
     section: 'HỆ THỐNG',
     items: [
       { label: 'Cài đặt', path: '/owner-dashboard/settings', icon: Settings },
+      { label: 'Nhật ký đăng nhập', path: '/owner-dashboard/login-logs', icon: History },
     ],
   },
 ];
@@ -207,6 +209,20 @@ export const DashboardLayout = ({
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'system');
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.setAttribute('data-theme', systemTheme);
+    } else {
+      root.setAttribute('data-theme', theme);
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     if (breadcrumbs && breadcrumbs.length > 0) {
@@ -326,13 +342,88 @@ export const DashboardLayout = ({
 
           {/* Right: icons + user */}
           <div className={styles.headerRight}>
-            <button className={styles.iconBtn} aria-label="Thông báo">
-              <Bell size={16} />
-              <span className={styles.notifBadge} />
-            </button>
-            <button className={styles.iconBtn} aria-label="Cài đặt">
-              <Settings size={16} />
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button 
+                className={styles.iconBtn} 
+                aria-label="Thông báo"
+                onClick={() => setIsNotifOpen(!isNotifOpen)}
+              >
+                <Bell size={16} />
+                <span className={styles.notifBadge} />
+              </button>
+              
+              {isNotifOpen && (
+                <div className={styles.notifDropdown}>
+                  <div className={styles.notifHeader}>
+                    <span>Thông báo mới</span>
+                    <button className={styles.notifClear} onClick={() => setIsNotifOpen(false)}>Đóng</button>
+                  </div>
+                  <div className={styles.notifList}>
+                    <div className={`${styles.notifItem} ${styles.unread}`}>
+                      <span className={styles.notifTitle}>Cảnh báo nhiệt độ!</span>
+                      <span className={styles.notifTime}>Chuồng 1 - 32°C vượt ngưỡng (Vừa xong)</span>
+                    </div>
+                    <div className={`${styles.notifItem} ${styles.unread}`}>
+                      <span className={styles.notifTitle}>Nhập kho thành công</span>
+                      <span className={styles.notifTime}>Phiếu PN-001 (5 phút trước)</span>
+                    </div>
+                    <div className={styles.notifItem}>
+                      <span className={styles.notifTitle}>Nhắc nhở công việc</span>
+                      <span className={styles.notifTime}>Vui lòng ghi nhật ký lứa GÀ-2024 (1 giờ trước)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <button 
+                className={styles.iconBtn} 
+                aria-label="Cài đặt"
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              >
+                <Settings size={16} />
+              </button>
+              
+              {isSettingsOpen && (
+                <div className={styles.settingsDropdown}>
+                  <div className={styles.notifHeader} style={{ padding: '8px 16px' }}>
+                    <span>Giao diện</span>
+                  </div>
+                  
+                  <button 
+                    className={styles.settingsItem}
+                    onClick={() => { setTheme('light'); setIsSettingsOpen(false); }}
+                    style={{ color: theme === 'light' ? 'var(--color-farm-green)' : '' }}
+                  >
+                    <Sun size={16} /> Sáng
+                  </button>
+                  <button 
+                    className={styles.settingsItem}
+                    onClick={() => { setTheme('dark'); setIsSettingsOpen(false); }}
+                    style={{ color: theme === 'dark' ? 'var(--color-farm-green)' : '' }}
+                  >
+                    <Moon size={16} /> Tối
+                  </button>
+                  <button 
+                    className={styles.settingsItem}
+                    onClick={() => { setTheme('system'); setIsSettingsOpen(false); }}
+                    style={{ color: theme === 'system' ? 'var(--color-farm-green)' : '' }}
+                  >
+                    <Monitor size={16} /> Theo hệ thống
+                  </button>
+
+                  <div className={styles.settingsDivider}></div>
+
+                  <button 
+                    className={styles.settingsItem}
+                    onClick={() => { setIsSettingsOpen(false); navigate('/owner-dashboard/settings'); }}
+                  >
+                    <Settings size={16} /> Đi tới Cài đặt
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div
               className={styles.userProfile}

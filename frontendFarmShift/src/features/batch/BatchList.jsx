@@ -107,8 +107,8 @@ export const BatchList = () => {
       </div>
 
       {/* Table */}
-      <div style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-lg)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <div style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-lg)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, whiteSpace: 'nowrap' }}>
           <thead>
             <tr style={{ background: 'var(--color-surface-soft)' }}>
               <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 12, fontWeight: 600, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--color-hairline)' }}>Mã lứa</th>

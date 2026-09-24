@@ -156,10 +156,11 @@ export const BarnDetail = () => {
               <div className={styles.infoCardTitle} style={{ marginBottom: 0 }}>Lịch sử lứa nuôi</div>
               <Badge variant="inactive">{barn.lichSuLua.length} lứa đã hoàn thành</Badge>
             </div>
-            <table className={styles.historyTable}>
-              <thead>
-                <tr>
-                  <th>Mã lứa</th>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table className={styles.historyTable} style={{ whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr>
+                    <th>Mã lứa</th>
                   <th>Ngày vào</th>
                   <th>Ngày xuất</th>
                   <th>Con vào</th>
@@ -185,6 +186,7 @@ export const BarnDetail = () => {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>

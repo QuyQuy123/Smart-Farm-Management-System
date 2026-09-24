@@ -42,6 +42,8 @@ import { CustomerDebt } from '../features/finance/CustomerDebt';
 import { InternalTransfer } from '../features/inventory/InternalTransfer';
 import { EmployeeList } from '../features/employee/EmployeeList';
 import { IotDashboard } from '../features/iot/IotDashboard';
+import { LoginLogs } from '../features/system/LoginLogs';
+import { Settings } from '../features/system/Settings';
 
 /* ── ProtectedRoute ─────────────────────────────────────────── */
 /**
@@ -308,6 +310,24 @@ export const AppRouter = () => {
         element={
           <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
             <IotDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Hệ thống ────────────────────────── */}
+      <Route
+        path="/owner-dashboard/settings"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/owner-dashboard/login-logs"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <LoginLogs />
           </ProtectedRoute>
         }
       />
