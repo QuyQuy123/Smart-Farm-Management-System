@@ -1,270 +1,244 @@
 // src/features/dashboard/OwnerDashboard.jsx
-// Farm Owner Dashboard — Trang trại Miền Bình (Gà thịt)
-// Layout: Module cards → Task list + Metric cards → Chart + Events table
-import React, { useEffect, useState } from 'react';
+// Farm Owner Dashboard — Exact FarmShift.html UI/UX Clone
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
-import { MetricCard } from '../../components/MetricCard/MetricCard';
-import { Badge } from '../../components/Badge/Badge';
-import { Button } from '../../components/Button/Button';
 import {
-  Thermometer, DollarSign, Clock, Bird,
-  Plus, RefreshCw
+  Bird, TrendingUp, Warehouse, DollarSign,
+  AlertTriangle, CheckCircle, Clock
 } from 'lucide-react';
-import styles from './Dashboard.module.css';
 
-/* ── Mock data (mirrors backend shape) ─────────────────────
-   Replace with real API calls via dashboardService when ready
-   ─────────────────────────────────────────────────────────── */
-const MOCK_DATA = {
-  farm: {
-    name: 'Trang trại Miền Bình',
-    count: 3,
-    sub: 'Quản lý lứa gà thịt · 3 chuồng đang hoạt động',
-  },
-  staff: [
-    { id: 1, name: 'Lứa nuôi',   role: 'Quản lý lứa gà thịt',   avatar: '🐔', color: '#e8f5ee' },
-    { id: 2, name: 'Kho vật tư', role: 'Cám, thuốc, vaccine',    avatar: '📦', color: '#fff4e6' },
-    { id: 3, name: 'Nhiệt độ',   role: 'Giám sát chuồng trại',  avatar: '🌡️', color: '#eff6ff' },
-    { id: 4, name: 'Tài chính',  role: 'Doanh thu & Công nợ',   avatar: '💰', color: '#faf5ff' },
-  ],
-  tasks: [
-    { id: 1, name: 'Chuồng 1 – Lứa GÀ-2024-08 | 45 ngày tuổi | 1,950 con', time: '07:00 – 08:00 Sáng', dot: 'green'  },
-    { id: 2, name: 'Chuồng 2 – Lứa GÀ-2024-09 | 30 ngày tuổi | 1,980 con', time: '08:00 – 09:00 Sáng', dot: 'orange' },
-    { id: 3, name: 'Chuồng 3 – Lứa GÀ-2024-10 | 12 ngày tuổi | 3,950 con', time: '09:00 – 10:00 Sáng', dot: 'blue'   },
-  ],
-  metrics: [
-    { id: 'm1', label: 'Tổng đàn đang nuôi', value: '7,880 con',           icon: <Bird size={18}/>,        color: 'green'  },
-    { id: 'm2', label: 'Chi phí tháng này',  value: '42,500,000đ',          icon: <DollarSign size={18}/>,  color: 'orange' },
-    { id: 'm3', label: 'Lứa sắp xuất bán',  value: '1 lứa (~15 ngày)',     icon: <Clock size={18}/>,       color: 'blue'   },
-    { id: 'm4', label: 'Cảnh báo nhiệt độ', value: '0 cảnh báo',           icon: <Thermometer size={18}/>, color: 'green'  },
-  ],
-  chart: {
-    title: 'Phân bố đàn gà theo chuồng',
-    segments: [
-      { label: 'Chuồng 1 (1,950 con)', value: 25, color: '#2D8A4E' },
-      { label: 'Chuồng 2 (1,980 con)', value: 25, color: '#F4820A' },
-      { label: 'Chuồng 3 (3,950 con)', value: 50, color: '#3B82F6' },
-    ],
-  },
-  events: [
-    { id: 'E001', type: 'Nhập kho',     desc: 'Cám CP 511 – 50 bao | Chuồng 1 & 2 | NCC: Cty CP',          time: 'Vừa xong',    amount: '-4,500,000đ',  status: 'success' },
-    { id: 'E002', type: 'Tiêm vaccine', desc: 'Vaccine ND-IB | Chuồng 3 – Lứa GÀ-2024-10 (12 ngày tuổi)', time: '2 giờ trước', amount: '-350,000đ',    status: 'success' },
-    { id: 'E003', type: 'Xuất bán',     desc: 'Lứa GÀ-2024-07 – 1,850 con · 3,700 kg | KH: Anh Hùng',     time: 'Hôm qua',     amount: '+62,900,000đ', status: 'warning' },
-  ],
-};
-
-/* ── Simple SVG Donut Chart ────────────────────────────────── */
-function DonutChart({ segments }) {
-  const size   = 120;
-  const r      = 44;
-  const cx     = size / 2;
-  const cy     = size / 2;
-  const circ   = 2 * Math.PI * r;
-
-  // Compute each segment arc
-  let cumulative = 0;
-  const arcs = segments.map(seg => {
-    const pct    = seg.value / 100;
-    const dash   = pct * circ;
-    const offset = cumulative * circ;
-    cumulative  += pct;
-    return { ...seg, dash, offset };
-  });
-
-  return (
-    <div className={styles.donutWrap}>
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        className={styles.donutSvg}
-        style={{ transform: 'rotate(-90deg)' }}
-      >
-        {/* Background ring */}
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f1f5f9" strokeWidth={14} />
-        {/* Segments */}
-        {arcs.map((arc) => (
-          <circle
-            key={arc.label}
-            cx={cx}
-            cy={cy}
-            r={r}
-            fill="none"
-            stroke={arc.color}
-            strokeWidth={14}
-            strokeDasharray={`${arc.dash} ${circ - arc.dash}`}
-            strokeDashoffset={-arc.offset}
-            strokeLinecap="round"
-          />
-        ))}
-      </svg>
-      {/* Legend */}
-      <div className={styles.donutLegend}>
-        {segments.map((seg) => (
-          <div key={seg.label} className={styles.legendItem}>
-            <span className={styles.legendDot} style={{ backgroundColor: seg.color }} />
-            <span>{seg.label}</span>
-            <span style={{ marginLeft: 'auto', fontWeight: 500, paddingLeft: 12 }}>
-              {seg.value}%
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── OwnerDashboard ──────────────────────────────────────── */
 export const OwnerDashboard = () => {
-  const [data, setData]     = useState(null);
-  const [loading, setLoading] = useState(true);
+  const BREADCRUMBS = [{ label: 'FarmShift' }, { label: 'Tổng quan' }];
 
-  useEffect(() => {
-    // Simulates async fetch — replace with real API call
-    const timer = setTimeout(() => {
-      setData(MOCK_DATA);
-      setLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const BREADCRUMBS = [
-    { label: 'Livestock Farm' },
-    { label: 'Tổng quan' },
+  const kpiData = [
+    { title: 'Tổng đàn hiện tại', value: '2.998', unit: 'con · 1 lứa đang nuôi', icon: Bird },
+    { title: 'Tỷ lệ sống', value: '99.93%', unit: 'hao hụt đầu kỳ 2 con', icon: TrendingUp },
+    { title: 'Chuồng đang nuôi', value: '2/2', unit: 'chuồng', icon: Warehouse },
+    { title: 'Chi phí đã ghi', value: '70.000.000 ₫', unit: 'lứa MB-2026-08', icon: DollarSign },
   ];
 
-  if (loading) {
-    return (
-      <DashboardLayout breadcrumbs={BREADCRUMBS}>
-        <div style={{ color: 'var(--color-muted)', padding: 'var(--sp-xl)' }}>
-          Đang tải dữ liệu...
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const coops = [
+    { id: 'B5', n: 1500, temp: 29.2, worker: 'Nguyễn Văn An', capacity: 2000 },
+    { id: 'B6', n: 1498, temp: 30.1, worker: 'Trần Văn Bình', capacity: 2000 },
+  ];
 
-  const { farm, staff, tasks, metrics, chart, events } = data;
+  const alerts = [
+    { name: 'Vitamin bổ sung sắp hết hạn', detail: 'Lô BS-0926 · 10 gói · HSD 05/11/2026', status: 'Mới' },
+    { name: 'Tồn dung dịch vệ sinh thấp', detail: '20 lít / mức tối thiểu 30 lít', status: 'Đang xử lý' },
+  ];
+
+  const tasks = [
+    { name: 'Cho ăn buổi sáng', coop: 'B6', time: '07:00', status: 'Hoàn thành' },
+    { name: 'Cân mẫu định kỳ', coop: 'B6', time: '10:00', status: 'Chưa bắt đầu' },
+    { name: 'Vệ sinh lối đi chuồng', coop: 'B5', time: '14:00', status: 'Đang thực hiện' },
+  ];
+
+  const logs = [
+    { date: '2026-10-21', time: '07:00', coop: 'B6', type: 'Cho ăn', amount: '60 kg', note: 'Thức ăn tăng trưởng', person: 'Trần Văn Bình' },
+    { date: '2026-10-21', time: '09:15', coop: 'B6', type: 'Hao hụt', amount: '2 con', note: 'Đã báo chủ trại, chờ xác minh nguyên nhân', person: 'Trần Văn Bình' },
+    { date: '2026-10-21', time: '10:00', coop: 'B5', type: 'Cân mẫu', amount: '460 g/con', note: '30 mẫu, tổng 13,8 kg', person: 'Nguyễn Văn An' },
+  ];
 
   return (
-    <DashboardLayout breadcrumbs={BREADCRUMBS}>
-      {/* ── Page Header ────────────────────────────────────── */}
-      <div className={styles.pageHeader}>
-        <div>
-          <div className={styles.farmName}>
-            <h1 className={styles.farmTitle}>{farm.name}</h1>
-            <span className={styles.farmBadge}>{farm.count}</span>
-          </div>
-          <p className={styles.farmSub}>{farm.sub}</p>
-        </div>
-        <div className={styles.headerActions}>
-          <Button variant="ghost" size="sm">
-            <RefreshCw size={14} />
-            Làm mới
-          </Button>
-          <Button variant="green" size="sm">
-            <Plus size={14} />
-            Tạo mới
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Staff Module Cards ──────────────────────────────── */}
-      <div className={styles.staffRow}>
-        {staff.map(s => (
-          <div key={s.id} className={styles.staffCard}>
-            <div className={styles.staffAvatar} style={{ backgroundColor: s.color }}>
-              {s.avatar}
-            </div>
-            <div className={styles.staffInfo}>
-              <div className={styles.staffName}>{s.name}</div>
-              <div className={styles.staffRole}>{s.role}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Main Content Grid: Task List | Metric Cards ──────── */}
-      <div className={styles.contentGrid}>
-        {/* Task List */}
-        <div className={styles.sectionCard}>
-          <div className={styles.sectionCardHeader}>
-            <span className={styles.sectionTitle}>Bạn làm gì</span>
-          </div>
-          <div className={styles.taskList}>
-            {tasks.map(task => (
-              <div key={task.id} className={styles.taskItem}>
-                <span className={`${styles.taskDot} ${styles[`taskDot${task.dot.charAt(0).toUpperCase() + task.dot.slice(1)}`]}`} />
-                <span className={styles.taskName}>{task.name}</span>
-                <span className={styles.taskTime}>{task.time}</span>
+    <DashboardLayout breadcrumbs={BREADCRUMBS} pageTitle="Tổng quan">
+      {/* ── 4 KPI Cards (Exact FarmShift.html) ────────────── */}
+      <div className="grid four">
+        {kpiData.map((kpi, i) => {
+          const Icon = kpi.icon;
+          return (
+            <div key={i} className="card kpi">
+              <span className="round">
+                <Icon size={22} />
+              </span>
+              <div>
+                <span className="muted">{kpi.title}</span>
+                <strong>{kpi.value}</strong>
+                <small>{kpi.unit}</small>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Metric Cards 2×2 */}
-        <div className={styles.metricsGrid}>
-          {metrics.map(m => (
-            <MetricCard
-              key={m.id}
-              label={m.label}
-              value={m.value}
-              icon={m.icon}
-              color={m.color}
-            />
-          ))}
-        </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* ── Bottom: Chart | Events ──────────────────────────── */}
-      <div className={styles.bottomGrid}>
-        {/* Donut Chart */}
-        <div className={styles.sectionCard}>
-          <div className={styles.sectionCardHeader}>
-            <span className={styles.sectionTitle}>{chart.title}</span>
+      {/* ── Grid 2 columns: Chart + Alerts ────────────────── */}
+      <div className="grid two">
+        {/* Tăng trưởng của lứa */}
+        <section className="card">
+          <h2>Tăng trưởng của lứa</h2>
+          <div className="legend">
+            <span><i className="dot"></i>Thực tế</span>
+            <span><i className="dot" style={{ background: '#a9bbad' }}></i>Mục tiêu</span>
           </div>
-          <div className={styles.chartWrap}>
-            <DonutChart segments={chart.segments} />
-          </div>
-        </div>
 
-        {/* Recent Events */}
-        <div className={styles.sectionCard}>
-          <div className={styles.sectionCardHeader}>
-            <span className={styles.sectionTitle}>Sự kiện gần đây</span>
+          <svg
+            className="chart"
+            viewBox="0 0 600 190"
+            role="img"
+            aria-label="Cân nặng ngày 1, 7, 14, 21: thực tế 45, 130, 290, 450 gram; mục tiêu 45, 140, 300, 470 gram"
+          >
+            <g stroke="#e7eee8">
+              <path d="M45 20H580M45 60H580M45 100H580M45 140H580" />
+            </g>
+            <g fill="#84948b" fontSize="11">
+              <text x="5" y="25">500 g</text>
+              <text x="12" y="145">0 g</text>
+              <text x="40" y="178">Ngày 1</text>
+              <text x="205" y="178">Ngày 7</text>
+              <text x="365" y="178">Ngày 14</text>
+              <text x="530" y="178">Ngày 21</text>
+            </g>
+            <path
+              d="M50 129 220 106 390 68 555 27"
+              fill="none"
+              stroke="#a9bbad"
+              strokeWidth="3"
+              strokeDasharray="6 6"
+            />
+            <path
+              d="M50 129 220 109 390 70 555 32"
+              fill="none"
+              stroke="#367957"
+              strokeWidth="3"
+            />
+            <g fill="#367957">
+              <circle cx="50" cy="129" r="4" />
+              <circle cx="220" cy="109" r="4" />
+              <circle cx="390" cy="70" r="4" />
+              <circle cx="555" cy="32" r="4" />
+            </g>
+          </svg>
+
+          <div style={{ marginTop: 16 }}>
+            <Link to="/owner-dashboard/batches" className="btn">
+              Xem tăng trưởng
+            </Link>
           </div>
-          <table className={styles.eventsTable}>
+        </section>
+
+        {/* Cần chú ý (Alerts) */}
+        <section className="card">
+          <h2>Cần chú ý</h2>
+          {alerts.map((a, i) => (
+            <div key={i} className="row">
+              <div>
+                <b>{a.name}</b>
+                <p><small>{a.detail}</small></p>
+              </div>
+              <span className={`badge ${a.status === 'Mới' ? 'warn' : ''}`}>
+                {a.status}
+              </span>
+            </div>
+          ))}
+
+          <div className="note" style={{ marginTop: 18 }}>
+            Môi trường được mô phỏng tại thời điểm 21/10/2026; không phải dữ liệu trực tiếp.
+          </div>
+        </section>
+      </div>
+
+      {/* ── Coop Cards (Chuồng nuôi) ──────────────────────── */}
+      <div className="grid three">
+        {coops.map(c => {
+          const pct = Math.min((c.n / c.capacity) * 100, 100);
+          return (
+            <div key={c.id} className="card coop">
+              <span className="temp">{c.temp}°C</span>
+              <h2>Chuồng {c.id}</h2>
+              <span className="badge">Đang nuôi</span>
+              <p className="muted">MB-2026-08 · Gà lông màu</p>
+
+              <div className="row">
+                <span>Tổng đàn</span>
+                <strong>{c.n.toLocaleString('vi-VN')} con</strong>
+              </div>
+              <div className="row">
+                <span>Người phụ trách</span>
+                <span>{c.worker}</span>
+              </div>
+
+              <div className="progress">
+                <i style={{ width: `${pct}%` }} />
+              </div>
+              <small>Sức chứa {c.capacity.toLocaleString('vi-VN')} con ({pct.toFixed(1)}%)</small>
+
+              <div style={{ marginTop: 16 }}>
+                <Link to="/owner-dashboard/barns" className="btn">
+                  Xem chi tiết
+                </Link>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Công việc hôm nay (Task Table) ────────────────── */}
+      <section className="card">
+        <h2>Công việc hôm nay</h2>
+        <div className="tablewrap">
+          <table>
             <thead>
               <tr>
-                <th>Loại</th>
-                <th>Mô tả</th>
-                <th>Số tiền</th>
+                <th>Công việc</th>
+                <th>Chuồng</th>
+                <th>Giờ</th>
                 <th>Trạng thái</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {events.map(ev => (
-                <tr key={ev.id}>
-                  <td style={{ fontWeight: 500, color: 'var(--color-ink)' }}>{ev.type}</td>
-                  <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ev.desc}
-                  </td>
-                  <td style={{
-                    fontWeight: 500,
-                    color: ev.amount.startsWith('+') ? 'var(--color-farm-green)' : 'var(--color-farm-red)'
-                  }}>
-                    {ev.amount}
-                  </td>
+              {tasks.map((t, idx) => (
+                <tr key={idx}>
+                  <td><b>{t.name}</b></td>
+                  <td>{t.coop}</td>
+                  <td>{t.time}</td>
                   <td>
-                    <Badge variant={ev.status}>
-                      {ev.status === 'success' ? 'Hoàn thành' : 'Chờ xử lý'}
-                    </Badge>
+                    <span className={`badge ${t.status === 'Hoàn thành' ? '' : 'warn'}`}>
+                      {t.status}
+                    </span>
+                  </td>
+                  <td className="num">
+                    <Link to="/owner-dashboard/batches" className="btn small">
+                      Chi tiết
+                    </Link>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
+
+      {/* ── Nhật ký gần đây ───────────────────────────────── */}
+      <section className="card">
+        <h2>Nhật ký chăn nuôi gần đây</h2>
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ngày / Giờ</th>
+                <th>Hoạt động</th>
+                <th>Chuồng</th>
+                <th>Giá trị</th>
+                <th>Ghi chú</th>
+                <th>Người ghi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((l, idx) => (
+                <tr key={idx}>
+                  <td>{l.date} {l.time}</td>
+                  <td><span className="badge gray">{l.type}</span></td>
+                  <td>{l.coop}</td>
+                  <td><b>{l.amount}</b></td>
+                  <td>{l.note}</td>
+                  <td>{l.person}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </DashboardLayout>
   );
 };

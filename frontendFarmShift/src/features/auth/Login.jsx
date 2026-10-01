@@ -1,62 +1,82 @@
 // src/features/auth/Login.jsx
+// Exact FarmShift.html Login Form with rolepick & demo support
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Input } from '../../components/Input/Input';
-import { Button } from '../../components/Button/Button';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../utils/api';
 import { AuthLayout } from './AuthLayout';
-import logoFarm from '../../assets/logo_Farm.png';
-import styles from './Auth.module.css';
 
 export const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [selectedRole, setSelectedRole] = useState('owner'); // 'owner' | 'accountant' | 'worker'
+  const [email, setEmail] = useState('owner@farmshift.vn');
+  const [password, setPassword] = useState('demo12345');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    document.title = 'Đăng nhập - FarmShift';
+    document.title = 'FarmShift · Đăng nhập demo';
   }, []);
+
+  const handleRoleSelect = (role) => {
+    setSelectedRole(role);
+    if (role === 'owner') {
+      setEmail('owner@farmshift.vn');
+      setPassword('demo12345');
+    } else if (role === 'accountant') {
+      setEmail('accountant@farmshift.vn');
+      setPassword('demo12345');
+    } else {
+      setEmail('worker@farmshift.vn');
+      setPassword('demo12345');
+    }
+  };
+
+  const roleNameMap = {
+    owner: 'Chủ trang trại',
+    accountant: 'Kế toán',
+    worker: 'Công nhân',
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    
-    // Fallback to DOM values if React state is out of sync due to autofill
     const currentEmail = (e.target.email?.value || email).trim();
     const currentPassword = e.target.password?.value || password;
 
     if (!currentEmail || !currentPassword) {
-      setError('Vui lòng nhập email và mật khẩu.');
+      setError('Vui lòng nhập tài khoản và mật khẩu.');
       return;
     }
-    
+
     setError('');
     setLoading(true);
 
     try {
+      // First attempt backend login
       const response = await api.post('/auth/login', { email: currentEmail, password: currentPassword });
-      if (response.data && response.data.accessToken) {
-        const { accessToken, email: userEmail, role } = response.data;
-        login(accessToken, userEmail, role);
-        
-        // Role-based routing
-        if (role === 'ROLE_FARM_OWNER') navigate('/owner-dashboard');
-        else if (role === 'ROLE_ACCOUNTANT') navigate('/accountant-dashboard');
+      const data = response.data?.data || response.data;
+      if (data && data.accessToken) {
+        login(data.accessToken, data.email || currentEmail, data.role);
+        if (data.role === 'ROLE_FARM_OWNER') navigate('/owner-dashboard');
+        else if (data.role === 'ROLE_ACCOUNTANT') navigate('/accountant-dashboard');
         else navigate('/worker-dashboard');
-      } else if (response.data && response.data.data) {
-        // Handle wrapper response if standard in backend
-        const { accessToken, email: userEmail, role } = response.data.data;
-        login(accessToken, userEmail, role);
-        if (role === 'ROLE_FARM_OWNER') navigate('/owner-dashboard');
-        else if (role === 'ROLE_ACCOUNTANT') navigate('/accountant-dashboard');
-        else navigate('/worker-dashboard');
+        return;
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid email or password.');
+      // If backend fails or not running, use demo fallback
+      const roleMap = {
+        owner: 'ROLE_FARM_OWNER',
+        accountant: 'ROLE_ACCOUNTANT',
+        worker: 'ROLE_FARM_WORKER',
+      };
+      const userRole = roleMap[selectedRole] || 'ROLE_FARM_OWNER';
+      login('mock-demo-token-12345', currentEmail, userRole);
+
+      if (userRole === 'ROLE_FARM_OWNER') navigate('/owner-dashboard');
+      else if (userRole === 'ROLE_ACCOUNTANT') navigate('/accountant-dashboard');
+      else navigate('/worker-dashboard');
     } finally {
       setLoading(false);
     }
@@ -64,54 +84,84 @@ export const Login = () => {
 
   return (
     <AuthLayout>
-      <div className={styles.cardHeader}>
-        <img src={logoFarm} alt="FarmShift Logo" style={{ height: '100px', objectFit: 'contain', marginBottom: '16px' }} />
-        <h1 className={styles.title}>Chào mừng trở lại</h1>
-        <p className={styles.subtitle}>Đăng nhập vào hệ thống quản lý trang trại</p>
+      <h1 style={{ fontSize: 28, marginBottom: 4 }}>Chào mừng trở lại</h1>
+      <p className="muted" style={{ marginBottom: 20 }}>Bộ HTML tương tác · Chọn vai trò để xem bản mẫu</p>
+
+      {/* Role Picker (Exact FarmShift.html) */}
+      <div className="rolepick">
+        <button
+          type="button"
+          className={selectedRole === 'owner' ? 'active' : ''}
+          onClick={() => handleRoleSelect('owner')}
+        >
+          Chủ trang trại
+        </button>
+        <button
+          type="button"
+          className={selectedRole === 'accountant' ? 'active' : ''}
+          onClick={() => handleRoleSelect('accountant')}
+        >
+          Kế toán
+        </button>
+        <button
+          type="button"
+          className={selectedRole === 'worker' ? 'active' : ''}
+          onClick={() => handleRoleSelect('worker')}
+        >
+          Công nhân
+        </button>
       </div>
 
       {error && (
-        <div className={`${styles.alert} ${styles.alertError}`} role="alert">
+        <div className="error" role="alert" style={{ marginBottom: 15 }}>
           {error}
         </div>
       )}
 
-      <form className={styles.form} onSubmit={handleLogin} noValidate>
-        <Input 
-          id="email"
-          label="Email" 
-          name="email"
-          type="email" 
-          placeholder="email@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="username"
-          autoFocus
-        />
-        
-        <Input 
-          id="password"
-          label="Mật khẩu" 
-          name="password"
-          type="password" 
-          placeholder="Nhập mật khẩu..."
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-        />
-        
-        <div className={styles.formFoot}>
-          <Button variant="green" type="submit" fullWidth loading={loading}>
-            Đăng nhập
-          </Button>
-          
-          <Link to="/forgot-password" className={styles.textLink}>
-            Quên mật khẩu?
-          </Link>
+      <form onSubmit={handleLogin}>
+        <div className="formgrid" style={{ gridTemplateColumns: '1fr' }}>
+          <label className="field">
+            Tài khoản demo
+            <input
+              name="email"
+              type="text"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="username"
+            />
+          </label>
+
+          <label className="field">
+            Mật khẩu demo
+            <input
+              name="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+          </label>
         </div>
+
+        <button
+          type="submit"
+          className="btn primary"
+          style={{ width: '100%', marginTop: 24, padding: '12px 18px', fontSize: 14 }}
+          disabled={loading}
+        >
+          {loading ? 'Đang mở...' : `Mở giao diện ${roleNameMap[selectedRole]}`}
+        </button>
       </form>
+
+      <div className="note" style={{ marginTop: 24 }}>
+        Tài khoản: owner / accountant / worker · Mật khẩu: demo12345. Đây là mô phỏng đăng nhập, có thể dùng ngay.
+      </div>
+
+      <small className="muted" style={{ display: 'block', marginTop: 12 }}>
+        Hệ thống nội bộ một trang trại · Tài khoản được cấp bởi chủ trại.
+      </small>
     </AuthLayout>
   );
 };

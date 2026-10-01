@@ -1,156 +1,165 @@
 // src/features/dashboard/AccountantDashboard.jsx
-// Kế toán Dashboard — Trang trại Miền Bình (Gà thịt)
+// Kế toán Dashboard — Exact FarmShift.html UI/UX Clone
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
-import { DollarSign, FileText, TrendingDown, TrendingUp } from 'lucide-react';
-import { Badge } from '../../components/Badge/Badge';
-import { Button } from '../../components/Button/Button';
-import styles from './Dashboard.module.css';
-
-/* ── Mock data – điều chỉnh khi nối API ──────────────────── */
-const MOCK_METRICS = {
-  totalRevenue:       '62,900,000đ',
-  totalRevenueChange: '+12%',
-  totalCost:          '42,500,000đ',
-  totalCostChange:    '+8%',
-  supplierDebt:       '18,200,000đ',
-  supplierDebtChange: '-3,000,000đ',
-  netProfit:          '20,400,000đ',
-  netProfitChange:    '+4,200,000đ',
-};
-
-const MOCK_TRANSACTIONS = [
-  { id: 'GD-001', ngay: '23/09/2026', loai: 'Nhập kho',     moTa: 'Cám CP 511 – 50 bao | Chuồng 1 & 2',           soTien: '-4,500,000đ',  trangThai: 'Đã ghi sổ' },
-  { id: 'GD-002', ngay: '23/09/2026', loai: 'Tiêm vaccine', moTa: 'Vaccine ND-IB | Chuồng 3 – 12 ngày tuổi',       soTien: '-350,000đ',    trangThai: 'Đã ghi sổ' },
-  { id: 'GD-003', ngay: '22/09/2026', loai: 'Xuất bán',     moTa: 'Lứa GÀ-2024-07 – 1,850 con | KH: Anh Hùng',    soTien: '+62,900,000đ', trangThai: 'Chờ thanh toán' },
-  { id: 'GD-004', ngay: '21/09/2026', loai: 'Nhập kho',     moTa: 'Thuốc Amoxicillin – 10 lọ | NCC: DS Thành',     soTien: '-1,200,000đ',  trangThai: 'Đã ghi sổ' },
-  { id: 'GD-005', ngay: '20/09/2026', loai: 'Thanh toán NCC', moTa: 'Trả nợ Cty CP – Hóa đơn tháng 8/2026',        soTien: '-12,000,000đ', trangThai: 'Đã ghi sổ' },
-  { id: 'GD-006', ngay: '19/09/2026', loai: 'Nhập kho',     moTa: 'Cám CP 551 – 80 bao | Chuồng 3 (lứa mới)',      soTien: '-7,200,000đ',  trangThai: 'Đã ghi sổ' },
-];
+import {
+  DollarSign, ShoppingCart, TrendingUp, Package,
+  FileText, Sparkles, Plus, ArrowUpRight, ArrowDownLeft
+} from 'lucide-react';
 
 export const AccountantDashboard = () => {
-  const BREADCRUMBS = [
-    { label: 'Tổng quan tài chính' },
+  const BREADCRUMBS = [{ label: 'FarmShift' }, { label: 'Tổng quan kế toán' }];
+
+  const kpis = [
+    { title: 'Tồn quỹ', value: '50.000.000 ₫', unit: 'số dư mẫu', icon: DollarSign },
+    { title: 'Phải trả', value: '800.000 ₫', unit: 'nhà cung cấp', icon: ShoppingCart },
+    { title: 'Phải thu', value: '20.000.000 ₫', unit: 'khách hàng', icon: TrendingUp },
+    { title: 'Tồn kho', value: '30.600.000 ₫', unit: 'giá trị mẫu', icon: Package },
+  ];
+
+  const purchases = [
+    { id: 'MH-1021-01', party: 'NCC An Phú', amount: '800.000 ₫', stockStatus: 'Chưa nhập', paymentStatus: 'Chưa thanh toán' },
+    { id: 'MH-1018-02', party: 'Cám Miền Trung', amount: '12.000.000 ₫', stockStatus: 'Nhập đủ', paymentStatus: 'Đã thanh toán' },
+  ];
+
+  const transactions = [
+    { id: 'PC-1021-01', date: '21/10/2026', type: 'Chi', ref: 'MH-1018-02', amount: '12.000.000 ₫' },
+    { id: 'PT-1020-01', date: '20/10/2026', type: 'Thu', ref: 'BH-1020-01', amount: '35.000.000 ₫' },
+    { id: 'PC-1019-01', date: '19/10/2026', type: 'Chi', ref: 'Điện nước tháng 9', amount: '2.500.000 ₫' },
   ];
 
   return (
-    <DashboardLayout breadcrumbs={BREADCRUMBS}>
-      {/* ── Trang tiêu đề ───────────────────────────────────── */}
-      <div className={styles.pageHeader}>
-        <div>
-          <div className={styles.farmName}>
-            <h1 className={styles.farmTitle}>Tổng quan tài chính</h1>
-          </div>
-          <p className={styles.farmSub}>Doanh thu · Chi phí · Công nợ · Lãi/Lỗ</p>
-        </div>
-        <div className={styles.headerActions}>
-          <Button variant="secondary" size="sm">Xuất báo cáo CSV</Button>
-          <Button variant="green" size="sm">+ Ghi giao dịch</Button>
-        </div>
+    <DashboardLayout breadcrumbs={BREADCRUMBS} pageTitle="Tổng quan kế toán">
+      {/* ── 4 KPIs ────────────────────────────────────────── */}
+      <div className="grid four">
+        {kpis.map((k, i) => {
+          const Icon = k.icon;
+          return (
+            <div key={i} className="card kpi">
+              <span className="round">
+                <Icon size={22} />
+              </span>
+              <div>
+                <span className="muted">{k.title}</span>
+                <strong>{k.value}</strong>
+                <small>{k.unit}</small>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* ── Metric Cards ────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--sp-md)', marginBottom: 'var(--sp-lg)' }}>
+      {/* ── Grid 2 columns: Chứng từ + Thao tác ───────────── */}
+      <div className="grid two">
+        {/* Chứng từ cần xử lý */}
+        <section className="card">
+          <h2>Chứng từ cần xử lý</h2>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã phiếu</th>
+                  <th>Nhà cung cấp</th>
+                  <th>Tổng tiền</th>
+                  <th>Nhập kho</th>
+                  <th>Thanh toán</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {purchases.map(p => (
+                  <tr key={p.id}>
+                    <td><b>{p.id}</b></td>
+                    <td>{p.party}</td>
+                    <td className="num">{p.amount}</td>
+                    <td>
+                      <span className={`badge ${p.stockStatus === 'Nhập đủ' ? '' : 'warn'}`}>
+                        {p.stockStatus}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge ${p.paymentStatus === 'Đã thanh toán' ? '' : 'warn'}`}>
+                        {p.paymentStatus}
+                      </span>
+                    </td>
+                    <td className="num">
+                      <Link to="/accountant-dashboard/orders" className="btn small">
+                        Chi tiết
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-        <div className={styles.statCard}>
-          <div className={styles.statHeader}>
-            <span className={styles.statTitle}>Tổng doanh thu</span>
-            <div className={styles.statIcon} style={{ color: 'var(--color-farm-green)' }}><TrendingUp size={18} /></div>
+        {/* Thao tác kế toán */}
+        <section className="card">
+          <h2>Thao tác kế toán</h2>
+          <div className="quick">
+            <Link to="/accountant-dashboard/orders" className="btn primary">
+              Lập phiếu mua
+            </Link>
+            <Link to="/accountant-dashboard/sales" className="btn">
+              Lập phiếu bán
+            </Link>
+            <Link to="/accountant-dashboard/transactions" className="btn">
+              Chi tiền
+            </Link>
+            <Link to="/accountant-dashboard/transactions" className="btn">
+              Thu tiền
+            </Link>
+            <Link to="/accountant-dashboard/reports" className="btn">
+              Đọc hóa đơn AI
+            </Link>
           </div>
-          <div className={styles.statValue}>{MOCK_METRICS.totalRevenue}</div>
-          <div className={`${styles.statChange} ${styles.positive}`}>
-            {MOCK_METRICS.totalRevenueChange} so với tháng trước
-          </div>
-        </div>
 
-        <div className={styles.statCard}>
-          <div className={styles.statHeader}>
-            <span className={styles.statTitle}>Tổng chi phí</span>
-            <div className={styles.statIcon} style={{ color: 'var(--color-farm-orange)' }}><TrendingDown size={18} /></div>
+          <div className="note">
+            Theo dõi trạng thái kho và thanh toán độc lập. Phiếu nháp chưa phát sinh dòng tiền.
           </div>
-          <div className={styles.statValue}>{MOCK_METRICS.totalCost}</div>
-          <div className={`${styles.statChange} ${styles.negative}`}>
-            {MOCK_METRICS.totalCostChange} so với tháng trước
-          </div>
-        </div>
-
-        <div className={styles.statCard}>
-          <div className={styles.statHeader}>
-            <span className={styles.statTitle}>Công nợ NCC</span>
-            <div className={styles.statIcon} style={{ color: 'var(--color-farm-red)' }}><FileText size={18} /></div>
-          </div>
-          <div className={styles.statValue}>{MOCK_METRICS.supplierDebt}</div>
-          <div className={`${styles.statChange} ${styles.positive}`}>
-            {MOCK_METRICS.supplierDebtChange} so với tháng trước
-          </div>
-        </div>
-
-        <div className={styles.statCard}>
-          <div className={styles.statHeader}>
-            <span className={styles.statTitle}>Lãi / Lỗ tháng này</span>
-            <div className={styles.statIcon} style={{ color: 'var(--color-farm-green)' }}><DollarSign size={18} /></div>
-          </div>
-          <div className={styles.statValue} style={{ color: 'var(--color-farm-green)' }}>{MOCK_METRICS.netProfit}</div>
-          <div className={`${styles.statChange} ${styles.positive}`}>
-            {MOCK_METRICS.netProfitChange} so với tháng trước
-          </div>
-        </div>
+        </section>
       </div>
 
-      {/* ── Bảng giao dịch gần đây ──────────────────────────── */}
-      <div className={styles.sectionCard}>
-        <div className={styles.sectionCardHeader}>
-          <span className={styles.sectionTitle}>Giao dịch gần đây</span>
-          <Button variant="ghost" size="sm">Xem tất cả</Button>
-        </div>
-
-        <div className={styles.tableWrapper}>
-          <table className={styles.eventsTable}>
+      {/* ── Thu chi đã ghi nhận ───────────────────────────── */}
+      <section className="card">
+        <h2>Thu chi đã ghi nhận</h2>
+        <div className="tablewrap">
+          <table>
             <thead>
               <tr>
-                <th>Mã GD</th>
+                <th>Mã phiếu</th>
                 <th>Ngày</th>
                 <th>Loại</th>
-                <th>Mô tả</th>
-                <th>Số tiền</th>
-                <th>Trạng thái</th>
+                <th>Liên kết</th>
+                <th className="num">Số tiền</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {MOCK_TRANSACTIONS.map(trx => (
-                <tr key={trx.id}>
-                  <td style={{ fontFamily: 'monospace', color: 'var(--color-muted)', fontSize: 13 }}>{trx.id}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{trx.ngay}</td>
+              {transactions.map(t => (
+                <tr key={t.id}>
+                  <td><b>{t.id}</b></td>
+                  <td>{t.date}</td>
                   <td>
-                    <Badge variant={
-                      trx.loai === 'Xuất bán' ? 'active'
-                      : trx.loai === 'Thanh toán NCC' ? 'warning'
-                      : 'inactive'
-                    }>
-                      {trx.loai}
-                    </Badge>
+                    <span className={`badge ${t.type === 'Thu' ? '' : 'warn'}`}>
+                      {t.type}
+                    </span>
                   </td>
-                  <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {trx.moTa}
-                  </td>
-                  <td style={{
-                    fontWeight: 600,
-                    color: trx.soTien.startsWith('+') ? 'var(--color-farm-green)' : 'var(--color-farm-red)',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {trx.soTien}
-                  </td>
-                  <td>
-                    <Badge variant={trx.trangThai === 'Đã ghi sổ' ? 'active' : 'warning'}>
-                      {trx.trangThai}
-                    </Badge>
+                  <td>{t.ref}</td>
+                  <td className="num"><b>{t.amount}</b></td>
+                  <td className="num">
+                    <Link to="/accountant-dashboard/transactions" className="btn small">
+                      Chi tiết
+                    </Link>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </DashboardLayout>
   );
 };

@@ -1,322 +1,232 @@
-/* Dashboard.module.css — FarmShift Owner Dashboard */
+﻿/* Dashboard.module.css - FarmShift Owner Dashboard
+   DESIGN.md Airtable-editorial style:
+   White canvas, editorial KPIs, signature color cards
+   Generous whitespace, Inter typography */
 
-/* ── Page Header ─────────────────────────────────────────── */
-.pageHeader {
-  display:         flex;
-  align-items:     center;
-  justify-content: space-between;
-  margin-bottom:   var(--sp-lg);
-  flex-wrap:       wrap;
-  gap:             var(--sp-sm);
-}
+/* Page Header */
+.pageHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
 
-.farmName {
-  display:     flex;
-  align-items: center;
-  gap:         var(--sp-xs);
-}
+.pageHeadLeft {}
 
-.farmTitle {
-  font-size:   var(--fs-title-lg);
-  font-weight: var(--fw-medium);
-  color:       var(--color-ink);
-  margin:      0;
-}
+.pageTitle { font-family: var(--font-display); font-size: 28px; font-weight: 400; color: var(--color-ink); letter-spacing: -0.5px; line-height: 1.2; margin-bottom: 6px; }
 
-.farmBadge {
-  display:          inline-flex;
-  align-items:      center;
-  justify-content:  center;
-  width:            20px;
-  height:           20px;
-  background-color: var(--color-farm-green);
-  color:            var(--color-on-primary);
-  border-radius:    var(--rounded-full);
-  font-size:        11px;
-  font-weight:      var(--fw-semibold);
-}
+.pageSub { font-size: 14px; color: var(--color-muted); font-weight: 400; }
 
-.farmSub {
-  font-size:   var(--fs-body-md);
-  color:       var(--color-muted);
-  margin:      4px 0 0;
-}
+.headerActions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
-.headerActions {
-  display:     flex;
-  align-items: center;
-  gap:         var(--sp-xs);
-}
+/* KPI Grid */
+.kpiGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 24px; }
 
-/* ── Staff Cards Row ─────────────────────────────────────── */
-.staffRow {
-  display:    grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap:        var(--sp-md);
-  margin-bottom: var(--sp-lg);
-}
+/* KPI Card - white canvas, editorial */
+.kpiCard { background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 20px; display: flex; align-items: center; gap: 15px; }
 
-.staffCard {
-  display:          flex;
-  align-items:      center;
-  gap:              var(--sp-sm);
-  padding:          var(--sp-sm) var(--sp-md);
-  background-color: var(--color-canvas);
-  border:           1px solid var(--color-hairline);
-  border-radius:    var(--rounded-md);
-  transition:       border-color var(--transition-fast);
-}
+.kpiIcon { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
 
-.staffCard:hover {
-  border-color: var(--color-border-strong);
-}
+.kpiIcon.green { background: #e9f4ed; color: var(--color-farm-green); }
+.kpiIcon.orange { background: #fff4e6; color: var(--color-farm-orange); }
+.kpiIcon.blue { background: #eff6ff; color: var(--color-farm-blue); }
+.kpiIcon.red { background: #fee2e2; color: var(--color-farm-red); }
+.kpiIcon.coral { background: rgba(170,45,0,0.1); color: var(--color-signature-coral); }
 
-.staffAvatar {
-  width:            40px;
-  height:           40px;
-  border-radius:    var(--rounded-full);
-  background-color: var(--color-surface-soft);
-  overflow:         hidden;
-  flex-shrink:      0;
-  display:          flex;
-  align-items:      center;
-  justify-content:  center;
-  font-size:        18px;
-}
+.kpiBody {}
 
-.staffAvatar img {
-  width:       100%;
-  height:      100%;
-  object-fit:  cover;
-}
+.kpiLabel { font-size: 13px; color: var(--color-muted); font-weight: 400; margin-bottom: 4px; }
 
-.staffInfo {
-  flex: 1;
-  min-width: 0;
-}
+.kpiValue { font-size: 26px; font-weight: 400; color: var(--color-farm-green); line-height: 1.2; letter-spacing: -0.5px; }
 
-.staffName {
-  font-size:     var(--fs-body-md);
-  font-weight:   var(--fw-medium);
-  color:         var(--color-ink);
-  white-space:   nowrap;
-  overflow:      hidden;
-  text-overflow: ellipsis;
-}
+.kpiValue.orange { color: var(--color-farm-orange); }
+.kpiValue.blue   { color: var(--color-farm-blue); }
+.kpiValue.red    { color: var(--color-farm-red); }
 
-.staffRole {
-  font-size: 12px;
-  color:     var(--color-muted);
-  margin-top: 2px;
-}
+.kpiUnit { font-size: 12px; color: var(--color-muted); margin-top: 2px; }
 
-/* ── Content Grid ────────────────────────────────────────── */
-.contentGrid {
-  display:               grid;
-  grid-template-columns: 1fr 1.5fr;
-  gap:                   var(--sp-lg);
-  margin-bottom:         var(--sp-lg);
-  align-items:           start;
-}
+/* Signature Card - coral (DESIGN.md) */
+.signatureCoralCard { background: var(--color-signature-coral); border-radius: 12px; padding: 40px 48px; margin-bottom: 24px; color: #ffffff; }
 
-/* ── Section Card ────────────────────────────────────────── */
-.sectionCard {
-  background-color: var(--color-canvas);
-  border:           1px solid var(--color-hairline);
-  border-radius:    var(--rounded-md);
-  overflow:         hidden;
-}
+.signatureForestCard { background: var(--color-signature-forest); border-radius: 12px; padding: 40px 48px; margin-bottom: 24px; color: #ffffff; }
 
-.sectionCardHeader {
-  display:         flex;
-  align-items:     center;
-  justify-content: space-between;
-  padding:         var(--sp-md) var(--sp-md);
-  border-bottom:   1px solid var(--color-hairline);
-}
+.signatureDarkCard { background: var(--color-surface-dark); border-radius: 12px; padding: 40px 48px; margin-bottom: 24px; color: #ffffff; }
 
-.sectionTitle {
-  font-size:   var(--fs-body-md);
-  font-weight: var(--fw-medium);
-  color:       var(--color-ink);
-  margin:      0;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  font-size: 12px;
-}
+.signatureCreemCard { background: var(--color-signature-cream); border-radius: 10px; padding: 24px; margin-bottom: 24px; color: var(--color-ink); }
 
-/* ── Task List ───────────────────────────────────────────── */
-.taskList {
-  display:        flex;
-  flex-direction: column;
-}
+.sigCardTitle { font-family: var(--font-display); font-size: 28px; font-weight: 400; line-height: 1.25; margin-bottom: 12px; }
 
-.taskItem {
-  display:         flex;
-  align-items:     center;
-  gap:             var(--sp-sm);
-  padding:         var(--sp-sm) var(--sp-md);
-  border-bottom:   1px solid var(--color-surface-soft);
-  transition:      background var(--transition-fast);
-}
+.sigCardBody { font-size: 14px; line-height: 1.55; opacity: 0.88; max-width: 520px; margin-bottom: 28px; }
+
+/* Content Grid: 2 columns */
+.contentGrid { display: grid; grid-template-columns: 1.65fr 1fr; gap: 20px; margin-bottom: 24px; }
+
+/* Bottom Grid */
+.bottomGrid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; margin-bottom: 24px; }
+
+/* Section Card - white canvas */
+.sectionCard { background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden; }
+
+.sectionCardHeader { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px 14px; border-bottom: 1px solid var(--color-hairline); }
+
+.sectionTitle { font-size: 16px; font-weight: 500; color: var(--color-ink); }
+
+.sectionAction { font-size: 13px; color: var(--color-link); background: none; border: none; cursor: pointer; padding: 0; }
+
+/* Coop Cards - multi columns */
+.coopGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 24px; }
+
+.coopCard { background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 20px 22px; }
+
+.coopCardTop { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+
+.coopName { font-size: 18px; font-weight: 500; color: var(--color-ink); }
+
+.coopTemp { font-size: 20px; color: var(--color-farm-green); font-weight: 400; }
+
+.coopBatch { font-size: 13px; color: var(--color-muted); margin-bottom: 16px; }
+
+.coopRow { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--color-hairline); font-size: 13px; }
+
+.coopRow:last-of-type { border-bottom: none; }
+
+.coopRowLabel { color: var(--color-muted); }
+
+.coopRowValue { color: var(--color-ink); font-weight: 500; }
+
+.progressBar { height: 6px; background: #edf2ed; border-radius: 4px; overflow: hidden; margin: 10px 0 4px; }
+
+.progressFill { height: 100%; background: var(--color-farm-green); border-radius: 4px; }
+
+.progressLabel { font-size: 11px; color: var(--color-muted); }
+
+/* Task List */
+.taskList { padding: 0 22px; }
+
+.taskItem { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--color-hairline); }
 
 .taskItem:last-child { border-bottom: none; }
-.taskItem:hover { background-color: var(--color-surface-soft); }
 
-.taskDot {
-  width:         8px;
-  height:        8px;
-  border-radius: var(--rounded-full);
-  flex-shrink:   0;
-}
+.taskDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
 .taskDotGreen  { background-color: var(--color-farm-green); }
 .taskDotOrange { background-color: var(--color-farm-orange); }
-.taskDotRed    { background-color: var(--color-farm-red); }
 .taskDotBlue   { background-color: var(--color-farm-blue); }
+.taskDotRed    { background-color: var(--color-farm-red); }
 
-.taskName {
-  flex:          1;
-  font-size:     var(--fs-body-md);
-  color:         var(--color-body);
-  min-width:     0;
-  overflow:      hidden;
-  text-overflow: ellipsis;
-  white-space:   nowrap;
-}
+.taskName { flex: 1; font-size: 13px; color: var(--color-ink); font-weight: 400; line-height: 1.4; }
 
-.taskTime {
-  font-size:   12px;
-  color:       var(--color-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
+.taskTime { font-size: 12px; color: var(--color-muted); white-space: nowrap; flex-shrink: 0; }
 
-/* ── Metric Cards Grid (right column) ───────────────────── */
-.metricsGrid {
-  display:               grid;
-  grid-template-columns: 1fr 1fr;
-  gap:                   var(--sp-sm);
-}
+/* Metric 2x2 grid */
+.metricsGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-/* ── Bottom Row ──────────────────────────────────────────── */
-.bottomGrid {
-  display:               grid;
-  grid-template-columns: 1fr 1fr;
-  gap:                   var(--sp-lg);
-}
+/* Donut chart */
+.donutWrap { display: flex; align-items: center; gap: 28px; padding: 22px; flex-wrap: wrap; }
 
-/* ── Chart Area ──────────────────────────────────────────── */
-.chartWrap {
-  padding: var(--sp-md);
-}
+.donutSvg { flex-shrink: 0; }
 
-.chartTitle {
-  font-size:   var(--fs-body-md);
-  font-weight: var(--fw-medium);
-  color:       var(--color-ink);
-  margin-bottom: var(--sp-sm);
-}
+.donutLegend { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 140px; }
 
-/* SVG Donut chart */
-.donutWrap {
-  display:         flex;
-  justify-content: center;
-  align-items:     center;
-  gap:             var(--sp-lg);
-}
+.legendItem { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-body); }
 
-.donutSvg {
-  flex-shrink: 0;
-}
+.legendDot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 
-.donutLegend {
-  display:        flex;
-  flex-direction: column;
-  gap:            6px;
-}
+/* Events table */
+.eventsTable { width: 100%; border-collapse: collapse; font-size: 13px; }
 
-.legendItem {
-  display:     flex;
-  align-items: center;
-  gap:         var(--sp-xs);
-  font-size:   12px;
-  color:       var(--color-body);
-}
+.eventsTable th { padding: 10px 16px; text-align: left; font-size: 12px; font-weight: 600; color: var(--color-muted); background: var(--color-surface-soft); border-bottom: 1px solid var(--color-hairline); }
 
-.legendDot {
-  width:         10px;
-  height:        10px;
-  border-radius: var(--rounded-full);
-  flex-shrink:   0;
-}
+.eventsTable td { padding: 13px 16px; border-bottom: 1px solid var(--color-hairline); color: var(--color-body); vertical-align: middle; }
 
-/* ── Recent Events Table ─────────────────────────────────── */
-.eventsTable {
-  width:           100%;
-  border-collapse: collapse;
-  font-size:       var(--fs-body-md);
-  display:         block;
-  overflow-x:      auto;
-  white-space:     nowrap;
-}
+.eventsTable tbody tr:last-child td { border-bottom: none; }
 
-.eventsTable th {
-  padding:       8px var(--sp-md);
-  font-size:     11px;
-  font-weight:   var(--fw-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color:         var(--color-muted);
-  text-align:    left;
-  background-color: var(--color-surface-soft);
-}
+/* Alerts / note */
+.alertNote { padding: 14px 17px; background: #f0f7f3; border-left: 3px solid var(--color-farm-green); border-radius: 4px; margin: 16px 22px; color: #50735f; font-size: 13px; line-height: 1.5; }
 
-.eventsTable td {
-  padding:       9px var(--sp-md);
-  border-bottom: 1px solid var(--color-surface-soft);
-  color:         var(--color-body);
-  vertical-align: middle;
-}
+.alertNote.warn { background: #fff8e9; border-color: #d4a751; color: #907037; }
 
-.eventsTable tr:last-child td { border-bottom: none; }
+/* Staff module row */
+.staffRow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
 
-/* ── Responsive ──────────────────────────────────────────── */
+.staffCard { background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 18px 20px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: border-color var(--transition-fast); }
+
+.staffCard:hover { border-color: var(--color-farm-green); }
+
+.staffAvatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+
+.staffInfo {}
+
+.staffName { font-size: 14px; font-weight: 500; color: var(--color-ink); }
+
+.staffRole { font-size: 12px; color: var(--color-muted); margin-top: 2px; }
+
+/* Alert items */
+.alertRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 22px; border-bottom: 1px solid var(--color-hairline); }
+
+.alertRow:last-child { border-bottom: none; }
+
+.alertRowText {}
+
+.alertRowTitle { font-size: 14px; font-weight: 500; color: var(--color-ink); margin-bottom: 2px; }
+
+.alertRowSub { font-size: 12px; color: var(--color-muted); }
+
+/* Cream band - DESIGN.md cream-callout-card */
+.creamBand { background: var(--color-signature-cream); border-radius: 10px; padding: 32px 40px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+
+.creamBandTitle { font-family: var(--font-display); font-size: 24px; font-weight: 400; color: var(--color-ink); line-height: 1.35; margin-bottom: 8px; }
+
+.creamBandSub { font-size: 14px; color: var(--color-body); line-height: 1.5; }
+
+/* Skeleton */
+.skeletonBlock { height: 180px; border-radius: 8px; }
+
+/* Responsive */
 @media (max-width: 1200px) {
-  .contentGrid {
-    grid-template-columns: 1fr;
-  }
-  .metricsGrid {
-    grid-template-columns: repeat(4, 1fr);
-  }
+  .kpiGrid { grid-template-columns: repeat(2, 1fr); }
+  .staffRow { grid-template-columns: repeat(2, 1fr); }
+  .coopGrid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 900px) {
-  .staffRow {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .bottomGrid {
-    grid-template-columns: 1fr;
-  }
-  .metricsGrid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .contentGrid { grid-template-columns: 1fr; }
+  .bottomGrid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
-  .pageHeader {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .headerActions {
-    width: 100%;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-  .staffRow {
-    grid-template-columns: 1fr;
-  }
-  .metricsGrid {
-    grid-template-columns: 1fr;
-  }
+  .kpiGrid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .staffRow { grid-template-columns: repeat(2, 1fr); }
+  .coopGrid { grid-template-columns: 1fr; }
+  .pageTitle { font-size: 22px; }
+  .kpiValue { font-size: 22px; }
+  .signatureCoralCard { padding: 28px; }
+  .creamBand { flex-direction: column; gap: 20px; padding: 24px; }
 }
+
+/* ===== Shared classes used by WorkerDashboard / AccountantDashboard ===== */
+
+/* Farm title (heading in dashboard pages) - alias for pageTitle */
+.farmTitle { font-family: var(--font-display); font-size: 28px; font-weight: 400; color: var(--color-ink); letter-spacing: -0.5px; line-height: 1.2; margin-bottom: 6px; }
+.farmBadge { display: inline-flex; align-items: center; justify-content: center; background: var(--color-farm-green-light); color: var(--color-farm-green); border-radius: 9999px; padding: 2px 10px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+.farmSub { font-size: 14px; color: var(--color-muted); font-weight: 400; }
+.farmName { display: flex; align-items: center; }
+
+/* Stat / summary mini-cards */
+.statCard { background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 8px; padding: 18px 20px; }
+.statHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.statTitle { font-size: 13px; color: var(--color-muted); }
+.statValue { font-size: 26px; font-weight: 400; letter-spacing: -0.5px; line-height: 1.2; }
+
+/* Task list additional sub-elements */
+.taskContent { flex: 1; min-width: 0; }
+.taskTitle { font-size: 14px; font-weight: 500; color: var(--color-ink); margin-bottom: 3px; }
+.taskDesc { font-size: 13px; color: var(--color-muted); margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.taskMeta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-muted); flex-wrap: wrap; }
+
+/* Pill badges */
+.pill { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 9999px; font-size: 11px; font-weight: 500; }
+.pillWarning { background: #fef9c3; color: #854d0e; }
+.pillNeutral { background: var(--color-surface-strong); color: var(--color-muted); }
+.pillSuccess { background: #dcfce7; color: var(--color-success); }
+.pillError   { background: #fee2e2; color: var(--color-farm-red); }
+.pillBlue    { background: #dbeafe; color: var(--color-info); }
+
+/* Section chart/card subtitle */
+.chartWrap { padding: 16px; }
+.chartSubLabel { font-size: 12px; color: var(--color-muted); margin-bottom: 4px; }
