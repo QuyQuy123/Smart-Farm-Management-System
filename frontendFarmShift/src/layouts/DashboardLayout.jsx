@@ -1,136 +1,66 @@
 // src/layouts/DashboardLayout.jsx
-// FarmShift Dashboard Shell — Sidebar + Header + Content
-// Matches the farmgo UI from UI_FarmShift.pdf
+// FarmShift Shell — Rebuilt directly from FarmShift.html prototype UX/UI
 import React, { useState, useEffect } from 'react';
-import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Menu, X, LogOut, Search, Bell, Settings, ChevronRight, History,
+  Menu, LogOut, Search, Bell, Settings,
   LayoutDashboard, Beef, Package, ShoppingCart, ClipboardList,
   Warehouse, BarChart3, Users, FileText, TrendingUp,
-  ArrowLeftRight, Receipt, DollarSign, Activity,
-  Sun, Moon, Monitor
+  Activity, Sparkles, Plus, Mic, Calendar, CheckSquare
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { UserProfileModal } from '../features/profile/UserProfileModal';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
-import logoFarm from '../assets/logo_Farm.png';
+import { ROUTES_REGISTRY } from '../features/farmshift/farmshiftData';
 import styles from './Layout.module.css';
 
-/* ── Navigation structure per role ─────────────────────── */
+/* ── Navigation matching FarmShift.html exactly ───────────── */
 const OWNER_NAV = [
-  {
-    section: 'TỔNG QUAN',
-    items: [
-      { label: 'Tổng quan', path: '/owner-dashboard', icon: LayoutDashboard, exact: true },
-    ],
-  },
-  {
-    section: 'CHĂN NUÔI',
-    items: [
-      {
-        label: 'Chuồng trại',
-        icon: Warehouse,
-        children: [
-          { label: 'Danh sách chuồng', path: '/owner-dashboard/barns' },
-        ],
-      },
-      {
-        label: 'Lứa gà thịt',
-        icon: Beef,
-        children: [
-          { label: 'Danh sách lứa', path: '/owner-dashboard/batches' },
-        ],
-      },
-      {
-        label: 'Kho vật tư',
-        icon: Package,
-        children: [
-          { label: 'Danh sách hàng hóa', path: '/owner-dashboard/inventory' },
-          { label: 'Loại hàng hóa', path: '/owner-dashboard/inventory/categories' },
-          { label: 'Phân quyền kho', path: '/owner-dashboard/inventory/warehouse' },
-        ],
-      },
-      {
-        label: 'Nhập kho / Đơn hàng',
-        icon: ShoppingCart,
-        children: [
-          { label: 'Phiếu đặt hàng', path: '/owner-dashboard/orders' },
-          { label: 'Tồn kho / Phiếu', path: '/owner-dashboard/orders/stock' },
-        ],
-      },
-      {
-        label: 'Xuất nhập nội bộ',
-        icon: ArrowLeftRight,
-        children: [
-          { label: 'Phiếu xuất kho → Chuồng', path: '/owner-dashboard/internal-transfers' },
-        ],
-      },
-      {
-        label: 'Giám sát IoT',
-        icon: Activity,
-        path: '/owner-dashboard/iot',
-      },
-    ],
-  },
-  {
-    section: 'NHÀ CUNG CẤP & BÁN HÀNG',
-    items: [
-      {
-        label: 'Nhà cung cấp',
-        icon: Users,
-        children: [
-          { label: 'Danh sách NCC', path: '/owner-dashboard/suppliers' },
-          { label: 'Theo dõi công nợ', path: '/owner-dashboard/suppliers/debts' },
-        ],
-      },
-      {
-        label: 'Khách hàng & Bán gà',
-        icon: TrendingUp,
-        children: [
-          { label: 'Danh sách khách hàng', path: '/owner-dashboard/customers' },
-          { label: 'Quản lý bán gà', path: '/owner-dashboard/sales' },
-          { label: 'Công nợ thương lái', path: '/owner-dashboard/customers/debts' },
-        ],
-      },
-    ],
-  },
-  {
-    section: 'TÀI CHÍNH',
-    items: [
-      { label: 'Sổ quỹ tiền mặt', path: '/owner-dashboard/fund-ledger', icon: Receipt },
-      { label: 'Báo cáo Lãi/Lỗ từng lứa', path: '/owner-dashboard/pnl', icon: BarChart3 },
-      { label: 'Nhân công', path: '/owner-dashboard/workers', icon: Users },
-    ],
-  },
-  {
-    section: 'HỆ THỐNG',
-    items: [
-      { label: 'Cài đặt', path: '/owner-dashboard/settings', icon: Settings },
-      { label: 'Nhật ký đăng nhập', path: '/owner-dashboard/login-logs', icon: History },
-    ],
-  },
+  { label: 'Tổng quan', path: '/owner-dashboard', icon: LayoutDashboard, exact: true, group: 'dashboard' },
+  { label: 'Lứa nuôi & Đàn', path: '/view/batches', icon: Beef, group: 'batches' },
+  { label: 'Nhật ký chăn nuôi', path: '/view/journal', icon: FileText, group: 'journal' },
+  { label: 'Kế hoạch & Công việc', path: '/view/tasks', icon: ClipboardList, group: 'tasks' },
+  { label: 'Chương trình nuôi', path: '/view/programs', icon: ClipboardList, group: 'programs' },
+  { label: 'Trang trại & Chuồng', path: '/view/farm', icon: Warehouse, group: 'farm' },
+  { label: 'Kho & Vật tư', path: '/view/inventory', icon: Package, group: 'inventory' },
+  { label: 'Mua hàng', path: '/view/purchases', icon: ShoppingCart, group: 'purchases' },
+  { label: 'Bán hàng', path: '/view/sales', icon: TrendingUp, group: 'sales' },
+  { label: 'Tài chính', path: '/view/finance', icon: BarChart3, group: 'finance' },
+  { label: 'IoT & Cảnh báo', path: '/view/iot', icon: Activity, group: 'iot' },
+  { label: 'Trợ lý AI', path: '/view/ai', icon: Sparkles, group: 'ai' },
+  { label: 'Báo cáo', path: '/view/reports', icon: BarChart3, group: 'reports' },
+  { label: 'Nhân sự', path: '/view/employees', icon: Users, group: 'employees' },
+  { label: 'Cài đặt', path: '/view/settings', icon: Settings, group: 'settings' },
 ];
 
-
 const ACCOUNTANT_NAV = [
-  {
-    section: 'TÀI CHÍNH',
-    items: [
-      { label: 'Tổng quan tài chính', path: '/accountant-dashboard', icon: LayoutDashboard, exact: true },
-      { label: 'Giao dịch', path: '/accountant-dashboard/transactions', icon: TrendingUp },
-      { label: 'Báo cáo', path: '/accountant-dashboard/reports', icon: FileText },
-    ],
-  },
+  { label: 'Tổng quan kế toán', path: '/accountant-dashboard', icon: LayoutDashboard, exact: true, group: 'dashboard' },
+  { label: 'Mua hàng & NCC', path: '/view/purchases', icon: ShoppingCart, group: 'purchases' },
+  { label: 'Bán hàng & Khách hàng', path: '/view/sales', icon: TrendingUp, group: 'sales' },
+  { label: 'Kho & Vật tư', path: '/view/inventory', icon: Package, group: 'inventory' },
+  { label: 'Thu chi & Công nợ', path: '/view/finance', icon: BarChart3, group: 'finance' },
+  { label: 'Chi phí lứa', path: '/view/costs', icon: FileText, group: 'costs' },
+  { label: 'Chứng từ AI OCR', path: '/view/ocr', icon: Sparkles, group: 'ocr' },
+  { label: 'Lứa nuôi · Chỉ xem', path: '/view/batches', icon: Beef, group: 'batches' },
+  { label: 'Nhật ký · Chỉ xem', path: '/view/journal', icon: FileText, group: 'journal' },
+  { label: 'Báo cáo', path: '/view/reports', icon: BarChart3, group: 'reports' },
+  { label: 'Trợ lý AI', path: '/view/ai', icon: Sparkles, group: 'ai' },
+  { label: 'Tài khoản', path: '/profile', icon: Users, group: 'profile' },
 ];
 
 const WORKER_NAV = [
-  {
-    section: 'CÔNG VIỆC',
-    items: [
-      { label: 'Nhiệm vụ hôm nay', path: '/worker-dashboard', icon: ClipboardList, exact: true },
-      { label: 'Nhật ký hoạt động', path: '/worker-dashboard/log', icon: FileText },
-    ],
-  },
+  { label: 'Trang chủ', path: '/worker-dashboard', icon: LayoutDashboard, exact: true, group: 'dashboard' },
+  { label: 'Công việc của tôi', path: '/view/tasks', icon: ClipboardList, group: 'tasks' },
+  { label: 'Ghi nhanh', path: '/view/quick', icon: Plus, group: 'quick' },
+  { label: 'Chuồng phụ trách', path: '/view/coops', icon: Warehouse, group: 'farm' },
+  { label: 'Nhật ký chăn nuôi', path: '/view/journal', icon: FileText, group: 'journal' },
+  { label: 'Lịch chăm sóc', path: '/view/calendar', icon: Calendar, group: 'tasks' },
+  { label: 'Môi trường', path: '/view/iot', icon: Activity, group: 'iot' },
+  { label: 'Cảnh báo', path: '/view/alerts', icon: Bell, group: 'alerts' },
+  { label: 'Tra cứu vật tư', path: '/view/stock-lookup', icon: Package, group: 'inventory' },
+  { label: 'Trợ lý AI', path: '/view/ai', icon: Sparkles, group: 'ai' },
+  { label: 'Hỗ trợ sức khỏe', path: '/view/ai-health', icon: Beef, group: 'ai' },
+  { label: 'Cá nhân', path: '/profile', icon: Users, group: 'profile' },
 ];
 
 const ROLE_NAV = {
@@ -139,335 +69,361 @@ const ROLE_NAV = {
   'ROLE_FARM_WORKER': WORKER_NAV,
 };
 
-/* ── Collapsible Nav Group ──────────────────────────────── */
-function NavGroupItem({ item, onLinkClick }) {
-  const [open, setOpen] = useState(false);
-
-  if (item.children) {
-    return (
-      <div>
-        {/* Parent toggle */}
-        <button
-          className={styles.navItem}
-          onClick={() => setOpen(o => !o)}
-          aria-expanded={open}
-        >
-          <span className={styles.navItemIcon}>
-            <item.icon size={16} />
-          </span>
-          {item.label}
-          <ChevronRight
-            size={14}
-            className={`${styles.navChevron} ${open ? styles.navChevronOpen : ''}`}
-          />
-        </button>
-        {/* Sub-items */}
-        {open && (
-          <div className={styles.navSubList}>
-            {item.children.map(child => (
-              <NavLink
-                key={child.path}
-                to={child.path}
-                className={({ isActive }) =>
-                  `${styles.navSubItem} ${isActive ? styles.navSubItemActive : ''}`
-                }
-                onClick={onLinkClick}
-              >
-                {child.label}
-              </NavLink>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Leaf item
-  return (
-    <NavLink
-      to={item.path}
-      end={item.exact}
-      className={({ isActive }) =>
-        `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
-      }
-      onClick={onLinkClick}
-    >
-      <span className={styles.navItemIcon}>
-        <item.icon size={16} />
-      </span>
-      {item.label}
-    </NavLink>
-  );
-}
-
-/* ── DashboardLayout ─────────────────────────────────────── */
 export const DashboardLayout = ({
   children,
-  breadcrumbs = [], // [{ label, path? }, ...]
+  breadcrumbs = [],
+  pageTitle,
+  pageSub,
+  pageActions,
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'system');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const roleKey = user?.role || 'ROLE_FARM_OWNER';
+  const navList = ROLE_NAV[roleKey] || OWNER_NAV;
+
+  const roleTitleMap = {
+    'ROLE_FARM_OWNER': 'Chủ trang trại',
+    'ROLE_ACCOUNTANT': 'Kế toán',
+    'ROLE_FARM_WORKER': 'Công nhân',
+  };
+  const roleTitle = roleTitleMap[roleKey] || 'Chủ trang trại';
+
+  const roleCharMap = {
+    'ROLE_FARM_OWNER': 'o',
+    'ROLE_ACCOUNTANT': 'a',
+    'ROLE_FARM_WORKER': 'w',
+  };
+  const roleChar = roleCharMap[roleKey] || 'o';
+
+  // Search filter
+  const searchResults = searchQuery.trim()
+    ? Object.values(ROUTES_REGISTRY)
+        .filter(r => r.allowed.includes(roleChar) && (
+          r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (r.group && r.group.toLowerCase().includes(searchQuery.toLowerCase()))
+        ))
+        .slice(0, 10)
+    : [];
+
+  const avatarInitial = {
+    'ROLE_FARM_OWNER': 'CT',
+    'ROLE_ACCOUNTANT': 'KT',
+    'ROLE_FARM_WORKER': 'TB',
+  }[roleKey] || (user?.name?.charAt(0) || 'U');
+
+  const defaultTitle = breadcrumbs.length > 0
+    ? breadcrumbs[breadcrumbs.length - 1].label
+    : 'Tổng quan';
+
+  const currentTitle = pageTitle || defaultTitle;
+  const currentSub = pageSub || (roleKey === 'ROLE_FARM_WORKER'
+    ? 'Chuồng B6 · Lứa MB-2026-08 · Công việc được phân công'
+    : 'Trang trại Miền Bính · Quản lý chăn nuôi gà');
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.setAttribute('data-theme', systemTheme);
-    } else {
-      root.setAttribute('data-theme', theme);
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  useEffect(() => {
-    if (breadcrumbs && breadcrumbs.length > 0) {
-      const currentPage = breadcrumbs[breadcrumbs.length - 1].label;
-      document.title = `${currentPage} - FarmShift`;
-    } else {
-      document.title = 'FarmShift';
-    }
-  }, [breadcrumbs]);
+    document.title = `FarmShift · ${currentTitle} · ${roleTitle}`;
+  }, [currentTitle, roleTitle]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const navSections = user?.role ? ROLE_NAV[user.role] || [] : [];
-  const initial = user?.name
-    ? user.name.charAt(0).toUpperCase()
-    : user?.email
-      ? user.email.charAt(0).toUpperCase()
-      : 'U';
-
   const closeSidebar = () => setIsMobileOpen(false);
 
-  /* Derive friendly role label */
-  const roleLabel = {
-    'ROLE_FARM_OWNER': 'Farm Owner',
-    'ROLE_ACCOUNTANT': 'Kế Toán',
-    'ROLE_FARM_WORKER': 'Nhân Công',
-  }[user?.role] || '';
+  // Current screen ID resolution for group active state
+  const currentScreenId = location.pathname.startsWith('/view/')
+    ? location.pathname.replace('/view/', '').split('?')[0].split('/')[0]
+    : null;
+  const currentRouteMeta = currentScreenId ? ROUTES_REGISTRY[currentScreenId] : null;
 
   return (
-    <div className={styles.layout}>
-      {/* ── Mobile Overlay ─────────────────────────────────── */}
-      <div
-        className={`${styles.overlay} ${isMobileOpen ? styles.overlayVisible : ''}`}
-        onClick={closeSidebar}
-        aria-hidden="true"
-      />
-
-      {/* ── Sidebar ────────────────────────────────────────── */}
-      <aside className={`${styles.sidebar} ${isMobileOpen ? styles.sidebarOpen : ''}`}>
-        {/* Logo */}
-        <Link to="/" className={styles.sidebarLogo} onClick={closeSidebar} style={{ height: '80px', justifyContent: 'center' }}>
-          <img src={logoFarm} alt="FarmShift Logo" style={{ height: '64px', objectFit: 'contain' }} />
+    <div className={roleKey === 'ROLE_FARM_WORKER' ? 'worker' : ''}>
+      {/* ── Sidebar (Exact FarmShift.html) ────────────────── */}
+      <aside className={`sidebar ${isMobileOpen ? 'open' : ''}`}>
+        <Link to="/" className="brand" onClick={closeSidebar}>
+          <span className="leaf">◒</span>FarmShift
+          <small>Trang trại Miền Bính</small>
         </Link>
 
-        {/* Navigation */}
-        <nav className={styles.navScroll}>
-          {navSections.map(section => (
-            <div className={styles.navSection} key={section.section}>
-              <div className={styles.navSectionLabel}>{section.section}</div>
-              {section.items.map(item => (
-                <NavGroupItem
-                  key={item.label}
-                  item={item}
-                  onLinkClick={closeSidebar}
-                />
-              ))}
-            </div>
-          ))}
+        <nav className="nav">
+          {navList.map(item => {
+            const Icon = item.icon;
+            const isActive = item.exact
+              ? location.pathname === item.path
+              : location.pathname === item.path ||
+                (currentRouteMeta && item.group && currentRouteMeta.group === item.group);
+
+            return (
+              <Link
+                key={item.label}
+                to={item.path}
+                className={isActive ? 'active' : ''}
+                onClick={closeSidebar}
+              >
+                <Icon className="icon" size={20} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* Logout */}
-        <div className={styles.sidebarFooter}>
-          <button className={styles.logoutBtn} onClick={handleLogout}>
-            <LogOut size={16} />
-            Đăng xuất
-          </button>
+        <div className="identity">
+          <strong>{roleTitle}</strong>
+          <br />
+          <small>{roleKey === 'ROLE_FARM_WORKER' ? 'Trần Văn Bình · Chuồng B6' : (user?.name || 'Tài khoản nội bộ trang trại')}</small>
+          <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link
+              to="/profile"
+              style={{ color: '#bed3c5', fontSize: 11, textDecoration: 'underline' }}
+              onClick={closeSidebar}
+            >
+              Hồ sơ
+            </Link>
+            <span style={{ color: '#42624e' }}>·</span>
+            <Link
+              to="/catalog"
+              style={{ color: '#bed3c5', fontSize: 11, textDecoration: 'underline' }}
+              onClick={closeSidebar}
+            >
+              Danh mục màn hình
+            </Link>
+            <span style={{ color: '#42624e' }}>·</span>
+            <button
+              onClick={handleLogout}
+              style={{ background: 'none', border: 'none', color: '#ffb3a7', padding: 0, font: 'inherit', fontSize: 11, cursor: 'pointer' }}
+            >
+              Đăng xuất
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* ── Main ───────────────────────────────────────────── */}
-      <main className={styles.main}>
-        {/* Top Header */}
-        <header className={styles.topHeader}>
-          {/* Left: hamburger + breadcrumb */}
-          <div className={styles.headerLeft}>
-            <button
-              className={styles.menuBtn}
-              onClick={() => setIsMobileOpen(true)}
-              aria-label="Mở menu"
-            >
-              <Menu size={20} />
-            </button>
+      {/* ── Main Area ─────────────────────────────────────── */}
+      <main className="main">
+        {/* Topbar (Exact FarmShift.html) */}
+        <header className="topbar">
+          <button
+            className="btn menu-toggle"
+            onClick={() => setIsMobileOpen(open => !open)}
+            aria-label="Mở menu"
+            style={{ display: 'none' }}
+          >
+            ☰
+          </button>
 
-            {breadcrumbs.length > 0 && (
-              <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-                {breadcrumbs.map((crumb, idx) => (
-                  <React.Fragment key={`${crumb.label}-${idx}`}>
-                    {idx > 0 && <span className={styles.breadcrumbSep}>/</span>}
-                    {crumb.path && idx < breadcrumbs.length - 1 ? (
-                      <Link to={crumb.path} className={styles.breadcrumbCrumb}>
-                        {crumb.label}
-                      </Link>
-                    ) : (
-                      <span className={styles.breadcrumbActive}>{crumb.label}</span>
-                    )}
-                  </React.Fragment>
-                ))}
-              </nav>
+          <div style={{ position: 'relative', width: 'min(440px, 45vw)' }}>
+            <input
+              className="search"
+              type="search"
+              placeholder="Tìm màn hình, chức năng…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              aria-label="Tìm màn hình"
+              style={{ width: '100%' }}
+            />
+            {searchQuery.trim() && (
+              <div
+                className="card search-results"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  zIndex: 50,
+                  maxHeight: 400,
+                  overflowY: 'auto',
+                  width: '100%',
+                  padding: '6px 0',
+                  background: 'white',
+                  boxShadow: '0 10px 30px rgba(21,62,48,0.18)',
+                  borderRadius: 8,
+                }}
+              >
+                {searchResults.length > 0 ? (
+                  searchResults.map(item => (
+                    <Link
+                      key={item.id}
+                      to={`/view/${item.id}`}
+                      onClick={() => setSearchQuery('')}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        padding: '10px 16px',
+                        borderBottom: '1px solid var(--line)',
+                        color: 'var(--ink)',
+                        fontSize: 13,
+                        textDecoration: 'none',
+                        transition: 'background 0.15s ease',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#f2f7f4'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <strong style={{ color: 'var(--green)' }}>{item.title}</strong>
+                      <small style={{ color: 'var(--muted)', fontSize: 11, marginTop: 2 }}>
+                        {item.group ? `Phân hệ: ${item.group}` : 'Hệ thống'} · Mã: {item.id}
+                      </small>
+                    </Link>
+                  ))
+                ) : (
+                  <div style={{ padding: '14px 16px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
+                    Không tìm thấy màn hình phù hợp với "{searchQuery}"
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Center: Search */}
-          <div className={styles.headerCenter}>
-            <div className={styles.searchWrap}>
-              <Search size={14} className={styles.searchIcon} />
-              <input
-                type="search"
-                placeholder="Tìm kiếm..."
-                className={styles.searchInput}
-                aria-label="Tìm kiếm"
-              />
-            </div>
-          </div>
+          <div className="topright">
+            <button
+              className="btn small"
+              onClick={() => {
+                const chatToggle = document.getElementById('ai-chat-toggle-btn');
+                if (chatToggle) chatToggle.click();
+              }}
+              title="Trợ lý FarmShift AI"
+              style={{ border: 'none', background: 'transparent' }}
+            >
+              <Sparkles size={18} color="var(--green)" />
+            </button>
 
-          {/* Right: icons + user */}
-          <div className={styles.headerRight}>
             <div style={{ position: 'relative' }}>
-              <button 
-                className={styles.iconBtn} 
-                aria-label="Thông báo"
+              <button
+                className="btn small"
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
+                title="Thông báo"
+                style={{ border: 'none', background: 'transparent' }}
               >
-                <Bell size={16} />
-                <span className={styles.notifBadge} />
+                <Bell size={18} color="var(--muted)" />
               </button>
-              
               {isNotifOpen && (
-                <div className={styles.notifDropdown}>
-                  <div className={styles.notifHeader}>
-                    <span>Thông báo mới</span>
-                    <button className={styles.notifClear} onClick={() => setIsNotifOpen(false)}>Đóng</button>
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  width: 300,
+                  background: 'white',
+                  border: '1px solid var(--line)',
+                  borderRadius: 8,
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.1)',
+                  padding: 15,
+                  zIndex: 50,
+                  marginTop: 8
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Thông báo</span>
+                    <span className="badge warn">2 mới</span>
                   </div>
-                  <div className={styles.notifList}>
-                    <div className={`${styles.notifItem} ${styles.unread}`}>
-                      <span className={styles.notifTitle}>Cảnh báo nhiệt độ!</span>
-                      <span className={styles.notifTime}>Chuồng 1 - 32°C vượt ngưỡng (Vừa xong)</span>
-                    </div>
-                    <div className={`${styles.notifItem} ${styles.unread}`}>
-                      <span className={styles.notifTitle}>Nhập kho thành công</span>
-                      <span className={styles.notifTime}>Phiếu PN-001 (5 phút trước)</span>
-                    </div>
-                    <div className={styles.notifItem}>
-                      <span className={styles.notifTitle}>Nhắc nhở công việc</span>
-                      <span className={styles.notifTime}>Vui lòng ghi nhật ký lứa GÀ-2024 (1 giờ trước)</span>
-                    </div>
+                  <div style={{ fontSize: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                    <b>Vitamin bổ sung sắp hết hạn</b>
+                    <p style={{ margin: '2px 0 0', color: 'var(--muted)', fontSize: 11 }}>Lô BS-0926 · HSD 05/11/2026</p>
                   </div>
-                </div>
-              )}
-            </div>
-
-            <div style={{ position: 'relative' }}>
-              <button 
-                className={styles.iconBtn} 
-                aria-label="Cài đặt"
-                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-              >
-                <Settings size={16} />
-              </button>
-              
-              {isSettingsOpen && (
-                <div className={styles.settingsDropdown}>
-                  <div className={styles.notifHeader} style={{ padding: '8px 16px' }}>
-                    <span>Giao diện</span>
+                  <div style={{ fontSize: 12, padding: '8px 0' }}>
+                    <b>Tồn dung dịch vệ sinh thấp</b>
+                    <p style={{ margin: '2px 0 0', color: 'var(--muted)', fontSize: 11 }}>20 lít / mức tối thiểu 30 lít</p>
                   </div>
-                  
-                  <button 
-                    className={styles.settingsItem}
-                    onClick={() => { setTheme('light'); setIsSettingsOpen(false); }}
-                    style={{ color: theme === 'light' ? 'var(--color-farm-green)' : '' }}
-                  >
-                    <Sun size={16} /> Sáng
-                  </button>
-                  <button 
-                    className={styles.settingsItem}
-                    onClick={() => { setTheme('dark'); setIsSettingsOpen(false); }}
-                    style={{ color: theme === 'dark' ? 'var(--color-farm-green)' : '' }}
-                  >
-                    <Moon size={16} /> Tối
-                  </button>
-                  <button 
-                    className={styles.settingsItem}
-                    onClick={() => { setTheme('system'); setIsSettingsOpen(false); }}
-                    style={{ color: theme === 'system' ? 'var(--color-farm-green)' : '' }}
-                  >
-                    <Monitor size={16} /> Theo hệ thống
-                  </button>
-
-                  <div className={styles.settingsDivider}></div>
-
-                  <button 
-                    className={styles.settingsItem}
-                    onClick={() => {
-                      setIsSettingsOpen(false);
-                      if (user?.role === 'ROLE_FARM_OWNER') {
-                        navigate('/owner-dashboard/settings');
-                      }
-                    }}
-                  >
-                    <Settings size={16} /> Đi tới Cài đặt
-                  </button>
                 </div>
               )}
             </div>
 
             <div
-              className={styles.userProfile}
-              onClick={() => setIsProfileOpen(true)}
-              role="button"
-              tabIndex={0}
-              aria-label="Hồ sơ người dùng"
-              onKeyDown={e => e.key === 'Enter' && setIsProfileOpen(true)}
+              className="avatar"
+              onClick={() => navigate('/profile')}
+              style={{ cursor: 'pointer', overflow: 'hidden', padding: 0, width: 34, height: 34, flexShrink: 0 }}
+              title={user?.name || user?.email}
             >
-              <div className={styles.userMeta}>
-                <span className={styles.userName}>{user?.name || user?.email}</span>
-                <span className={styles.userRole}>{roleLabel}</span>
-              </div>
-              <div className={styles.avatar}>
-                {user?.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="Avatar" />
-                ) : (
-                  initial
-                )}
-              </div>
+              {user?.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt="Avatar"
+                  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                />
+              ) : (
+                avatarInitial
+              )}
             </div>
+
+            <span
+              className="role-label"
+              onClick={() => navigate('/profile')}
+              style={{ cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}
+            >
+              {roleTitle}
+            </span>
           </div>
         </header>
 
-        {/* Scrollable Content */}
-        <div className={styles.content}>
-          <div className={styles.contentInner}>
-            {children}
+        {/* Content Container (Exact FarmShift.html) */}
+        <div className="content">
+          <div className="crumb">
+            FarmShift / {roleTitle} / {currentTitle}
+          </div>
+
+          <div className="pagehead">
+            <div>
+              <h1>{currentTitle}</h1>
+              <div className="sub">{currentSub}</div>
+            </div>
+            <div className="actions">
+              {pageActions || (
+                currentTitle !== 'Tổng quan' && currentTitle !== 'Trang chủ' ? (
+                  <Link to="/" className="btn">
+                    ← Tổng quan
+                  </Link>
+                ) : (
+                  <span className="badge gray">Bản HTML tương tác</span>
+                )
+              )}
+            </div>
+          </div>
+
+          {children}
+
+          <div className="demo">
+            {roleTitle.toUpperCase()} · Dữ liệu minh họa, lưu trên trình duyệt
           </div>
         </div>
       </main>
 
-      {/* Profile Modal */}
+      {/* ── Mobile Worker Bottom Bar ──────────────────────── */}
+      {roleKey === 'ROLE_FARM_WORKER' && (
+        <nav className="bottom">
+          <Link to="/worker-dashboard" className={location.pathname === '/worker-dashboard' ? 'active' : ''}>
+            <LayoutDashboard size={18} />
+            <span>Trang chủ</span>
+          </Link>
+          <Link to="/view/tasks" className={location.pathname === '/view/tasks' ? 'active' : ''}>
+            <ClipboardList size={18} />
+            <span>Công việc</span>
+          </Link>
+          <Link to="/view/quick" className="plus">
+            <Plus size={20} />
+            <span>Ghi nhanh</span>
+          </Link>
+          <Link to="/view/coops" className={location.pathname === '/view/coops' ? 'active' : ''}>
+            <Warehouse size={18} />
+            <span>Chuồng</span>
+          </Link>
+          <Link to="/profile" className={location.pathname === '/profile' ? 'active' : ''}>
+            <Users size={18} />
+            <span>Cá nhân</span>
+          </Link>
+        </nav>
+      )}
+
+      {/* User Profile Modal */}
       <UserProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
       />
 
-      {/* Feature 12: AI Chatbot thả nổi góc màn hình */}
+      {/* Floating AI Chatbot */}
       <AIChatbot />
     </div>
   );

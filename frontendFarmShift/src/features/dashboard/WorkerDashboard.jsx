@@ -1,179 +1,159 @@
 // src/features/dashboard/WorkerDashboard.jsx
-// Công nhân Dashboard — Trang trại Miền Bình (Gà thịt)
-import React, { useState } from 'react';
+// Công nhân Dashboard — Exact FarmShift.html UI/UX Clone
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
-import { Clock, CheckCircle, Mic, ClipboardList, AlertTriangle } from 'lucide-react';
-import styles from './Dashboard.module.css';
-import { Button } from '../../components/Button/Button';
-
-/* ── Mock tasks hôm nay ─────────────────────────────────── */
-const MOCK_TASKS = [
-  {
-    id: 1,
-    title: 'Cho ăn buổi sáng – Chuồng 1',
-    desc: 'Lứa GÀ-2024-08 | 45 ngày tuổi | 1,950 con | Cám CP 511 giai đoạn 3',
-    time: '06:30',
-    priority: 'Cao',
-    status: 'done',
-    barn: 'Chuồng 1',
-  },
-  {
-    id: 2,
-    title: 'Cho ăn buổi sáng – Chuồng 2',
-    desc: 'Lứa GÀ-2024-09 | 30 ngày tuổi | 1,980 con | Cám CP 511 giai đoạn 2',
-    time: '07:00',
-    priority: 'Cao',
-    status: 'done',
-    barn: 'Chuồng 2',
-  },
-  {
-    id: 3,
-    title: 'Tiêm vaccine Newcastle – Chuồng 3',
-    desc: 'Lứa GÀ-2024-10 | 12 ngày tuổi | 3,950 con | Vaccine ND-IB nhỏ mắt',
-    time: '08:30',
-    priority: 'Cao',
-    status: 'pending',
-    barn: 'Chuồng 3',
-  },
-  {
-    id: 4,
-    title: 'Ghi nhật ký hàng ngày – Chuồng 1',
-    desc: 'Ghi số con chết, kg cám tiêu thụ, quan sát sức khỏe đàn',
-    time: '16:00',
-    priority: 'Trung bình',
-    status: 'pending',
-    barn: 'Chuồng 1',
-  },
-  {
-    id: 5,
-    title: 'Kiểm tra nhiệt độ và hệ thống quạt',
-    desc: 'Đo nhiệt độ 3 chuồng, kiểm tra quạt thông gió và rèm',
-    time: '12:00',
-    priority: 'Cao',
-    status: 'pending',
-    barn: 'Tất cả',
-  },
-];
+import {
+  Bird, CheckSquare, Thermometer, TrendingUp,
+  Plus, Mic
+} from 'lucide-react';
 
 export const WorkerDashboard = () => {
-  const [tasks, setTasks] = useState(MOCK_TASKS);
-  const [voiceActive, setVoiceActive] = useState(false);
+  const BREADCRUMBS = [{ label: 'FarmShift' }, { label: 'Trang chủ' }];
 
-  const doneCount    = tasks.filter(t => t.status === 'done').length;
-  const pendingCount = tasks.filter(t => t.status === 'pending').length;
-
-  const markDone = (id) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'done' } : t));
-  };
-
-  const BREADCRUMBS = [
-    { label: 'Nhiệm vụ hôm nay' },
+  const kpis = [
+    { title: 'Đàn phụ trách', value: '1.498', unit: 'con', icon: Bird },
+    { title: 'Hoàn thành', value: '1/3', unit: 'công việc', icon: CheckSquare },
+    { title: 'Nhiệt độ', value: '30,1', unit: '°C · mẫu lúc 09:20', icon: Thermometer },
+    { title: 'Ngày tuổi', value: '21', unit: 'ngày', icon: TrendingUp },
   ];
 
-  const today = new Date().toLocaleDateString('vi-VN', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-  });
+  const tasks = [
+    { name: 'Cho ăn buổi sáng', coop: 'B6', time: '07:00', status: 'Hoàn thành' },
+    { name: 'Cân mẫu định kỳ', coop: 'B6', time: '10:00', status: 'Chưa bắt đầu' },
+    { name: 'Vệ sinh lối đi chuồng', coop: 'B6', time: '14:00', status: 'Đang thực hiện' },
+  ];
 
   return (
-    <DashboardLayout breadcrumbs={BREADCRUMBS}>
-      {/* ── Header ──────────────────────────────────────────── */}
-      <div className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.farmTitle}>Lịch công việc hôm nay</h1>
-          <p className={styles.farmSub}>{today} · {doneCount}/{tasks.length} việc hoàn thành</p>
-        </div>
-        <div className={styles.headerActions}>
-          {/* Voice Entry button – sẵn sàng cho Sprint 3 */}
-          <Button
-            variant={voiceActive ? 'danger' : 'green'}
-            size="sm"
-            onClick={() => setVoiceActive(v => !v)}
-            aria-label="Nhập liệu bằng giọng nói"
-          >
-            <Mic size={14} />
-            {voiceActive ? 'Đang nghe...' : 'Nhập bằng giọng nói'}
-          </Button>
-          <Button variant="secondary" size="sm">
-            <ClipboardList size={14} />
-            Ghi nhật ký
-          </Button>
-        </div>
+    <DashboardLayout breadcrumbs={BREADCRUMBS} pageTitle="Trang chủ">
+      {/* ── Note banner (Exact FarmShift.html) ─────────────── */}
+      <div className="note">
+        Chào Bình, hôm nay có 3 công việc tại chuồng B6. Anh có thể ghi nhật ký trực tiếp từ Ghi nhanh.
       </div>
 
-      {/* ── Tiến độ hôm nay ─────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 'var(--sp-md)', marginBottom: 'var(--sp-lg)' }}>
-        <div className={styles.statCard} style={{ flex: 1 }}>
-          <div className={styles.statHeader}>
-            <span className={styles.statTitle}>Đã hoàn thành</span>
-            <CheckCircle size={18} color="var(--color-farm-green)" />
-          </div>
-          <div className={styles.statValue} style={{ color: 'var(--color-farm-green)' }}>{doneCount} việc</div>
-        </div>
-        <div className={styles.statCard} style={{ flex: 1 }}>
-          <div className={styles.statHeader}>
-            <span className={styles.statTitle}>Còn lại</span>
-            <Clock size={18} color="var(--color-farm-orange)" />
-          </div>
-          <div className={styles.statValue} style={{ color: 'var(--color-farm-orange)' }}>{pendingCount} việc</div>
-        </div>
-        <div className={styles.statCard} style={{ flex: 1 }}>
-          <div className={styles.statHeader}>
-            <span className={styles.statTitle}>Việc ưu tiên cao</span>
-            <AlertTriangle size={18} color="var(--color-farm-red)" />
-          </div>
-          <div className={styles.statValue} style={{ color: 'var(--color-farm-red)' }}>
-            {tasks.filter(t => t.priority === 'Cao' && t.status === 'pending').length} việc
-          </div>
-        </div>
+      {/* ── Actions ────────────────────────────────────────── */}
+      <div className="actions" style={{ marginBottom: 20 }}>
+        <Link to="/worker-dashboard/log" className="btn primary">
+          ＋ Ghi nhanh
+        </Link>
+        <button
+          className="btn"
+          onClick={() => alert('Ghi âm bằng giọng nói: tính năng mô phỏng.')}
+        >
+          <Mic size={16} /> Nhập bằng giọng nói
+        </button>
       </div>
 
-      {/* ── Danh sách công việc ──────────────────────────────── */}
-      <div className={styles.sectionCard}>
-        <div className={styles.sectionCardHeader}>
-          <span className={styles.sectionTitle}>Danh sách công việc</span>
-        </div>
-        <div className={styles.taskList}>
-          {tasks.map(task => (
-            <div
-              key={task.id}
-              className={styles.taskItem}
-              style={{ opacity: task.status === 'done' ? 0.6 : 1 }}
-            >
-              <div style={{
-                marginTop: '2px',
-                color: task.status === 'done' ? 'var(--color-farm-green)' : 'var(--color-muted)',
-                flexShrink: 0,
-              }}>
-                {task.status === 'done'
-                  ? <CheckCircle size={20} />
-                  : <Clock size={20} />
-                }
+      {/* ── 4 KPIs ────────────────────────────────────────── */}
+      <div className="grid four">
+        {kpis.map((k, i) => {
+          const Icon = k.icon;
+          return (
+            <div key={i} className="card kpi">
+              <span className="round">
+                <Icon size={22} />
+              </span>
+              <div>
+                <span className="muted">{k.title}</span>
+                <strong>{k.value}</strong>
+                <small>{k.unit}</small>
               </div>
-
-              <div className={styles.taskContent} style={{ flex: 1 }}>
-                <div className={styles.taskTitle}
-                  style={{ textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>
-                  {task.title}
-                </div>
-                <div className={styles.taskDesc}>{task.desc}</div>
-                <div className={styles.taskMeta}>
-                  <span>⏰ {task.time}</span>
-                  <span>·</span>
-                  <span>📍 {task.barn}</span>
-                  <span>·</span>
-                  <span className={`${styles.pill} ${task.priority === 'Cao' ? styles.pillWarning : styles.pillNeutral}`}>
-                    {task.priority}
-                  </span>
-                </div>
-              </div>
-
-              {task.status === 'pending' && (
-                <Button variant="green" size="sm" onClick={() => markDone(task.id)}>
-                  Hoàn thành
-                </Button>
-              )}
             </div>
-          ))}
+          );
+        })}
+      </div>
+
+      {/* ── Công việc hôm nay (Task Table) ────────────────── */}
+      <section className="card">
+        <h2>Công việc hôm nay</h2>
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Công việc</th>
+                <th>Chuồng</th>
+                <th>Giờ</th>
+                <th>Trạng thái</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((t, idx) => (
+                <tr key={idx}>
+                  <td><b>{t.name}</b></td>
+                  <td>{t.coop}</td>
+                  <td>{t.time}</td>
+                  <td>
+                    <span className={`badge ${t.status === 'Hoàn thành' ? '' : 'warn'}`}>
+                      {t.status}
+                    </span>
+                  </td>
+                  <td className="num">
+                    <button className="btn small">
+                      {t.status === 'Chưa bắt đầu' ? 'Bắt đầu' : 'Chi tiết'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ── Chuồng phụ trách ──────────────────────────────── */}
+      <div className="grid two">
+        <div className="card coop">
+          <span className="temp">30,1°C</span>
+          <h2>Chuồng B6</h2>
+          <span className="badge">Đang nuôi</span>
+          <p className="muted">MB-2026-08 · Gà lông màu</p>
+
+          <div className="row">
+            <span>Tổng đàn</span>
+            <strong>1.498 con</strong>
+          </div>
+          <div className="row">
+            <span>Người phụ trách</span>
+            <span>Trần Văn Bình</span>
+          </div>
+
+          <div className="progress">
+            <i style={{ width: '74.9%' }} />
+          </div>
+          <small>Sức chứa 2.000 con (74.9%)</small>
+
+          <div style={{ marginTop: 16 }}>
+            <Link to="/worker-dashboard/log" className="btn primary">
+              Ghi nhật ký chuồng B6
+            </Link>
+          </div>
+        </div>
+
+        <div className="card">
+          <h2>Thao tác nhanh tại chuồng</h2>
+          <div className="quick">
+            <Link to="/worker-dashboard/log" className="btn">
+              Cho ăn
+            </Link>
+            <Link to="/worker-dashboard/log" className="btn">
+              Hao hụt
+            </Link>
+            <Link to="/worker-dashboard/log" className="btn">
+              Cân mẫu
+            </Link>
+            <Link to="/worker-dashboard/log" className="btn">
+              Thuốc / Vac
+            </Link>
+            <Link to="/worker-dashboard/log" className="btn">
+              Sức khỏe
+            </Link>
+            <Link to="/worker-dashboard/log" className="btn">
+              Công việc
+            </Link>
+          </div>
+          <div className="note" style={{ marginTop: 12 }}>
+            Nhật ký ghi nhận sử dụng thực tế; xuất kho được theo dõi bằng phiếu riêng để tránh trừ tồn hai lần.
+          </div>
         </div>
       </div>
     </DashboardLayout>

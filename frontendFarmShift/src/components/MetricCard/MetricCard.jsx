@@ -1,15 +1,15 @@
 // src/components/MetricCard/MetricCard.jsx
-// Stat card with icon, value, label, and optional badge
-// Used in all dashboard and listing pages (farmgo PDF pages 1, 3, 4, 7)
+// Editorial KPI card — DESIGN.md Airtable-editorial style
+// White canvas, colored icon circle, large 26px editorial number
 import React from 'react';
 import styles from './MetricCard.module.css';
 
 /**
- * @param {string}         label   — metric label e.g. "Sản lượng"
- * @param {string|number}  value   — main figure e.g. "125 Kg"
- * @param {string}         sub     — secondary text
- * @param {React.ReactNode} icon   — icon component
- * @param {'green'|'orange'|'blue'|'red'|'default'} color
+ * @param {string}         label   — metric label e.g. "Tổng đàn"
+ * @param {string|number}  value   — main figure e.g. "7,880 con"
+ * @param {string}         sub     — secondary/unit text
+ * @param {React.ReactNode} icon   — icon component (from lucide-react)
+ * @param {'green'|'orange'|'blue'|'red'|'teal'|'default'} color
  */
 export const MetricCard = ({
   label,
@@ -21,14 +21,14 @@ export const MetricCard = ({
 }) => {
   return (
     <div className={`${styles.card} ${styles[color]} ${className}`}>
-      <div className={styles.top}>
-        <div className={styles.iconWrap}>
-          {icon}
-        </div>
+      <div className={styles.iconWrap}>
+        {icon}
       </div>
-      <div className={styles.value}>{value}</div>
-      <div className={styles.label}>{label}</div>
-      {sub && <div className={styles.sub}>{sub}</div>}
+      <div className={styles.body}>
+        <div className={styles.label}>{label}</div>
+        <div className={styles.value}>{value}</div>
+        {sub && <div className={styles.sub}>{sub}</div>}
+      </div>
     </div>
   );
 };

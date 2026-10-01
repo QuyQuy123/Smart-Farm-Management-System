@@ -44,6 +44,8 @@ import { EmployeeList } from '../features/employee/EmployeeList';
 import { IotDashboard } from '../features/iot/IotDashboard';
 import { LoginLogs } from '../features/system/LoginLogs';
 import { Settings } from '../features/system/Settings';
+import { ProfilePage } from '../features/profile/ProfilePage';
+import { FarmShiftView } from '../features/farmshift/FarmShiftView';
 
 /* ── ProtectedRoute ─────────────────────────────────────────── */
 /**
@@ -103,8 +105,7 @@ export const AppRouter = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/verify-otp"    element={<ResetPassword />} />
 
-      {/* ── Owner Routes ──────────────────────────────────── */}
-      {/* Page 1: Dashboard Overview */}
+      {/* ── Core Dashboards ──────────────────────────────── */}
       <Route
         path="/owner-dashboard"
         element={
@@ -113,226 +114,6 @@ export const AppRouter = () => {
           </ProtectedRoute>
         }
       />
-
-      {/* Pages 2: Livestock */}
-      <Route
-        path="/owner-dashboard/livestock"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <LivestockList />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Page 3: Inventory List */}
-      <Route
-        path="/owner-dashboard/inventory"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <InventoryList />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Page 4: Inventory Categories */}
-      <Route
-        path="/owner-dashboard/inventory/categories"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <InventoryCategories />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Pages 5+6: Warehouse Permissions + Modal */}
-      <Route
-        path="/owner-dashboard/inventory/warehouse"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <WarehousePermissions />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Page 7: Purchase Orders */}
-      <Route
-        path="/owner-dashboard/orders"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <PurchaseOrders />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Page 8: Stock Records */}
-      <Route
-        path="/owner-dashboard/orders/stock"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <StockRecords />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Barn Routes ───────────────────────────────────── */}
-      <Route
-        path="/owner-dashboard/barns"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <BarnList />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/owner-dashboard/barns/:barnId"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <BarnDetail />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Batch Routes ──────────────────────────────────── */}
-      <Route
-        path="/owner-dashboard/batches"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <BatchList />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/owner-dashboard/batches/:batchId"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <BatchDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/owner-dashboard/batches/:batchId/log"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}>
-            <DailyLogForm />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Sprint 2: Supplier Routes ───────────────────────── */}
-      <Route
-        path="/owner-dashboard/suppliers"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
-            <SupplierList />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/owner-dashboard/suppliers/debts"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
-            <DebtTracking />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Sprint 2: Customer & Sales Routes ────────────────── */}
-      <Route
-        path="/owner-dashboard/customers"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
-            <CustomerList />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/owner-dashboard/sales"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
-            <SalesList />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Sprint 2: P&L Report ───────────────────────────── */}
-      <Route
-        path="/owner-dashboard/pnl"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
-            <BatchPnL />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Tài liệu: Feature 3 – Sổ quỹ ───────────────────────── */}
-      <Route
-        path="/owner-dashboard/fund-ledger"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
-            <FundLedger />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Tài liệu: Feature 7 – Xuất nhập nội bộ ─────────────── */}
-      <Route
-        path="/owner-dashboard/internal-transfers"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}>
-            <InternalTransfer />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Tài liệu: Feature 9 – Công nợ thương lái ───────────── */}
-      <Route
-        path="/owner-dashboard/customers/debts"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}>
-            <CustomerDebt />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Tài liệu: Feature 1 – Nhân sự ──────────────────────── */}
-      <Route
-        path="/owner-dashboard/workers"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <EmployeeList />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Tài liệu: Feature 11 – Giám sát IoT ────────────────── */}
-      <Route
-        path="/owner-dashboard/iot"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <IotDashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Hệ thống ────────────────────────── */}
-      <Route
-        path="/owner-dashboard/settings"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <Settings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/owner-dashboard/login-logs"
-        element={
-          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
-            <LoginLogs />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Accountant Routes ────────────────────────────── */}
       <Route
         path="/accountant-dashboard"
         element={
@@ -341,13 +122,154 @@ export const AppRouter = () => {
           </ProtectedRoute>
         }
       />
-
-      {/* ── Worker Routes ─────────────────────────────────── */}
       <Route
         path="/worker-dashboard"
         element={
           <ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}>
             <WorkerDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Universal FarmShift View Engine (All 73 Screens) ── */}
+      <Route
+        path="/view/:screenId"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}>
+            <FarmShiftView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/catalog"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}>
+            <FarmShiftView screen="catalog" />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── Direct Group & Screen Short Paths (FarmShift.html Parity) ── */}
+      <Route path="/batches" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="batches" /></ProtectedRoute>} />
+      <Route path="/batch-create" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="batch-create" /></ProtectedRoute>} />
+      <Route path="/tasks" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="tasks" /></ProtectedRoute>} />
+      <Route path="/task-board" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="task-board" /></ProtectedRoute>} />
+      <Route path="/calendar" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="calendar" /></ProtectedRoute>} />
+      <Route path="/journal" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}><FarmShiftView screen="journal" /></ProtectedRoute>} />
+      <Route path="/quick" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="quick" /></ProtectedRoute>} />
+      <Route path="/voice" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="voice" /></ProtectedRoute>} />
+      <Route path="/voice-review" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="voice-review" /></ProtectedRoute>} />
+      <Route path="/inventory" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="inventory" /></ProtectedRoute>} />
+      <Route path="/purchases" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="purchases" /></ProtectedRoute>} />
+      <Route path="/sales" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="sales" /></ProtectedRoute>} />
+      <Route path="/ocr" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="ocr" /></ProtectedRoute>} />
+      <Route path="/ocr-upload" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="ocr-upload" /></ProtectedRoute>} />
+      <Route path="/ocr-review" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="ocr-review" /></ProtectedRoute>} />
+      <Route path="/finance" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="finance" /></ProtectedRoute>} />
+      <Route path="/cashbook" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="cashbook" /></ProtectedRoute>} />
+      <Route path="/iot" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="iot" /></ProtectedRoute>} />
+      <Route path="/alerts" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="alerts" /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}><FarmShiftView screen="notifications" /></ProtectedRoute>} />
+      <Route path="/ai" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}><FarmShiftView screen="ai" /></ProtectedRoute>} />
+      <Route path="/ai-health" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="ai-health" /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="reports" /></ProtectedRoute>} />
+      <Route path="/report-batch" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="report-batch" /></ProtectedRoute>} />
+      <Route path="/report-flock" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="report-flock" /></ProtectedRoute>} />
+      <Route path="/report-growth" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="report-growth" /></ProtectedRoute>} />
+      <Route path="/report-stock" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="report-stock" /></ProtectedRoute>} />
+      <Route path="/report-cash" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="report-cash" /></ProtectedRoute>} />
+      <Route path="/report-debt" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="report-debt" /></ProtectedRoute>} />
+      <Route path="/report-trade" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="report-trade" /></ProtectedRoute>} />
+      <Route path="/employees" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="employees" /></ProtectedRoute>} />
+      <Route path="/farm" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="farm" /></ProtectedRoute>} />
+      <Route path="/coops" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="coops" /></ProtectedRoute>} />
+      <Route path="/areas" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="areas" /></ProtectedRoute>} />
+      <Route path="/programs" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="programs" /></ProtectedRoute>} />
+      <Route path="/movements" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="movements" /></ProtectedRoute>} />
+      <Route path="/counts" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="counts" /></ProtectedRoute>} />
+      <Route path="/suppliers" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="suppliers" /></ProtectedRoute>} />
+      <Route path="/customers" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="customers" /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="settings" /></ProtectedRoute>} />
+
+      {/* ── Owner Dashboard Subroutes ───────────────────────── */}
+      <Route path="/owner-dashboard/batches" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="batches" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/barns" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="farm" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/inventory" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="inventory" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/orders" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="purchases" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/sales" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="sales" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/fund-ledger" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="finance" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/iot" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="iot" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/pnl" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="report-batch" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/workers" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="employees" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/settings" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="settings" /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/view/:screenId" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView /></ProtectedRoute>} />
+      <Route path="/owner-dashboard/:screenId" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView /></ProtectedRoute>} />
+
+      {/* ── Accountant Dashboard Subroutes ──────────────────── */}
+      <Route path="/accountant-dashboard/orders" element={<ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}><FarmShiftView screen="purchases" /></ProtectedRoute>} />
+      <Route path="/accountant-dashboard/sales" element={<ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}><FarmShiftView screen="sales" /></ProtectedRoute>} />
+      <Route path="/accountant-dashboard/inventory" element={<ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}><FarmShiftView screen="inventory" /></ProtectedRoute>} />
+      <Route path="/accountant-dashboard/transactions" element={<ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}><FarmShiftView screen="finance" /></ProtectedRoute>} />
+      <Route path="/accountant-dashboard/reports" element={<ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}><FarmShiftView screen="reports" /></ProtectedRoute>} />
+      <Route path="/accountant-dashboard/batches" element={<ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}><FarmShiftView screen="batches" /></ProtectedRoute>} />
+      <Route path="/accountant-dashboard/view/:screenId" element={<ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}><FarmShiftView /></ProtectedRoute>} />
+      <Route path="/accountant-dashboard/:screenId" element={<ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}><FarmShiftView /></ProtectedRoute>} />
+
+      {/* ── Worker Dashboard Subroutes ──────────────────────── */}
+      <Route path="/worker-dashboard/tasks" element={<ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}><FarmShiftView screen="tasks" /></ProtectedRoute>} />
+      <Route path="/worker-dashboard/log" element={<ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}><FarmShiftView screen="quick" /></ProtectedRoute>} />
+      <Route path="/worker-dashboard/coops" element={<ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}><FarmShiftView screen="coops" /></ProtectedRoute>} />
+      <Route path="/worker-dashboard/iot" element={<ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}><FarmShiftView screen="iot" /></ProtectedRoute>} />
+      <Route path="/worker-dashboard/alerts" element={<ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}><FarmShiftView screen="alerts" /></ProtectedRoute>} />
+      <Route path="/worker-dashboard/view/:screenId" element={<ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}><FarmShiftView /></ProtectedRoute>} />
+      <Route path="/worker-dashboard/:screenId" element={<ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}><FarmShiftView /></ProtectedRoute>} />
+
+      {/* ── Profile & Settings Screens (Exact FarmShift.html) ─── */}
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}>
+            <ProfilePage initialTab="info" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/owner-dashboard/profile"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}>
+            <ProfilePage initialTab="info" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/accountant-dashboard/profile"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_ACCOUNTANT']}>
+            <ProfilePage initialTab="info" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/worker-dashboard/profile"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}>
+            <ProfilePage initialTab="info" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/password"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}>
+            <ProfilePage initialTab="password" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notification-settings"
+        element={
+          <ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER']}>
+            <ProfilePage initialTab="notifications" />
           </ProtectedRoute>
         }
       />
