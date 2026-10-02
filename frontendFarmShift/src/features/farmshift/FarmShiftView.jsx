@@ -1,5 +1,6 @@
 // src/features/farmshift/FarmShiftView.jsx
 // Complete React Universal View Engine for all 73 screens in FarmShift.html
+// P1 Refactor: screen logic is delegated to feature modules under ./screens/
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
@@ -12,6 +13,20 @@ import {
   Printer, RefreshCw, Search, Settings as SettingsIcon, ShoppingCart,
   Sparkles, Trash2, TrendingUp, Users, Warehouse, AlertTriangle, ArrowRight
 } from 'lucide-react';
+
+/* ── Screen Modules (P1 split) ─────────────────────────── */
+import { ScreenFarm }      from './screens/ScreenFarm';
+import { ScreenBatch }     from './screens/ScreenBatch';
+import { ScreenFinance }   from './screens/ScreenFinance';
+import { ScreenInventory } from './screens/ScreenInventory';
+import { ScreenIoT }       from './screens/ScreenIoT';
+import { ScreenJournal }   from './screens/ScreenJournal';
+import { ScreenReports }   from './screens/ScreenReports';
+import { ScreenTasks }     from './screens/ScreenTasks';
+import { ScreenTrade }     from './screens/ScreenTrade';
+import { ScreenEmployees } from './screens/ScreenEmployees';
+import { num, money, DataTable, NoteBanner, LogTable, GrowthChart, FiltersRow } from './screenHelpers';
+
 
 export const FarmShiftView = ({ screen: propScreen }) => {
   const params = useParams();
@@ -681,6 +696,76 @@ export const FarmShiftView = ({ screen: propScreen }) => {
   const renderScreenContent = () => {
     const kind = currentRoute.kind;
     const idParam = Number(searchParams.get('id') || 0);
+
+    // ── Module Dispatchers (P1 split) ─────────────────────────
+    const moduleProps = {
+      kind, db, role, scopedCoops, scopedLogs, scopedTasks,
+      totalBirds, currentCost, searchParams, navTo, num, money,
+    };
+
+    // Farm / Coops / Areas — ScreenFarm
+    if (['farm', 'coops', 'areas', 'coop'].includes(kind)) {
+      const result = ScreenFarm(moduleProps);
+      if (result) return result;
+    }
+
+    // Batch / Movements — ScreenBatch
+    if (['batches', 'batch', 'flocks', 'growth', 'feed', 'health', 'batch-cost',
+         'harvest', 'batch-close', 'movements'].includes(kind)) {
+      const result = ScreenBatch(moduleProps);
+      if (result) return result;
+    }
+
+    // Finance tabs — ScreenFinance
+    if (['finance', 'cashbook', 'receipts', 'payments', 'payables', 'receivables', 'costs'].includes(kind)) {
+      const result = ScreenFinance(moduleProps);
+      if (result) return result;
+    }
+
+    // Inventory / Stock — ScreenInventory
+    if (['inventory', 'lots', 'stock-transactions', 'counts', 'stock-lookup'].includes(kind)) {
+      const result = ScreenInventory(moduleProps);
+      if (result) return result;
+    }
+
+    // IoT / Alerts / Notifications — ScreenIoT
+    if (['iot', 'device', 'devices', 'rules', 'alerts', 'notifications'].includes(kind)) {
+      const result = ScreenIoT(moduleProps);
+      if (result) return result;
+    }
+
+    // Journal / Quick / Voice / History — ScreenJournal
+    if (['journal', 'quick', 'voice', 'feeding-history', 'weight-history'].includes(kind)) {
+      const result = ScreenJournal(moduleProps);
+      if (result) return result;
+    }
+
+    // Reports hub + individual reports — ScreenReports
+    if (['reports', 'report-batch', 'report-flock', 'report-growth',
+         'report-stock', 'report-cash', 'report-debt', 'report-trade'].includes(kind)) {
+      const result = ScreenReports(moduleProps);
+      if (result) return result;
+    }
+
+    // Tasks / Kanban Board / Calendar / Task detail — ScreenTasks
+    if (['tasks', 'board', 'calendar', 'task'].includes(kind)) {
+      const result = ScreenTasks({ ...moduleProps, persist, toast });
+      if (result) return result;
+    }
+
+    // Purchases / Suppliers / Sales / Customers — ScreenTrade
+    if (['purchases', 'purchase', 'suppliers', 'supplier',
+         'sales', 'sale', 'customers', 'customer', 'harvest-plan'].includes(kind)) {
+      const result = ScreenTrade(moduleProps);
+      if (result) return result;
+    }
+
+    // Employees / Permissions / Activity — ScreenEmployees
+    if (['employees', 'employee', 'permissions', 'activity'].includes(kind)) {
+      const result = ScreenEmployees(moduleProps);
+      if (result) return result;
+    }
+    // ── End Module Dispatchers ───────────────────────────────
 
     // Dynamic Form
     if (kind === 'form') {
