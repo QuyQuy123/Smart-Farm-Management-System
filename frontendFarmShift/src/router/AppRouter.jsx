@@ -191,6 +191,26 @@ export const AppRouter = () => {
       <Route path="/customers" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="customers" /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="settings" /></ProtectedRoute>} />
 
+      {/* ── Finance Sub-tabs ────────────────────────────────── */}
+      <Route path="/receipts"    element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="receipts" /></ProtectedRoute>} />
+      <Route path="/payments"    element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="payments" /></ProtectedRoute>} />
+      <Route path="/payables"    element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="payables" /></ProtectedRoute>} />
+      <Route path="/receivables" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="receivables" /></ProtectedRoute>} />
+      <Route path="/costs"       element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="costs" /></ProtectedRoute>} />
+
+      {/* ── Inventory Sub-tabs ──────────────────────────────── */}
+      <Route path="/stock-transactions" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="stock-transactions" /></ProtectedRoute>} />
+      <Route path="/lots"               element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT']}><FarmShiftView screen="lots" /></ProtectedRoute>} />
+      <Route path="/stock-lookup"       element={<ProtectedRoute allowedRoles={['ROLE_FARM_WORKER']}><FarmShiftView screen="stock-lookup" /></ProtectedRoute>} />
+
+      {/* ── IoT Sub-tabs ────────────────────────────────────── */}
+      <Route path="/devices" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="devices" /></ProtectedRoute>} />
+      <Route path="/rules"   element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="rules" /></ProtectedRoute>} />
+
+      {/* ── Journal History ─────────────────────────────────── */}
+      <Route path="/feeding-history" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="feeding-history" /></ProtectedRoute>} />
+      <Route path="/weight-history"  element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER']}><FarmShiftView screen="weight-history" /></ProtectedRoute>} />
+
       {/* ── Owner Dashboard Subroutes ───────────────────────── */}
       <Route path="/owner-dashboard/batches" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="batches" /></ProtectedRoute>} />
       <Route path="/owner-dashboard/barns" element={<ProtectedRoute allowedRoles={['ROLE_FARM_OWNER']}><FarmShiftView screen="farm" /></ProtectedRoute>} />
