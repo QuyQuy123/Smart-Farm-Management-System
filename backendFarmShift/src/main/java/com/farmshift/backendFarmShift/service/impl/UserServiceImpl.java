@@ -80,6 +80,15 @@ public class UserServiceImpl implements UserService {
         log.info("Password changed successfully for user: {}", email);
     }
 
+    @Override
+    public java.util.List<UserProfileResponse> getAllUsers() {
+        java.util.List<Account> accounts = accountRepository.findAll();
+        return accounts.stream().map(account -> {
+            Optional<Customer> customerOpt = customerRepository.findByAccount(account);
+            return mapToResponse(account, customerOpt.orElse(null));
+        }).collect(java.util.stream.Collectors.toList());
+    }
+
     private Account getAccountByEmail(String email) {
         return accountRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found for email: " + email));

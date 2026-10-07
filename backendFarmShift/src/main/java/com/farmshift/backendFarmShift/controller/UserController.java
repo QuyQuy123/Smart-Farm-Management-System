@@ -26,6 +26,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Profile fetched successfully", profile));
     }
 
+    @GetMapping("/all")
+    public ResponseEntity<ApiResponse<java.util.List<UserProfileResponse>>> getAllUsers() {
+        java.util.List<UserProfileResponse> users = userService.getAllUsers();
+        return ResponseEntity.ok(ApiResponse.success("Users fetched successfully", users));
+    }
+
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<UserProfileResponse>> updateProfile(
             Principal principal,

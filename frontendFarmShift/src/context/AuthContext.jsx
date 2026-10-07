@@ -1,4 +1,5 @@
-// d:\Smart-Farm-Management-System\frontendFarmShift\src\context\AuthContext.jsx
+// src/context/AuthContext.jsx
+// Quản lý phiên làm việc & đồng bộ với Spring Boot Backend API
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { getProfile } from '../services/userService';
@@ -10,90 +11,116 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true; // abort flag to prevent setState after unmount
+    let isMounted = true;
 
-    // Check for existing token on mount
     const token = sessionStorage.getItem('token');
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        
-        // Check if token is expired
-        if (decoded.exp * 1000 < Date.now()) {
+
+        // Check expiration
+        if (decoded.exp && decoded.exp * 1000 < Date.now()) {
           logout();
           if (isMounted) setLoading(false);
         } else {
-          // The backend embeds roles in the JWT. For simplicity, assume first role.
           const role = decoded.roles && decoded.roles.length > 0 ? decoded.roles[0] : null;
-          
-          // First set basic info from token
-          if (isMounted) setUser({ email: decoded.sub, role });
-          
-          // Then fetch full profile asynchronously
-          const fetchProfile = async () => {
-            try {
-              const profile = await getProfile();
-              if (isMounted) {
+          if (isMounted) setUser({ email: decoded.sub || decoded.email, role });
+
+          // Fetch full user profile from backend
+          getProfile()
+            .then(profile => {
+              if (isMounted && profile) {
                 setUser(prev => ({
                   ...prev,
-                  name: profile.fullName,
+                  name: profile.fullName || 'Admin',
+                  fullName: profile.fullName || 'Admin',
                   avatarUrl: profile.avatarUrl,
-                  phone: profile.phone,
-                  citizenId: profile.citizenId,
-                  address: profile.address,
-                  dateOfBirth: profile.dateOfBirth
+                  phone: profile.phone || '',
+                  citizenId: profile.citizenId || '',
+                  address: profile.address || '',
+                  dateOfBirth: profile.dateOfBirth || '',
+                  role: profile.role || role
                 }));
               }
-            } catch (err) {
-              console.error("Failed to fetch profile on init:", err);
-            } finally {
+            })
+            .catch(err => {
+              console.warn("Backend profile fetch warning (using cached user):", err.message);
+            })
+            .finally(() => {
               if (isMounted) setLoading(false);
-            }
-          };
-          fetchProfile();
+            });
         }
       } catch (e) {
-        logout(); // Invalid token
+        logout();
         if (isMounted) setLoading(false);
       }
     } else {
+      // If demo mode was flagged
+      const isDemo = sessionStorage.getItem('demo_mode');
+      if (isDemo) {
+        setUser({
+          name: 'Admin FarmShift',
+          fullName: 'Admin FarmShift',
+          email: 'admin@farmshift.local',
+          phone: '0988 123 456',
+          role: 'ROLE_FARM_OWNER',
+          address: 'Xã Tân Dân, Huyện Sóc Sơn, Hà Nội'
+        });
+      }
       if (isMounted) setLoading(false);
     }
 
-    // Listen for unauthorized events from api interceptor
     const handleUnauthorized = () => {
       logout();
     };
     window.addEventListener('unauthorized', handleUnauthorized);
 
     return () => {
-      isMounted = false; // prevent any pending setState calls
+      isMounted = false;
       window.removeEventListener('unauthorized', handleUnauthorized);
     };
   }, []);
 
   const login = async (token, email, role) => {
     sessionStorage.setItem('token', token);
+    sessionStorage.removeItem('demo_mode');
     setUser({ email, role });
-    
+
     try {
       const profile = await getProfile();
-      setUser(prev => ({
-        ...prev,
-        name: profile.fullName,
-        avatarUrl: profile.avatarUrl,
-        phone: profile.phone,
-        citizenId: profile.citizenId,
-        address: profile.address,
-        dateOfBirth: profile.dateOfBirth
-      }));
+      if (profile) {
+        setUser(prev => ({
+          ...prev,
+          name: profile.fullName || 'Admin FarmShift',
+          fullName: profile.fullName || 'Admin FarmShift',
+          avatarUrl: profile.avatarUrl,
+          phone: profile.phone,
+          citizenId: profile.citizenId,
+          address: profile.address,
+          dateOfBirth: profile.dateOfBirth,
+          role: profile.role || role
+        }));
+      }
     } catch (err) {
-      console.error("Failed to fetch profile after login:", err);
+      console.warn("Could not fetch full profile post-login:", err.message);
     }
+  };
+
+  const loginDemo = (role = 'ROLE_FARM_OWNER', name = 'Admin FarmShift', email = 'admin@farmshift.local') => {
+    sessionStorage.setItem('demo_mode', 'true');
+    setUser({
+      name,
+      fullName: name,
+      email,
+      role,
+      phone: '0988 123 456',
+      address: 'Xã Tân Dân, Huyện Sóc Sơn, Hà Nội'
+    });
   };
 
   const logout = () => {
     sessionStorage.removeItem('token');
+    sessionStorage.removeItem('demo_mode');
     setUser(null);
   };
 
@@ -102,10 +129,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginDemo, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
+export const useFarmShift = useAuth;
+export const useFarmgo = useAuth;
+export const FarmShiftContext = AuthContext;
+export const FarmgoContext = AuthContext;

@@ -93,11 +93,19 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "https://*.vercel.app"
+        ));
         config.setAllowedOrigins(List.of(
-                "http://localhost:5173", // Local dev
-                "https://admin-ae1mzp943-acet-ech291.vercel.app", // Vercel Production 1
-                "https://admin-flax-eta-71.vercel.app", // Vercel Aliased
-                "https://admin-acet-ech291.vercel.app" // Vercel Main
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "http://localhost:5175",
+                "http://localhost:3000",
+                "https://admin-ae1mzp943-acet-ech291.vercel.app",
+                "https://admin-flax-eta-71.vercel.app",
+                "https://admin-acet-ech291.vercel.app"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));

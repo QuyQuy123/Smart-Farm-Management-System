@@ -1,0 +1,2 @@
+/* src/theme/farmgo.css - Alias importing farmshift.css for backward compatibility */
+@import './farmshift.css';

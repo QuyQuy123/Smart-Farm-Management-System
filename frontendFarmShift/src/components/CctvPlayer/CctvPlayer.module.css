@@ -1,0 +1,361 @@
+/* src/components/CctvPlayer/CctvPlayer.module.css */
+/* CCTV Surveillance System Player styling */
+
+.cctvContainer {
+  position: relative;
+  width: 100%;
+  background-color: #0b0f19;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  border: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.cctvContainer:fullscreen {
+  border-radius: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Video Stage */
+.videoStage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: #05070d;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cctvCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  cursor: grab;
+}
+
+.cctvCanvas:active {
+  cursor: grabbing;
+}
+
+/* OSD (On-Screen Display) Layers */
+.osdLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 16px;
+  z-index: 10;
+  font-family: 'Consolas', 'Courier New', monospace;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.95);
+}
+
+.osdTopBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.osdCamInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.osdCamName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.osdStreamSpecs {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.osdTopRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(220, 38, 38, 0.85);
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.livePulseDot {
+  width: 7px;
+  height: 7px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  animation: cctvBlink 1.2s infinite ease-in-out;
+}
+
+@keyframes cctvBlink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.8); }
+}
+
+.osdClock {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: 1px;
+}
+
+.osdFps {
+  font-size: 10.5px;
+  color: #22c55e;
+}
+
+/* OSD Telemetry Banner (Bottom Left) */
+.osdBottomBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.osdTelemetry {
+  background-color: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 6px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11.5px;
+  color: #e2e8f0;
+}
+
+.telemetryItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.telemetryValue {
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.telemetryValueGreen {
+  font-weight: 700;
+  color: #4ade80;
+}
+
+.telemetryValueAmber {
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.nightVisionBadge {
+  background-color: rgba(22, 101, 52, 0.85);
+  color: #86efac;
+  border: 1px solid #16a34a;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Watermark */
+.cctvWatermark {
+  position: absolute;
+  bottom: 8px;
+  right: 14px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 1px;
+}
+
+/* Control Panel */
+.controlBar {
+  background-color: #0f172a;
+  border-top: 1px solid #1e293b;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  z-index: 20;
+}
+
+.angleButtonGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #1e293b;
+  padding: 3px;
+  border-radius: 6px;
+}
+
+.angleBtn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.angleBtn:hover {
+  color: #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.angleBtnActive {
+  background-color: #019788;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.toolActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toolBtn:hover {
+  background-color: #334155;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+.toolBtnActive {
+  background-color: #166534;
+  color: #86efac;
+  border-color: #22c55e;
+}
+
+/* PTZ Mini Controls */
+.ptzPad {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: #1e293b;
+  padding: 2px 4px;
+  border-radius: 5px;
+  border: 1px solid #334155;
+}
+
+.ptzArrowBtn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  padding: 3px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+}
+
+.ptzArrowBtn:hover {
+  color: #ffffff;
+  background-color: #475569;
+}
+
+/* Toast message inside player */
+.playerToast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(15, 23, 42, 0.92);
+  color: #34d399;
+  border: 1px solid #059669;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: fadeInOut 2.5s ease forwards;
+  z-index: 30;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translate(-50%, -40%); }
+  15% { opacity: 1; transform: translate(-50%, -50%); }
+  85% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -60%); }
+}
+
+/* RTSP Stream URL configuration drawer */
+.streamConfigBar {
+  background-color: #0b1120;
+  border-top: 1px solid #1e293b;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.streamInput {
+  flex: 1;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.streamInput:focus {
+  outline: none;
+  border-color: #019788;
+}

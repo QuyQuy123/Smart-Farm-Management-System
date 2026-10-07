@@ -125,7 +125,7 @@ export const DashboardLayout = ({
   const currentTitle = pageTitle || defaultTitle;
   const currentSub = pageSub || (roleKey === 'ROLE_FARM_WORKER'
     ? 'Chuồng B6 · Lứa MB-2026-08 · Công việc được phân công'
-    : 'Trang trại Miền Bính · Quản lý chăn nuôi gà');
+    : 'Trang trại Miến Bình · Quản lý chăn nuôi gà');
 
   useEffect(() => {
     document.title = `FarmShift · ${currentTitle} · ${roleTitle}`;
@@ -150,7 +150,7 @@ export const DashboardLayout = ({
       <aside className={`sidebar ${isMobileOpen ? 'open' : ''}`}>
         <Link to="/" className="brand" onClick={closeSidebar}>
           <span className="leaf">◒</span>FarmShift
-          <small>Trang trại Miền Bính</small>
+          <small>Trang trại Miến Bình</small>
         </Link>
 
         <nav className="nav">
