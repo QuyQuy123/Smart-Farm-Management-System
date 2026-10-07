@@ -1,12 +1,13 @@
 // src/features/farmshift/JournalView.jsx
-// Ghi nhật ký chăn nuôi chuẩn FarmShift & DESIGN.md (Cữ ăn, IoT môi trường, Sức khỏe, Xử lý vật nuôi)
+// Ghi nhật ký chăn nuôi chuẩn FarmShift & DESIGN.md (Cữ ăn, IoT môi trường, Sức khỏe, Xử lý vật nuôi, Ghi công việc)
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   ClipboardList, Plus, Search, FileSpreadsheet, Utensils,
   Thermometer, HeartPulse, ShieldAlert, Mic, CheckCircle,
   Camera, Image as ImageIcon, X, AlertTriangle, ArrowRight, Clock,
   Fan, Droplets, Zap, Sliders, Cpu, Power, Wind, RefreshCw, Check,
-  Lightbulb, Bell, Video, TrendingUp
+  Lightbulb, Bell, Video, TrendingUp, ClipboardCheck, Calendar
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -15,10 +16,110 @@ import { CctvPlayer } from '../../components/CctvPlayer';
 import { StockTempChart } from '../../components/StockTempChart';
 
 export const JournalView = () => {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const initialTab = searchParams.get('tab') || 'feed';
+
   const { sendNotification } = useNotification();
-  const [activeTab, setActiveTab] = useState('feed'); // 'feed' | 'env' | 'iot_devices' | 'health' | 'treatment'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'feed' | 'env' | 'iot_devices' | 'health' | 'treatment' | 'work'
   const [viewingCctvBarn, setViewingCctvBarn] = useState(null);
   const [activeChartBarns, setActiveChartBarns] = useState({});
+
+  // Work tasks state (Ghi công việc - work-diary parity)
+  const [workTasks, setWorkTasks] = useState([
+    {
+      id: 'work-1',
+      taskName: 'Dọn phân chuồng & đảo trấu đệm lót',
+      area: 'Khu Mía Thịt',
+      barn: 'Nhà A1',
+      time: '07:30',
+      assignee: 'Nguyễn Văn An',
+      priority: 'Bắt buộc hàng ngày',
+      status: 'Đã hoàn thành',
+      notes: 'Đã bổ sung thêm 2 bao trấu khô khử mùi Balasa N01'
+    },
+    {
+      id: 'work-2',
+      taskName: 'Phun thuốc sát trùng lối đi và tường chuồng',
+      area: 'Khu Mía Thịt',
+      barn: 'Toàn bộ Khu Mía Thịt',
+      time: '14:00',
+      assignee: 'Trần Văn Bình',
+      priority: 'Định kỳ 3 ngày/lần',
+      status: 'Đã hoàn thành',
+      notes: 'Sử dụng dung dịch Benkokid 0.5% phun tiêu độc khử trùng'
+    },
+    {
+      id: 'work-3',
+      taskName: 'Kiểm tra hệ thống núm uống & máng ăn tự động',
+      area: 'Khu J Thịt',
+      barn: 'Nhà B1, B2',
+      time: '08:00',
+      assignee: 'Nguyễn Văn Hải',
+      priority: 'Hàng ngày',
+      status: 'Đã hoàn thành',
+      notes: 'Áp lực nước ổn định, không bị rò rỉ núm uống'
+    },
+    {
+      id: 'work-4',
+      taskName: 'Cân mẫu định kỳ kiểm tra tăng trọng',
+      area: 'Khu J Thịt',
+      barn: 'Nhà B1',
+      time: '10:00',
+      assignee: 'Trần Văn Bình',
+      priority: 'Định kỳ 7 ngày/lần',
+      status: 'Đã hoàn thành',
+      notes: 'Cân ngẫu nhiên 30 con: Trung bình 1.82 kg/con, đạt chuẩn'
+    },
+    {
+      id: 'work-5',
+      taskName: 'Vệ sinh giàn làm mát cooling pad & kiểm tra bạt',
+      area: 'Khu Mía Thịt',
+      barn: 'Nhà A2',
+      time: '15:30',
+      assignee: 'Nguyễn Văn An',
+      priority: 'Tuần/lần',
+      status: 'Đang thực hiện',
+      notes: 'Xịt rửa rong rêu tấm cooling pad'
+    }
+  ]);
+  const [showWorkModal, setShowWorkModal] = useState(false);
+  const [newWorkTask, setNewWorkTask] = useState({
+    taskName: '',
+    area: 'Khu Mía Thịt',
+    barn: 'Nhà A1',
+    time: '08:00',
+    assignee: 'Nguyễn Văn An',
+    priority: 'Hàng ngày',
+    notes: ''
+  });
+
+  const handleCreateWorkTask = (e) => {
+    e.preventDefault();
+    if (!newWorkTask.taskName) return;
+    const created = {
+      id: `work-${Date.now()}`,
+      taskName: newWorkTask.taskName,
+      area: newWorkTask.area,
+      barn: newWorkTask.barn,
+      time: newWorkTask.time,
+      assignee: newWorkTask.assignee,
+      priority: newWorkTask.priority,
+      status: 'Chưa bắt đầu',
+      notes: newWorkTask.notes || 'Công việc mới giao'
+    };
+    setWorkTasks([created, ...workTasks]);
+    setShowWorkModal(false);
+    setNewWorkTask({
+      taskName: '',
+      area: 'Khu Mía Thịt',
+      barn: 'Nhà A1',
+      time: '08:00',
+      assignee: 'Nguyễn Văn An',
+      priority: 'Hàng ngày',
+      notes: ''
+    });
+  };
 
   // Feed logs organized by Barn
   const [feedRows, setFeedRows] = useState([
@@ -657,6 +758,13 @@ export const JournalView = () => {
             >
               <Plus size={16} /> Thêm lịch xử lý
             </button>
+          ) : activeTab === 'work' ? (
+            <button
+              className="farmshift-btn farmshift-btn-primary"
+              onClick={() => setShowWorkModal(true)}
+            >
+              <Plus size={16} /> Giao việc mới
+            </button>
           ) : (
             <button
               className="farmshift-btn farmshift-btn-primary"
@@ -676,6 +784,13 @@ export const JournalView = () => {
         >
           <Utensils size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
           Ghi nhật ký cho ăn
+        </button>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'work' ? 'active' : ''}`}
+          onClick={() => setActiveTab('work')}
+        >
+          <ClipboardCheck size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+          Ghi công việc (Work Diary)
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'env' ? 'active' : ''}`}
@@ -809,6 +924,113 @@ export const JournalView = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── TAB: GHI CÔNG VIỆC (Work Diary parity) ──────────── */}
+      {activeTab === 'work' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Header Action Bar */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div>
+              <span style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>
+                Nhật ký theo dõi công việc hàng ngày: Dọn chuồng, phun sát trùng, thay trấu đệm lót, cân mẫu và bảo trì thiết bị
+              </span>
+            </div>
+            <button
+              className="farmshift-btn farmshift-btn-primary"
+              style={{ fontSize: '12.5px', padding: '6px 14px' }}
+              onClick={() => setShowWorkModal(true)}
+            >
+              <Plus size={14} /> Giao việc mới hôm nay
+            </button>
+          </div>
+
+          {/* Work Tasks Table */}
+          <div className="farmshift-card" style={{ margin: 0 }}>
+            <div className="farmshift-card-header">
+              <h3 className="farmshift-card-title">
+                <ClipboardCheck size={18} color="var(--color-primary)" />
+                Danh sách công việc & phân công hôm nay
+              </h3>
+              <span className="farmshift-badge farmshift-badge-neutral">
+                {workTasks.filter(t => t.status === 'Đã hoàn thành').length}/{workTasks.length} việc đã xong
+              </span>
+            </div>
+            <div className="farmshift-table-container" style={{ border: 'none' }}>
+              <table className="farmshift-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '90px' }}>Giờ</th>
+                    <th>Tên công việc</th>
+                    <th>Chuồng / Khu vực</th>
+                    <th>Người thực hiện</th>
+                    <th>Định kỳ / Ưu tiên</th>
+                    <th>Trạng thái</th>
+                    <th>Ghi chú thực hiện</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workTasks.map(task => (
+                    <tr key={task.id}>
+                      <td>
+                        <strong style={{ color: 'var(--color-primary)', fontFamily: 'monospace' }}>
+                          {task.time}
+                        </strong>
+                      </td>
+                      <td>
+                        <strong style={{ color: 'var(--color-ink)' }}>{task.taskName}</strong>
+                      </td>
+                      <td>
+                        <strong>{task.barn}</strong>
+                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{task.area}</div>
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 500 }}>{task.assignee}</span>
+                      </td>
+                      <td>
+                        <span className="farmshift-badge farmshift-badge-neutral" style={{ fontSize: '11.5px' }}>
+                          {task.priority}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`farmshift-badge ${task.status === 'Đã hoàn thành' ? 'farmshift-badge-success' : task.status === 'Đang thực hiện' ? 'farmshift-badge-warning' : 'farmshift-badge-neutral'}`}>
+                          {task.status}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
+                        {task.notes}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {task.status !== 'Đã hoàn thành' ? (
+                          <button
+                            className="farmshift-btn farmshift-btn-primary"
+                            style={{ fontSize: '11.5px', padding: '3px 8px' }}
+                            onClick={() => {
+                              setWorkTasks(workTasks.map(t => t.id === task.id ? { ...t, status: 'Đã hoàn thành' } : t));
+                            }}
+                          >
+                            ✓ Hoàn thành
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: 'var(--color-success)', fontWeight: 600 }}>
+                            ✓ Đã xong
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1906,6 +2128,129 @@ export const JournalView = () => {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Giao việc mới (Work Task Modal) ─────────── */}
+      {showWorkModal && (
+        <div className="farmshift-modal-backdrop">
+          <div className="farmshift-modal">
+            <div className="farmshift-modal-header">
+              <h3 className="farmshift-modal-title">Giao công việc chăn nuôi mới</h3>
+              <button
+                onClick={() => setShowWorkModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateWorkTask}>
+              <div className="farmshift-modal-body">
+                <div className="farmshift-form-group">
+                  <label className="farmshift-form-label">Tên công việc *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: Dọn phân chuồng, Phun sát trùng, Cân mẫu..."
+                    className="farmshift-form-control"
+                    value={newWorkTask.taskName}
+                    onChange={(e) => setNewWorkTask({ ...newWorkTask, taskName: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Khu vực *</label>
+                    <select
+                      className="farmshift-form-control"
+                      value={newWorkTask.area}
+                      onChange={(e) => setNewWorkTask({ ...newWorkTask, area: e.target.value })}
+                    >
+                      <option value="Khu Mía Thịt">Khu Mía Thịt</option>
+                      <option value="Khu J Thịt">Khu J Thịt</option>
+                      <option value="Toàn trại">Toàn bộ trang trại</option>
+                    </select>
+                  </div>
+
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Chuồng nuôi chỉ định *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="VD: Nhà A1, Nhà B1..."
+                      className="farmshift-form-control"
+                      value={newWorkTask.barn}
+                      onChange={(e) => setNewWorkTask({ ...newWorkTask, barn: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Giờ thực hiện</label>
+                    <input
+                      type="time"
+                      className="farmshift-form-control"
+                      value={newWorkTask.time}
+                      onChange={(e) => setNewWorkTask({ ...newWorkTask, time: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Người phụ trách *</label>
+                    <select
+                      className="farmshift-form-control"
+                      value={newWorkTask.assignee}
+                      onChange={(e) => setNewWorkTask({ ...newWorkTask, assignee: e.target.value })}
+                    >
+                      <option value="Nguyễn Văn An">Nguyễn Văn An (Công nhân)</option>
+                      <option value="Trần Văn Bình">Trần Văn Bình (Công nhân)</option>
+                      <option value="Nguyễn Văn Hải">Nguyễn Văn Hải (Quản lý kỹ thuật)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="farmshift-form-group">
+                  <label className="farmshift-form-label">Mức độ ưu tiên / Chu kỳ</label>
+                  <select
+                    className="farmshift-form-control"
+                    value={newWorkTask.priority}
+                    onChange={(e) => setNewWorkTask({ ...newWorkTask, priority: e.target.value })}
+                  >
+                    <option value="Bắt buộc hàng ngày">Bắt buộc hàng ngày</option>
+                    <option value="Hàng ngày">Hàng ngày</option>
+                    <option value="Định kỳ 3 ngày/lần">Định kỳ 3 ngày/lần</option>
+                    <option value="Định kỳ 7 ngày/lần">Định kỳ 7 ngày/lần</option>
+                    <option value="Khẩn cấp xử lý ngay">Khẩn cấp xử lý ngay</option>
+                  </select>
+                </div>
+
+                <div className="farmshift-form-group">
+                  <label className="farmshift-form-label">Ghi chú & Chỉ dẫn kỹ thuật</label>
+                  <textarea
+                    rows="2"
+                    placeholder="Chỉ dẫn liều lượng thuốc sát trùng, quy cách thực hiện..."
+                    className="farmshift-form-control"
+                    value={newWorkTask.notes}
+                    onChange={(e) => setNewWorkTask({ ...newWorkTask, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="farmshift-modal-footer">
+                <button
+                  type="button"
+                  className="farmshift-btn farmshift-btn-secondary"
+                  onClick={() => setShowWorkModal(false)}
+                >
+                  Hủy bỏ
+                </button>
+                <button type="submit" className="farmshift-btn farmshift-btn-primary">
+                  Giao công việc
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

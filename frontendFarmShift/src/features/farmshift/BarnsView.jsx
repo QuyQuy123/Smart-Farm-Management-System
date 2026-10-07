@@ -1,12 +1,11 @@
-// src/features/farmshift/BarnsView.jsx
-// Quản lý Khu nuôi & Chuồng trại chuẩn FarmShift & DESIGN.md
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Warehouse, Plus, Search, FileSpreadsheet, Edit2, Trash2,
   ChevronDown, AlertCircle, CheckCircle, Thermometer, Droplets,
   Activity, ArrowRightLeft, X, Utensils, HeartPulse, Calendar,
-  ShoppingCart, Video, Grid, Maximize2, Tv
+  ShoppingCart, Video, Grid, Maximize2, Tv, Repeat, Layers,
+  TrendingUp, CheckCircle2, Award
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
@@ -14,10 +13,123 @@ import { CctvPlayer } from '../../components/CctvPlayer';
 import { StockTempChart } from '../../components/StockTempChart';
 
 export const BarnsView = () => {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const initialMainTab = location.pathname.includes('/cycles') || searchParams.get('tab') === 'cycles'
+    ? 'cycles'
+    : 'barns';
+
+  const [mainTab, setMainTab] = useState(initialMainTab); // 'barns' | 'areas' | 'cycles' | 'cctv'
   const [areas, setAreas] = useState(INITIAL_FARMSHIFT_DATA.areas);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('ALL');
   const [selectedAreaTab, setSelectedAreaTab] = useState('ALL'); // 'ALL' | 'Khu Mía Thịt' | 'Khu J Thịt'
+
+  // Cycles state (Lứa nuôi & Đàn parity)
+  const [cycles, setCycles] = useState([
+    {
+      id: 'LUA-2026-MIA01',
+      name: 'Lứa gà Mía thịt Đợt 1',
+      area: 'Khu Mía Thịt',
+      barn: 'Nhà A1, A2, A3',
+      breed: 'Gà Mía Sơn Tây thuần chủng',
+      startDate: '2026-10-15',
+      ageDays: 6,
+      initialQty: 7500,
+      currentQty: 7492,
+      lossQty: 8,
+      avgWeight: 0.14,
+      targetWeight: 2.3,
+      fcrActual: 1.15,
+      fcrTarget: 1.20,
+      status: 'Đang nuôi',
+      notes: 'Úm gà con tuần đầu, nhiệt độ 31.5°C, uống kháng thể & vắc-xin Lasota'
+    },
+    {
+      id: 'LUA-2026-J02',
+      name: 'Lứa gà J-Dabaco Đợt 2',
+      area: 'Khu J Thịt',
+      barn: 'Nhà B1, B2',
+      breed: 'Gà J-Dabaco chân vàng',
+      startDate: '2026-09-06',
+      ageDays: 45,
+      initialQty: 5000,
+      currentQty: 4945,
+      lossQty: 55,
+      avgWeight: 1.82,
+      targetWeight: 2.4,
+      fcrActual: 1.95,
+      fcrTarget: 2.05,
+      status: 'Đang nuôi',
+      notes: 'Giai đoạn vỗ béo tăng trọng nhanh, chuẩn bị xuất chuồng sau 20 ngày'
+    }
+  ]);
+
+  const [closedCycles] = useState([
+    {
+      id: 'LUA-2026-MIA-DONE',
+      name: 'Lứa gà Mía Hè Thu 2026',
+      area: 'Khu Mía Thịt',
+      barn: 'Nhà A1, A2, A3',
+      breed: 'Gà Mía Sơn Tây',
+      startDate: '2026-06-10',
+      endDate: '2026-08-25',
+      totalDays: 76,
+      soldQty: 7280,
+      totalWeight: 16744,
+      revenue: 1423240000,
+      profit: 312500000,
+      fcrActual: 2.18,
+      status: 'Đã xuất chuồng'
+    }
+  ]);
+
+  const [showAddCycleModal, setShowAddCycleModal] = useState(false);
+  const [newCycle, setNewCycle] = useState({
+    name: '',
+    area: 'Khu Mía Thịt',
+    barn: 'Nhà A1',
+    breed: 'Gà Mía Sơn Tây',
+    startDate: new Date().toISOString().split('T')[0],
+    initialQty: 2500,
+    targetWeight: 2.3,
+    notes: ''
+  });
+
+  const handleCreateCycle = (e) => {
+    e.preventDefault();
+    if (!newCycle.name) return;
+    const created = {
+      id: `LUA-2026-${Date.now().toString().slice(-4)}`,
+      name: newCycle.name,
+      area: newCycle.area,
+      barn: newCycle.barn,
+      breed: newCycle.breed,
+      startDate: newCycle.startDate,
+      ageDays: 1,
+      initialQty: Number(newCycle.initialQty) || 2500,
+      currentQty: Number(newCycle.initialQty) || 2500,
+      lossQty: 0,
+      avgWeight: 0.05,
+      targetWeight: Number(newCycle.targetWeight) || 2.3,
+      fcrActual: 1.05,
+      fcrTarget: 1.20,
+      status: 'Đang nuôi',
+      notes: newCycle.notes || 'Khởi tạo lứa nuôi mới'
+    };
+    setCycles([created, ...cycles]);
+    setShowAddCycleModal(false);
+    setNewCycle({
+      name: '',
+      area: 'Khu Mía Thịt',
+      barn: 'Nhà A1',
+      breed: 'Gà Mía Sơn Tây',
+      startDate: new Date().toISOString().split('T')[0],
+      initialQty: 2500,
+      targetWeight: 2.3,
+      notes: ''
+    });
+  };
 
   // Modals & Views
   const [showAddAreaModal, setShowAddAreaModal] = useState(false);
@@ -108,28 +220,332 @@ export const BarnsView = () => {
 
   return (
     <FarmShiftLayout
-      pageTitle="Quản lý khu nuôi & Chuồng trại"
+      pageTitle={
+        mainTab === 'cycles'
+          ? 'Quản lý lứa nuôi & Đàn'
+          : mainTab === 'areas'
+          ? 'Danh sách khu nuôi'
+          : mainTab === 'cctv'
+          ? 'Tường Camera giám sát trực tiếp'
+          : 'Quản lý khu nuôi & Chuồng trại'
+      }
       breadcrumbs={[{ label: 'Khu nuôi' }]}
       actions={
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="farmshift-btn farmshift-btn-excel">
             <FileSpreadsheet size={15} /> Xuất Excel
           </button>
-          <button
-            className="farmshift-btn farmshift-btn-secondary"
-            onClick={() => setShowAddBarnModal(true)}
-          >
-            <Plus size={16} /> Tạo Chuồng
-          </button>
-          <button
-            className="farmshift-btn farmshift-btn-primary"
-            onClick={() => setShowAddAreaModal(true)}
-          >
-            <Plus size={16} /> Thêm mới khu nuôi
-          </button>
+          {mainTab === 'cycles' ? (
+            <button
+              className="farmshift-btn farmshift-btn-primary"
+              onClick={() => setShowAddCycleModal(true)}
+            >
+              <Plus size={16} /> Bắt đầu lứa nuôi
+            </button>
+          ) : (
+            <>
+              <button
+                className="farmshift-btn farmshift-btn-secondary"
+                onClick={() => setShowAddBarnModal(true)}
+              >
+                <Plus size={16} /> Tạo Chuồng
+              </button>
+              <button
+                className="farmshift-btn farmshift-btn-primary"
+                onClick={() => setShowAddAreaModal(true)}
+              >
+                <Plus size={16} /> Thêm mới khu nuôi
+              </button>
+            </>
+          )}
         </div>
       }
     >
+      {/* ── Main Subsystem Tabs (Farm Module Parity) ───────── */}
+      <div className="farmshift-tabs" style={{ marginBottom: '18px' }}>
+        <button
+          className={`farmshift-tab-btn ${mainTab === 'barns' ? 'active' : ''}`}
+          onClick={() => setMainTab('barns')}
+        >
+          <Warehouse size={15} style={{ marginRight: '6px' }} />
+          Danh sách chuồng nuôi
+        </button>
+        <button
+          className={`farmshift-tab-btn ${mainTab === 'areas' ? 'active' : ''}`}
+          onClick={() => setMainTab('areas')}
+        >
+          <Layers size={15} style={{ marginRight: '6px' }} />
+          Danh sách khu nuôi ({areas.length} khu)
+        </button>
+        <button
+          className={`farmshift-tab-btn ${mainTab === 'cycles' ? 'active' : ''}`}
+          onClick={() => setMainTab('cycles')}
+        >
+          <Repeat size={15} style={{ marginRight: '6px' }} />
+          Lứa nuôi & Đàn ({cycles.length} lứa đang nuôi)
+        </button>
+        <button
+          className={`farmshift-tab-btn ${mainTab === 'cctv' ? 'active' : ''}`}
+          onClick={() => setMainTab('cctv')}
+        >
+          <Video size={15} style={{ marginRight: '6px' }} />
+          Tường Camera CCTV Trực Tiếp
+        </button>
+      </div>
+
+      {/* ── TAB: CYCLES (LỨA NUÔI & ĐÀN) ──────────────────── */}
+      {mainTab === 'cycles' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+          {/* KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                LỨA ĐANG NUÔI
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '8px', lineHeight: 1 }}>
+                {cycles.length} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>lứa</span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+                Tổng quy mô 12.500 con giống
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                TỒN ĐÀN HIỆN TẠI
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
+                {cycles.reduce((s, c) => s + c.currentQty, 0).toLocaleString()} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-success)', marginTop: '8px' }}>
+                ✓ Tỷ lệ sống trung bình: 99.4%
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                HAO HỤT LŨY KẾ
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '8px', lineHeight: 1 }}>
+                {cycles.reduce((s, c) => s + c.lossQty, 0)} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+                Trong ngưỡng kỹ thuật an toàn
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                LỨA ĐÃ HOÀN THÀNH
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
+                {closedCycles.length} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>lứa xuất bán</span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+                Doanh thu: 1.42 tỷ đồng
+              </div>
+            </div>
+          </div>
+
+          {/* Active Cycles Table */}
+          <div className="farmshift-card" style={{ margin: 0 }}>
+            <div className="farmshift-card-header">
+              <h3 className="farmshift-card-title">
+                <Repeat size={18} color="var(--color-primary)" />
+                Danh sách các lứa nuôi đang chăn thả
+              </h3>
+              <button
+                className="farmshift-btn farmshift-btn-primary"
+                style={{ fontSize: '12.5px', padding: '6px 14px' }}
+                onClick={() => setShowAddCycleModal(true)}
+              >
+                <Plus size={14} /> Bắt đầu lứa mới
+              </button>
+            </div>
+            <div className="farmshift-table-container" style={{ border: 'none' }}>
+              <table className="farmshift-table">
+                <thead>
+                  <tr>
+                    <th>Mã lứa</th>
+                    <th>Tên lứa nuôi</th>
+                    <th>Khu & Chuồng</th>
+                    <th>Giống vật nuôi</th>
+                    <th>Ngày bắt đầu</th>
+                    <th>Ngày tuổi</th>
+                    <th>Số lượng vào</th>
+                    <th>Tồn đàn</th>
+                    <th>Trọng lượng TB</th>
+                    <th>FCR (Thực tế / Chuẩn)</th>
+                    <th>Trạng thái</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cycles.map(c => (
+                    <tr key={c.id}>
+                      <td>
+                        <strong style={{ fontFamily: 'monospace', color: 'var(--color-primary)' }}>
+                          {c.id}
+                        </strong>
+                      </td>
+                      <td>
+                        <strong style={{ color: 'var(--color-ink)' }}>{c.name}</strong>
+                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{c.notes}</div>
+                      </td>
+                      <td>
+                        <strong>{c.barn}</strong>
+                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{c.area}</div>
+                      </td>
+                      <td>{c.breed}</td>
+                      <td>{c.startDate}</td>
+                      <td><strong>{c.ageDays}</strong> ngày</td>
+                      <td>{c.initialQty.toLocaleString()} con</td>
+                      <td>
+                        <strong style={{ color: 'var(--color-ink)' }}>
+                          {c.currentQty.toLocaleString()}
+                        </strong> con
+                      </td>
+                      <td><strong>{c.avgWeight}</strong> kg</td>
+                      <td>
+                        <span style={{ fontWeight: 600, color: c.fcrActual <= c.fcrTarget ? 'var(--color-success)' : 'var(--color-signature-coral)' }}>
+                          {c.fcrActual}
+                        </span> / {c.fcrTarget}
+                      </td>
+                      <td>
+                        <span className="farmshift-badge farmshift-badge-success">{c.status}</span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Link
+                          to="/journal"
+                          className="farmshift-btn farmshift-btn-secondary"
+                          style={{ fontSize: '12px', padding: '4px 10px' }}
+                        >
+                          Nhật ký →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Closed Cycles Table */}
+          <div className="farmshift-card" style={{ margin: 0 }}>
+            <div className="farmshift-card-header">
+              <h3 className="farmshift-card-title">
+                <CheckCircle2 size={18} color="var(--color-success)" />
+                Lịch sử hạch toán các lứa đã xuất chuồng
+              </h3>
+              <span className="farmshift-badge farmshift-badge-neutral">
+                Đã thanh quyết toán
+              </span>
+            </div>
+            <div className="farmshift-table-container" style={{ border: 'none' }}>
+              <table className="farmshift-table">
+                <thead>
+                  <tr>
+                    <th>Mã lứa</th>
+                    <th>Tên lứa nuôi</th>
+                    <th>Giống</th>
+                    <th>Thời gian nuôi</th>
+                    <th>Số ngày</th>
+                    <th>Số lượng xuất bán</th>
+                    <th>Tổng cân (kg)</th>
+                    <th>FCR kết thúc</th>
+                    <th>Doanh thu (đ)</th>
+                    <th>Lợi nhuận ròng (đ)</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {closedCycles.map(c => (
+                    <tr key={c.id}>
+                      <td><span style={{ fontFamily: 'monospace' }}>{c.id}</span></td>
+                      <td><strong>{c.name}</strong></td>
+                      <td>{c.breed}</td>
+                      <td>{c.startDate} → {c.endDate}</td>
+                      <td><strong>{c.totalDays}</strong> ngày</td>
+                      <td><strong>{c.soldQty.toLocaleString()}</strong> con</td>
+                      <td><strong>{c.totalWeight.toLocaleString()}</strong> kg</td>
+                      <td><strong>{c.fcrActual}</strong></td>
+                      <td><strong style={{ color: 'var(--color-link)' }}>{c.revenue.toLocaleString('vi-VN')} đ</strong></td>
+                      <td><strong style={{ color: 'var(--color-success)' }}>+{c.profit.toLocaleString('vi-VN')} đ</strong></td>
+                      <td><span className="farmshift-badge farmshift-badge-neutral">{c.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: AREAS (DANH SÁCH KHU NUÔI) ────────────────── */}
+      {mainTab === 'areas' && (
+        <div className="farmshift-card" style={{ margin: 0 }}>
+          <div className="farmshift-card-header">
+            <h3 className="farmshift-card-title">
+              <Layers size={18} color="var(--color-primary)" />
+              Danh sách chi tiết các khu nuôi quy hoạch
+            </h3>
+            <button
+              className="farmshift-btn farmshift-btn-primary"
+              style={{ fontSize: '12.5px', padding: '6px 14px' }}
+              onClick={() => setShowAddAreaModal(true)}
+            >
+              <Plus size={14} /> Thêm khu nuôi
+            </button>
+          </div>
+          <div className="farmshift-table-container" style={{ border: 'none' }}>
+            <table className="farmshift-table">
+              <thead>
+                <tr>
+                  <th>Mã khu</th>
+                  <th>Tên khu nuôi</th>
+                  <th>Loại vật nuôi</th>
+                  <th>Số lượng chuồng</th>
+                  <th>Chuồng đang nuôi</th>
+                  <th>Mô tả hạ tầng & diện tích</th>
+                  <th style={{ textAlign: 'right' }}>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {areas.map(a => (
+                  <tr key={a.id}>
+                    <td><strong style={{ fontFamily: 'monospace' }}>{a.id}</strong></td>
+                    <td><strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>{a.name}</strong></td>
+                    <td>{a.livestockType}</td>
+                    <td><strong>{a.barns.length}</strong> chuồng</td>
+                    <td>
+                      <span className="farmshift-badge farmshift-badge-success">
+                        {a.barns.filter(b => b.current > 0).length} chuồng đang nuôi
+                      </span>
+                    </td>
+                    <td>{a.description}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className="farmshift-btn farmshift-btn-secondary"
+                        style={{ fontSize: '12px', padding: '4px 10px' }}
+                        onClick={() => {
+                          setSelectedAreaTab(a.name);
+                          setMainTab('barns');
+                        }}
+                      >
+                        Xem chuồng →
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: BARNS (DANH SÁCH CHUỒNG) & CCTV WALL ─────── */}
+      {(mainTab === 'barns' || mainTab === 'cctv') && (
+        <>
       {/* ── Area Navigation Tabs (Khu Mía Thịt vs Khu J Thịt parity) ── */}
       <div className="farmshift-tabs">
         <button
@@ -477,6 +893,8 @@ export const BarnsView = () => {
           ))}
         </div>
       )}
+        </>
+      )}
 
       {/* ── Modal: Chi tiết chuồng nuôi & Camera Trực Tiếp ────── */}
       {selectedBarnDetail && (
@@ -800,6 +1218,139 @@ export const BarnsView = () => {
                 </button>
                 <button type="submit" className="farmshift-btn farmshift-btn-primary">
                   Tạo chuồng
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Bắt đầu lứa nuôi mới (Lứa nuôi & Đàn parity) ── */}
+      {showAddCycleModal && (
+        <div className="farmshift-modal-backdrop">
+          <div className="farmshift-modal">
+            <div className="farmshift-modal-header">
+              <h3 className="farmshift-modal-title">Bắt đầu lứa nuôi mới</h3>
+              <button
+                onClick={() => setShowAddCycleModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateCycle}>
+              <div className="farmshift-modal-body">
+                <div className="farmshift-form-group">
+                  <label className="farmshift-form-label">Tên lứa nuôi *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: Lứa gà Mía thịt Đợt 2, Lứa gà J Đông 2026..."
+                    className="farmshift-form-control"
+                    value={newCycle.name}
+                    onChange={(e) => setNewCycle({ ...newCycle, name: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Khu nuôi *</label>
+                    <select
+                      className="farmshift-form-control"
+                      value={newCycle.area}
+                      onChange={(e) => setNewCycle({ ...newCycle, area: e.target.value })}
+                    >
+                      {areas.map(a => (
+                        <option key={a.id} value={a.name}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Chuồng nuôi chỉ định *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="VD: Nhà A1, Nhà B1..."
+                      className="farmshift-form-control"
+                      value={newCycle.barn}
+                      onChange={(e) => setNewCycle({ ...newCycle, barn: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Giống vật nuôi *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Gà Mía Sơn Tây, Gà J-Dabaco..."
+                      className="farmshift-form-control"
+                      value={newCycle.breed}
+                      onChange={(e) => setNewCycle({ ...newCycle, breed: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Ngày bắt đầu *</label>
+                    <input
+                      type="date"
+                      required
+                      className="farmshift-form-control"
+                      value={newCycle.startDate}
+                      onChange={(e) => setNewCycle({ ...newCycle, startDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Số lượng con giống nhập *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      className="farmshift-form-control"
+                      value={newCycle.initialQty}
+                      onChange={(e) => setNewCycle({ ...newCycle, initialQty: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label">Trọng lượng mục tiêu xuất (kg)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="farmshift-form-control"
+                      value={newCycle.targetWeight}
+                      onChange={(e) => setNewCycle({ ...newCycle, targetWeight: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="farmshift-form-group">
+                  <label className="farmshift-form-label">Ghi chú & Kỹ thuật áp dụng</label>
+                  <textarea
+                    rows="2"
+                    placeholder="Quy trình tiêm phòng, định mức cám áp dụng..."
+                    className="farmshift-form-control"
+                    value={newCycle.notes}
+                    onChange={(e) => setNewCycle({ ...newCycle, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="farmshift-modal-footer">
+                <button
+                  type="button"
+                  className="farmshift-btn farmshift-btn-secondary"
+                  onClick={() => setShowAddCycleModal(false)}
+                >
+                  Bỏ qua
+                </button>
+                <button type="submit" className="farmshift-btn farmshift-btn-primary">
+                  Bắt đầu lứa nuôi
                 </button>
               </div>
             </form>
