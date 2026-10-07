@@ -1,5 +1,5 @@
 // src/components/DataTable/DataTable.jsx
-// Generic table component — used by all listing pages in farmgo PDF
+// Generic table component — used by all listing pages in FarmShift
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import styles from './DataTable.module.css';

@@ -1,44 +1,102 @@
 // src/features/auth/AuthLayout.jsx
-// Exact FarmShift.html Login visual + form split panel
+// Exact FarmShift Management Login visual + form split panel (Synchronized with Login.jsx)
 import React from 'react';
-import { Bird, Activity, TrendingUp } from 'lucide-react';
+import farmLogo from '../../assets/logo_Farm.png';
 
 export const AuthLayout = ({ children }) => {
   return (
-    <div className="login">
-      {/* Left: Brand visual panel (Exact FarmShift.html) */}
-      <section className="login-visual">
-        <div className="brand" style={{ padding: 0 }}>
-          <span className="leaf">◒</span>FarmShift
-          <small>Trang trại Miền Bính</small>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      backgroundColor: 'var(--color-surface-soft)',
+      fontFamily: 'var(--font-haas)'
+    }}>
+      {/* ── Left Editorial Signature Brand Panel ───────────── */}
+      <div style={{
+        flex: '1.1',
+        backgroundColor: 'var(--color-surface-dark)',
+        color: '#ffffff',
+        padding: '64px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        position: 'relative'
+      }} className="login-visual-panel">
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <img
+              src={farmLogo}
+              alt="FarmShift"
+              style={{
+                width: '38px',
+                height: '38px',
+                objectFit: 'contain'
+              }}
+            />
+            <strong style={{ fontSize: '18px', letterSpacing: '-0.01em' }}>FarmShift Management</strong>
+          </div>
+
+          <div style={{ marginTop: '96px', maxWidth: '520px' }}>
+            <span style={{
+              display: 'inline-block',
+              padding: '4px 12px',
+              borderRadius: 'var(--rounded-full)',
+              backgroundColor: 'rgba(1, 151, 136, 0.2)',
+              color: '#4db6ac',
+              fontSize: '12px',
+              fontWeight: 500,
+              marginBottom: '20px'
+            }}>
+              Nền tảng quản lý chăn nuôi chuyên biệt gia cầm
+            </span>
+            <h1 style={{
+              fontSize: '38px',
+              fontWeight: 400,
+              lineHeight: 1.25,
+              color: '#ffffff',
+              margin: '0 0 20px'
+            }}>
+              Giám sát chuồng trại.<br />
+              Tự động hóa sổ sách & IoT.
+            </h1>
+            <p style={{
+              fontSize: '15px',
+              color: '#94a3b8',
+              lineHeight: 1.6,
+              margin: 0
+            }}>
+              Tích hợp đầy đủ từ nhật ký cho ăn từng cữ, cảm biến vi khí hậu trực tuyến, hóa đơn nhập xuất kho đến cân đối sổ quỹ theo thời gian thực.
+            </p>
+          </div>
         </div>
 
-        <h1>
-          Chăm đàn tốt hơn.<br />
-          Quản lý rõ ràng hơn.
-        </h1>
-
-        <p>
-          Một nơi theo dõi lứa nuôi, công việc, vật tư và hiệu quả vận hành của trang trại.
-        </p>
-
-        <div style={{ marginTop: 40, display: 'flex', gap: 24, alignItems: 'center', fontSize: 13, color: '#bed5c8' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Bird size={16} color="#90ca92" /> Chăn nuôi
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Activity size={16} color="#90ca92" /> Môi trường
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <TrendingUp size={16} color="#90ca92" /> Hiệu quả
-          </span>
+        <div style={{ display: 'flex', gap: '32px', fontSize: '13px', color: '#94a3b8' }}>
+          <div>✓ Chuẩn hóa quy trình 75 ngày</div>
+          <div>✓ Quét hóa đơn AI OCR</div>
+          <div>✓ Bảo mật dữ liệu đám mây</div>
         </div>
-      </section>
+      </div>
 
-      {/* Right: Form panel */}
-      <section className="login-form">
-        {children}
-      </section>
+      {/* ── Right Form Panel (Clean Canvas) ────────────────── */}
+      <div style={{
+        flex: '1',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '48px 32px'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '440px',
+          backgroundColor: 'var(--color-canvas)',
+          borderRadius: 'var(--rounded-lg)',
+          border: '1px solid var(--color-hairline)',
+          padding: '40px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
+        }}>
+          {children}
+        </div>
+      </div>
     </div>
   );
 };

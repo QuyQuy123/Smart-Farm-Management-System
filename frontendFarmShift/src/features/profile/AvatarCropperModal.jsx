@@ -32,17 +32,23 @@ export const AvatarCropperModal = ({ imageSrc, onClose, onCropComplete }) => {
   };
 
   const handleSave = async () => {
-    if (!completedCrop || !imgRef.current) return;
+    if (!completedCrop || !imgRef.current) {
+      if (imageSrc) {
+        onCropComplete(imageSrc, null);
+      }
+      return;
+    }
 
     const canvas = document.createElement('canvas');
     const image = imgRef.current;
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
     
-    canvas.width = completedCrop.width * scaleX;
-    canvas.height = completedCrop.height * scaleY;
+    canvas.width = Math.max(1, Math.floor(completedCrop.width * scaleX));
+    canvas.height = Math.max(1, Math.floor(completedCrop.height * scaleY));
     
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     ctx.drawImage(
       image,
@@ -56,8 +62,11 @@ export const AvatarCropperModal = ({ imageSrc, onClose, onCropComplete }) => {
       canvas.height
     );
 
-    const base64Image = canvas.toDataURL('image/jpeg');
-    onCropComplete(base64Image);
+    const base64Image = canvas.toDataURL('image/jpeg', 0.92);
+    canvas.toBlob((blob) => {
+      const file = blob ? new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' }) : null;
+      onCropComplete(base64Image, file);
+    }, 'image/jpeg', 0.92);
   };
 
   if (!imageSrc) return null;
@@ -66,8 +75,8 @@ export const AvatarCropperModal = ({ imageSrc, onClose, onCropComplete }) => {
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Crop Profile Picture</h2>
-          <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
+          <h2 className={styles.title}>Cắt & Căn chỉnh ảnh đại diện</h2>
+          <button className={styles.closeBtn} onClick={onClose} aria-label="Đóng">
             <X size={20} />
           </button>
         </div>
@@ -80,27 +89,28 @@ export const AvatarCropperModal = ({ imageSrc, onClose, onCropComplete }) => {
               onComplete={(c) => setCompletedCrop(c)}
               aspect={1}
               circularCrop={true}
+              keepSelection={true}
             >
               <img
                 ref={imgRef}
                 src={imageSrc}
-                alt="Crop me"
+                alt="Cắt ảnh"
                 onLoad={onImageLoad}
                 className={styles.image}
               />
             </ReactCrop>
           </div>
-          <p style={{ fontSize: '14px', color: '#6b7280', margin: 0 }}>
-            Drag to adjust. This circular area will be your new avatar.
+          <p style={{ fontSize: '13px', color: 'var(--color-muted)', margin: 0, textAlign: 'center' }}>
+            Kéo hoặc co giãn khung tròn để căn góc đại diện phù hợp nhất.
           </p>
         </div>
 
         <div className={styles.footer}>
           <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
+            Hủy bỏ
           </Button>
           <Button type="button" onClick={handleSave}>
-            Crop & Save
+            Cắt & Lưu ảnh
           </Button>
         </div>
       </div>

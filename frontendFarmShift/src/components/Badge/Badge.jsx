@@ -1,5 +1,5 @@
 // src/components/Badge/Badge.jsx
-// Status badge — color variants matching farmgo PDF design
+// Status badge — color variants matching FarmShift design
 import React from 'react';
 import styles from './Badge.module.css';
 

@@ -1,5 +1,5 @@
 // src/components/Button/Button.jsx
-// Design-system Button — DESIGN.md button-primary, button-secondary, + farmgo variants
+// Design-system Button — DESIGN.md button-primary, button-secondary, + FarmShift variants
 import React from 'react';
 import styles from './Button.module.css';
 

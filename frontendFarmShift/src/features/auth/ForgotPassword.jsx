@@ -1,11 +1,10 @@
 // src/features/auth/ForgotPassword.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Input } from '../../components/Input/Input';
-import { Button } from '../../components/Button/Button';
+import { Mail, ArrowLeft, AlertCircle } from 'lucide-react';
 import { api } from '../../utils/api';
 import { AuthLayout } from './AuthLayout';
-import styles from './Auth.module.css';
+import '../../theme/farmshift.css';
 
 export const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -25,7 +24,7 @@ export const ForgotPassword = () => {
       // Proceed to OTP verification screen, passing email via state
       navigate('/verify-otp', { state: { email } });
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to request password reset. Please try again.');
+      setError(err.response?.data?.message || 'Không thể yêu cầu đặt lại mật khẩu. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -33,38 +32,63 @@ export const ForgotPassword = () => {
 
   return (
     <AuthLayout>
-      <div className={styles.cardHeader}>
-        <Link to="/login" className={styles.backLink}>
-          ← Back to login
+      <div style={{ marginBottom: '24px' }}>
+        <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-muted)', textDecoration: 'none', marginBottom: '16px' }}>
+          <ArrowLeft size={14} /> Quay lại đăng nhập
         </Link>
-        <h2 className={styles.title}>Reset password</h2>
-        <p className={styles.subtitle}>
-          Enter your email and we'll send you a 6-digit verification code.
+        <h2 style={{ fontSize: '24px', fontWeight: 500, color: 'var(--color-ink)', margin: '0 0 6px' }}>
+          Khôi phục mật khẩu
+        </h2>
+        <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: 0 }}>
+          Nhập email của bạn, chúng tôi sẽ gửi mã xác thực 6 số.
         </p>
       </div>
 
       {error && (
-        <div className={`${styles.alert} ${styles.alertError}`} role="alert">
-          {error}
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+          padding: '12px 14px',
+          borderRadius: 'var(--rounded-md)',
+          backgroundColor: '#fef2f2',
+          border: '1px solid #fecaca',
+          color: '#b91c1c',
+          fontSize: '13px',
+          marginBottom: '20px'
+        }}>
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>{error}</div>
         </div>
       )}
 
-      <form className={styles.form} onSubmit={handleRequestOtp} noValidate>
-        <Input 
-          label="Email address" 
-          type="email" 
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="email"
-          autoFocus
-        />
+      <form onSubmit={handleRequestOtp}>
+        <div className="farmshift-form-group">
+          <label className="farmshift-form-label">Email đăng ký *</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="email"
+              required
+              placeholder="name@smartfarm.com"
+              className="farmshift-form-control"
+              style={{ paddingLeft: '38px' }}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+            />
+            <Mail size={16} color="var(--color-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
+          </div>
+        </div>
         
-        <div className={styles.formFoot}>
-          <Button variant="green" type="submit" fullWidth loading={loading}>
-            Send reset code
-          </Button>
+        <div style={{ marginTop: '24px' }}>
+          <button
+            type="submit"
+            disabled={loading}
+            className="farmshift-btn farmshift-btn-primary"
+            style={{ width: '100%', justifyContent: 'center', height: '44px' }}
+          >
+            {loading ? 'Đang gửi mã...' : 'Gửi mã xác thực'}
+          </button>
         </div>
       </form>
     </AuthLayout>

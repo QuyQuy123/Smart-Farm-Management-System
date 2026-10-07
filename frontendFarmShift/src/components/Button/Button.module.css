@@ -1,4 +1,4 @@
-﻿/* Button.module.css - DESIGN.md button system */
+/* Button.module.css - DESIGN.md button system */
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -29,7 +29,7 @@
 .ghost-on-dark { background-color: rgba(255,255,255,0.15); color: #ffffff; border-color: rgba(255,255,255,0.3); }
 .ghost-on-dark:active { background-color: rgba(255,255,255,0.25); }
 
-/* Green: farmgo brand CTA */
+/* Green: FarmShift brand CTA */
 .green { background-color: var(--color-farm-green); color: var(--color-on-primary); border-color: var(--color-farm-green); }
 .green:active { background-color: var(--color-farm-green-dark); border-color: var(--color-farm-green-dark); }
 

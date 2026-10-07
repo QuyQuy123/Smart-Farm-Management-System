@@ -1,52 +1,28 @@
 // src/features/auth/Login.jsx
-// Exact FarmShift.html Login Form with rolepick & demo support
-import React, { useState, useEffect } from 'react';
+// Đăng nhập hệ thống chuẩn FarmShift kết nối Spring Boot Backend
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../utils/api';
+import { authService } from '../../services/authService';
+import { Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { AuthLayout } from './AuthLayout';
+import '../../theme/farmshift.css';
 
 export const Login = () => {
-  const [selectedRole, setSelectedRole] = useState('owner'); // 'owner' | 'accountant' | 'worker'
-  const [email, setEmail] = useState('owner@farmshift.vn');
-  const [password, setPassword] = useState('demo12345');
+  const [email, setEmail] = useState(() => localStorage.getItem('farmshift_remembered_email') || '');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('farmshift_remembered_email'));
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    document.title = 'FarmShift · Đăng nhập demo';
-  }, []);
-
-  const handleRoleSelect = (role) => {
-    setSelectedRole(role);
-    if (role === 'owner') {
-      setEmail('owner@farmshift.vn');
-      setPassword('demo12345');
-    } else if (role === 'accountant') {
-      setEmail('accountant@farmshift.vn');
-      setPassword('demo12345');
-    } else {
-      setEmail('worker@farmshift.vn');
-      setPassword('demo12345');
-    }
-  };
-
-  const roleNameMap = {
-    owner: 'Chủ trang trại',
-    accountant: 'Kế toán',
-    worker: 'Công nhân',
-  };
-
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const currentEmail = (e.target.email?.value || email).trim();
-    const currentPassword = e.target.password?.value || password;
-
-    if (!currentEmail || !currentPassword) {
-      setError('Vui lòng nhập tài khoản và mật khẩu.');
+    if (!email.trim() || !password) {
+      setError('Vui lòng nhập đầy đủ Email và Mật khẩu.');
       return;
     }
 
@@ -54,29 +30,23 @@ export const Login = () => {
     setLoading(true);
 
     try {
-      // First attempt backend login
-      const response = await api.post('/auth/login', { email: currentEmail, password: currentPassword });
-      const data = response.data?.data || response.data;
-      if (data && data.accessToken) {
-        login(data.accessToken, data.email || currentEmail, data.role);
-        if (data.role === 'ROLE_FARM_OWNER') navigate('/owner-dashboard');
-        else if (data.role === 'ROLE_ACCOUNTANT') navigate('/accountant-dashboard');
-        else navigate('/worker-dashboard');
+      // Gọi trực tiếp Spring Boot API: POST /api/auth/login
+      const res = await authService.login(email.trim(), password);
+      if (res && res.accessToken) {
+        if (rememberMe) {
+          localStorage.setItem('farmshift_remembered_email', email.trim());
+        } else {
+          localStorage.removeItem('farmshift_remembered_email');
+        }
+        await login(res.accessToken, res.email || email.trim(), res.role);
+        navigate('/dashboard');
         return;
       }
+      throw new Error('Không nhận được mã xác thực token từ máy chủ.');
     } catch (err) {
-      // If backend fails or not running, use demo fallback
-      const roleMap = {
-        owner: 'ROLE_FARM_OWNER',
-        accountant: 'ROLE_ACCOUNTANT',
-        worker: 'ROLE_FARM_WORKER',
-      };
-      const userRole = roleMap[selectedRole] || 'ROLE_FARM_OWNER';
-      login('mock-demo-token-12345', currentEmail, userRole);
-
-      if (userRole === 'ROLE_FARM_OWNER') navigate('/owner-dashboard');
-      else if (userRole === 'ROLE_ACCOUNTANT') navigate('/accountant-dashboard');
-      else navigate('/worker-dashboard');
+      console.warn('Backend login error:', err);
+      const msg = err.response?.data?.message || err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -84,84 +54,132 @@ export const Login = () => {
 
   return (
     <AuthLayout>
-      <h1 style={{ fontSize: 28, marginBottom: 4 }}>Chào mừng trở lại</h1>
-      <p className="muted" style={{ marginBottom: 20 }}>Bộ HTML tương tác · Chọn vai trò để xem bản mẫu</p>
-
-      {/* Role Picker (Exact FarmShift.html) */}
-      <div className="rolepick">
-        <button
-          type="button"
-          className={selectedRole === 'owner' ? 'active' : ''}
-          onClick={() => handleRoleSelect('owner')}
-        >
-          Chủ trang trại
-        </button>
-        <button
-          type="button"
-          className={selectedRole === 'accountant' ? 'active' : ''}
-          onClick={() => handleRoleSelect('accountant')}
-        >
-          Kế toán
-        </button>
-        <button
-          type="button"
-          className={selectedRole === 'worker' ? 'active' : ''}
-          onClick={() => handleRoleSelect('worker')}
-        >
-          Công nhân
-        </button>
+      <div style={{ marginBottom: '28px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 8px', letterSpacing: '-0.01em' }}>
+          Đăng nhập tài khoản
+        </h2>
+        <p style={{ fontSize: '14px', color: 'var(--color-muted)', margin: 0 }}>
+          Vui lòng nhập thông tin xác thực để truy cập hệ thống
+        </p>
       </div>
 
       {error && (
-        <div className="error" role="alert" style={{ marginBottom: 15 }}>
-          {error}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '12px 14px',
+          borderRadius: 'var(--rounded-md)',
+          backgroundColor: '#fef2f2',
+          border: '1px solid #fecaca',
+          color: '#b91c1c',
+          fontSize: '13.5px',
+          marginBottom: '20px'
+        }}>
+          <AlertCircle size={18} style={{ flexShrink: 0 }} />
+          <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleLogin}>
-        <div className="formgrid" style={{ gridTemplateColumns: '1fr' }}>
-          <label className="field">
-            Tài khoản demo
+      <form onSubmit={handleSubmit}>
+        <div className="farmshift-form-group">
+          <label className="farmshift-form-label">Email đăng nhập *</label>
+          <div style={{ position: 'relative' }}>
             <input
-              name="email"
-              type="text"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="name@smartfarm.com"
+              className="farmshift-form-control"
+              style={{ paddingLeft: '38px', height: '44px' }}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="username"
             />
-          </label>
+            <Mail
+              size={16}
+              color="var(--color-muted)"
+              style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+            />
+          </div>
+        </div>
 
-          <label className="field">
-            Mật khẩu demo
+        <div className="farmshift-form-group" style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label className="farmshift-form-label">Mật khẩu *</label>
+            <Link
+              to="/forgot-password"
+              style={{ fontSize: '13px', color: 'var(--color-link)', textDecoration: 'none' }}
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
+          <div style={{ position: 'relative' }}>
             <input
-              name="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              type={showPassword ? 'text' : 'password'}
               required
               autoComplete="current-password"
+              placeholder="Nhập mật khẩu"
+              className="farmshift-form-control"
+              style={{ paddingLeft: '38px', paddingRight: '40px', height: '44px' }}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
+            <Lock
+              size={16}
+              color="var(--color-muted)"
+              style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-muted)',
+                cursor: 'pointer',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', color: 'var(--color-body)', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--color-primary)' }}
+            />
+            <span>Ghi nhớ đăng nhập</span>
           </label>
         </div>
 
         <button
           type="submit"
-          className="btn primary"
-          style={{ width: '100%', marginTop: 24, padding: '12px 18px', fontSize: 14 }}
           disabled={loading}
+          className="farmshift-btn farmshift-btn-primary"
+          style={{
+            width: '100%',
+            justifyContent: 'center',
+            height: '44px',
+            fontSize: '14.5px',
+            fontWeight: 500
+          }}
         >
-          {loading ? 'Đang mở...' : `Mở giao diện ${roleNameMap[selectedRole]}`}
+          {loading ? 'Đang xác thực...' : 'Đăng nhập vào hệ thống'}
         </button>
       </form>
-
-      <div className="note" style={{ marginTop: 24 }}>
-        Tài khoản: owner / accountant / worker · Mật khẩu: demo12345. Đây là mô phỏng đăng nhập, có thể dùng ngay.
-      </div>
-
-      <small className="muted" style={{ display: 'block', marginTop: 12 }}>
-        Hệ thống nội bộ một trang trại · Tài khoản được cấp bởi chủ trại.
-      </small>
     </AuthLayout>
   );
 };

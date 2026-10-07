@@ -1,0 +1,1150 @@
+/* ============================================================
+   farmshift.css - FarmShift Design System
+   Faithfully implementing DESIGN.md (Airtable-inspired editorial precision)
+   Combined with FarmShift smart farm management workflow aesthetics
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;475;500;600&display=swap');
+
+:root {
+  /* ── DESIGN.md Primary Palette ────────────────────────────── */
+  --color-primary: #181d26;
+  --color-primary-active: #0d1218;
+  --color-ink: #181d26;
+  --color-body: #333840;
+  --color-muted: #64748b;
+  --color-hairline: #dddddd;
+  --color-border-strong: #9297a0;
+  --color-canvas: #ffffff;
+  --color-surface-soft: #f8fafc;
+  --color-surface-strong: #e0e2e6;
+  --color-surface-dark: #181d26;
+  --color-surface-dark-elevated: #1d1f25;
+
+  /* ── DESIGN.md Signature Card Surfaces ────────────────────── */
+  --color-signature-coral: #aa2d00;
+  --color-signature-forest: #0a2e0e;
+  --color-signature-cream: #f5e9d4;
+  --color-signature-peach: #fcab79;
+  --color-signature-mint: #a8d8c4;
+  --color-signature-yellow: #f4d35e;
+  --color-signature-mustard: #d9a441;
+
+  /* ── Semantics ────────────────────────────────────────────── */
+  --color-link: #1b61c9;
+  --color-link-active: #1a3866;
+  --color-info: #254fad;
+  --color-info-border: #458fff;
+  --color-success: #006400;
+  --color-success-border: #39bf45;
+  --color-pricing-ink: #1d1f25;
+
+  /* ── FarmShift Brand Accents ──────────────────────────────── */
+  --fs-teal: #019788;
+  --fs-teal-dark: #00796b;
+  --fs-teal-light: #e0f2f1;
+  --fs-teal-soft: #e6f5f3;
+
+  /* ── Shortcut Card Colors (DESIGN.md Inspired) ─────────────── */
+  --card-meal-bg: #aa2d00;
+  --card-health-bg: #0a2e0e;
+  --card-env-bg: #254fad;
+  --card-todo-bg: #d9a441;
+
+  /* ── Typography (DESIGN.md) ───────────────────────────────── */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* ── Border Radius (DESIGN.md) ────────────────────────────── */
+  --rounded-xs: 2px;
+  --rounded-sm: 6px;
+  --rounded-md: 10px;
+  --rounded-lg: 12px;
+  --rounded-pill: 9999px;
+  --rounded-full: 9999px;
+
+  /* ── Dimensions & Layout ──────────────────────────────────── */
+  --fs-header-height: 64px;
+  --fs-sidebar-width: 250px;
+  --fs-sidebar-collapsed-width: 72px;
+}
+
+/* Base resets & typography */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  background-color: var(--color-surface-soft);
+  color: var(--color-body);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-weight: 500;
+  margin-top: 0;
+  letter-spacing: -0.01em;
+}
+
+/* App shell container */
+.farmshift-app, .farmgo-app {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--color-surface-soft);
+  position: relative;
+}
+
+/* ── Top Header (DESIGN.md Editorial Clean Bar) ───────────── */
+.farmshift-header, .farmgo-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--fs-header-height);
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  z-index: 1000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.farmshift-header-left, .farmgo-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.farmshift-toggle-btn, .farmgo-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--color-hairline);
+  color: var(--color-ink);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--rounded-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.farmshift-toggle-btn:hover, .farmgo-toggle-btn:hover {
+  background-color: var(--color-surface-soft);
+  border-color: var(--color-border-strong);
+}
+
+.farmshift-header-brand-tag, .farmgo-header-brand-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: var(--rounded-pill);
+  background-color: var(--fs-teal-soft);
+  color: var(--fs-teal-dark);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid rgba(1, 151, 136, 0.15);
+}
+
+.farmshift-header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 20px;
+}
+
+.farmshift-header-right, .farmgo-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.farmshift-header-icon-btn, .farmgo-header-icon-btn {
+  background: transparent;
+  border: 1px solid var(--color-hairline);
+  color: var(--color-ink);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--rounded-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.farmshift-header-icon-btn:hover, .farmgo-header-icon-btn:hover {
+  background-color: var(--color-surface-soft);
+  border-color: var(--color-border-strong);
+}
+
+.farmshift-badge-counter, .farmgo-badge-counter {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background-color: var(--color-signature-coral);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--rounded-pill);
+  padding: 1px 6px;
+  line-height: 1.2;
+}
+
+.farmshift-user-menu, .farmgo-user-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 12px 4px 6px;
+  border-radius: var(--rounded-pill);
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-canvas);
+  transition: all 0.15s ease;
+}
+
+.farmshift-user-menu:hover, .farmgo-user-menu:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-surface-soft);
+}
+
+.farmshift-user-avatar, .farmgo-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rounded-full);
+  background-color: var(--color-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 13.5px;
+}
+
+/* ── Secondary Sidebar ───────────────────────────────────── */
+.farmshift-sidebar, .farmgo-sidebar {
+  position: fixed;
+  top: var(--fs-header-height);
+  left: 0;
+  bottom: 0;
+  width: var(--fs-sidebar-width);
+  background-color: var(--color-canvas);
+  border-right: 1px solid var(--color-hairline);
+  display: flex;
+  flex-direction: column;
+  z-index: 900;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.farmshift-sidebar.collapsed, .farmgo-sidebar.collapsed {
+  width: var(--fs-sidebar-collapsed-width);
+}
+
+.farmshift-sidebar-header, .farmgo-sidebar-header {
+  background-color: var(--color-canvas);
+  border-bottom: 1px solid var(--color-hairline);
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+}
+
+.farmshift-brand-box, .farmgo-brand-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.farmshift-brand-icon, .farmgo-brand-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rounded-md);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.farmshift-brand-title, .farmgo-brand-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+  max-width: 140px;
+}
+
+.farmshift-brand-edit, .farmgo-brand-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--color-muted);
+  text-decoration: none;
+  padding: 3px 6px;
+  border-radius: var(--rounded-sm);
+  border: 1px solid var(--color-hairline);
+  transition: all 0.15s ease;
+}
+
+.farmshift-brand-edit:hover, .farmgo-brand-edit:hover {
+  background-color: var(--color-surface-soft);
+  color: var(--color-ink);
+  border-color: var(--color-border-strong);
+}
+
+.farmshift-menu, .farmgo-menu {
+  list-style: none;
+  padding: 12px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.farmshift-menu-item, .farmgo-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--rounded-md);
+  color: var(--color-body);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 475;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.farmshift-menu-item:hover, .farmgo-menu-item:hover {
+  background-color: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+
+.farmshift-menu-item.active, .farmgo-menu-item.active {
+  background-color: #f1f5f9;
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.farmshift-menu-icon, .farmgo-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.farmshift-menu-item:hover .farmshift-menu-icon,
+.farmgo-menu-item:hover .farmgo-menu-icon {
+  color: var(--color-ink);
+}
+
+.farmshift-menu-item.active .farmshift-menu-icon,
+.farmgo-menu-item.active .farmgo-menu-icon {
+  color: #019788;
+}
+
+.farmshift-menu-divider, .farmgo-menu-divider {
+  height: 1px;
+  background-color: var(--color-hairline);
+  margin: 10px 8px;
+}
+
+/* ── Main Content Area ───────────────────────────────────── */
+.farmshift-main, .farmgo-main {
+  margin-top: var(--fs-header-height);
+  margin-left: var(--fs-sidebar-width);
+  flex: 1;
+  padding: 28px 36px 80px 36px;
+  min-height: calc(100vh - var(--fs-header-height));
+  transition: margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+  background-color: var(--color-surface-soft);
+}
+
+.farmshift-main.collapsed, .farmgo-main.collapsed {
+  margin-left: var(--fs-sidebar-collapsed-width);
+}
+
+/* ── Content Header & Breadcrumbs ────────────────────────── */
+.farmshift-content-header, .farmgo-content-header {
+  margin-bottom: 24px;
+}
+
+.farmshift-header-row, .farmgo-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.farmshift-page-title, .farmgo-page-title {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.farmshift-breadcrumbs, .farmgo-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-muted);
+  margin-top: 4px;
+}
+
+.farmshift-breadcrumbs a, .farmgo-breadcrumbs a {
+  color: var(--color-link);
+  text-decoration: none;
+}
+
+.farmshift-breadcrumbs a:hover, .farmgo-breadcrumbs a:hover {
+  text-decoration: underline;
+}
+
+.farmshift-breadcrumbs span, .farmgo-breadcrumbs span {
+  color: var(--color-border-strong);
+}
+
+/* ── DESIGN.md Signature Surface Cards ───────────────────── */
+.signature-coral-card {
+  background-color: var(--color-signature-coral);
+  color: #ffffff;
+  border-radius: var(--rounded-lg);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+}
+
+.signature-forest-card {
+  background-color: var(--color-signature-forest);
+  color: #ffffff;
+  border-radius: var(--rounded-lg);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+}
+
+.signature-cream-card {
+  background-color: var(--color-signature-cream);
+  color: var(--color-ink);
+  border-radius: var(--rounded-md);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.hero-card-dark {
+  background-color: var(--color-surface-dark);
+  color: #ffffff;
+  border-radius: var(--rounded-lg);
+  padding: 28px 32px;
+  margin-bottom: 24px;
+}
+
+/* ── 4 Quick Shortcut Cards (DESIGN.md Layout) ───────────── */
+.farmshift-shortcuts, .farmgo-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.farmshift-shortcut-card, .farmgo-shortcut-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.farmshift-shortcut-card:hover, .farmgo-shortcut-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-border-strong);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+}
+
+.farmshift-shortcut-icon, .farmgo-shortcut-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--rounded-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.farmshift-shortcut-icon.meal, .farmgo-shortcut-icon.meal { background-color: var(--card-meal-bg); }
+.farmshift-shortcut-icon.health, .farmgo-shortcut-icon.health { background-color: var(--card-health-bg); }
+.farmshift-shortcut-icon.env, .farmgo-shortcut-icon.env { background-color: var(--card-env-bg); }
+.farmshift-shortcut-icon.todo, .farmgo-shortcut-icon.todo { background-color: var(--card-todo-bg); }
+
+.farmshift-shortcut-info, .farmgo-shortcut-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.farmshift-shortcut-title, .farmgo-shortcut-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-ink);
+  line-height: 1.25;
+}
+
+.farmshift-shortcut-sub, .farmgo-shortcut-sub {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+/* ── DESIGN.md Cards & Panels ────────────────────────────── */
+.farmshift-card, .farmgo-card {
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.farmshift-card-header, .farmgo-card-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--color-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--color-canvas);
+}
+
+.farmshift-card-title, .farmgo-card-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.farmshift-card-body, .farmgo-card-body {
+  padding: 22px;
+}
+
+/* ── Toolbar: Search & Select Filter ─────────────────────── */
+.farmshift-toolbar, .farmgo-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.farmshift-search-box, .farmgo-search-box {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  padding: 8px 14px;
+  gap: 10px;
+  width: 320px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.farmshift-search-box:focus-within, .farmgo-search-box:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(24, 29, 38, 0.06);
+}
+
+.farmshift-search-box input, .farmgo-search-box input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 13.5px;
+  color: var(--color-ink);
+  background: transparent;
+}
+
+.farmshift-filter-group, .farmgo-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.farmshift-select, .farmgo-select {
+  padding: 8px 14px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  font-size: 13px;
+  color: var(--color-ink);
+  background-color: var(--color-canvas);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.farmshift-select:focus, .farmgo-select:focus {
+  border-color: var(--color-primary);
+}
+
+/* ── DESIGN.md Buttons System ────────────────────────────── */
+/* Primary Action: near-black #181d26 button */
+.farmshift-btn, .farmgo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--rounded-lg);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+.farmshift-btn-primary, .farmgo-btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+}
+
+.farmshift-btn-primary:hover, .farmgo-btn-primary:hover {
+  background-color: var(--color-primary-active);
+  border-color: var(--color-primary-active);
+}
+
+.farmshift-btn-secondary, .farmgo-btn-secondary,
+.farmshift-btn-outline, .farmgo-btn-outline {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline);
+}
+
+.farmshift-btn-secondary:hover, .farmgo-btn-secondary:hover,
+.farmshift-btn-outline:hover, .farmgo-btn-outline:hover {
+  background-color: var(--color-surface-soft);
+  border-color: var(--color-border-strong);
+}
+
+.farmshift-btn-teal, .farmgo-btn-teal {
+  background-color: var(--fs-teal);
+  color: #ffffff;
+  border-color: var(--fs-teal);
+}
+
+.farmshift-btn-teal:hover, .farmgo-btn-teal:hover {
+  background-color: var(--fs-teal-dark);
+}
+
+.farmshift-btn-excel, .farmgo-btn-excel {
+  background-color: var(--color-canvas);
+  color: #107c41;
+  border: 1px solid #a7d7ba;
+}
+
+.farmshift-btn-excel:hover, .farmgo-btn-excel:hover {
+  background-color: #f0fdf4;
+  border-color: #107c41;
+}
+
+.farmshift-btn-danger, .farmgo-btn-danger {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.farmshift-btn-danger:hover, .farmgo-btn-danger:hover {
+  background-color: #fee2e2;
+}
+
+/* ── Data Tables (DESIGN.md Clean Editorial Table) ───────── */
+.farmshift-table-container, .farmgo-table-container {
+  overflow-x: auto;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  background-color: var(--color-canvas);
+}
+
+.farmshift-table, .farmgo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  text-align: left;
+}
+
+.farmshift-table th, .farmgo-table th {
+  background-color: var(--color-surface-soft);
+  color: var(--color-muted);
+  font-weight: 500;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-hairline);
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.farmshift-table td, .farmgo-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--color-hairline);
+  color: var(--color-body);
+  vertical-align: middle;
+}
+
+.farmshift-table tbody tr:hover, .farmgo-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.farmshift-table tbody tr:last-child td, .farmgo-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Badges ──────────────────────────────────────────────── */
+.farmshift-badge, .farmgo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--rounded-pill);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.farmshift-badge-success, .farmgo-badge-success {
+  background-color: #e6f4ea;
+  color: #137333;
+  border: 1px solid #a7f3d0;
+}
+
+.farmshift-badge-warning, .farmgo-badge-warning {
+  background-color: #fef7e0;
+  color: #b06000;
+  border: 1px solid #fde68a;
+}
+
+.farmshift-badge-danger, .farmgo-badge-danger {
+  background-color: #fce8e6;
+  color: #c5221f;
+  border: 1px solid #fecaca;
+}
+
+.farmshift-badge-info, .farmgo-badge-info {
+  background-color: #e8f0fe;
+  color: #1a73e8;
+  border: 1px solid #bad3fc;
+}
+
+.farmshift-badge-neutral, .farmgo-badge-neutral {
+  background-color: var(--color-surface-soft);
+  color: var(--color-muted);
+  border: 1px solid var(--color-hairline);
+}
+
+/* ── Tabs Navigation ─────────────────────────────────────── */
+.farmshift-tabs, .farmgo-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-hairline);
+  margin-bottom: 22px;
+  padding-bottom: 0;
+  overflow-x: auto;
+}
+
+.farmshift-tab-btn, .farmgo-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 475;
+  color: var(--color-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.farmshift-tab-btn:hover, .farmgo-tab-btn:hover {
+  color: var(--color-ink);
+}
+
+.farmshift-tab-btn.active, .farmgo-tab-btn.active {
+  color: var(--color-ink);
+  font-weight: 600;
+  border-bottom-color: var(--color-primary);
+}
+
+/* ── Floating AI Assistant ───────────────────────────────── */
+.farmshift-ai-fab, .farmgo-ai-fab {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background-color: var(--color-primary);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--rounded-pill);
+  padding: 12px 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  z-index: 1050;
+  font-weight: 500;
+  font-size: 14px;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.farmshift-ai-fab:hover, .farmgo-ai-fab:hover {
+  background-color: var(--color-primary-active);
+  transform: translateY(-2px);
+}
+
+/* ── Modal Dialog ────────────────────────────────────────── */
+.farmshift-modal-backdrop, .farmgo-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(24, 29, 38, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+}
+
+.farmshift-modal, .farmgo-modal {
+  background-color: var(--color-canvas);
+  border-radius: var(--rounded-lg);
+  max-width: 620px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18);
+  animation: FarmShiftFadeIn 0.2s ease-out;
+  border: 1px solid var(--color-hairline);
+}
+
+@keyframes FarmShiftFadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.farmshift-modal-header, .farmgo-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--color-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.farmshift-modal-title, .farmgo-modal-title {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.farmshift-modal-body, .farmgo-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.farmshift-modal-footer, .farmgo-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-hairline);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background-color: var(--color-surface-soft);
+  border-bottom-left-radius: var(--rounded-lg);
+  border-bottom-right-radius: var(--rounded-lg);
+}
+
+/* Form inputs in modal */
+.farmshift-form-group, .farmgo-form-group {
+  margin-bottom: 18px;
+}
+
+.farmshift-form-label, .farmgo-form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+
+.farmshift-form-control, .farmgo-form-control {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-sm);
+  font-size: 13.5px;
+  color: var(--color-ink);
+  background-color: var(--color-canvas);
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.farmshift-form-control:focus, .farmgo-form-control:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(24, 29, 38, 0.08);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .farmshift-shortcuts, .farmgo-shortcuts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .farmshift-sidebar, .farmgo-sidebar {
+    transform: translateX(-100%);
+  }
+  .farmshift-sidebar.mobile-open, .farmgo-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .farmshift-main, .farmgo-main {
+    margin-left: 0 !important;
+    padding: 16px;
+  }
+  .farmshift-shortcuts, .farmgo-shortcuts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .login-visual-panel {
+    display: none !important;
+  }
+}
+
+/* ── IoT Device & Fan Control Styling ───────────────────── */
+@keyframes farmshift-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes farmshift-spin-med {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes farmshift-spin-fast {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.farmshift-fan-spinning-1 {
+  animation: farmshift-spin-slow 1.6s linear infinite;
+}
+
+.farmshift-fan-spinning-2 {
+  animation: farmshift-spin-med 0.9s linear infinite;
+}
+
+.farmshift-fan-spinning-3 {
+  animation: farmshift-spin-fast 0.45s linear infinite;
+}
+
+.farmshift-iot-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.farmshift-iot-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.farmshift-iot-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 24px;
+}
+
+.farmshift-iot-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.farmshift-iot-toggle input:checked + .farmshift-iot-slider {
+  background-color: #019788;
+}
+
+.farmshift-iot-toggle input:checked + .farmshift-iot-slider:before {
+  transform: translateX(20px);
+}
+
+/* ── Notification Badge Bounce ──────────────────────────── */
+@keyframes farmshift-badge-pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+.farmshift-badge-bounce {
+  animation: farmshift-badge-pop 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Floating Notification Toast (Top-Right) ────────────── */
+.farmshift-floating-toast {
+  position: fixed;
+  top: 76px;
+  right: 28px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  background-color: #ffffff;
+  border-radius: var(--rounded-lg, 12px);
+  border: 1px solid rgba(1, 151, 136, 0.25);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16), 0 4px 12px rgba(1, 151, 136, 0.08);
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  z-index: 2000;
+  cursor: pointer;
+  animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.farmshift-floating-toast:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.farmshift-toast-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #019788 0%, #004d40 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(1, 151, 136, 0.3);
+}
+
+.farmshift-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.farmshift-toast-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.farmshift-toast-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.farmshift-toast-type {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.farmshift-toast-time {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.farmshift-toast-text {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.farmshift-toast-status {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.farmshift-toast-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.farmshift-toast-close:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}

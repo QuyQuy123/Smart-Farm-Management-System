@@ -7,25 +7,31 @@ import { Button } from '../../components/Button/Button';
 import { Plus, X, Save, Edit, Trash2, Key, Shield, User } from 'lucide-react';
 import styles from './Employee.module.css';
 
-/* ── Mock data ──────────────────────────────────────────── */
+/* ── Real Database Seeded Employees ─────────────────────── */
 const INIT_EMPLOYEES = [
   {
-    id: 'NV-001', ten: 'Trần Thị Kế Toán', vaiTro: 'Kế toán',
-    dienThoai: '0911222333', email: 'ketoan@farmshift.vn',
+    id: 'NV-001', ten: 'Admin', vaiTro: 'Chủ trại',
+    dienThoai: '0966755095', email: 'hiepgacute1989@gmail.com',
+    trangThai: 'Hoạt động', ngayVao: '01/01/2026',
+    luong: 25000000,
+  },
+  {
+    id: 'NV-002', ten: 'Miến Bình', vaiTro: 'Chủ trại',
+    dienThoai: '0988111222', email: 'mienbinh@smartfarm.com',
+    trangThai: 'Hoạt động', ngayVao: '01/01/2026',
+    luong: 25000000,
+  },
+  {
+    id: 'NV-003', ten: 'Trần Kế Toán', vaiTro: 'Kế toán',
+    dienThoai: '0977222333', email: 'ketoan@smartfarm.com',
     trangThai: 'Hoạt động', ngayVao: '15/02/2026',
     luong: 12000000,
   },
   {
-    id: 'NV-002', ten: 'Nguyễn Văn Công', vaiTro: 'Công nhân',
-    dienThoai: '0988777666', email: 'cong.nv@farmshift.vn',
+    id: 'NV-004', ten: 'Lê Công Nhân', vaiTro: 'Công nhân',
+    dienThoai: '0966333444', email: 'congnhan@smartfarm.com',
     trangThai: 'Hoạt động', ngayVao: '01/03/2026',
-    luong: 8000000,
-  },
-  {
-    id: 'NV-003', ten: 'Lê Thế Bình', vaiTro: 'Công nhân',
-    dienThoai: '0900999888', email: 'binh.lt@farmshift.vn',
-    trangThai: 'Khóa', ngayVao: '10/05/2026',
-    luong: 7500000,
+    luong: 8500000,
   },
 ];
 

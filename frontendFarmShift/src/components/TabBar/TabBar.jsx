@@ -1,5 +1,5 @@
 // src/components/TabBar/TabBar.jsx
-// Horizontal tab navigation — used on Inventory pages (farmgo PDF pages 3-4)
+// Horizontal tab navigation — used on FarmShift Inventory pages
 import React from 'react';
 import styles from './TabBar.module.css';
 

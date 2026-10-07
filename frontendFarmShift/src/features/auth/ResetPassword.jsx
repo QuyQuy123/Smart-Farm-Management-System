@@ -1,11 +1,10 @@
 // src/features/auth/ResetPassword.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Input } from '../../components/Input/Input';
-import { Button } from '../../components/Button/Button';
-import { api } from '../../utils/api';
+import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
+import { ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
+import { authService } from '../../services/authService';
 import { AuthLayout } from './AuthLayout';
-import styles from './Auth.module.css';
+import '../../theme/farmshift.css';
 
 export const ResetPassword = () => {
   const location = useLocation();
@@ -47,7 +46,7 @@ export const ResetPassword = () => {
     if (otpString.length === 6 && step === 1 && !loading) {
       verifyOtpAction(otpString);
     }
-  }, [otp, step]); // Do not include loading to avoid double calls
+  }, [otp, step]);
 
   if (!email) {
     return <Navigate to="/forgot-password" replace />;
@@ -87,11 +86,10 @@ export const ResetPassword = () => {
     setLoading(true);
 
     try {
-      await api.post('/auth/verify-otp', { email, otp: otpString });
+      await authService.verifyOtp(email, otpString);
       setStep(2);
     } catch (err) {
       setError(err.response?.data?.message || 'Mã xác thực không hợp lệ. Vui lòng thử lại.');
-      // Clear OTP on error so user can re-enter easily
       setOtp(['', '', '', '', '', '']);
       otpRefs.current[0]?.focus();
     } finally {
@@ -112,7 +110,7 @@ export const ResetPassword = () => {
     try {
       setLoading(true);
       setError('');
-      await api.post('/auth/forgot-password', { email });
+      await authService.forgotPassword(email);
       setTimer(60);
       setSuccess('Mã xác thực mới đã được gửi!');
       setTimeout(() => setSuccess(''), 4000);
@@ -139,12 +137,12 @@ export const ResetPassword = () => {
     e.preventDefault();
     
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long.');
+      setError('Mật khẩu phải dài ít nhất 8 ký tự.');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError('Mật khẩu không khớp.');
       return;
     }
     
@@ -153,15 +151,11 @@ export const ResetPassword = () => {
 
     try {
       const otpString = otp.join('');
-      await api.post('/auth/reset-password', { 
-        email, 
-        otp: otpString, 
-        newPassword 
-      });
-      setSuccess('Your password has been successfully reset.');
+      await authService.resetPassword(email, otpString, newPassword);
+      setSuccess('Mật khẩu của bạn đã được thay đổi.');
       setTimeout(() => navigate('/login'), 2500);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reset password. Please try again.');
+      setError(err.response?.data?.message || 'Đổi mật khẩu thất bại. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -170,37 +164,64 @@ export const ResetPassword = () => {
   // ── Render ────────────────────────────────────────────────────
   return (
     <AuthLayout>
-      <div className={styles.cardHeader}>
-        <h2 className={styles.title}>
-          {step === 1 ? 'Check your email' : 'Create new password'}
+      <div style={{ marginBottom: '24px' }}>
+        <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-muted)', textDecoration: 'none', marginBottom: '16px' }}>
+          <ArrowLeft size={14} /> Quay lại đăng nhập
+        </Link>
+        <h2 style={{ fontSize: '24px', fontWeight: 500, color: 'var(--color-ink)', margin: '0 0 6px' }}>
+          {step === 1 ? 'Nhập mã xác thực' : 'Tạo mật khẩu mới'}
         </h2>
-        <p className={styles.subtitle}>
+        <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: 0 }}>
           {step === 1 
-            ? <>We sent a 6-digit code to <span className={styles.emailHighlight}>{email}</span></>
-            : 'Please enter a strong password for your account.'
+            ? <>Chúng tôi đã gửi 6 số xác thực tới <strong style={{ color: 'var(--color-ink)' }}>{email}</strong></>
+            : 'Vui lòng nhập mật khẩu mới và bảo mật.'
           }
         </p>
       </div>
 
       {error && (
-        <div className={`${styles.alert} ${styles.alertError}`} role="alert">
-          {error}
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+          padding: '12px 14px',
+          borderRadius: 'var(--rounded-md)',
+          backgroundColor: '#fef2f2',
+          border: '1px solid #fecaca',
+          color: '#b91c1c',
+          fontSize: '13px',
+          marginBottom: '20px'
+        }}>
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>{error}</div>
         </div>
       )}
       
       {success && (
-        <div className={`${styles.alert} ${styles.alertSuccess}`} role="alert">
-          {success}
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+          padding: '12px 14px',
+          borderRadius: 'var(--rounded-md)',
+          backgroundColor: '#e6f4ea',
+          border: '1px solid #ceead6',
+          color: '#137333',
+          fontSize: '13px',
+          marginBottom: '20px'
+        }}>
+          <CheckCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>{success}</div>
         </div>
       )}
 
       {step === 1 && (
-        <form className={styles.form} onSubmit={handleVerifyOtp} noValidate>
-          <div>
-            <label className={styles.title} style={{ fontSize: '14px', marginBottom: '12px', display: 'block', textAlign: 'center' }}>
-              Verification code
+        <form onSubmit={handleVerifyOtp}>
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-ink)', display: 'block', marginBottom: '12px', textAlign: 'center' }}>
+              Mã xác thực
             </label>
-            <div className={styles.otpRow}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
               {otp.map((digit, index) => (
                 <input
                   key={index}
@@ -209,7 +230,19 @@ export const ResetPassword = () => {
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={6}
-                  className={`${styles.otpCell} ${digit ? styles.otpFilled : ''}`}
+                  style={{
+                    width: '44px',
+                    height: '52px',
+                    fontSize: '24px',
+                    fontWeight: 600,
+                    textAlign: 'center',
+                    border: `1px solid ${digit ? 'var(--color-primary)' : 'var(--color-hairline)'}`,
+                    borderRadius: 'var(--rounded-md)',
+                    backgroundColor: digit ? '#fff' : 'var(--color-surface-soft)',
+                    color: 'var(--color-ink)',
+                    outline: 'none',
+                    transition: 'all 0.2s ease'
+                  }}
                   value={digit}
                   onChange={(e) => handleOtpChange(index, e.target.value.replace(/[^0-9]/g, ''))}
                   onKeyDown={(e) => handleOtpKeyDown(index, e)}
@@ -220,12 +253,17 @@ export const ResetPassword = () => {
             </div>
           </div>
           
-          <div className={styles.formFoot} style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
-            <Button variant="green" type="submit" fullWidth loading={loading} disabled={otp.join('').length < 6}>
-              Verify Code
-            </Button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+            <button
+              type="submit"
+              disabled={loading || otp.join('').length < 6}
+              className="farmshift-btn farmshift-btn-primary"
+              style={{ width: '100%', justifyContent: 'center', height: '44px' }}
+            >
+              {loading ? 'Đang xác thực...' : 'Xác thực mã'}
+            </button>
             
-            <div style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
               Không nhận được mã?{' '}
               {timer > 0 ? (
                 <span style={{ fontWeight: 600 }}>Gửi lại sau {timer}s</span>
@@ -234,7 +272,7 @@ export const ResetPassword = () => {
                   type="button" 
                   onClick={handleResendCode}
                   disabled={loading}
-                  style={{ background: 'none', border: 'none', color: 'var(--color-farm-green)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
                 >
                   Gửi lại mã
                 </button>
@@ -245,43 +283,50 @@ export const ResetPassword = () => {
       )}
 
       {step === 2 && (
-        <form className={styles.form} onSubmit={handleResetPassword} noValidate>
-          <div>
-            <Input 
-              label="New password" 
-              type="password" 
-              placeholder="At least 8 characters"
+        <form onSubmit={handleResetPassword}>
+          <div className="farmshift-form-group">
+            <label className="farmshift-form-label">Mật khẩu mới *</label>
+            <input
+              type="password"
+              required
+              placeholder="Ít nhất 8 ký tự"
+              className="farmshift-form-control"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              required
               disabled={success !== ''}
               autoFocus
             />
             {newPassword.length > 0 && (
-              <div className={styles.strengthRow}>
-                <div className={`${styles.strengthBar} ${strength >= 0 ? styles['active' + strength] : ''}`} />
-                <div className={`${styles.strengthBar} ${strength >= 1 ? styles['active' + strength] : ''}`} />
-                <div className={`${styles.strengthBar} ${strength >= 2 ? styles.active2 : ''}`} />
+              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                <div style={{ height: '4px', flex: 1, borderRadius: '2px', backgroundColor: strength >= 0 ? '#ea4335' : 'var(--color-hairline)' }} />
+                <div style={{ height: '4px', flex: 1, borderRadius: '2px', backgroundColor: strength >= 1 ? '#fbbc04' : 'var(--color-hairline)' }} />
+                <div style={{ height: '4px', flex: 1, borderRadius: '2px', backgroundColor: strength >= 2 ? '#34a853' : 'var(--color-hairline)' }} />
               </div>
             )}
           </div>
 
-          <div>
-            <Input 
-              label="Confirm new password" 
-              type="password" 
-              placeholder="Confirm your new password"
+          <div className="farmshift-form-group" style={{ marginTop: '16px' }}>
+            <label className="farmshift-form-label">Xác nhận mật khẩu *</label>
+            <input
+              type="password"
+              required
+              placeholder="Nhập lại mật khẩu"
+              className="farmshift-form-control"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              required
               disabled={success !== ''}
             />
           </div>
           
-          <div className={styles.formFoot}>
-            <Button variant="green" type="submit" fullWidth loading={loading} disabled={success !== ''}>
-              Reset Password
-            </Button>
+          <div style={{ marginTop: '24px' }}>
+            <button
+              type="submit"
+              disabled={loading || success !== ''}
+              className="farmshift-btn farmshift-btn-primary"
+              style={{ width: '100%', justifyContent: 'center', height: '44px' }}
+            >
+              {loading ? 'Đang cập nhật...' : 'Đổi mật khẩu'}
+            </button>
           </div>
         </form>
       )}

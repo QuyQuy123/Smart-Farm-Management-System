@@ -1,0 +1,313 @@
+/* src/components/StockTempChart/StockTempChart.module.css */
+/* Financial Trading / Stock Ticker Style Climate Chart */
+
+.chartContainer {
+  background-color: #0d131f;
+  border-radius: 10px;
+  border: 1px solid #1e293b;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  padding: 18px 20px;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  position: relative;
+  overflow: hidden;
+  margin-top: 14px;
+  transition: all 0.25s ease;
+}
+
+/* Header & Ticker Bar */
+.tickerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 14px;
+}
+
+.tickerMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tickerTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tickerSymbol {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #38bdf8;
+  background-color: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.tickerBarnName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.tickerPriceRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.tickerCurrentVal {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: 'Consolas', monospace;
+  letter-spacing: -0.5px;
+  transition: color 0.2s ease;
+}
+
+.flashUp {
+  animation: flashGreenAnim 0.7s ease-out;
+}
+
+.flashDown {
+  animation: flashRedAnim 0.7s ease-out;
+}
+
+@keyframes flashGreenAnim {
+  0% { color: #22c55e; text-shadow: 0 0 14px rgba(34, 197, 94, 0.9); }
+  100% { color: #ffffff; text-shadow: none; }
+}
+
+@keyframes flashRedAnim {
+  0% { color: #ef4444; text-shadow: 0 0 14px rgba(239, 68, 68, 0.9); }
+  100% { color: #ffffff; text-shadow: none; }
+}
+
+.liveStreamPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.liveStreamDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #ef4444;
+  animation: streamBlink 1.2s infinite ease-in-out;
+}
+
+@keyframes streamBlink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.7); }
+}
+
+.tickerChangeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.badgeUp {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badgeDown {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Ticker Key Metrics Strip */
+.metricsStrip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.metricItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.metricLabel {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+}
+
+.metricVal {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+  font-family: monospace;
+}
+
+/* Control Buttons (Timeframe & Metric Toggle) */
+.controlsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btnGroup {
+  display: flex;
+  background-color: #1e293b;
+  border-radius: 6px;
+  padding: 2px;
+  border: 1px solid #334155;
+}
+
+.toggleBtn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggleBtn:hover {
+  color: #ffffff;
+}
+
+.toggleBtnActive {
+  background-color: #019788;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* SVG Chart Stage */
+.svgStage {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.svgElement {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+/* Live Pulse Marker */
+.pulsingCircle {
+  animation: stockPulse 1.8s infinite ease-out;
+  transform-origin: center;
+}
+
+@keyframes stockPulse {
+  0% {
+    r: 4;
+    opacity: 0.9;
+  }
+  70% {
+    r: 12;
+    opacity: 0;
+  }
+  100% {
+    r: 14;
+    opacity: 0;
+  }
+}
+
+/* Tooltip on Hover */
+.tooltipOverlay {
+  position: absolute;
+  pointer-events: none;
+  background-color: rgba(15, 23, 42, 0.95);
+  border: 1px solid #38bdf8;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  color: #f8fafc;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  white-space: nowrap;
+  transform: translate(-50%, -120%);
+  transition: transform 0.05s ease, left 0.05s ease, top 0.05s ease;
+}
+
+.tooltipTime {
+  color: #94a3b8;
+  font-size: 10.5px;
+  margin-bottom: 2px;
+  font-family: monospace;
+}
+
+.tooltipValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: monospace;
+}
+
+.tooltipAction {
+  font-size: 11px;
+  color: #4ade80;
+  margin-top: 2px;
+}
+
+/* Bottom Summary Footer */
+.chartFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #1e293b;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.footerInsight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pulseGreenDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
