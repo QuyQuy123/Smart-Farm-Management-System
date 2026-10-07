@@ -1,19 +1,52 @@
 // src/features/farmshift/CashbookView.jsx
 // Sổ quỹ & Quản lý Thu Chi chăn nuôi chuẩn FarmShift & DESIGN.md
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   DollarSign, Plus, Search, FileSpreadsheet, ArrowDownRight,
   ArrowUpRight, Wallet, CheckCircle, Calendar, Filter, ArrowRightLeft,
-  X, Layers, Building
+  X, Layers, Building, Calculator, Users, Clock, Briefcase, CheckCircle2
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
 
 export const CashbookView = () => {
-  const [activeTab, setActiveTab] = useState('ledger'); // 'ledger' | 'funds' | 'categories' | 'transfers'
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const initialTab = location.pathname.includes('/payroll')
+    ? 'payroll'
+    : location.pathname.includes('/assets')
+    ? 'assets'
+    : searchParams.get('tab') || 'ledger';
+
+  const [activeTab, setActiveTab] = useState(initialTab); // 'ledger' | 'funds' | 'categories' | 'transfers' | 'costs' | 'assets' | 'payroll'
   const [transactions, setTransactions] = useState(INITIAL_FARMSHIFT_DATA.cashbook);
   const [filterType, setFilterType] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Costs allocation state (costs parity)
+  const [costs, setCosts] = useState([
+    { id: 'PB0001', house: 'Nhà A1', cycle: 'LUA-2026-MIA01', type: 'Thức ăn chăn nuôi (Cám)', amount: 48500000, source: 'PC000036', date: '2026-10-18', notes: 'Cám Higro 01 úm gà con tuần 1' },
+    { id: 'PB0002', house: 'Nhà A2', cycle: 'LUA-2026-MIA01', type: 'Thuốc thú y & Vắc-xin', amount: 8200000, source: 'PC000037', date: '2026-10-19', notes: 'Vắc-xin Newcastle Lasota + Kháng thể' },
+    { id: 'PB0003', house: 'Nhà B1', cycle: 'LUA-2026-J02', type: 'Thức ăn chăn nuôi (Cám)', amount: 92400000, source: 'PC000038', date: '2026-10-15', notes: 'Cám Higro 03 giai đoạn vỗ béo' },
+    { id: 'PB0004', house: 'Nhà B1', cycle: 'LUA-2026-J02', type: 'Điện năng vận hành', amount: 3600000, source: 'PC000039', date: '2026-10-20', notes: 'Tiền điện quạt hút công nghiệp 1.5kW' },
+  ]);
+
+  // Assets & Depreciation state (assets parity)
+  const [assets, setAssets] = useState([
+    { id: 'TS0001', name: 'Quạt hút công nghiệp 1.2kW (Hệ 5 quạt)', cost: 35000000, months: 36, monthlyDep: 972222, house: 'Nhà A1, A2, A3', status: 'Đang trích khấu hao' },
+    { id: 'TS0002', name: 'Giàn làm mát Cooling Pad tấm tôn inox', cost: 24000000, months: 24, monthlyDep: 1000000, house: 'Khu Mía Thịt', status: 'Đang trích khấu hao' },
+    { id: 'TS0003', name: 'Hệ thống đường ống núm uống tự động Lubing', cost: 18000000, months: 36, monthlyDep: 500000, house: 'Nhà B1, B2', status: 'Đang trích khấu hao' },
+    { id: 'TS0004', name: 'Máy phát điện dự phòng 15kVA Cummins', cost: 65000000, months: 60, monthlyDep: 1083333, house: 'Toàn trang trại', status: 'Đang trích khấu hao' },
+  ]);
+
+  // Payroll state (payroll parity)
+  const [payrolls, setPayrolls] = useState([
+    { id: 'CC0001', employee: 'Nguyễn Văn An', days: 26, rate: 350000, bonus: 1000000, advance: 2000000, total: 10100000, paid: 8100000, remain: 0, status: 'Đã thanh toán' },
+    { id: 'CC0002', employee: 'Trần Văn Bình', days: 25, rate: 350000, bonus: 800000, advance: 1500000, total: 9550000, paid: 5000000, remain: 3050000, status: 'Còn nợ lương' },
+    { id: 'CC0003', employee: 'Nguyễn Văn Hải', days: 28, rate: 500000, bonus: 2000000, advance: 3000000, total: 16000000, paid: 13000000, remain: 0, status: 'Đã thanh toán' },
+    { id: 'CC0004', employee: 'Nguyễn Thị Mai', days: 24, rate: 400000, bonus: 500000, advance: 0, total: 10100000, paid: 10100000, remain: 0, status: 'Đã thanh toán' }
+  ]);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -209,6 +242,27 @@ export const CashbookView = () => {
           onClick={() => setActiveTab('transfers')}
         >
           Chuyển quỹ nội bộ ({fundTransfers.length})
+        </button>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'costs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('costs')}
+        >
+          <Calculator size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+          Phân bổ chi phí lứa ({costs.length})
+        </button>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'assets' ? 'active' : ''}`}
+          onClick={() => setActiveTab('assets')}
+        >
+          <Building size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+          Tài sản & Khấu hao ({assets.length})
+        </button>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'payroll' ? 'active' : ''}`}
+          onClick={() => setActiveTab('payroll')}
+        >
+          <Users size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+          Tiền công nhân viên ({payrolls.length})
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
@@ -413,7 +467,227 @@ export const CashbookView = () => {
         </div>
       )}
 
-      {/* ── Modal: Lập phiếu Thu / Chi ───────────────────── */}
+      {/* ── TAB: PHÂN BỔ CHI PHÍ LỨA (costs parity) ──────── */}
+      {activeTab === 'costs' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{
+            padding: '14px 18px',
+            borderRadius: 'var(--rounded-md)',
+            backgroundColor: 'var(--color-surface-soft)',
+            border: '1px solid var(--color-hairline)',
+            fontSize: '13.5px',
+            color: 'var(--color-body)'
+          }}>
+            💡 <strong>Quy tắc hạch toán:</strong> Gắn khoản chi thực tế với từng chuồng và lứa nuôi. Giúp trang trại tính toán chính xác giá thành sản xuất trên mỗi kg thành phẩm khi xuất bán.
+          </div>
+
+          <div className="farmshift-card" style={{ margin: 0 }}>
+            <div className="farmshift-card-header">
+              <h3 className="farmshift-card-title">
+                <Calculator size={18} color="var(--color-primary)" />
+                Bảng phân bổ chi phí về lứa nuôi
+              </h3>
+              <span className="farmshift-badge farmshift-badge-neutral">
+                Tổng phân bổ: {costs.reduce((s, c) => s + c.amount, 0).toLocaleString('vi-VN')} đ
+              </span>
+            </div>
+            <div className="farmshift-table-container" style={{ border: 'none' }}>
+              <table className="farmshift-table">
+                <thead>
+                  <tr>
+                    <th>Mã phân bổ</th>
+                    <th>Chuồng nuôi</th>
+                    <th>Lứa nuôi</th>
+                    <th>Loại chi phí</th>
+                    <th>Số tiền (đ)</th>
+                    <th>Chứng từ nguồn</th>
+                    <th>Ngày ghi nhận</th>
+                    <th>Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {costs.map(c => (
+                    <tr key={c.id}>
+                      <td><span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{c.id}</span></td>
+                      <td><strong style={{ color: 'var(--color-ink)' }}>{c.house}</strong></td>
+                      <td><span className="farmshift-badge farmshift-badge-neutral">{c.cycle}</span></td>
+                      <td>{c.type}</td>
+                      <td><strong style={{ color: 'var(--color-signature-coral)' }}>{c.amount.toLocaleString('vi-VN')} đ</strong></td>
+                      <td><span style={{ fontFamily: 'monospace' }}>{c.source}</span></td>
+                      <td>{c.date}</td>
+                      <td style={{ fontSize: '13px', color: 'var(--color-muted)' }}>{c.notes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: TÀI SẢN & KHẤU HAO (assets parity) ───────── */}
+      {activeTab === 'assets' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Asset Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG NGUYÊN GIÁ TÀI SẢN</div>
+              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
+                {assets.reduce((s, a) => s + a.cost, 0).toLocaleString('vi-VN')} đ
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TRÍCH KHẤU HAO / THÁNG</div>
+              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '6px' }}>
+                {Math.round(assets.reduce((s, a) => s + a.monthlyDep, 0)).toLocaleString('vi-VN')} đ
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>SỐ LƯỢNG TÀI SẢN CỐ ĐỊNH</div>
+              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
+                {assets.length} thiết bị
+              </div>
+            </div>
+          </div>
+
+          {/* Assets Table */}
+          <div className="farmshift-card" style={{ margin: 0 }}>
+            <div className="farmshift-card-header">
+              <h3 className="farmshift-card-title">
+                <Building size={18} color="var(--color-primary)" />
+                Danh mục tài sản cố định & bảng trích khấu hao
+              </h3>
+            </div>
+            <div className="farmshift-table-container" style={{ border: 'none' }}>
+              <table className="farmshift-table">
+                <thead>
+                  <tr>
+                    <th>Mã tài sản</th>
+                    <th>Tên tài sản</th>
+                    <th>Nguyên giá</th>
+                    <th>Thời gian khấu hao</th>
+                    <th>Khấu hao / tháng</th>
+                    <th>Phân bổ chuồng</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {assets.map(a => (
+                    <tr key={a.id}>
+                      <td><span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{a.id}</span></td>
+                      <td><strong style={{ color: 'var(--color-ink)' }}>{a.name}</strong></td>
+                      <td><strong>{a.cost.toLocaleString('vi-VN')} đ</strong></td>
+                      <td>{a.months} tháng</td>
+                      <td><strong style={{ color: 'var(--color-primary)' }}>{Math.round(a.monthlyDep).toLocaleString('vi-VN')} đ</strong></td>
+                      <td>{a.house}</td>
+                      <td><span className="farmshift-badge farmshift-badge-success">{a.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: TIỀN CÔNG NHÂN VIÊN (payroll parity) ─────── */}
+      {activeTab === 'payroll' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Payroll Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG TIỀN CÔNG THÁNG 10/2026</div>
+              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
+                {payrolls.reduce((s, p) => s + p.total, 0).toLocaleString('vi-VN')} đ
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐÃ THANH TOÁN</div>
+              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-success)', marginTop: '6px' }}>
+                {payrolls.reduce((s, p) => s + p.paid, 0).toLocaleString('vi-VN')} đ
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>CÒN PHẢI TRẢ</div>
+              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '6px' }}>
+                {payrolls.reduce((s, p) => s + p.remain, 0).toLocaleString('vi-VN')} đ
+              </div>
+            </div>
+          </div>
+
+          {/* Payroll Table */}
+          <div className="farmshift-card" style={{ margin: 0 }}>
+            <div className="farmshift-card-header">
+              <h3 className="farmshift-card-title">
+                <Users size={18} color="var(--color-primary)" />
+                Bảng chấm công & thanh toán tiền công nhân viên · Tháng 10/2026
+              </h3>
+            </div>
+            <div className="farmshift-table-container" style={{ border: 'none' }}>
+              <table className="farmshift-table">
+                <thead>
+                  <tr>
+                    <th>Mã bảng công</th>
+                    <th>Nhân viên</th>
+                    <th>Ngày công</th>
+                    <th>Đơn giá / ngày</th>
+                    <th>Phụ cấp</th>
+                    <th>Ứng trước</th>
+                    <th>Tổng tiền công</th>
+                    <th>Đã thanh toán</th>
+                    <th>Còn phải trả</th>
+                    <th>Trạng thái</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payrolls.map(p => (
+                    <tr key={p.id}>
+                      <td><span style={{ fontFamily: 'monospace' }}>{p.id}</span></td>
+                      <td><strong style={{ color: 'var(--color-ink)' }}>{p.employee}</strong></td>
+                      <td><strong>{p.days}</strong> ngày</td>
+                      <td>{p.rate.toLocaleString('vi-VN')} đ</td>
+                      <td>{p.bonus.toLocaleString('vi-VN')} đ</td>
+                      <td><span style={{ color: 'var(--color-muted)' }}>{p.advance.toLocaleString('vi-VN')} đ</span></td>
+                      <td><strong style={{ color: 'var(--color-ink)' }}>{p.total.toLocaleString('vi-VN')} đ</strong></td>
+                      <td><strong style={{ color: 'var(--color-success)' }}>{p.paid.toLocaleString('vi-VN')} đ</strong></td>
+                      <td>
+                        <strong style={{ color: p.remain > 0 ? 'var(--color-signature-coral)' : 'var(--color-muted)' }}>
+                          {p.remain.toLocaleString('vi-VN')} đ
+                        </strong>
+                      </td>
+                      <td>
+                        <span className={`farmshift-badge ${p.remain === 0 ? 'farmshift-badge-success' : 'farmshift-badge-warning'}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {p.remain > 0 ? (
+                          <button
+                            className="farmshift-btn farmshift-btn-primary"
+                            style={{ fontSize: '11.5px', padding: '3px 8px' }}
+                            onClick={() => {
+                              setPayrolls(payrolls.map(row => row.id === p.id ? { ...row, paid: row.total, remain: 0, status: 'Đã thanh toán' } : row));
+                            }}
+                          >
+                            Thanh toán
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: 'var(--color-success)' }}>✓ Đã tất toán</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       {showAddModal && (
         <div className="farmshift-modal-backdrop">
           <div className="farmshift-modal">

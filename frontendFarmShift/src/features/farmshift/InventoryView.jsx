@@ -48,6 +48,7 @@ export const InventoryView = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [selectedItemForAdjust, setSelectedItemForAdjust] = useState(null);
+  const [selectedItemForDetail, setSelectedItemForDetail] = useState(null);
 
   // New Item State
   const [newItem, setNewItem] = useState({
@@ -282,13 +283,22 @@ export const InventoryView = () => {
                     </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="farmshift-btn farmshift-btn-secondary"
-                      style={{ fontSize: '12px', padding: '4px 10px' }}
-                      onClick={() => openAdjustModal(item)}
-                    >
-                      Cân bằng
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: '6px' }}>
+                      <button
+                        className="farmshift-btn farmshift-btn-secondary"
+                        style={{ fontSize: '12px', padding: '4px 9px' }}
+                        onClick={() => setSelectedItemForDetail(item)}
+                      >
+                        Thẻ kho
+                      </button>
+                      <button
+                        className="farmshift-btn farmshift-btn-secondary"
+                        style={{ fontSize: '12px', padding: '4px 9px' }}
+                        onClick={() => openAdjustModal(item)}
+                      >
+                        Cân bằng
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -518,6 +528,121 @@ export const InventoryView = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Thẻ kho & Chi tiết hàng hóa (item-detail parity) ─ */}
+      {selectedItemForDetail && (
+        <div className="farmshift-modal-backdrop">
+          <div className="farmshift-modal" style={{ maxWidth: '820px' }}>
+            <div className="farmshift-modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-hairline)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '6px', backgroundColor: 'var(--color-surface-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)' }}>
+                  <Package size={20} />
+                </div>
+                <div>
+                  <h3 className="farmshift-modal-title" style={{ margin: 0, fontSize: '16px' }}>
+                    Thẻ kho: {selectedItemForDetail.name} ({selectedItemForDetail.code})
+                  </h3>
+                  <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                    Kho: {selectedItemForDetail.warehouse} · Danh mục: {selectedItemForDetail.category} · Nhãn hiệu: {selectedItemForDetail.brand}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedItemForDetail(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="farmshift-modal-body" style={{ padding: '20px' }}>
+              {/* Stat badges */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                <div style={{ padding: '12px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-muted)' }}>TỒN HIỆN TẠI</div>
+                  <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--color-primary)', marginTop: '4px' }}>
+                    {selectedItemForDetail.stock.toLocaleString()} {selectedItemForDetail.unit}
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-muted)' }}>QUY CÁCH</div>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
+                    {selectedItemForDetail.pack || selectedItemForDetail.unit}
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-muted)' }}>GIÁ TRỊ TỒN KHO</div>
+                  <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--color-ink)', marginTop: '4px' }}>
+                    {((selectedItemForDetail.stock || 0) * (selectedItemForDetail.price || 0)).toLocaleString('vi-VN')} đ
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-muted)' }}>TRẠNG THÁI</div>
+                  <div style={{ marginTop: '6px' }}>
+                    <span className="farmshift-badge farmshift-badge-success">
+                      {selectedItemForDetail.stock > selectedItemForDetail.minThreshold ? 'Đầy đủ' : 'Chạm ngưỡng'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stock Movement Timeline */}
+              <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 10px' }}>
+                Lịch sử xuất nhập & biến động thẻ kho
+              </h4>
+              <div className="farmshift-table-container" style={{ border: '1px solid var(--color-hairline)' }}>
+                <table className="farmshift-table">
+                  <thead>
+                    <tr>
+                      <th>Ngày</th>
+                      <th>Loại chứng từ</th>
+                      <th>Mã phiếu</th>
+                      <th>Biến động</th>
+                      <th>Tồn sau giao dịch</th>
+                      <th>Người thực hiện</th>
+                      <th>Ghi chú</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { date: '2026-10-21', type: 'Xuất nội bộ sang chuồng', code: 'XK000004', change: -60, post: selectedItemForDetail.stock, person: 'Trần Văn Bình', note: 'Xuất cám cho Chuồng A1 cữ sáng' },
+                      { date: '2026-10-20', type: 'Xuất nội bộ sang chuồng', code: 'XK000003', change: -120, post: selectedItemForDetail.stock + 60, person: 'Nguyễn Văn An', note: 'Xuất cám cho Chuồng A2, A3' },
+                      { date: '2026-10-18', type: 'Nhập hàng từ NCC', code: 'HDN-1026-01', change: +500, post: selectedItemForDetail.stock + 180, person: 'Nguyễn Hiep', note: 'Nhập lô hàng mới từ NCC An Phú' },
+                      { date: '2026-10-01', type: 'Nhập kho đầu kỳ', code: 'DK-0001', change: selectedItemForDetail.stock, post: selectedItemForDetail.stock, person: 'Chủ trại', note: 'Kiểm kê số dư ban đầu' }
+                    ].map((row, idx) => (
+                      <tr key={idx}>
+                        <td>{row.date}</td>
+                        <td><strong>{row.type}</strong></td>
+                        <td><span style={{ fontFamily: 'monospace' }}>{row.code}</span></td>
+                        <td>
+                          <strong style={{ color: row.change > 0 ? 'var(--color-success)' : 'var(--color-signature-coral)' }}>
+                            {row.change > 0 ? `+${row.change}` : row.change} {selectedItemForDetail.unit.split(' ')[0]}
+                          </strong>
+                        </td>
+                        <td><strong>{row.post.toLocaleString()}</strong></td>
+                        <td>{row.person}</td>
+                        <td style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{row.note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="farmshift-modal-footer">
+              <button
+                className="farmshift-btn farmshift-btn-secondary"
+                onClick={() => setSelectedItemForDetail(null)}
+              >
+                Đóng thẻ kho
+              </button>
+            </div>
           </div>
         </div>
       )}

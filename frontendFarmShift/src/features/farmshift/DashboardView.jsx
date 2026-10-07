@@ -5,14 +5,17 @@ import { Link } from 'react-router-dom';
 import {
   TrendingUp, AlertTriangle, CheckCircle2, ChevronRight,
   Plus, FileText, ShoppingCart, DollarSign, ArrowUpRight,
-  Layers, Package, Warehouse, HelpCircle, X, Sparkles, Activity
+  Layers, Package, Warehouse, HelpCircle, X, Sparkles, Activity,
+  Network, Zap
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
+import { FarmSystemMap } from '../../components/FarmSystemMap';
 
 export const DashboardView = () => {
   const [data] = useState(INITIAL_FARMSHIFT_DATA);
   const [showWizard, setShowWizard] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'system_map' | 'energy'
 
   const wizardSteps = [
     { num: 1, title: 'Tìm hiểu cách sử dụng', done: true, link: '#' },
@@ -31,7 +34,162 @@ export const DashboardView = () => {
   );
 
   return (
-    <FarmShiftLayout pageTitle="Bảng tin tổng quan" showShortcuts={true}>
+    <FarmShiftLayout
+      pageTitle={
+        activeTab === 'system_map'
+          ? 'Sơ đồ hệ thống chuồng trại'
+          : activeTab === 'energy'
+          ? 'Điện năng & Chi phí thiết bị'
+          : 'Bảng tin tổng quan'
+      }
+      showShortcuts={true}
+    >
+      {/* ── Dashboard Sub-Navigation Tabs ───────────────────── */}
+      <div className="farmshift-tabs" style={{ marginBottom: '20px' }}>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          <Activity size={15} style={{ marginRight: '6px' }} />
+          Bảng tin tổng quan
+        </button>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'system_map' ? 'active' : ''}`}
+          onClick={() => setActiveTab('system_map')}
+        >
+          <Network size={15} style={{ marginRight: '6px' }} />
+          Sơ đồ hệ thống chuồng trại (System Map)
+        </button>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'energy' ? 'active' : ''}`}
+          onClick={() => setActiveTab('energy')}
+        >
+          <Zap size={15} style={{ marginRight: '6px' }} />
+          Điện năng & Chi phí thiết bị (IoT)
+        </button>
+      </div>
+
+      {/* ── TAB 2: SYSTEM MAP ──────────────────────────────── */}
+      {activeTab === 'system_map' && (
+        <FarmSystemMap />
+      )}
+
+      {/* ── TAB 3: ENERGY & POWER COST (IoT) ───────────────── */}
+      {activeTab === 'energy' && (
+        <div>
+          {/* Energy KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                ĐIỆN NĂNG TIÊU THỤ DỰ TÍNH / NGÀY
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '8px', lineHeight: 1 }}>
+                144.0 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>kWh</span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+                5 chuồng nuôi đang vận hành
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                ĐƠN GIÁ ĐIỆN THAM CHIẾU
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
+                2.500 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>đ / kWh</span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+                Biểu giá điện sản xuất kinh doanh
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                CHI PHÍ TIỀN ĐIỆN / NGÀY
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '8px', lineHeight: 1 }}>
+                360.000 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>đ</span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+                Ước tính: ~10.800.000 đ / tháng
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+                THIẾT BỊ ĐANG TIÊU THỤ ĐIỆN
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
+                10 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>thiết bị</span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-success)', marginTop: '8px' }}>
+                ✓ 5 quạt thông gió + 5 hệ giàn đèn
+              </div>
+            </div>
+          </div>
+
+          {/* Energy Table */}
+          <div className="farmshift-card">
+            <div className="farmshift-card-header">
+              <h3 className="farmshift-card-title">
+                <Zap size={18} color="var(--color-primary)" />
+                Bảng phân bổ công suất & chi phí điện năng theo từng chuồng
+              </h3>
+              <span className="farmshift-badge farmshift-badge-neutral">
+                Tháng 10/2026
+              </span>
+            </div>
+            <div className="farmshift-table-container" style={{ border: 'none' }}>
+              <table className="farmshift-table">
+                <thead>
+                  <tr>
+                    <th>Chuồng nuôi</th>
+                    <th>Thiết bị tải</th>
+                    <th>Công suất</th>
+                    <th>Thời gian chạy TB / ngày</th>
+                    <th>Điện năng / ngày</th>
+                    <th>Chi phí / ngày (đ)</th>
+                    <th>Chi phí / tháng (30 ngày)</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { barn: 'Nhà A1', area: 'Khu Mía Thịt', device: 'Quạt hút công nghiệp 1.2kW', power: '1.200 W', hours: '12 giờ', kwh: '14.4 kWh', dailyCost: 36000, monthCost: 1080000, status: 'Tự động theo nhiệt' },
+                    { barn: 'Nhà A1', area: 'Khu Mía Thịt', device: 'Hệ giàn đèn sưởi ấm 0.3kW', power: '300 W', hours: '4 giờ', kwh: '1.2 kWh', dailyCost: 3000, monthCost: 90000, status: 'Hẹn giờ ban đêm' },
+                    { barn: 'Nhà A2', area: 'Khu Mía Thịt', device: 'Quạt hút công nghiệp 1.2kW', power: '1.200 W', hours: '12 giờ', kwh: '14.4 kWh', dailyCost: 36000, monthCost: 1080000, status: 'Tự động theo nhiệt' },
+                    { barn: 'Nhà A2', area: 'Khu Mía Thịt', device: 'Hệ giàn đèn sưởi ấm 0.3kW', power: '300 W', hours: '4 giờ', kwh: '1.2 kWh', dailyCost: 3000, monthCost: 90000, status: 'Hẹn giờ ban đêm' },
+                    { barn: 'Nhà A3', area: 'Khu Mía Thịt', device: 'Quạt hút công nghiệp 1.2kW', power: '1.200 W', hours: '8 giờ', kwh: '9.6 kWh', dailyCost: 24000, monthCost: 720000, status: 'Điều khiển tay' },
+                    { barn: 'Nhà B1', area: 'Khu J Thịt', device: 'Quạt hút công nghiệp 1.5kW (Tốc độ cao)', power: '1.500 W', hours: '14 giờ', kwh: '21.0 kWh', dailyCost: 52500, monthCost: 1575000, status: 'Tự động quạt vỗ béo' },
+                    { barn: 'Nhà B1', area: 'Khu J Thịt', device: 'Hệ giàn đèn chiếu sáng 0.3kW', power: '300 W', hours: '4 giờ', kwh: '1.2 kWh', dailyCost: 3000, monthCost: 90000, status: 'Bật ban đêm' },
+                    { barn: 'Nhà B2', area: 'Khu J Thịt', device: 'Quạt hút công nghiệp 1.2kW', power: '1.200 W', hours: '12 giờ', kwh: '14.4 kWh', dailyCost: 36000, monthCost: 1080000, status: 'Điều khiển tay' }
+                  ].map((row, idx) => (
+                    <tr key={idx}>
+                      <td>
+                        <strong style={{ color: 'var(--color-ink)' }}>{row.barn}</strong>
+                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{row.area}</div>
+                      </td>
+                      <td>{row.device}</td>
+                      <td><strong>{row.power}</strong></td>
+                      <td>{row.hours}</td>
+                      <td><span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{row.kwh}</span></td>
+                      <td>{row.dailyCost.toLocaleString('vi-VN')} đ</td>
+                      <td><strong>{row.monthCost.toLocaleString('vi-VN')} đ</strong></td>
+                      <td>
+                        <span className="farmshift-badge farmshift-badge-success">{row.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 1: OVERVIEW DASHBOARD ───────────────────────── */}
+      {activeTab === 'overview' && (
+        <>
       {/* ── DESIGN.md Signature Cream Callout (Wizard) ────── */}
       {showWizard && (
         <div className="signature-cream-card">
@@ -286,6 +444,8 @@ export const DashboardView = () => {
           </div>
         </div>
       </div>
+        </>
+      )}
     </FarmShiftLayout>
   );
 };
