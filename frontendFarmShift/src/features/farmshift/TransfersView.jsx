@@ -6,8 +6,10 @@ import {
   Package, Warehouse, RefreshCw, X, Trash2, FileText, ExternalLink
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
+import { useNotification } from '../../context/NotificationContext';
 
 export const TransfersView = () => {
+  const { showToast } = useNotification();
   const [activeTab, setActiveTab] = useState('slips'); // 'slips' | 'categories'
 
   // Slips List (Xuất nhập nội bộ.html)
@@ -141,6 +143,7 @@ export const TransfersView = () => {
     };
     setSlips([created, ...slips]);
     setShowCreateSlipModal(false);
+    showToast('MSG03');
   };
 
   const handleCreateCategory = (e) => {
@@ -158,6 +161,7 @@ export const TransfersView = () => {
     setCategories([...categories, created]);
     setShowCreateCatModal(false);
     setNewCat({ type: 'Xuất kho', name: '', desc: '' });
+    showToast('MSG03');
   };
 
   const filteredSlips = slips.filter(s => {
@@ -355,7 +359,7 @@ export const TransfersView = () => {
                       <button
                         className="farmshift-btn farmshift-btn-secondary"
                         style={{ fontSize: '12px', padding: '4px 10px' }}
-                        onClick={() => alert(`Chỉnh sửa danh mục ${cat.name}`)}
+                        onClick={() => showToast(`Chỉnh sửa danh mục: ${cat.name}`, 'info')}
                       >
                         Sửa
                       </button>
@@ -449,7 +453,7 @@ export const TransfersView = () => {
                         type="button"
                         className="farmshift-btn farmshift-btn-secondary"
                         style={{ fontSize: '12px', padding: '4px 10px' }}
-                        onClick={() => alert('Đã sẵn sàng tải file Excel mẫu để nhập hàng loạt!')}
+                        onClick={() => showToast('Đã sẵn sàng tải file Excel mẫu để nhập hàng loạt!', 'info')}
                       >
                         Nhập từ Excel
                       </button>

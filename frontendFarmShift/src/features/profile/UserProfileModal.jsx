@@ -5,6 +5,7 @@ import { Button } from '../../components/Button/Button';
 import { updateProfile, changePassword } from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';
 import { AvatarCropperModal } from './AvatarCropperModal';
+import { getSystemMessage } from '../../constants/systemMessages';
 import styles from './UserProfileModal.module.css';
 
 export const UserProfileModal = ({ isOpen, onClose }) => {
@@ -93,9 +94,9 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
         address,
         dateOfBirth
       }); // Sync globally!
-      setProfileMessage({ type: 'success', text: 'Profile updated successfully.' });
+      setProfileMessage({ type: 'success', text: getSystemMessage('MSG13') });
     } catch (err) {
-      setProfileMessage({ type: 'error', text: 'Failed to update profile.' });
+      setProfileMessage({ type: 'error', text: getSystemMessage('MSG04') });
     } finally {
       setLoadingProfile(false);
     }
@@ -105,11 +106,11 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
     e.preventDefault();
 
     if (newPassword !== confirmPassword) {
-      setPasswordMessage({ type: 'error', text: 'New passwords do not match.' });
+      setPasswordMessage({ type: 'error', text: getSystemMessage('MSG18') });
       return;
     }
     if (newPassword.length < 8) {
-      setPasswordMessage({ type: 'error', text: 'Password must be at least 8 characters.' });
+      setPasswordMessage({ type: 'error', text: getSystemMessage('MSG17') });
       return;
     }
 
@@ -117,14 +118,14 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
     setPasswordMessage(null);
     try {
       await changePassword({ currentPassword, newPassword });
-      setPasswordMessage({ type: 'success', text: 'Password changed successfully.' });
+      setPasswordMessage({ type: 'success', text: getSystemMessage('MSG19') });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
       setPasswordMessage({
         type: 'error',
-        text: err.response?.data?.message || 'Failed to change password.'
+        text: err.response?.data?.message || getSystemMessage('MSG04')
       });
     } finally {
       setLoadingPassword(false);

@@ -4,8 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, X, Send, Bot, RotateCcw,
   Wheat, Stethoscope, Activity, Pill, Thermometer, ChevronDown,
-  Mic, MicOff
+  Mic, MicOff, ShieldAlert
 } from 'lucide-react';
+import { getSystemMessage } from '../../constants/systemMessages';
 import styles from './AIChatbot.module.css';
 
 const formatCurrentTime = () => {
@@ -370,6 +371,21 @@ export const AIChatbot = () => {
               >
                 <Send size={15} />
               </button>
+            </div>
+            {/* Advisory Banner (MSG38) */}
+            <div style={{
+              fontSize: '11px',
+              color: '#92400e',
+              backgroundColor: '#fffbeb',
+              borderTop: '1px solid #fef3c7',
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              lineHeight: 1.4
+            }}>
+              <ShieldAlert size={13} color="#d97706" style={{ flexShrink: 0 }} />
+              <span>{getSystemMessage('MSG38')}</span>
             </div>
             <div className={styles.inputHint}>
               Nhấn <strong>Enter</strong> hoặc bấm Micro 🎙️ để nói · AI hỗ trợ chẩn đoán thú y

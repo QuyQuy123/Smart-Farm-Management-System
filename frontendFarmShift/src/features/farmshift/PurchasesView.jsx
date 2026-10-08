@@ -6,9 +6,11 @@ import {
   Camera, CheckCircle, Clock, DollarSign, Upload, Users, Tag, X, Building
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
+import { useNotification } from '../../context/NotificationContext';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
 
 export const PurchasesView = () => {
+  const { showToast } = useNotification();
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'suppliers' | 'tags'
   const [purchases, setPurchases] = useState(INITIAL_FARMSHIFT_DATA.purchases);
   const [searchTerm, setSearchTerm] = useState('');
@@ -558,7 +560,7 @@ export const PurchasesView = () => {
               <button
                 className="farmshift-btn farmshift-btn-primary"
                 onClick={() => {
-                  alert('Hệ thống AI OCR đã bóc tách thành công phiếu hóa đơn mẫu C.P. Việt Nam!');
+                  showToast('MSG30');
                   setShowOcrModal(false);
                   setShowAddModal(true);
                 }}

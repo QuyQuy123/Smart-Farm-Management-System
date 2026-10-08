@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
+import { getSystemMessage } from '../../constants/systemMessages';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
 import { CctvPlayer } from '../../components/CctvPlayer';
 import { StockTempChart } from '../../components/StockTempChart';
@@ -20,7 +21,7 @@ export const JournalView = () => {
   const searchParams = new URLSearchParams(location.search);
   const initialTab = searchParams.get('tab') || 'feed';
 
-  const { sendNotification } = useNotification();
+  const { sendNotification, showToast: showGlobalToast } = useNotification();
   const [activeTab, setActiveTab] = useState(initialTab); // 'feed' | 'env' | 'iot_devices' | 'health' | 'treatment' | 'work'
   const [viewingCctvBarn, setViewingCctvBarn] = useState(null);
   const [activeChartBarns, setActiveChartBarns] = useState({});
@@ -464,8 +465,12 @@ export const JournalView = () => {
     }
   };
 
-  const showToast = (msg) => {
-    setIotToast(msg);
+  const showToast = (msg, type = 'success') => {
+    const text = typeof msg === 'string' && msg.startsWith('MSG') ? getSystemMessage(msg) : msg;
+    setIotToast(text);
+    if (showGlobalToast) {
+      showGlobalToast(msg, type);
+    }
     setTimeout(() => setIotToast(''), 3500);
   };
 
@@ -911,7 +916,7 @@ export const JournalView = () => {
                             <button
                               className="farmshift-btn farmshift-btn-primary"
                               style={{ fontSize: '12px', padding: '5px 12px' }}
-                              onClick={() => alert(`Đã ghi nhận cho ăn ${totalMeal}kg ${row.feedType} tại ${row.barn} và tự động trừ tồn kho!`)}
+                              onClick={() => showToast(`Đã ghi nhận cho ăn ${totalMeal}kg ${row.feedType} tại ${row.barn} và tự động trừ tồn kho!`, 'success')}
                             >
                               Cho ăn ({totalMeal} Kg)
                             </button>
@@ -1054,7 +1059,7 @@ export const JournalView = () => {
                 type="button"
                 className="farmshift-btn farmshift-btn-primary"
                 style={{ fontSize: '12.5px', padding: '6px 14px' }}
-                onClick={() => alert('Đã lưu các thay đổi chỉ số nhiệt độ & độ ẩm!')}
+                onClick={() => showToast('MSG03')}
               >
                 <CheckCircle size={14} /> Lưu thay đổi
               </button>
@@ -1717,7 +1722,7 @@ export const JournalView = () => {
             <button
               className="farmshift-btn farmshift-btn-primary"
               style={{ fontSize: '12.5px', padding: '6px 14px' }}
-              onClick={() => alert('Đã lưu cập nhật sức khỏe & hao hụt!')}
+              onClick={() => showToast('MSG03')}
             >
               <CheckCircle size={14} /> Lưu thay đổi
             </button>
@@ -1788,7 +1793,7 @@ export const JournalView = () => {
                             >
                               <Camera size={14} />
                               {row.photo ? '1 ảnh đã đính kèm' : 'Chọn ảnh...'}
-                              <input type="file" style={{ display: 'none' }} onChange={() => alert('Đã đính kèm ảnh chụp bệnh tích mổ khám!')} />
+                              <input type="file" style={{ display: 'none' }} onChange={() => showToast('Đã đính kèm ảnh chụp bệnh tích mổ khám!', 'success')} />
                             </label>
                           </td>
                           <td>
@@ -2044,7 +2049,7 @@ export const JournalView = () => {
               <button
                 className="farmshift-btn farmshift-btn-primary"
                 onClick={() => {
-                  alert('Đã lưu nhật ký chăn nuôi thành công!');
+                  showToast('MSG03');
                   setShowAddLogModal(false);
                 }}
               >

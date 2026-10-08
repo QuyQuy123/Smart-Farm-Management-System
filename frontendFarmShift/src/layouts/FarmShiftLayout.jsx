@@ -7,7 +7,8 @@ import {
     LayoutDashboard, Warehouse, ClipboardList, Package,
     ArrowLeftRight, FileText, ShoppingCart, DollarSign,
     Users, BarChart3, Layers, Settings, Sliders, Edit3,
-    Utensils, HeartPulse, Thermometer, CheckSquare, X
+    Utensils, HeartPulse, Thermometer, CheckSquare, X,
+    CheckCircle, AlertTriangle, AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -428,21 +429,38 @@ export const FarmShiftLayout = ({
             {activeToast && (
                 <div
                     className="farmshift-floating-toast"
-                    onClick={() => { setNotifOpen(true); setActiveToast(null); }}
+                    onClick={() => { if (!activeToast.isSystem) setNotifOpen(true); setActiveToast(null); }}
+                    style={{
+                        borderColor: activeToast.level === 'Lỗi' ? '#f43f5e' : activeToast.level === 'Cảnh báo' ? '#f59e0b' : '#019788'
+                    }}
                 >
-                    <div className="farmshift-toast-icon">
-                        <Bell size={18} />
+                    <div className="farmshift-toast-icon" style={{
+                        background: activeToast.level === 'Lỗi' ? 'linear-gradient(135deg, #ef4444, #991b1b)' :
+                                    activeToast.level === 'Cảnh báo' ? 'linear-gradient(135deg, #f59e0b, #b45309)' :
+                                    activeToast.level === 'Thành công' ? 'linear-gradient(135deg, #10b981, #047857)' :
+                                    'linear-gradient(135deg, #019788 0%, #004d40 100%)'
+                    }}>
+                        {activeToast.level === 'Lỗi' ? <AlertCircle size={18} /> :
+                         activeToast.level === 'Cảnh báo' ? <AlertTriangle size={18} /> :
+                         activeToast.level === 'Thành công' ? <CheckCircle size={18} /> :
+                         <Bell size={18} />}
                     </div>
                     <div className="farmshift-toast-body">
                         <div className="farmshift-toast-header">
-                            <span className="farmshift-toast-badge">{activeToast.level || 'Cảnh báo'}</span>
+                            <span className="farmshift-toast-badge" style={{
+                                backgroundColor: activeToast.level === 'Lỗi' ? '#ffe4e6' : activeToast.level === 'Cảnh báo' ? '#fef3c7' : '#e0f2f1',
+                                color: activeToast.level === 'Lỗi' ? '#be123c' : activeToast.level === 'Cảnh báo' ? '#b45309' : '#004d40'
+                            }}>{activeToast.level || 'Thông báo'}</span>
                             <span className="farmshift-toast-type">{activeToast.type}</span>
                             <span className="farmshift-toast-time">{activeToast.time}</span>
                         </div>
                         <div className="farmshift-toast-text">
-                            <strong>{activeToast.barn}</strong>: {activeToast.value}
+                            {activeToast.barn ? <strong>{activeToast.barn}: </strong> : null}
+                            {activeToast.value}
                         </div>
-                        <div className="farmshift-toast-status">{activeToast.status}</div>
+                        {activeToast.status && !activeToast.isSystem && (
+                            <div className="farmshift-toast-status">{activeToast.status}</div>
+                        )}
                     </div>
                     <button
                         type="button"
