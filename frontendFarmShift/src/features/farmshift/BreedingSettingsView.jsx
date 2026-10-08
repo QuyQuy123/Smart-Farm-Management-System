@@ -7,8 +7,10 @@ import {
   FileSpreadsheet, X, Target, Scissors, Clock, UserCheck, AlertTriangle, Edit3, Trash2
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
+import { useNotification } from '../../context/NotificationContext';
 
 export const BreedingSettingsView = () => {
+  const { showToast } = useNotification();
   const location = useLocation();
 
   // Auto-detect tab from URL path
@@ -287,7 +289,7 @@ export const BreedingSettingsView = () => {
                       <button
                         className="farmshift-btn farmshift-btn-secondary"
                         style={{ padding: '3px 8px', fontSize: '12px' }}
-                        onClick={() => alert(`Chỉnh sửa định mức ${target.id}`)}
+                        onClick={() => showToast(`Chỉnh sửa định mức ${target.id}`, 'info')}
                       >
                         <Edit3 size={13} /> Sửa
                       </button>
@@ -345,7 +347,7 @@ export const BreedingSettingsView = () => {
                       <button
                         className="farmshift-btn farmshift-btn-secondary"
                         style={{ padding: '3px 8px', fontSize: '12px' }}
-                        onClick={() => alert(`Cập nhật tiêu chuẩn ${h.name}`)}
+                        onClick={() => showToast(`Cập nhật tiêu chuẩn ${h.name}`, 'info')}
                       >
                         <Edit3 size={13} /> Sửa
                       </button>
@@ -579,7 +581,7 @@ export const BreedingSettingsView = () => {
               <button
                 className="farmshift-btn farmshift-btn-primary"
                 onClick={() => {
-                  alert('Đã lưu chương trình nuôi mới!');
+                  showToast('MSG03');
                   setShowAddProgModal(false);
                 }}
               >

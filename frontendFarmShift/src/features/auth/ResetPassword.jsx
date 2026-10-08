@@ -4,6 +4,7 @@ import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import { authService } from '../../services/authService';
 import { AuthLayout } from './AuthLayout';
+import { getSystemMessage } from '../../constants/systemMessages';
 import '../../theme/farmshift.css';
 
 export const ResetPassword = () => {
@@ -89,7 +90,7 @@ export const ResetPassword = () => {
       await authService.verifyOtp(email, otpString);
       setStep(2);
     } catch (err) {
-      setError(err.response?.data?.message || 'Mã xác thực không hợp lệ. Vui lòng thử lại.');
+      setError(err.response?.data?.message || getSystemMessage('MSG16'));
       setOtp(['', '', '', '', '', '']);
       otpRefs.current[0]?.focus();
     } finally {
@@ -112,7 +113,7 @@ export const ResetPassword = () => {
       setError('');
       await authService.forgotPassword(email);
       setTimer(60);
-      setSuccess('Mã xác thực mới đã được gửi!');
+      setSuccess(getSystemMessage('MSG15'));
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       setError('Lỗi khi gửi lại mã. Vui lòng thử lại.');
@@ -137,12 +138,12 @@ export const ResetPassword = () => {
     e.preventDefault();
     
     if (newPassword.length < 8) {
-      setError('Mật khẩu phải dài ít nhất 8 ký tự.');
+      setError(getSystemMessage('MSG17'));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Mật khẩu không khớp.');
+      setError(getSystemMessage('MSG18'));
       return;
     }
     
@@ -152,10 +153,10 @@ export const ResetPassword = () => {
     try {
       const otpString = otp.join('');
       await authService.resetPassword(email, otpString, newPassword);
-      setSuccess('Mật khẩu của bạn đã được thay đổi.');
+      setSuccess(getSystemMessage('MSG19'));
       setTimeout(() => navigate('/login'), 2500);
     } catch (err) {
-      setError(err.response?.data?.message || 'Đổi mật khẩu thất bại. Vui lòng thử lại.');
+      setError(err.response?.data?.message || getSystemMessage('MSG04'));
     } finally {
       setLoading(false);
     }

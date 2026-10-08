@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/authService';
 import { Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { AuthLayout } from './AuthLayout';
+import { getSystemMessage } from '../../constants/systemMessages';
 import '../../theme/farmshift.css';
 
 export const Login = () => {
@@ -22,7 +23,7 @@ export const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim() || !password) {
-      setError('Vui lòng nhập đầy đủ Email và Mật khẩu.');
+      setError(getSystemMessage('MSG02'));
       return;
     }
 
@@ -42,11 +43,19 @@ export const Login = () => {
         navigate('/dashboard');
         return;
       }
-      throw new Error('Không nhận được mã xác thực token từ máy chủ.');
+      throw new Error(getSystemMessage('MSG04'));
     } catch (err) {
       console.warn('Backend login error:', err);
-      const msg = err.response?.data?.message || err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.';
-      setError(msg);
+      if (err.response?.status === 401) {
+        setError(getSystemMessage('MSG09'));
+      } else if (err.response?.status === 403) {
+        setError(getSystemMessage('MSG11'));
+      } else if (err.response?.data?.messageCode) {
+        setError(getSystemMessage(err.response.data.messageCode));
+      } else {
+        const msg = err.response?.data?.message || getSystemMessage('MSG09');
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }

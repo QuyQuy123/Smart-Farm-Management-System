@@ -2,6 +2,7 @@
 // Quản lý trung tâm Thông báo & Cảnh báo IoT thời gian thực toàn hệ thống FarmShift
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { INITIAL_FARMSHIFT_DATA } from '../data/farmshiftMockData';
+import { SYSTEM_MESSAGES, getSystemMessage } from '../constants/systemMessages';
 
 const NotificationContext = createContext();
 
@@ -81,12 +82,52 @@ export const NotificationProvider = ({ children }) => {
     setUnreadCount(0);
   };
 
+  /**
+   * Bắn một thông báo hệ thống dạng Toast (hỗ trợ mã MSG hoặc text tự do)
+   * @param {string} messageOrCode - Mã MSG (ví dụ 'MSG03') hoặc chuỗi text
+   * @param {'success'|'error'|'warning'|'info'} [type='success']
+   * @param {Object} [params={}] - Tham số nếu có
+   */
+  const showToast = (messageOrCode, type = 'success', params = {}) => {
+    let text = messageOrCode;
+    let toastLevel = type === 'error' ? 'Lỗi' : type === 'warning' ? 'Cảnh báo' : type === 'info' ? 'Thông báo' : 'Thành công';
+    let msgType = type;
+
+    if (SYSTEM_MESSAGES && SYSTEM_MESSAGES[messageOrCode]) {
+      const def = SYSTEM_MESSAGES[messageOrCode];
+      text = getSystemMessage(messageOrCode, params, 'vi');
+      if (def.type.includes('success')) toastLevel = 'Thành công';
+      else if (def.type.includes('error')) toastLevel = 'Lỗi';
+      else if (def.type.includes('warning')) toastLevel = 'Cảnh báo';
+      else toastLevel = 'Thông báo';
+      msgType = toastLevel;
+    }
+
+    const toastObj = {
+      id: 'toast-' + Date.now(),
+      time: 'Vừa xong',
+      type: msgType,
+      value: text,
+      level: toastLevel,
+      status: 'Hệ thống đã ghi nhận',
+      isSystem: true
+    };
+
+    setActiveToast(toastObj);
+    setTimeout(() => {
+      setActiveToast(prev => prev?.id === toastObj.id ? null : prev);
+    }, 4500);
+
+    return toastObj;
+  };
+
   return (
     <NotificationContext.Provider value={{
       alerts,
       unreadCount,
       activeToast,
       sendNotification,
+      showToast,
       markAllAsRead,
       clearAllAlerts,
       setActiveToast

@@ -3,12 +3,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
+import { useNotification } from '../../context/NotificationContext';
 import {
   Bird, CheckSquare, Thermometer, TrendingUp,
   Plus, Mic
 } from 'lucide-react';
 
 export const WorkerDashboard = () => {
+  const { showToast } = useNotification();
   const BREADCRUMBS = [{ label: 'FarmShift' }, { label: 'Trang chủ' }];
 
   const kpis = [
@@ -38,7 +40,7 @@ export const WorkerDashboard = () => {
         </Link>
         <button
           className="btn"
-          onClick={() => alert('Ghi âm bằng giọng nói: tính năng mô phỏng.')}
+          onClick={() => showToast('MSG30')}
         >
           <Mic size={16} /> Nhập bằng giọng nói
         </button>
