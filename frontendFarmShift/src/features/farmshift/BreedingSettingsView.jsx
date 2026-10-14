@@ -27,11 +27,13 @@ export const BreedingSettingsView = () => {
   const [showAddHarvestModal, setShowAddHarvestModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
 
-  useEffect(() => {
+  const [prevPath, setPrevPath] = useState(location.pathname);
+  if (location.pathname !== prevPath) {
+    setPrevPath(location.pathname);
     if (location.pathname.includes('growth-targets')) setActiveTab('growth_targets');
     else if (location.pathname.includes('harvest-types')) setActiveTab('harvest_types');
     else if (location.pathname.includes('tasks')) setActiveTab('tasks');
-  }, [location.pathname]);
+  }
 
   // Mock data for Growth Targets
   const [growthTargets, setGrowthTargets] = useState([

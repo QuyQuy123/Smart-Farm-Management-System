@@ -60,7 +60,9 @@ export const AccountView = () => {
   const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  useEffect(() => {
+  const [prevUser, setPrevUser] = useState(user);
+  if (user !== prevUser) {
+    setPrevUser(user);
     if (user) {
       setProfileForm({
         fullName: user.fullName || user.name || '',
@@ -84,7 +86,7 @@ export const AccountView = () => {
         return s;
       }));
     }
-  }, [user]);
+  }
 
   // Lấy dữ liệu thật từ Database Backend (GET /api/user/all)
   useEffect(() => {

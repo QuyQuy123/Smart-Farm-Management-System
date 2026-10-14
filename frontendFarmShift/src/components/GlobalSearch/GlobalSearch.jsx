@@ -303,9 +303,11 @@ export const GlobalSearch = () => {
     : SEARCHABLE_ITEMS.slice(0, 8); // Khi chưa gõ, hiện 8 tính năng thông dụng nhất
 
   // Reset selectedIndex khi kết quả thay đổi
-  useEffect(() => {
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (query !== prevQuery) {
+    setPrevQuery(query);
     setSelectedIndex(0);
-  }, [query]);
+  }
 
   const handleSelect = (item) => {
     setIsOpen(false);

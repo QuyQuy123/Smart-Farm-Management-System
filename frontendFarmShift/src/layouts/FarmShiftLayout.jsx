@@ -1,12 +1,12 @@
 // src/layouts/FarmShiftLayout.jsx
 // FarmShift Shell Layout aligned with DESIGN.md
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
     Menu, Maximize, Minimize, Bell, User, LogOut,
     LayoutDashboard, Warehouse, ClipboardList, Package,
     ArrowLeftRight, FileText, ShoppingCart, DollarSign,
-    Users, BarChart3, Layers, Settings, Sliders, Edit3,
+    Users, BarChart3, Layers, Settings, Sliders,
     Utensils, HeartPulse, Thermometer, CheckSquare, X,
     CheckCircle, AlertTriangle, AlertCircle
 } from 'lucide-react';
@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { GlobalSearch } from '../components/GlobalSearch/GlobalSearch';
-import { INITIAL_FARMSHIFT_DATA, getFarmInfo } from '../data/farmshiftMockData';
+import { getFarmInfo } from '../data/farmshiftMockData';
 import farmLogo from '../assets/logo_Farm.png';
 import '../theme/farmshift.css';
 
@@ -35,10 +35,16 @@ export const FarmShiftLayout = ({
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const [prevUser, setPrevUser] = useState(user);
     const [farmInfo, setFarmInfo] = useState(() => getFarmInfo(user));
 
-    useEffect(() => {
+    if (user !== prevUser) {
+        setPrevUser(user);
         setFarmInfo(getFarmInfo(user));
+    }
+
+    useEffect(() => {
         const handleFarmUpdate = () => {
             setFarmInfo(getFarmInfo(user));
         };
@@ -363,10 +369,10 @@ export const FarmShiftLayout = ({
                                 <Link to="/dashboard">{farmInfo.name}</Link>
                                 <span>›</span>
                                 {breadcrumbs.map((bc, idx) => (
-                                    <React.Fragment key={idx}>
+                                    <Fragment key={idx}>
                                         {bc.path ? <Link to={bc.path}>{bc.label}</Link> : <span>{bc.label}</span>}
                                         {idx < breadcrumbs.length - 1 && <span>›</span>}
-                                    </React.Fragment>
+                                    </Fragment>
                                 ))}
                                 <span>›</span>
                                 <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{pageTitle}</span>

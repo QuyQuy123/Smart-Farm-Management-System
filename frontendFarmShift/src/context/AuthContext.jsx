@@ -6,68 +6,79 @@ import { getProfile } from '../services/userService';
 
 const AuthContext = createContext(null);
 
+const getInitialUser = () => {
+  const token = sessionStorage.getItem('token');
+  if (token) {
+    try {
+      const decoded = jwtDecode(token);
+      if (decoded.exp && decoded.exp * 1000 >= Date.now()) {
+        const role = decoded.roles && decoded.roles.length > 0 ? decoded.roles[0] : null;
+        return { email: decoded.sub || decoded.email, role };
+      } else {
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('demo_mode');
+        return null;
+      }
+    } catch {
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('demo_mode');
+      return null;
+    }
+  }
+
+  const isDemo = sessionStorage.getItem('demo_mode');
+  if (isDemo) {
+    return {
+      name: 'Admin FarmShift',
+      fullName: 'Admin FarmShift',
+      email: 'admin@farmshift.local',
+      phone: '0988 123 456',
+      role: 'ROLE_FARM_OWNER',
+      address: 'Xã Tân Dân, Huyện Sóc Sơn, Hà Nội'
+    };
+  }
+
+  return null;
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(getInitialUser);
+  const [loading, setLoading] = useState(() => Boolean(sessionStorage.getItem('token')));
+
+  const logout = () => {
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('demo_mode');
+    setUser(null);
+  };
 
   useEffect(() => {
     let isMounted = true;
-
     const token = sessionStorage.getItem('token');
+
     if (token) {
-      try {
-        const decoded = jwtDecode(token);
-
-        // Check expiration
-        if (decoded.exp && decoded.exp * 1000 < Date.now()) {
-          logout();
+      // Fetch full user profile from backend
+      getProfile()
+        .then(profile => {
+          if (isMounted && profile) {
+            setUser(prev => ({
+              ...prev,
+              name: profile.fullName || 'Admin',
+              fullName: profile.fullName || 'Admin',
+              avatarUrl: profile.avatarUrl,
+              phone: profile.phone || '',
+              citizenId: profile.citizenId || '',
+              address: profile.address || '',
+              dateOfBirth: profile.dateOfBirth || '',
+              role: profile.role || (prev && prev.role)
+            }));
+          }
+        })
+        .catch(err => {
+          console.warn("Backend profile fetch warning (using cached user):", err.message);
+        })
+        .finally(() => {
           if (isMounted) setLoading(false);
-        } else {
-          const role = decoded.roles && decoded.roles.length > 0 ? decoded.roles[0] : null;
-          if (isMounted) setUser({ email: decoded.sub || decoded.email, role });
-
-          // Fetch full user profile from backend
-          getProfile()
-            .then(profile => {
-              if (isMounted && profile) {
-                setUser(prev => ({
-                  ...prev,
-                  name: profile.fullName || 'Admin',
-                  fullName: profile.fullName || 'Admin',
-                  avatarUrl: profile.avatarUrl,
-                  phone: profile.phone || '',
-                  citizenId: profile.citizenId || '',
-                  address: profile.address || '',
-                  dateOfBirth: profile.dateOfBirth || '',
-                  role: profile.role || role
-                }));
-              }
-            })
-            .catch(err => {
-              console.warn("Backend profile fetch warning (using cached user):", err.message);
-            })
-            .finally(() => {
-              if (isMounted) setLoading(false);
-            });
-        }
-      } catch (e) {
-        logout();
-        if (isMounted) setLoading(false);
-      }
-    } else {
-      // If demo mode was flagged
-      const isDemo = sessionStorage.getItem('demo_mode');
-      if (isDemo) {
-        setUser({
-          name: 'Admin FarmShift',
-          fullName: 'Admin FarmShift',
-          email: 'admin@farmshift.local',
-          phone: '0988 123 456',
-          role: 'ROLE_FARM_OWNER',
-          address: 'Xã Tân Dân, Huyện Sóc Sơn, Hà Nội'
         });
-      }
-      if (isMounted) setLoading(false);
     }
 
     const handleUnauthorized = () => {
@@ -118,11 +129,6 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
-  const logout = () => {
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('demo_mode');
-    setUser(null);
-  };
 
   const updateUser = (updates) => {
     setUser((prev) => ({ ...prev, ...updates }));

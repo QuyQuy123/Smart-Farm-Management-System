@@ -1,19 +1,19 @@
-DB_HOST=dpg-dap9ojad0e5s73f77jvg-a.singapore-postgres.render.com
+DB_HOST=your_db_host_here
 DB_PORT=5432
 DB_NAME=farmshift_db
-DB_USERNAME=farmshift_db_user
-DB_PASSWORD=p2jUBbf34VIKHh324hcm9cUKcuA7Lg5F
+DB_USERNAME=your_db_username_here
+DB_PASSWORD=your_db_password_here
 
-JWT_SECRET:dGhpc2lzYXZlcnlsb25nc2VjcmV0a2V5Zm9yZmFybXNoaWZ0
-JWT_EXPIRATION_MS:86400000
+JWT_SECRET=your_base64_jwt_secret_key_at_least_256_bits_here
+JWT_EXPIRATION_MS=86400000
 
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=587
-MAIL_USERNAME=your_email here
-MAIL_PASSWORD=your_password_mail_application_here
+MAIL_USERNAME=your_email_here@gmail.com
+MAIL_PASSWORD=your_email_app_password_here
 
-R2_ACCESS_KEY=4184e9d7a57bc6fb787931fd49b2fb19
-R2_SECRET_KEY=a46b07e656155ef4cb41169caf6a23b70e4afc14fd4c475f5cb4af8b85931b73
-R2_ENDPOINT_URL=https://9b0593eccba8fabf413f0d5f32e3ee93.r2.cloudflarestorage.com
+R2_ACCESS_KEY=your_r2_access_key_here
+R2_SECRET_KEY=your_r2_secret_key_here
+R2_ENDPOINT_URL=https://your_cloudflare_account_id.r2.cloudflarestorage.com
 R2_BUCKET_NAME=farmshift-storage
-R2_PUBLIC_URL=https://pub-4c5e9879537d44899ce135f0e8fdeed1.r2.dev
+R2_PUBLIC_URL=https://your_public_r2_dev_url.r2.dev

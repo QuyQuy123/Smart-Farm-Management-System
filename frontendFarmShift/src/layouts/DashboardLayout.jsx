@@ -1,18 +1,17 @@
 // src/layouts/DashboardLayout.jsx
 // FarmShift Shell — Rebuilt directly from FarmShift.html prototype UX/UI
 import React, { useState, useEffect } from 'react';
-import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Menu, LogOut, Search, Bell, Settings,
+  Bell, Settings,
   LayoutDashboard, Beef, Package, ShoppingCart, ClipboardList,
   Warehouse, BarChart3, Users, FileText, TrendingUp,
-  Activity, Sparkles, Plus, Mic, Calendar, CheckSquare
+  Activity, Sparkles, Plus, Calendar
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { UserProfileModal } from '../features/profile/UserProfileModal';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { ROUTES_REGISTRY } from '../features/farmshift/farmshiftData';
-import styles from './Layout.module.css';
 
 /* ── Navigation matching FarmShift.html exactly ───────────── */
 const OWNER_NAV = [
