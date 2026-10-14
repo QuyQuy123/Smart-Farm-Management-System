@@ -1059,47 +1059,6 @@ export const AccountView = () => {
             <h3 className="farmshift-card-title">Thông tin hồ sơ cá nhân</h3>
           </div>
           <div className="farmshift-card-body">
-            {profileMessage.text && (
-              <div style={{
-                position: 'relative',
-                overflow: 'hidden',
-                padding: '12px 16px 15px 16px',
-                marginBottom: '16px',
-                borderRadius: 'var(--rounded-md)',
-                backgroundColor: profileMessage.type === 'success' ? '#e6f4ea' : '#fce8e6',
-                color: profileMessage.type === 'success' ? '#137333' : '#c5221f',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-              }}>
-                {profileMessage.type === 'success' ? <CheckCircle size={16} /> : <ShieldCheck size={16} />}
-                <span style={{ flex: 1 }}>{profileMessage.text}</span>
-                {profileMessage.type === 'success' && (
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    padding: '2px 8px',
-                    borderRadius: '10px',
-                    backgroundColor: '#c6f6d5',
-                    color: '#22543d'
-                  }}>
-                    Đã đồng bộ
-                  </span>
-                )}
-                {/* Thanh animation đếm ngược chạy ở dưới cái form thông báo */}
-                <div
-                  className="farmshift-inline-alert-progress"
-                  style={{
-                    background: profileMessage.type === 'success'
-                      ? 'linear-gradient(90deg, #10b981, #059669)'
-                      : 'linear-gradient(90deg, #ef4444, #dc2626)'
-                  }}
-                />
-              </div>
-            )}
-
             <form onSubmit={handleUpdateProfile}>
               <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
@@ -1371,35 +1330,6 @@ export const AccountView = () => {
             <h3 className="farmshift-card-title">Đổi mật khẩu bảo mật</h3>
           </div>
           <div className="farmshift-card-body">
-            {passwordMessage.text && (
-              <div style={{
-                position: 'relative',
-                overflow: 'hidden',
-                padding: '12px 16px 15px 16px',
-                marginBottom: '16px',
-                borderRadius: 'var(--rounded-md)',
-                backgroundColor: passwordMessage.type === 'success' ? '#e6f4ea' : '#fce8e6',
-                color: passwordMessage.type === 'success' ? '#137333' : '#c5221f',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-              }}>
-                {passwordMessage.type === 'success' ? <CheckCircle size={16} /> : <ShieldCheck size={16} />}
-                <span style={{ flex: 1 }}>{passwordMessage.text}</span>
-                {/* Thanh animation đếm ngược chạy ở dưới cái form thông báo */}
-                <div
-                  className="farmshift-inline-alert-progress"
-                  style={{
-                    background: passwordMessage.type === 'success'
-                      ? 'linear-gradient(90deg, #10b981, #059669)'
-                      : 'linear-gradient(90deg, #ef4444, #dc2626)'
-                  }}
-                />
-              </div>
-            )}
-
             <form onSubmit={handleChangePassword}>
               <div className="farmshift-form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
