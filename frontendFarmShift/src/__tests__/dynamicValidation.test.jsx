@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { AuthProvider } from '../context/AuthContext';
-import { NotificationProvider, useNotification } from '../context/NotificationContext';
+import { NotificationProvider, useNotification, formatNotificationTime, renderNotificationContent } from '../context/NotificationContext';
 import { MemoryRouter } from 'react-router-dom';
 import {
   AccountView,
@@ -180,6 +180,45 @@ describe('Interactive Dynamic Validation in AccountView Component', () => {
     expect(notifContext.alerts[0].value).toContain('Hồ sơ cá nhân đã được cập nhật thành công');
     expect(notifContext.alerts[0].level).toBe('Thành công');
     expect(notifContext.alerts[0].barn).toBe('Hồ sơ cá nhân');
+  });
+
+  describe('formatNotificationTime & renderNotificationContent helpers', () => {
+    it('formats relative times properly according to duration rules', () => {
+      const now = Date.now();
+      
+      // Under 60 seconds
+      const justNow = formatNotificationTime(now - 15 * 1000);
+      expect(justNow).toMatch(/^Vừa xong \(\d{2}:\d{2}\)$/);
+
+      // 1 to 59 minutes (e.g., 5 mins ago)
+      const fiveMins = formatNotificationTime(now - 5 * 60 * 1000);
+      expect(fiveMins).toMatch(/^5 phút trước \(\d{2}:\d{2}\)$/);
+
+      // 1 to 24 hours (e.g., 3 hours ago on same day)
+      const dNow = new Date();
+      if (dNow.getHours() >= 4) {
+        const threeHours = formatNotificationTime(now - 3 * 3600 * 1000);
+        expect(threeHours).toMatch(/^3 giờ trước \(\d{2}:\d{2}\)$/);
+      }
+
+      // Past day / > 24 hours
+      const yesterday = formatNotificationTime(now - 48 * 3600 * 1000);
+      expect(yesterday).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
+    });
+
+    it('deduplicates category/barn prefixes properly in renderNotificationContent', () => {
+      // If message starts with barn name, avoid prepending barn:
+      const rendered1 = renderNotificationContent('Hồ sơ cá nhân', 'Hồ sơ cá nhân đã được cập nhật thành công.');
+      expect(rendered1).toBe('Hồ sơ cá nhân đã được cập nhật thành công.');
+
+      // If message has double prefix in value, strip first
+      const rendered2 = renderNotificationContent('Hồ sơ cá nhân', 'Hồ sơ cá nhân: Hồ sơ cá nhân đã được cập nhật thành công.');
+      expect(rendered2).toBe('Hồ sơ cá nhân đã được cập nhật thành công.');
+
+      // If message does not repeat barn name, return strong barn prefix
+      const rendered3 = renderNotificationContent('Nhà A1', '29.2°C (Ngưỡng 29.0°C)');
+      expect(React.isValidElement(rendered3)).toBe(true);
+    });
   });
 });
 

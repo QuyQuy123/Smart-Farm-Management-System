@@ -228,9 +228,9 @@ export const INITIAL_FARMSHIFT_DATA = {
 
     // 8. Cảnh báo Realtime (IoT)
     alerts: [
-        { id: 'al-1', time: '14:25 - Hôm nay', barn: 'Nhà A1', type: 'Nhiệt độ cao', value: '29.2°C (Ngưỡng: 29.0°C)', level: 'Cảnh báo', status: 'Hệ thống quạt hút đang tăng tốc' },
-        { id: 'al-2', time: '09:10 - Hôm nay', barn: 'Kho Cám & Thức ăn', type: 'Tồn kho', value: 'Higro 01 chạm ngưỡng an toàn', level: 'Nhắc nhở', status: 'Đề xuất đặt thêm 50 bao' },
-        { id: 'al-3', time: 'Hôm qua', barn: 'Nhà J2', type: 'Độ ẩm cao', value: '78% (Mưa lớn)', level: 'Đã xử lý', status: 'Đã rải thêm trấu độn chuồng' },
+        { id: 'al-1', time: '14:25', createdAt: Date.now() - 15 * 60 * 1000, barn: 'Nhà A1', type: 'Nhiệt độ cao', value: '29.2°C (Ngưỡng: 29.0°C)', level: 'Cảnh báo', status: 'Hệ thống quạt hút đang tăng tốc' },
+        { id: 'al-2', time: '09:10', createdAt: Date.now() - 2 * 3600 * 1000, barn: 'Kho Cám & Thức ăn', type: 'Tồn kho', value: 'Higro 01 chạm ngưỡng an toàn', level: 'Nhắc nhở', status: 'Đề xuất đặt thêm 50 bao' },
+        { id: 'al-3', time: 'Hôm qua', createdAt: Date.now() - 26 * 3600 * 1000, barn: 'Nhà J2', type: 'Độ ẩm cao', value: '78% (Mưa lớn)', level: 'Đã xử lý', status: 'Đã rải thêm trấu độn chuồng' },
     ]
 };
 

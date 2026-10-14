@@ -11,7 +11,7 @@ import {
     CheckCircle, AlertTriangle, AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useNotification } from '../context/NotificationContext';
+import { useNotification, formatNotificationTime, renderNotificationContent } from '../context/NotificationContext';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { GlobalSearch } from '../components/GlobalSearch/GlobalSearch';
 import { getFarmInfo } from '../data/farmshiftMockData';
@@ -41,6 +41,10 @@ const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
         ? 'linear-gradient(90deg, #10b981, #059669)'
         : 'linear-gradient(90deg, #019788, #004d40)';
 
+    // Loại bỏ badge lặp từ "Thành công" khi type đã là "Thao tác thành công"
+    const showBadge = !isSuccess && activeToast.level && activeToast.level !== activeToast.type;
+    const formattedTime = formatNotificationTime(activeToast.createdAt, activeToast.time);
+
     return (
         <div
             className="farmshift-floating-toast"
@@ -56,18 +60,19 @@ const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
             </div>
             <div className="farmshift-toast-body">
                 <div className="farmshift-toast-header">
-                    <span className="farmshift-toast-badge" style={{
-                        backgroundColor: isError ? '#ffe4e6' : isWarning ? '#fef3c7' : '#e0f2f1',
-                        color: isError ? '#be123c' : isWarning ? '#b45309' : '#004d40'
-                    }}>
-                        {activeToast.level || 'Thông báo'}
-                    </span>
-                    <span className="farmshift-toast-type">{activeToast.type}</span>
-                    <span className="farmshift-toast-time">{activeToast.time}</span>
+                    {showBadge && (
+                        <span className="farmshift-toast-badge" style={{
+                            backgroundColor: isError ? '#ffe4e6' : isWarning ? '#fef3c7' : '#e0f2f1',
+                            color: isError ? '#be123c' : isWarning ? '#b45309' : '#004d40'
+                        }}>
+                            {activeToast.level}
+                        </span>
+                    )}
+                    <span className="farmshift-toast-type">{activeToast.type || activeToast.level || 'Thông báo'}</span>
+                    <span className="farmshift-toast-time">{formattedTime}</span>
                 </div>
                 <div className="farmshift-toast-text">
-                    {activeToast.barn ? <strong>{activeToast.barn}: </strong> : null}
-                    {activeToast.value}
+                    {renderNotificationContent(activeToast.barn, activeToast.value, isSuccess)}
                 </div>
                 {activeToast.status && !activeToast.isSystem && (
                     <div className="farmshift-toast-status">{activeToast.status}</div>
@@ -115,6 +120,16 @@ export const FarmShiftLayout = ({
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+
+    // Cập nhật thời gian tương đối ("Vừa xong", "X phút trước") động theo thời gian thực mỗi 15s
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (!notifOpen && !activeToast) return;
+        const interval = setInterval(() => {
+            setTick(t => t + 1);
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [notifOpen, activeToast]);
 
     // Synchronize collapsed state across different page instances
     useEffect(() => {
@@ -291,6 +306,7 @@ export const FarmShiftLayout = ({
                                         alerts.map(al => {
                                             const isSuccess = al.level === 'Thành công' || al.type?.includes('Thành công');
                                             const isWarning = al.level === 'Cảnh báo';
+                                            const formattedTime = formatNotificationTime(al.createdAt, al.time);
 
                                             return (
                                                 <div
@@ -316,11 +332,12 @@ export const FarmShiftLayout = ({
                                                             {isSuccess ? <CheckCircle size={13} color="#16a34a" /> : isWarning ? <AlertTriangle size={13} color="var(--color-signature-coral)" /> : <AlertCircle size={13} />}
                                                             {al.type}
                                                         </span>
-                                                        <span style={{ fontSize: '11px', color: 'var(--color-muted)', fontWeight: 400 }}>{al.time}</span>
+                                                        <span style={{ fontSize: '11px', color: 'var(--color-muted)', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                                            {formattedTime}
+                                                        </span>
                                                     </div>
                                                     <div style={{ color: 'var(--color-ink)', lineHeight: 1.4 }}>
-                                                        {al.barn && <strong style={{ color: isSuccess ? '#15803d' : 'var(--color-ink)' }}>{al.barn}: </strong>}
-                                                        {al.value}
+                                                        {renderNotificationContent(al.barn, al.value, isSuccess)}
                                                     </div>
                                                     {al.status && (
                                                         <div style={{ fontSize: '11.5px', color: isSuccess ? '#16a34a' : 'var(--color-muted)' }}>

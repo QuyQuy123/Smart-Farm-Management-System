@@ -2038,6 +2038,7 @@ h6 {
   align-items: center;
   gap: 8px;
   margin-bottom: 3px;
+  flex-wrap: nowrap;
 }
 
 .farmshift-toast-badge {
@@ -2047,18 +2048,27 @@ h6 {
   border-radius: 4px;
   background-color: #fee2e2;
   color: #b91c1c;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .farmshift-toast-type {
   font-size: 13px;
   font-weight: 600;
   color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .farmshift-toast-time {
   font-size: 11px;
   color: #94a3b8;
   margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .farmshift-toast-text {
