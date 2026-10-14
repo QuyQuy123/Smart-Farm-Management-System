@@ -3,12 +3,14 @@ package com.farmshift.backendFarmShift.exception;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -65,7 +67,36 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(BadRequestException ex) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.errorWithCode(ex.getMessage(), ex.getErrorCode(), null));
+    }
+
+    /** Duplicate data (e.g. email already in use — MSG47). */
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleConflict(ConflictException ex) {
+        Map<String, String> fieldErrors = ex.getField() == null
+                ? null
+                : Map.of(ex.getField(), ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.errorWithCode(ex.getMessage(), ex.getErrorCode(), fieldErrors));
+    }
+
+    /** Authenticated but not permitted by @PreAuthorize (MSG05). */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.errorWithCode(
+                        "You do not have permission to perform this action.", "MSG05", null));
+    }
+
+    /** Malformed path/query parameter, e.g. /api/employees/abc. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.errorWithCode(
+                        "Invalid value for parameter '" + ex.getName() + "'.", "MSG07", null));
     }
 
     /** Safety-net for anything not explicitly mapped. */

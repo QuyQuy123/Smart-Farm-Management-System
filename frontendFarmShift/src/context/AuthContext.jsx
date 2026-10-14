@@ -1,6 +1,4 @@
-// src/context/AuthContext.jsx
-// Quản lý phiên làm việc & đồng bộ với Spring Boot Backend API
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { getProfile } from '../services/userService';
 
@@ -45,11 +43,11 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(getInitialUser);
   const [loading, setLoading] = useState(() => Boolean(sessionStorage.getItem('token')));
 
-  const logout = () => {
+  const logout = useCallback(() => {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('demo_mode');
     setUser(null);
-  };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -130,9 +128,9 @@ export const AuthProvider = ({ children }) => {
   };
 
 
-  const updateUser = (updates) => {
+  const updateUser = useCallback((updates) => {
     setUser((prev) => ({ ...prev, ...updates }));
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, loginDemo, logout, updateUser }}>
