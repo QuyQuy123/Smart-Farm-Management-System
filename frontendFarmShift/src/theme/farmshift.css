@@ -2003,21 +2003,6 @@ h6 {
   }
 }
 
-.farmshift-toast-countdown-pill {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #059669;
-  background-color: #ecfdf5;
-  padding: 1px 6px;
-  border-radius: 10px;
-  border: 1px solid #a7f3d0;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-}
-
 /* ── Inline Form Alert Progress Line ─────────────────────── */
 .farmshift-inline-alert-progress {
   position: absolute;

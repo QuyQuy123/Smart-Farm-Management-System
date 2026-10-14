@@ -18,18 +18,8 @@ import { getFarmInfo } from '../data/farmshiftMockData';
 import farmLogo from '../assets/logo_Farm.png';
 import '../theme/farmshift.css';
 
-// Floating Real-time Toast Component with Live Countdown and Bottom Progress Bar Animation
+// Floating Real-time Toast Component with Bottom Progress Bar Animation
 const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
-    const [secondsLeft, setSecondsLeft] = useState(4);
-
-    useEffect(() => {
-        setSecondsLeft(4);
-        const interval = setInterval(() => {
-            setSecondsLeft((prev) => (prev > 1 ? prev - 1 : 1));
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [activeToast?.id]);
-
     const isSuccess = activeToast.level === 'Thành công';
     const isError = activeToast.level === 'Lỗi';
     const isWarning = activeToast.level === 'Cảnh báo';
@@ -73,9 +63,6 @@ const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
                         {activeToast.level || 'Thông báo'}
                     </span>
                     <span className="farmshift-toast-type">{activeToast.type}</span>
-                    <span className="farmshift-toast-countdown-pill" title="Bộ đếm tự đóng">
-                        ⏱️ {secondsLeft}s
-                    </span>
                     <span className="farmshift-toast-time">{activeToast.time}</span>
                 </div>
                 <div className="farmshift-toast-text">
