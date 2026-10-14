@@ -50,6 +50,23 @@ vi.mock('../utils/api', () => ({
           data: { success: true, data: [] }
         });
       }
+      if (url === '/employees') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: [
+              {
+                id: 1,
+                email: 'admin@farmshift.local',
+                fullName: 'Chủ Trại Test',
+                phone: '0988123456',
+                roleName: 'ROLE_FARM_OWNER',
+                isActive: true
+              }
+            ]
+          }
+        });
+      }
       return Promise.resolve({ data: { success: true, data: {} } });
     }),
     post: vi.fn(() => Promise.resolve({ data: { success: true, data: { accessToken: 'mock-jwt-token' } } })),
@@ -212,6 +229,7 @@ describe('Full-System Automated Crawler & Smoke Sweep Test', () => {
       { name: 'CatalogSettingsView', component: <CatalogSettingsView /> },
       { name: 'BreedingSettingsView', component: <BreedingSettingsView /> },
       { name: 'GeneralSettingsView', component: <GeneralSettingsView /> },
+      { name: 'AccountView', component: <AccountView /> },
     ];
 
     multiTabViews.forEach(({ name, component }) => {
@@ -224,6 +242,22 @@ describe('Full-System Automated Crawler & Smoke Sweep Test', () => {
           });
           expect(document.body).toBeDefined();
         }
+      });
+    });
+
+    it('AccountView loads and populates personal profile form fields properly', async () => {
+      renderWithProviders(<AccountView />);
+      const buttons = screen.getAllByRole('button');
+      const profileTab = buttons.find(b => /hồ sơ cá nhân/i.test(b.textContent));
+      await act(async () => {
+        fireEvent.click(profileTab);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Thông tin hồ sơ cá nhân/i)).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Chủ Trại Test')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('0988123456')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Xã Tân Dân, Sóc Sơn, Hà Nội')).toBeInTheDocument();
       });
     });
   });
