@@ -1,5 +1,5 @@
 // src/features/auth/ResetPassword.jsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import { authService } from '../../services/authService';
@@ -31,58 +31,7 @@ export const ResetPassword = () => {
   // Timer state for resend code
   const [timer, setTimer] = useState(60);
 
-  useEffect(() => {
-    let interval;
-    if (timer > 0 && step === 1) {
-      interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timer, step]);
-
-  // Auto-submit OTP
-  useEffect(() => {
-    const otpString = otp.join('');
-    if (otpString.length === 6 && step === 1 && !loading) {
-      verifyOtpAction(otpString);
-    }
-  }, [otp, step]);
-
-  if (!email) {
-    return <Navigate to="/forgot-password" replace />;
-  }
-
-  // ── Step 1: Handle OTP Input ──────────────────────────────────
-  const handleOtpChange = (index, value) => {
-    if (value.length > 1) {
-      const pastedData = value.slice(0, 6).split('');
-      const newOtp = [...otp];
-      for (let i = 0; i < pastedData.length; i++) {
-        if (index + i < 6) newOtp[index + i] = pastedData[i];
-      }
-      setOtp(newOtp);
-      const focusIndex = Math.min(index + pastedData.length, 5);
-      otpRefs.current[focusIndex]?.focus();
-      return;
-    }
-
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const verifyOtpAction = async (otpString) => {
+  const verifyOtpAction = useCallback(async (otpString) => {
     setError('');
     setLoading(true);
 
@@ -95,6 +44,52 @@ export const ResetPassword = () => {
       otpRefs.current[0]?.focus();
     } finally {
       setLoading(false);
+    }
+  }, [email]);
+
+  useEffect(() => {
+    let interval;
+    if (timer > 0 && step === 1) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timer, step]);
+
+  if (!email) {
+    return <Navigate to="/forgot-password" replace />;
+  }
+
+  // ── Step 1: Handle OTP Input ──────────────────────────────────
+  const handleOtpChange = (index, value) => {
+    let nextOtp = [...otp];
+    if (value.length > 1) {
+      const pastedData = value.slice(0, 6).split('');
+      for (let i = 0; i < pastedData.length; i++) {
+        if (index + i < 6) nextOtp[index + i] = pastedData[i];
+      }
+      setOtp(nextOtp);
+      const focusIndex = Math.min(index + pastedData.length, 5);
+      otpRefs.current[focusIndex]?.focus();
+    } else {
+      nextOtp[index] = value;
+      setOtp(nextOtp);
+
+      if (value && index < 5) {
+        otpRefs.current[index + 1]?.focus();
+      }
+    }
+
+    const otpString = nextOtp.join('');
+    if (otpString.length === 6 && step === 1 && !loading) {
+      verifyOtpAction(otpString);
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
     }
   };
 

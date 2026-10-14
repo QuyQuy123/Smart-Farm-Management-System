@@ -3,11 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, X, Send, Bot, RotateCcw,
-  Wheat, Stethoscope, Activity, Pill, Thermometer, ChevronDown,
-  Mic, MicOff, ShieldAlert
+  ChevronDown, Mic, MicOff, ShieldAlert
 } from 'lucide-react';
 import { getSystemMessage } from '../../constants/systemMessages';
 import styles from './AIChatbot.module.css';
+
+let nextMsgId = 100;
+const generateMessageId = () => `msg_${Date.now()}_${++nextMsgId}`;
 
 const formatCurrentTime = () => {
   const now = new Date();
@@ -161,13 +163,13 @@ export const AIChatbot = () => {
     if (isListening && recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) { }
+      } catch (_e) { }
       setIsListening(false);
       setVoiceNotice('');
     }
 
     const userMsg = {
-      id: Date.now(),
+      id: generateMessageId(),
       type: 'user',
       text: queryText.trim(),
       time: formatCurrentTime()
@@ -192,7 +194,7 @@ export const AIChatbot = () => {
       setMessages(prev => [
         ...prev,
         {
-          id: Date.now() + 1,
+          id: generateMessageId(),
           type: 'bot',
           text: botResponse,
           time: formatCurrentTime()

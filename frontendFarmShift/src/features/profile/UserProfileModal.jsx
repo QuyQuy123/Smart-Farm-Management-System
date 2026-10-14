@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { X, Upload, Trash2 } from 'lucide-react';
 import { Input } from '../../components/Input/Input';
 import { Button } from '../../components/Button/Button';
@@ -12,6 +12,7 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
   const { user, updateUser } = useAuth();
 
   // Profile State
+  const [prevUser, setPrevUser] = useState(user);
   const [name, setName] = useState(user?.name || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [phone, setPhone] = useState(user?.phone || '');
@@ -19,14 +20,8 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
   const [address, setAddress] = useState(user?.address || '');
   const [dateOfBirth, setDateOfBirth] = useState(user?.dateOfBirth || '');
 
-  const fileInputRef = useRef(null);
-  const [loadingProfile, setLoadingProfile] = useState(false);
-  const [profileMessage, setProfileMessage] = useState(null);
-  
-  // Cropper State
-  const [selectedImageToCrop, setSelectedImageToCrop] = useState(null);
-
-  useEffect(() => {
+  if (user !== prevUser) {
+    setPrevUser(user);
     if (user) {
       setName(user.name || '');
       setAvatarUrl(user.avatarUrl || '');
@@ -35,7 +30,14 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
       setAddress(user.address || '');
       setDateOfBirth(user.dateOfBirth || '');
     }
-  }, [user]);
+  }
+
+  const fileInputRef = useRef(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState(null);
+  
+  // Cropper State
+  const [selectedImageToCrop, setSelectedImageToCrop] = useState(null);
 
   // Password State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -95,7 +97,7 @@ export const UserProfileModal = ({ isOpen, onClose }) => {
         dateOfBirth
       }); // Sync globally!
       setProfileMessage({ type: 'success', text: getSystemMessage('MSG13') });
-    } catch (err) {
+    } catch (_err) {
       setProfileMessage({ type: 'error', text: getSystemMessage('MSG04') });
     } finally {
       setLoadingProfile(false);

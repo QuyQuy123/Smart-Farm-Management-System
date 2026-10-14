@@ -101,14 +101,9 @@ export const StockTempChart = ({
 
     const timer = setInterval(() => {
       setLiveTemp((prev) => {
-        // Dynamic IoT Reaction based on Ventilation Fan status!
-        let drift = 0;
-        if (fanRef.current?.on) {
-          const coolRate = fanRef.current.speed === 3 ? 0.09 : fanRef.current.speed === 2 ? 0.06 : 0.035;
-          drift = -coolRate;
-        } else {
-          drift = 0.055;
-        }
+        const drift = fanRef.current?.on
+          ? -(fanRef.current.speed === 3 ? 0.09 : fanRef.current.speed === 2 ? 0.06 : 0.035)
+          : 0.055;
 
         const jitter = (Math.random() - 0.48) * 0.08;
         let nextTemp = Number((prev + drift + jitter).toFixed(1));

@@ -46,13 +46,16 @@ export const GeneralSettingsView = () => {
   const [groupFilter, setGroupFilter] = useState('ALL');
   const [roleFilter, setRoleFilter] = useState('ALL');
 
-  useEffect(() => {
+  const [prevLoc, setPrevLoc] = useState(() => location.pathname + location.search);
+  const currentLoc = location.pathname + location.search;
+  if (currentLoc !== prevLoc) {
+    setPrevLoc(currentLoc);
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
     if (tabParam) setActiveTab(tabParam);
     else if (location.pathname.includes('screens')) setActiveTab('screens');
     else if (location.pathname.includes('notifications')) setActiveTab('notifications');
-  }, [location.pathname, location.search]);
+  }
 
   const handleSaveFarmInfo = (e) => {
     e.preventDefault();

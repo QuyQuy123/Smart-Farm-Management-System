@@ -2,7 +2,7 @@
 // Hồ sơ cá nhân / Đổi mật khẩu / Cài đặt thông báo — Exact FarmShift.html UI/UX Clone
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, Trash2, Camera, Check } from 'lucide-react';
+import { Trash2, Camera } from 'lucide-react';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 import { updateProfile, changePassword } from '../../services/userService';
@@ -40,14 +40,16 @@ export const ProfilePage = ({ initialTab = 'info' }) => {
   const [feedbackType, setFeedbackType] = useState('success');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const [prevUser, setPrevUser] = useState(user);
+  if (user !== prevUser) {
+    setPrevUser(user);
     if (user) {
       if (user.name) setName(user.name);
       if (user.phone) setPhone(user.phone);
       if (user.email) setEmail(user.email);
       if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
     }
-  }, [user]);
+  }
 
   const roleTitleMap = {
     'ROLE_FARM_OWNER': 'Chủ trang trại',
