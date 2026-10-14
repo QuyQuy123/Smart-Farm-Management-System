@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Mail, ArrowLeft, AlertCircle } from 'lucide-react';
 import { api } from '../../utils/api';
 import { AuthLayout } from './AuthLayout';
+import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 import '../../theme/farmshift.css';
 
 export const ForgotPassword = () => {
@@ -84,10 +85,18 @@ export const ForgotPassword = () => {
           <button
             type="submit"
             disabled={loading}
-            className="farmshift-btn farmshift-btn-primary"
-            style={{ width: '100%', justifyContent: 'center', height: '44px' }}
+            aria-busy={loading}
+            className={`farmshift-btn farmshift-btn-primary ${loading ? 'is-loading' : ''}`}
+            style={{ width: '100%', justifyContent: 'center', height: '44px', gap: '10px' }}
           >
-            {loading ? 'Đang gửi mã...' : 'Gửi mã xác thực'}
+            {loading ? (
+              <>
+                <ButtonSpinner size={18} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                <span>Đang gửi mã xác thực...</span>
+              </>
+            ) : (
+              'Gửi mã xác thực'
+            )}
           </button>
         </div>
       </form>

@@ -182,7 +182,7 @@ export const FarmSystemMap = ({ onSelectNode }) => {
             </div>
 
             {/* Nodes Row with arrows */}
-            <div style={{
+            <div className="farmshift-system-map-grid" style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${band.nodes.length}, 1fr)`,
               gap: '14px',

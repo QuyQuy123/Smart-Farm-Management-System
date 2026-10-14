@@ -133,3 +133,26 @@
   font-weight: var(--fw-medium);
   white-space: nowrap;
 }
+
+/* ── Responsive Mobile Optimizations ── */
+@media (max-width: 640px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .th, .td {
+    padding: 8px 10px;
+    font-size: 12.5px;
+  }
+
+  .pagination {
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+  }
+}
+

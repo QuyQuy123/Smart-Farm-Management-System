@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/authService';
 import { Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { AuthLayout } from './AuthLayout';
+import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 import { getSystemMessage } from '../../constants/systemMessages';
 import '../../theme/farmshift.css';
 
@@ -177,16 +178,25 @@ export const Login = () => {
         <button
           type="submit"
           disabled={loading}
-          className="farmshift-btn farmshift-btn-primary"
+          aria-busy={loading}
+          className={`farmshift-btn farmshift-btn-primary ${loading ? 'is-loading' : ''}`}
           style={{
             width: '100%',
             justifyContent: 'center',
             height: '44px',
             fontSize: '14.5px',
-            fontWeight: 500
+            fontWeight: 500,
+            gap: '10px'
           }}
         >
-          {loading ? 'Đang xác thực...' : 'Đăng nhập vào hệ thống'}
+          {loading ? (
+            <>
+              <ButtonSpinner size={18} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+              <span style={{ letterSpacing: '0.2px' }}>Đang xác thực thông tin...</span>
+            </>
+          ) : (
+            'Đăng nhập vào hệ thống'
+          )}
         </button>
       </form>
     </AuthLayout>

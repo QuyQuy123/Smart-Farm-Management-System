@@ -7,12 +7,14 @@ import {
   RefreshCw, Warehouse, Users, Bell, ExternalLink, Download, Search, Check, Filter
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA, getFarmInfo, saveFarmInfo } from '../../data/farmshiftMockData';
 import { FARMSHIFT_SCREENS } from '../../data/screensMatrix';
 
 export const GeneralSettingsView = () => {
   const { user } = useAuth();
+  const { showToast } = useNotification();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -60,14 +62,12 @@ export const GeneralSettingsView = () => {
   const handleSaveFarmInfo = (e) => {
     e.preventDefault();
     saveFarmInfo(farmInfo);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    showToast('Đã lưu thông tin cơ sở trang trại thành công!', 'success');
   };
 
   const handleSaveNotifications = (e) => {
     e.preventDefault();
-    setNotifSaved(true);
-    setTimeout(() => setNotifSaved(false), 3000);
+    showToast('Đã lưu cài đặt thông báo trang trại thành công!', 'success');
   };
 
   const handleExportJSON = () => {
@@ -522,7 +522,7 @@ export const GeneralSettingsView = () => {
                 </p>
                 <button
                   className="farmshift-btn farmshift-btn-secondary"
-                  onClick={() => alert('Chọn tệp sao lưu JSON từ máy tính của bạn')}
+                  onClick={() => showToast('Đã sẵn sàng kết nối và tiếp nhận tệp sao lưu JSON!', 'info')}
                 >
                   <Upload size={15} /> Đọc bản sao lưu
                 </button>
@@ -535,7 +535,7 @@ export const GeneralSettingsView = () => {
                 </p>
                 <button
                   className="farmshift-btn farmshift-btn-excel"
-                  onClick={() => alert('Đã khôi phục dữ liệu mẫu Trang trại Miến Bình thành công!')}
+                  onClick={() => showToast('Đã khôi phục dữ liệu mẫu Trang trại Miến Bình thành công!', 'success')}
                 >
                   <RefreshCw size={15} /> Đặt lại dữ liệu mẫu
                 </button>

@@ -83,3 +83,43 @@
   border-top:      1px solid var(--color-hairline);
   flex-shrink:     0;
 }
+
+/* ── Responsive Mobile Optimizations ── */
+@media (max-width: 640px) {
+  .overlay {
+    padding: 10px;
+  }
+
+  .panel {
+    max-height: calc(100dvh - 20px);
+    border-radius: var(--rounded-md);
+  }
+
+  .sm, .md, .lg {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .header {
+    padding: 12px 16px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+
+  .body {
+    padding: 16px 14px;
+  }
+
+  .footer {
+    padding: 12px 14px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .footer > * {
+    width: 100%;
+  }
+}
+

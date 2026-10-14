@@ -513,3 +513,52 @@
   0% { transform: scaleY(0.35); }
   100% { transform: scaleY(1.2); }
 }
+
+/* ── Responsive Mobile Optimizations ── */
+@media (max-width: 640px) {
+  .chatbotWidget {
+    bottom: 16px;
+    right: 14px;
+  }
+
+  .chatButton {
+    width: 50px;
+    height: 50px;
+    border-radius: 25px;
+  }
+
+  .chatWindow {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    height: min(580px, calc(100dvh - 86px));
+    margin-bottom: 10px;
+    border-radius: 16px;
+  }
+
+  .header {
+    padding: 12px 14px;
+  }
+
+  .title {
+    font-size: 14px;
+  }
+
+  .quickPrompts {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .quickPrompts::-webkit-scrollbar {
+    display: none;
+  }
+
+  .quickPromptBtn {
+    flex-shrink: 0;
+    font-size: 11.5px;
+    padding: 5px 10px;
+  }
+}
+

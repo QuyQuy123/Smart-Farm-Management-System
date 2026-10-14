@@ -54,6 +54,11 @@ export const AuthProvider = ({ children }) => {
     const token = sessionStorage.getItem('token');
 
     if (token) {
+      // Safety timeout: đảm bảo màn hình loading không bị treo vĩnh viễn nếu backend chưa bật
+      const safetyTimer = setTimeout(() => {
+        if (isMounted) setLoading(false);
+      }, 2500);
+
       // Fetch full user profile from backend
       getProfile()
         .then(profile => {
@@ -75,6 +80,7 @@ export const AuthProvider = ({ children }) => {
           console.warn("Backend profile fetch warning (using cached user):", err.message);
         })
         .finally(() => {
+          clearTimeout(safetyTimer);
           if (isMounted) setLoading(false);
         });
     }

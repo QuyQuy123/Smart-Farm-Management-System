@@ -31,25 +31,6 @@ export const IotDevicesTab = ({
 }) => {
   return (
     <div>
-      {/* Toast alert */}
-      {iotToast && (
-        <div style={{
-          backgroundColor: '#0f172a',
-          color: '#ffffff',
-          padding: '12px 18px',
-          borderRadius: 'var(--rounded-md)',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          fontSize: '13.5px',
-          marginBottom: '16px'
-        }}>
-          <Check size={16} color="#34d399" />
-          <span>{iotToast}</span>
-        </div>
-      )}
-
       {/* Header & Master Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
         <div>
@@ -173,7 +154,7 @@ export const IotDevicesTab = ({
       </div>
 
       {/* Barn IoT Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '20px' }}>
+      <div className="farmshift-iot-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '20px' }}>
         {Object.entries(barnDevices).map(([barnName, b]) => {
           if (selectedIotBarnFilter !== 'ALL' && selectedIotBarnFilter !== barnName) return null;
           const envData = envRows.find(r => r.barn === barnName) || { temp: 29.5, humidity: 68 };

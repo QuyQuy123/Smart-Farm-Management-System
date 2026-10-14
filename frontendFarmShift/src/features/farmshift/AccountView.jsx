@@ -19,6 +19,7 @@ import {
 } from '../../services/employeeService';
 import { getSystemMessage } from '../../utils/systemMessages';
 import { AvatarCropperModal } from '../profile/AvatarCropperModal';
+import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
@@ -51,6 +52,127 @@ export const generateEmailFromName = (fullName) => {
     .split(/\s+/)
     .join('');
   return clean ? `${clean}@smartfarm.com` : '';
+};
+
+// Dynamic Field Validation for Personal Profile (Real-time FE Validation)
+export const validateProfileField = (field, value, allValues = {}) => {
+  const val = value !== undefined && value !== null ? String(value).trim() : '';
+
+  switch (field) {
+    case 'fullName':
+      if (!val) {
+        return 'Họ và tên là bắt buộc, không được để trống.';
+      }
+      if (val.length < 2) {
+        return 'Họ và tên phải có ít nhất 2 ký tự.';
+      }
+      if (val.length > 100) {
+        return 'Họ và tên không được vượt quá 100 ký tự.';
+      }
+      return '';
+
+    case 'phone':
+      if (!val) return ''; // Optional
+      if (!/^\d+$/.test(val)) {
+        return 'Số điện thoại chỉ được chứa các chữ số (0-9).';
+      }
+      if (val.length < 10 || val.length > 11) {
+        return `Số điện thoại phải gồm 10 hoặc 11 chữ số (hiện tại: ${val.length} số).`;
+      }
+      if (!/^0/.test(val)) {
+        return 'Số điện thoại hợp lệ cần bắt đầu bằng số 0 (VD: 0966...).';
+      }
+      return '';
+
+    case 'citizenId':
+      if (!val) return ''; // Optional
+      if (!/^\d+$/.test(val)) {
+        return 'Số CMND/CCCD chỉ được chứa các chữ số (0-9).';
+      }
+      if (val.length !== 9 && val.length !== 12) {
+        return `Số CMND/CCCD phải gồm đúng 9 chữ số (CMND) hoặc 12 chữ số (CCCD). Hiện tại: ${val.length} số.`;
+      }
+      return '';
+
+    case 'dateOfBirth': {
+      if (!val) return ''; // Optional
+      const birthDate = new Date(val);
+      if (isNaN(birthDate.getTime())) {
+        return 'Định dạng ngày sinh không hợp lệ.';
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (birthDate >= today) {
+        return 'Ngày sinh phải ở trong quá khứ (trước ngày hôm nay).';
+      }
+      if (birthDate.getFullYear() < 1920) {
+        return 'Năm sinh không hợp lệ (phải từ năm 1920 trở lại đây).';
+      }
+      const age = today.getFullYear() - birthDate.getFullYear();
+      if (age < 14) {
+        return 'Độ tuổi nhân sự phải từ 14 tuổi trở lên.';
+      }
+      return '';
+    }
+
+    case 'address':
+      if (val && val.length > 255) {
+        return 'Địa chỉ không được vượt quá 255 ký tự.';
+      }
+      return '';
+
+    default:
+      return '';
+  }
+};
+
+export const validateAllProfile = (formData) => {
+  const fields = ['fullName', 'phone', 'citizenId', 'dateOfBirth', 'address'];
+  const errors = {};
+  fields.forEach(f => {
+    const err = validateProfileField(f, formData[f], formData);
+    if (err) errors[f] = err;
+  });
+  return errors;
+};
+
+// Dynamic Field Validation for Change Password
+export const validatePasswordField = (field, value, allValues = {}) => {
+  const val = value !== undefined && value !== null ? String(value) : '';
+
+  switch (field) {
+    case 'currentPassword':
+      if (!val) return 'Vui lòng nhập mật khẩu hiện tại.';
+      return '';
+
+    case 'newPassword':
+      if (!val) return 'Vui lòng nhập mật khẩu mới.';
+      if (val.length < 8) return 'Mật khẩu mới phải có ít nhất 8 ký tự (MSG17).';
+      if (allValues.currentPassword && val === allValues.currentPassword) {
+        return 'Mật khẩu mới không được trùng với mật khẩu hiện tại.';
+      }
+      return '';
+
+    case 'confirmPassword':
+      if (!val) return 'Vui lòng xác nhận mật khẩu mới.';
+      if (allValues.newPassword && val !== allValues.newPassword) {
+        return 'Mật khẩu xác nhận không khớp với mật khẩu mới (MSG18).';
+      }
+      return '';
+
+    default:
+      return '';
+  }
+};
+
+export const validateAllPassword = (formData) => {
+  const fields = ['currentPassword', 'newPassword', 'confirmPassword'];
+  const errors = {};
+  fields.forEach(f => {
+    const err = validatePasswordField(f, formData[f], formData);
+    if (err) errors[f] = err;
+  });
+  return errors;
 };
 
 export const AccountView = () => {
@@ -117,6 +239,8 @@ export const AccountView = () => {
     dateOfBirth: user?.dateOfBirth || '',
     avatarUrl: user?.avatarUrl || ''
   }));
+  const [profileErrors, setProfileErrors] = useState({});
+  const [profileTouched, setProfileTouched] = useState({});
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [selectedImageToCrop, setSelectedImageToCrop] = useState(null);
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
@@ -129,6 +253,8 @@ export const AccountView = () => {
     newPassword: '',
     confirmPassword: ''
   });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordTouched, setPasswordTouched] = useState({});
   const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
@@ -460,10 +586,83 @@ export const AccountView = () => {
     }
   };
 
+  // ── Profile Dynamic Validation Handlers ─────────────────────────────────
+  const handleProfileFieldChange = (field, value) => {
+    setProfileForm(prev => {
+      const next = { ...prev, [field]: value };
+      const error = validateProfileField(field, value, next);
+      setProfileErrors(prevErr => {
+        const nextErr = { ...prevErr };
+        if (error) {
+          nextErr[field] = error;
+        } else {
+          delete nextErr[field];
+        }
+        return nextErr;
+      });
+      return next;
+    });
+
+    setProfileTouched(prev => ({ ...prev, [field]: true }));
+    if (profileMessage.type === 'error') {
+      setProfileMessage({ type: '', text: '' });
+    }
+  };
+
+  const handleProfileFieldBlur = (field) => {
+    setProfileTouched(prev => ({ ...prev, [field]: true }));
+    const error = validateProfileField(field, profileForm[field], profileForm);
+    setProfileErrors(prev => {
+      const nextErr = { ...prev };
+      if (error) {
+        nextErr[field] = error;
+      } else {
+        delete nextErr[field];
+      }
+      return nextErr;
+    });
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    setIsSavingProfile(true);
     setProfileMessage({ type: '', text: '' });
+
+    // 1. Mark all fields touched for instant visual feedback
+    const allTouched = {
+      fullName: true,
+      phone: true,
+      citizenId: true,
+      dateOfBirth: true,
+      address: true
+    };
+    setProfileTouched(allTouched);
+
+    // 2. Validate all fields client-side dynamically
+    const validationErrors = validateAllProfile(profileForm);
+    setProfileErrors(validationErrors);
+
+    const errorFields = Object.keys(validationErrors).filter(k => validationErrors[k]);
+    if (errorFields.length > 0) {
+      const firstField = errorFields[0];
+      const firstMsg = validationErrors[firstField];
+      setProfileMessage({
+        type: 'error',
+        text: `Dữ liệu chưa hợp lệ: ${firstMsg}`
+      });
+      showToast(firstMsg, 'error');
+
+      // Auto-focus first invalid field with smooth scroll
+      setTimeout(() => {
+        const el = document.getElementById(`profile-${firstField}`);
+        if (el) {
+          el.focus();
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+      return; // STOP! Do not call Backend API with invalid data!
+    }
+
+    setIsSavingProfile(true);
     try {
       const payload = {
         fullName: (profileForm.fullName || '').trim(),
@@ -491,39 +690,111 @@ export const AccountView = () => {
         dateOfBirth: updated.dateOfBirth || '',
         avatarUrl: updated.avatarUrl || ''
       });
+      setProfileErrors({});
+      setProfileTouched({});
       setProfileMessage({ type: 'success', text: getSystemMessage('MSG13') });
       showToast('MSG13', 'success');
+      setTimeout(() => {
+        setProfileMessage(prev => prev.type === 'success' ? { type: '', text: '' } : prev);
+      }, 5000);
     } catch (err) {
-      const errMsg = err.response?.data?.message || getSystemMessage('MSG04');
-      setProfileMessage({ type: 'error', text: errMsg });
-      showToast('MSG04', 'error');
+      const resData = err.response?.data;
+      if (resData?.errors && typeof resData.errors === 'object') {
+        // Map backend validation field errors directly to inputs
+        setProfileErrors(prev => ({ ...prev, ...resData.errors }));
+        const firstErrKey = Object.keys(resData.errors)[0];
+        const firstErrMsg = resData.errors[firstErrKey];
+        setProfileMessage({ type: 'error', text: firstErrMsg || 'Lỗi kiểm tra dữ liệu từ máy chủ.' });
+        showToast(firstErrMsg || 'MSG04', 'error');
+        setTimeout(() => {
+          document.getElementById(`profile-${firstErrKey}`)?.focus();
+        }, 50);
+      } else {
+        const errMsg = resData?.message || getSystemMessage('MSG04');
+        setProfileMessage({ type: 'error', text: errMsg });
+        showToast('MSG04', 'error');
+      }
     } finally {
       setIsSavingProfile(false);
     }
   };
 
+  // ── Password Dynamic Validation Handlers ────────────────────────────────
+  const handlePasswordFieldChange = (field, value) => {
+    setPasswordForm(prev => {
+      const next = { ...prev, [field]: value };
+      const error = validatePasswordField(field, value, next);
+      setPasswordErrors(prevErr => {
+        const nextErr = { ...prevErr };
+        if (error) {
+          nextErr[field] = error;
+        } else {
+          delete nextErr[field];
+        }
+        return nextErr;
+      });
+      return next;
+    });
+
+    setPasswordTouched(prev => ({ ...prev, [field]: true }));
+    if (passwordMessage.type === 'error') {
+      setPasswordMessage({ type: '', text: '' });
+    }
+  };
+
+  const handlePasswordFieldBlur = (field) => {
+    setPasswordTouched(prev => ({ ...prev, [field]: true }));
+    const error = validatePasswordField(field, passwordForm[field], passwordForm);
+    setPasswordErrors(prev => {
+      const nextErr = { ...prev };
+      if (error) {
+        nextErr[field] = error;
+      } else {
+        delete nextErr[field];
+      }
+      return nextErr;
+    });
+  };
+
   const handleChangePassword = async (e) => {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordMessage({ type: 'error', text: getSystemMessage('MSG18') });
-      showToast('MSG18', 'error');
-      return;
-    }
-    if (passwordForm.newPassword.length < 8) {
-      setPasswordMessage({ type: 'error', text: getSystemMessage('MSG17') });
-      showToast('MSG17', 'error');
-      return;
+    setPasswordMessage({ type: '', text: '' });
+
+    const allTouched = { currentPassword: true, newPassword: true, confirmPassword: true };
+    setPasswordTouched(allTouched);
+
+    const validationErrors = validateAllPassword(passwordForm);
+    setPasswordErrors(validationErrors);
+
+    const errorFields = Object.keys(validationErrors).filter(k => validationErrors[k]);
+    if (errorFields.length > 0) {
+      const firstField = errorFields[0];
+      const firstMsg = validationErrors[firstField];
+      setPasswordMessage({ type: 'error', text: firstMsg });
+      showToast(firstMsg, 'error');
+      setTimeout(() => {
+        document.getElementById(`security-${firstField}`)?.focus();
+      }, 50);
+      return; // Stop immediately, do not send request to BE
     }
 
     setIsChangingPassword(true);
-    setPasswordMessage({ type: '', text: '' });
     try {
       await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
       setPasswordMessage({ type: 'success', text: getSystemMessage('MSG19') });
       showToast('MSG19', 'success');
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordErrors({});
+      setPasswordTouched({});
+      setTimeout(() => {
+        setPasswordMessage(prev => prev.type === 'success' ? { type: '', text: '' } : prev);
+      }, 5000);
     } catch (err) {
-      const errMsg = err.response?.data?.message || 'Đổi mật khẩu thất bại. Kiểm tra lại mật khẩu cũ.';
+      const resData = err.response?.data;
+      if (resData?.errors && typeof resData.errors === 'object') {
+        setPasswordErrors(prev => ({ ...prev, ...resData.errors }));
+      }
+      const errMsg = resData?.message || 'Đổi mật khẩu thất bại. Kiểm tra lại mật khẩu cũ.';
       setPasswordMessage({ type: 'error', text: errMsg });
       showToast('MSG04', 'error');
     } finally {
@@ -788,23 +1059,6 @@ export const AccountView = () => {
             <h3 className="farmshift-card-title">Thông tin hồ sơ cá nhân</h3>
           </div>
           <div className="farmshift-card-body">
-            {profileMessage.text && (
-              <div style={{
-                padding: '12px',
-                marginBottom: '16px',
-                borderRadius: 'var(--rounded-md)',
-                backgroundColor: profileMessage.type === 'success' ? '#e6f4ea' : '#fce8e6',
-                color: profileMessage.type === 'success' ? '#137333' : '#c5221f',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                {profileMessage.type === 'success' ? <CheckCircle size={16} /> : <ShieldCheck size={16} />}
-                {profileMessage.text}
-              </div>
-            )}
-
             <form onSubmit={handleUpdateProfile}>
               <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
@@ -841,17 +1095,43 @@ export const AccountView = () => {
 
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Họ và tên *</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="farmshift-form-label" htmlFor="profile-fullName" style={{ margin: 0 }}>
+                        Họ và tên *
+                      </label>
+                      {profileTouched.fullName && !profileErrors.fullName && profileForm.fullName && (
+                        <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <CheckCircle size={12} /> Hợp lệ
+                        </span>
+                      )}
+                    </div>
                     <input
+                      id="profile-fullName"
+                      name="fullName"
                       type="text"
                       required
-                      className="farmshift-form-control"
+                      placeholder="Nhập họ và tên đầy đủ"
+                      className={`farmshift-form-control ${
+                        profileTouched.fullName && profileErrors.fullName
+                          ? 'is-invalid'
+                          : profileTouched.fullName && !profileErrors.fullName && profileForm.fullName
+                          ? 'is-valid'
+                          : ''
+                      }`}
                       value={profileForm.fullName}
-                      onChange={e => setProfileForm({ ...profileForm, fullName: e.target.value })}
+                      onChange={e => handleProfileFieldChange('fullName', e.target.value)}
+                      onBlur={() => handleProfileFieldBlur('fullName')}
                     />
+                    {profileTouched.fullName && profileErrors.fullName && (
+                      <div className="farmshift-field-error-msg" role="alert">
+                        <AlertCircle size={13} />
+                        <span>{profileErrors.fullName}</span>
+                      </div>
+                    )}
                   </div>
+
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Email tài khoản</label>
+                    <label className="farmshift-form-label" style={{ marginBottom: '4px' }}>Email tài khoản</label>
                     <input
                       type="email"
                       readOnly
@@ -859,56 +1139,183 @@ export const AccountView = () => {
                       style={{ backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' }}
                       value={user?.email || 'admin@farmshift.local'}
                     />
+                    <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
+                      🔒 Email tài khoản cố định theo định danh hệ thống
+                    </span>
                   </div>
+
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số điện thoại liên hệ</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="farmshift-form-label" htmlFor="profile-phone" style={{ margin: 0 }}>
+                        Số điện thoại liên hệ
+                      </label>
+                      {profileForm.phone && (
+                        <span style={{
+                          fontSize: '11px',
+                          color: profileTouched.phone && profileErrors.phone ? '#dc2626' : 'var(--color-muted)',
+                          fontWeight: 500
+                        }}>
+                          {profileForm.phone.length}/11 số
+                        </span>
+                      )}
+                    </div>
                     <input
-                      type="text"
-                      className="farmshift-form-control"
+                      id="profile-phone"
+                      name="phone"
+                      type="tel"
+                      maxLength={11}
+                      placeholder="VD: 0966755089 (10-11 số)"
+                      className={`farmshift-form-control ${
+                        profileTouched.phone && profileErrors.phone
+                          ? 'is-invalid'
+                          : profileTouched.phone && !profileErrors.phone && profileForm.phone
+                          ? 'is-valid'
+                          : ''
+                      }`}
                       value={profileForm.phone}
-                      onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      onChange={e => handleProfileFieldChange('phone', e.target.value)}
+                      onBlur={() => handleProfileFieldBlur('phone')}
                     />
+                    {profileTouched.phone && profileErrors.phone && (
+                      <div className="farmshift-field-error-msg" role="alert">
+                        <AlertCircle size={13} />
+                        <span>{profileErrors.phone}</span>
+                      </div>
+                    )}
                   </div>
+
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số CMND/CCCD</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="farmshift-form-label" htmlFor="profile-citizenId" style={{ margin: 0 }}>
+                        Số CMND/CCCD
+                      </label>
+                      {profileForm.citizenId && (
+                        <span style={{
+                          fontSize: '11px',
+                          color: profileTouched.citizenId && profileErrors.citizenId ? '#dc2626' : 'var(--color-muted)',
+                          fontWeight: 500
+                        }}>
+                          {profileForm.citizenId.length}/12 số
+                        </span>
+                      )}
+                    </div>
                     <input
+                      id="profile-citizenId"
+                      name="citizenId"
                       type="text"
-                      className="farmshift-form-control"
+                      maxLength={12}
+                      placeholder="9 số (CMND) hoặc 12 số (CCCD)"
+                      className={`farmshift-form-control ${
+                        profileTouched.citizenId && profileErrors.citizenId
+                          ? 'is-invalid'
+                          : profileTouched.citizenId && !profileErrors.citizenId && profileForm.citizenId
+                          ? 'is-valid'
+                          : ''
+                      }`}
                       value={profileForm.citizenId}
-                      onChange={e => setProfileForm({ ...profileForm, citizenId: e.target.value })}
+                      onChange={e => handleProfileFieldChange('citizenId', e.target.value)}
+                      onBlur={() => handleProfileFieldBlur('citizenId')}
                     />
+                    {profileTouched.citizenId && profileErrors.citizenId && (
+                      <div className="farmshift-field-error-msg" role="alert">
+                        <AlertCircle size={13} />
+                        <span>{profileErrors.citizenId}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Ngày sinh (YYYY-MM-DD)</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label className="farmshift-form-label" htmlFor="profile-dateOfBirth" style={{ margin: 0 }}>
+                      Ngày sinh (YYYY-MM-DD)
+                    </label>
+                    {profileTouched.dateOfBirth && !profileErrors.dateOfBirth && profileForm.dateOfBirth && (
+                      <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <CheckCircle size={12} /> Hợp lệ
+                      </span>
+                    )}
+                  </div>
                   <input
+                    id="profile-dateOfBirth"
+                    name="dateOfBirth"
                     type="date"
-                    className="farmshift-form-control"
+                    max={new Date().toISOString().split('T')[0]}
+                    className={`farmshift-form-control ${
+                      profileTouched.dateOfBirth && profileErrors.dateOfBirth
+                        ? 'is-invalid'
+                        : profileTouched.dateOfBirth && !profileErrors.dateOfBirth && profileForm.dateOfBirth
+                        ? 'is-valid'
+                        : ''
+                    }`}
                     value={profileForm.dateOfBirth}
-                    onChange={e => setProfileForm({ ...profileForm, dateOfBirth: e.target.value })}
+                    onChange={e => handleProfileFieldChange('dateOfBirth', e.target.value)}
+                    onBlur={() => handleProfileFieldBlur('dateOfBirth')}
                   />
+                  {profileTouched.dateOfBirth && profileErrors.dateOfBirth && (
+                    <div className="farmshift-field-error-msg" role="alert">
+                      <AlertCircle size={13} />
+                      <span>{profileErrors.dateOfBirth}</span>
+                    </div>
+                  )}
                 </div>
+
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Địa chỉ hiện tại</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label className="farmshift-form-label" htmlFor="profile-address" style={{ margin: 0 }}>
+                      Địa chỉ hiện tại
+                    </label>
+                    {profileForm.address && (
+                      <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                        {profileForm.address.length}/255
+                      </span>
+                    )}
+                  </div>
                   <input
+                    id="profile-address"
+                    name="address"
                     type="text"
-                    className="farmshift-form-control"
+                    maxLength={255}
+                    placeholder="VD: Yên Lạc, Vĩnh Tường, Vĩnh Phúc..."
+                    className={`farmshift-form-control ${
+                      profileTouched.address && profileErrors.address
+                        ? 'is-invalid'
+                        : profileTouched.address && !profileErrors.address && profileForm.address
+                        ? 'is-valid'
+                        : ''
+                    }`}
                     value={profileForm.address}
-                    onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                    onChange={e => handleProfileFieldChange('address', e.target.value)}
+                    onBlur={() => handleProfileFieldBlur('address')}
                   />
+                  {profileTouched.address && profileErrors.address && (
+                    <div className="farmshift-field-error-msg" role="alert">
+                      <AlertCircle size={13} />
+                      <span>{profileErrors.address}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-hairline)', paddingTop: '16px' }}>
                 <button
                   type="submit"
-                  className="farmshift-btn farmshift-btn-primary"
+                  className={`farmshift-btn farmshift-btn-primary ${isSavingProfile ? 'is-loading' : ''}`}
                   disabled={isSavingProfile || uploadingAvatar}
+                  aria-busy={isSavingProfile}
+                  id="btn-save-profile"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                 >
-                  {isSavingProfile ? 'Đang lưu...' : 'Lưu thay đổi hồ sơ'}
+                  {isSavingProfile ? (
+                    <>
+                      <ButtonSpinner size={16} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                      <span>Đang lưu hồ sơ...</span>
+                    </>
+                  ) : (
+                    'Lưu thay đổi hồ sơ'
+                  )}
                 </button>
               </div>
             </form>
@@ -923,66 +1330,138 @@ export const AccountView = () => {
             <h3 className="farmshift-card-title">Đổi mật khẩu bảo mật</h3>
           </div>
           <div className="farmshift-card-body">
-            {passwordMessage.text && (
-              <div style={{
-                padding: '12px',
-                marginBottom: '16px',
-                borderRadius: 'var(--rounded-md)',
-                backgroundColor: passwordMessage.type === 'success' ? '#e6f4ea' : '#fce8e6',
-                color: passwordMessage.type === 'success' ? '#137333' : '#c5221f',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                {passwordMessage.type === 'success' ? <CheckCircle size={16} /> : <ShieldCheck size={16} />}
-                {passwordMessage.text}
-              </div>
-            )}
-
             <form onSubmit={handleChangePassword}>
               <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Mật khẩu hiện tại *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="farmshift-form-label" htmlFor="security-currentPassword" style={{ margin: 0 }}>
+                    Mật khẩu hiện tại *
+                  </label>
+                  {passwordTouched.currentPassword && !passwordErrors.currentPassword && passwordForm.currentPassword && (
+                    <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <CheckCircle size={12} /> Đã nhập
+                    </span>
+                  )}
+                </div>
                 <input
+                  id="security-currentPassword"
+                  name="currentPassword"
                   type="password"
                   required
-                  className="farmshift-form-control"
                   placeholder="Nhập mật khẩu đang dùng"
+                  className={`farmshift-form-control ${
+                    passwordTouched.currentPassword && passwordErrors.currentPassword
+                      ? 'is-invalid'
+                      : passwordTouched.currentPassword && !passwordErrors.currentPassword && passwordForm.currentPassword
+                      ? 'is-valid'
+                      : ''
+                  }`}
                   value={passwordForm.currentPassword}
-                  onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  onChange={e => handlePasswordFieldChange('currentPassword', e.target.value)}
+                  onBlur={() => handlePasswordFieldBlur('currentPassword')}
                 />
+                {passwordTouched.currentPassword && passwordErrors.currentPassword && (
+                  <div className="farmshift-field-error-msg" role="alert">
+                    <AlertCircle size={13} />
+                    <span>{passwordErrors.currentPassword}</span>
+                  </div>
+                )}
               </div>
+
               <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Mật khẩu mới *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="farmshift-form-label" htmlFor="security-newPassword" style={{ margin: 0 }}>
+                    Mật khẩu mới *
+                  </label>
+                  {passwordForm.newPassword && (
+                    <span style={{
+                      fontSize: '11px',
+                      color: passwordTouched.newPassword && passwordErrors.newPassword ? '#dc2626' : 'var(--color-muted)',
+                      fontWeight: 500
+                    }}>
+                      {passwordForm.newPassword.length}/8+ ký tự
+                    </span>
+                  )}
+                </div>
                 <input
+                  id="security-newPassword"
+                  name="newPassword"
                   type="password"
                   required
                   minLength={8}
-                  className="farmshift-form-control"
                   placeholder="Tối thiểu 8 ký tự"
+                  className={`farmshift-form-control ${
+                    passwordTouched.newPassword && passwordErrors.newPassword
+                      ? 'is-invalid'
+                      : passwordTouched.newPassword && !passwordErrors.newPassword && passwordForm.newPassword
+                      ? 'is-valid'
+                      : ''
+                  }`}
                   value={passwordForm.newPassword}
-                  onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  onChange={e => handlePasswordFieldChange('newPassword', e.target.value)}
+                  onBlur={() => handlePasswordFieldBlur('newPassword')}
                 />
+                {passwordTouched.newPassword && passwordErrors.newPassword && (
+                  <div className="farmshift-field-error-msg" role="alert">
+                    <AlertCircle size={13} />
+                    <span>{passwordErrors.newPassword}</span>
+                  </div>
+                )}
               </div>
+
               <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Xác nhận mật khẩu mới *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="farmshift-form-label" htmlFor="security-confirmPassword" style={{ margin: 0 }}>
+                    Xác nhận mật khẩu mới *
+                  </label>
+                  {passwordTouched.confirmPassword && !passwordErrors.confirmPassword && passwordForm.confirmPassword && (
+                    <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <CheckCircle size={12} /> Khớp
+                    </span>
+                  )}
+                </div>
                 <input
+                  id="security-confirmPassword"
+                  name="confirmPassword"
                   type="password"
                   required
                   minLength={8}
-                  className="farmshift-form-control"
                   placeholder="Nhập lại mật khẩu mới"
+                  className={`farmshift-form-control ${
+                    passwordTouched.confirmPassword && passwordErrors.confirmPassword
+                      ? 'is-invalid'
+                      : passwordTouched.confirmPassword && !passwordErrors.confirmPassword && passwordForm.confirmPassword
+                      ? 'is-valid'
+                      : ''
+                  }`}
                   value={passwordForm.confirmPassword}
-                  onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  onChange={e => handlePasswordFieldChange('confirmPassword', e.target.value)}
+                  onBlur={() => handlePasswordFieldBlur('confirmPassword')}
                 />
+                {passwordTouched.confirmPassword && passwordErrors.confirmPassword && (
+                  <div className="farmshift-field-error-msg" role="alert">
+                    <AlertCircle size={13} />
+                    <span>{passwordErrors.confirmPassword}</span>
+                  </div>
+                )}
               </div>
+
               <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-hairline)', paddingTop: '16px' }}>
                 <button
                   type="submit"
-                  className="farmshift-btn farmshift-btn-primary"
+                  className={`farmshift-btn farmshift-btn-primary ${isChangingPassword ? 'is-loading' : ''}`}
                   disabled={isChangingPassword}
+                  aria-busy={isChangingPassword}
+                  id="btn-change-password"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                 >
-                  {isChangingPassword ? 'Đang xử lý...' : 'Cập nhật mật khẩu'}
+                  {isChangingPassword ? (
+                    <>
+                      <ButtonSpinner size={16} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                      <span>Đang cập nhật...</span>
+                    </>
+                  ) : (
+                    'Cập nhật mật khẩu'
+                  )}
                 </button>
               </div>
             </form>
@@ -1201,10 +1680,19 @@ export const AccountView = () => {
                 </button>
                 <button
                   type="submit"
-                  className="farmshift-btn farmshift-btn-primary"
+                  className={`farmshift-btn farmshift-btn-primary ${isSubmitting ? 'is-loading' : ''}`}
                   disabled={isSubmitting}
+                  aria-busy={isSubmitting}
+                  style={{ gap: '8px' }}
                 >
-                  {isSubmitting ? 'Đang tạo...' : 'Tạo tài khoản & Lưu'}
+                  {isSubmitting ? (
+                    <>
+                      <ButtonSpinner size={16} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                      <span>Đang tạo tài khoản...</span>
+                    </>
+                  ) : (
+                    'Tạo tài khoản & Lưu'
+                  )}
                 </button>
               </div>
             </form>
@@ -1454,10 +1942,19 @@ export const AccountView = () => {
                 </button>
                 <button
                   type="submit"
-                  className="farmshift-btn farmshift-btn-primary"
+                  className={`farmshift-btn farmshift-btn-primary ${isSubmitting ? 'is-loading' : ''}`}
                   disabled={isSubmitting}
+                  aria-busy={isSubmitting}
+                  style={{ gap: '8px' }}
                 >
-                  {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  {isSubmitting ? (
+                    <>
+                      <ButtonSpinner size={16} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                      <span>Đang lưu thay đổi...</span>
+                    </>
+                  ) : (
+                    'Lưu thay đổi'
+                  )}
                 </button>
               </div>
             </form>

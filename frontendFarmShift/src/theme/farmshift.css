@@ -70,7 +70,9 @@
 }
 
 /* Base resets & typography */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -83,9 +85,15 @@ body {
   font-size: 14px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   color: var(--color-ink);
   font-family: var(--font-display);
   font-weight: 500;
@@ -94,15 +102,21 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* App shell container */
-.farmshift-app, .farmgo-app {
+.farmshift-app,
+.farmgo-app {
   display: flex;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   background-color: var(--color-surface-soft);
   position: relative;
+  box-sizing: border-box;
 }
 
 /* ── Top Header (DESIGN.md Editorial Clean Bar) ───────────── */
-.farmshift-header, .farmgo-header {
+.farmshift-header,
+.farmgo-header {
   position: fixed;
   top: 0;
   left: 0;
@@ -119,13 +133,15 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
-.farmshift-header-left, .farmgo-header-left {
+.farmshift-header-left,
+.farmgo-header-left {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-.farmshift-toggle-btn, .farmgo-toggle-btn {
+.farmshift-toggle-btn,
+.farmgo-toggle-btn {
   background: transparent;
   border: 1px solid var(--color-hairline);
   color: var(--color-ink);
@@ -138,12 +154,14 @@ h1, h2, h3, h4, h5, h6 {
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.farmshift-toggle-btn:hover, .farmgo-toggle-btn:hover {
+.farmshift-toggle-btn:hover,
+.farmgo-toggle-btn:hover {
   background-color: var(--color-surface-soft);
   border-color: var(--color-border-strong);
 }
 
-.farmshift-header-brand-tag, .farmgo-header-brand-tag {
+.farmshift-header-brand-tag,
+.farmgo-header-brand-tag {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -163,13 +181,15 @@ h1, h2, h3, h4, h5, h6 {
   padding: 0 20px;
 }
 
-.farmshift-header-right, .farmgo-header-right {
+.farmshift-header-right,
+.farmgo-header-right {
   display: flex;
   align-items: center;
   gap: 14px;
 }
 
-.farmshift-header-icon-btn, .farmgo-header-icon-btn {
+.farmshift-header-icon-btn,
+.farmgo-header-icon-btn {
   background: transparent;
   border: 1px solid var(--color-hairline);
   color: var(--color-ink);
@@ -183,12 +203,14 @@ h1, h2, h3, h4, h5, h6 {
   transition: all 0.15s ease;
 }
 
-.farmshift-header-icon-btn:hover, .farmgo-header-icon-btn:hover {
+.farmshift-header-icon-btn:hover,
+.farmgo-header-icon-btn:hover {
   background-color: var(--color-surface-soft);
   border-color: var(--color-border-strong);
 }
 
-.farmshift-badge-counter, .farmgo-badge-counter {
+.farmshift-badge-counter,
+.farmgo-badge-counter {
   position: absolute;
   top: -2px;
   right: -2px;
@@ -201,7 +223,8 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.2;
 }
 
-.farmshift-user-menu, .farmgo-user-menu {
+.farmshift-user-menu,
+.farmgo-user-menu {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -213,12 +236,14 @@ h1, h2, h3, h4, h5, h6 {
   transition: all 0.15s ease;
 }
 
-.farmshift-user-menu:hover, .farmgo-user-menu:hover {
+.farmshift-user-menu:hover,
+.farmgo-user-menu:hover {
   border-color: var(--color-border-strong);
   background-color: var(--color-surface-soft);
 }
 
-.farmshift-user-avatar, .farmgo-user-avatar {
+.farmshift-user-avatar,
+.farmgo-user-avatar {
   width: 32px;
   height: 32px;
   border-radius: var(--rounded-full);
@@ -232,7 +257,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ── Secondary Sidebar ───────────────────────────────────── */
-.farmshift-sidebar, .farmgo-sidebar {
+.farmshift-sidebar,
+.farmgo-sidebar {
   position: fixed;
   top: var(--fs-header-height);
   left: 0;
@@ -248,11 +274,127 @@ h1, h2, h3, h4, h5, h6 {
   overflow-x: hidden;
 }
 
-.farmshift-sidebar.collapsed, .farmgo-sidebar.collapsed {
+.farmshift-sidebar.collapsed,
+.farmgo-sidebar.collapsed {
   width: var(--fs-sidebar-collapsed-width);
 }
 
-.farmshift-sidebar-header, .farmgo-sidebar-header {
+.farmshift-sidebar.collapsed .farmshift-sidebar-header,
+.farmgo-sidebar.collapsed .farmgo-sidebar-header {
+  padding: 12px 0;
+  justify-content: center;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu,
+.farmgo-sidebar.collapsed .farmgo-menu {
+  padding: 14px 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item,
+.farmgo-sidebar.collapsed .farmgo-menu-item {
+  width: 48px;
+  height: 44px;
+  padding: 0;
+  margin: 0 auto;
+  justify-content: center;
+  border-radius: var(--rounded-md);
+  position: relative;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item .farmshift-menu-icon,
+.farmgo-sidebar.collapsed .farmgo-menu-item .farmgo-menu-icon {
+  margin: 0;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item:hover .farmshift-menu-icon,
+.farmgo-sidebar.collapsed .farmgo-menu-item:hover .farmgo-menu-icon {
+  transform: scale(1.15);
+  color: var(--color-ink);
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item.active,
+.farmgo-sidebar.collapsed .farmgo-menu-item.active {
+  background-color: #e0f2f1;
+  color: #019788;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item.active .farmshift-menu-icon,
+.farmgo-sidebar.collapsed .farmgo-menu-item.active .farmgo-menu-icon {
+  color: #019788;
+}
+
+/* Left active indicator pill for collapsed sidebar */
+.farmshift-sidebar.collapsed .farmshift-menu-item.active::before,
+.farmgo-sidebar.collapsed .farmgo-menu-item.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  background-color: #019788;
+  border-radius: 0 4px 4px 0;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-divider,
+.farmgo-sidebar.collapsed .farmgo-menu-divider {
+  width: 36px;
+  margin: 8px auto;
+}
+
+/* ── Floating Tooltips on Hover for Collapsed Nav ───────── */
+.farmshift-tooltip {
+  position: absolute;
+  left: calc(100% + 14px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-6px);
+  background-color: #181d26;
+  color: #ffffff;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.24);
+  z-index: 1500;
+}
+
+.farmshift-tooltip::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-right-color: #181d26;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item:hover .farmshift-tooltip,
+.farmgo-sidebar.collapsed .farmgo-menu-item:hover .farmshift-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Mobile backdrop */
+.farmshift-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 899;
+  animation: FarmShiftFadeIn 0.2s ease;
+}
+
+.farmshift-sidebar-header,
+.farmgo-sidebar-header {
   background-color: var(--color-canvas);
   border-bottom: 1px solid var(--color-hairline);
   padding: 12px 18px;
@@ -261,14 +403,16 @@ h1, h2, h3, h4, h5, h6 {
   min-height: 56px;
 }
 
-.farmshift-brand-box, .farmgo-brand-box {
+.farmshift-brand-box,
+.farmgo-brand-box {
   display: flex;
   align-items: center;
   gap: 10px;
   text-decoration: none;
 }
 
-.farmshift-brand-icon, .farmgo-brand-icon {
+.farmshift-brand-icon,
+.farmgo-brand-icon {
   width: 32px;
   height: 32px;
   border-radius: var(--rounded-md);
@@ -276,7 +420,8 @@ h1, h2, h3, h4, h5, h6 {
   flex-shrink: 0;
 }
 
-.farmshift-brand-title, .farmgo-brand-title {
+.farmshift-brand-title,
+.farmgo-brand-title {
   font-size: 15px;
   font-weight: 600;
   color: var(--color-ink);
@@ -287,7 +432,8 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 140px;
 }
 
-.farmshift-brand-edit, .farmgo-brand-edit {
+.farmshift-brand-edit,
+.farmgo-brand-edit {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -300,13 +446,15 @@ h1, h2, h3, h4, h5, h6 {
   transition: all 0.15s ease;
 }
 
-.farmshift-brand-edit:hover, .farmgo-brand-edit:hover {
+.farmshift-brand-edit:hover,
+.farmgo-brand-edit:hover {
   background-color: var(--color-surface-soft);
   color: var(--color-ink);
   border-color: var(--color-border-strong);
 }
 
-.farmshift-menu, .farmgo-menu {
+.farmshift-menu,
+.farmgo-menu {
   list-style: none;
   padding: 12px;
   margin: 0;
@@ -316,7 +464,8 @@ h1, h2, h3, h4, h5, h6 {
   flex: 1;
 }
 
-.farmshift-menu-item, .farmgo-menu-item {
+.farmshift-menu-item,
+.farmgo-menu-item {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -330,18 +479,21 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap;
 }
 
-.farmshift-menu-item:hover, .farmgo-menu-item:hover {
+.farmshift-menu-item:hover,
+.farmgo-menu-item:hover {
   background-color: var(--color-surface-soft);
   color: var(--color-ink);
 }
 
-.farmshift-menu-item.active, .farmgo-menu-item.active {
+.farmshift-menu-item.active,
+.farmgo-menu-item.active {
   background-color: #f1f5f9;
   color: var(--color-ink);
   font-weight: 600;
 }
 
-.farmshift-menu-icon, .farmgo-menu-icon {
+.farmshift-menu-icon,
+.farmgo-menu-icon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -359,42 +511,64 @@ h1, h2, h3, h4, h5, h6 {
   color: #019788;
 }
 
-.farmshift-menu-divider, .farmgo-menu-divider {
+.farmshift-menu-divider,
+.farmgo-menu-divider {
   height: 1px;
   background-color: var(--color-hairline);
   margin: 10px 8px;
 }
 
 /* ── Main Content Area ───────────────────────────────────── */
-.farmshift-main, .farmgo-main {
+.farmshift-main,
+.farmgo-main {
   margin-top: var(--fs-header-height);
   margin-left: var(--fs-sidebar-width);
-  flex: 1;
+  flex: 1 1 0%;
+  min-width: 0;
+  width: calc(100vw - var(--fs-sidebar-width));
+  max-width: calc(100vw - var(--fs-sidebar-width));
   padding: 28px 36px 80px 36px;
   min-height: calc(100vh - var(--fs-header-height));
-  transition: margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
   background-color: var(--color-surface-soft);
+  overflow-x: hidden;
 }
 
-.farmshift-main.collapsed, .farmgo-main.collapsed {
+.farmshift-main.collapsed,
+.farmgo-main.collapsed {
   margin-left: var(--fs-sidebar-collapsed-width);
+  width: calc(100vw - var(--fs-sidebar-collapsed-width));
+  max-width: calc(100vw - var(--fs-sidebar-collapsed-width));
 }
 
 /* ── Content Header & Breadcrumbs ────────────────────────── */
-.farmshift-content-header, .farmgo-content-header {
+.farmshift-content-header,
+.farmgo-content-header {
   margin-bottom: 24px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
-.farmshift-header-row, .farmgo-header-row {
+.farmshift-header-row,
+.farmgo-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
-.farmshift-page-title, .farmgo-page-title {
+.farmshift-page-title,
+.farmgo-page-title {
   font-size: 24px;
   font-weight: 500;
   color: var(--color-ink);
@@ -404,7 +578,8 @@ h1, h2, h3, h4, h5, h6 {
   gap: 8px;
 }
 
-.farmshift-breadcrumbs, .farmgo-breadcrumbs {
+.farmshift-breadcrumbs,
+.farmgo-breadcrumbs {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -413,16 +588,19 @@ h1, h2, h3, h4, h5, h6 {
   margin-top: 4px;
 }
 
-.farmshift-breadcrumbs a, .farmgo-breadcrumbs a {
+.farmshift-breadcrumbs a,
+.farmgo-breadcrumbs a {
   color: var(--color-link);
   text-decoration: none;
 }
 
-.farmshift-breadcrumbs a:hover, .farmgo-breadcrumbs a:hover {
+.farmshift-breadcrumbs a:hover,
+.farmgo-breadcrumbs a:hover {
   text-decoration: underline;
 }
 
-.farmshift-breadcrumbs span, .farmgo-breadcrumbs span {
+.farmshift-breadcrumbs span,
+.farmgo-breadcrumbs span {
   color: var(--color-border-strong);
 }
 
@@ -461,14 +639,16 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ── 4 Quick Shortcut Cards (DESIGN.md Layout) ───────────── */
-.farmshift-shortcuts, .farmgo-shortcuts {
+.farmshift-shortcuts,
+.farmgo-shortcuts {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 28px;
 }
 
-.farmshift-shortcut-card, .farmgo-shortcut-card {
+.farmshift-shortcut-card,
+.farmgo-shortcut-card {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -480,13 +660,15 @@ h1, h2, h3, h4, h5, h6 {
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-.farmshift-shortcut-card:hover, .farmgo-shortcut-card:hover {
+.farmshift-shortcut-card:hover,
+.farmgo-shortcut-card:hover {
   transform: translateY(-2px);
   border-color: var(--color-border-strong);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
 }
 
-.farmshift-shortcut-icon, .farmgo-shortcut-icon {
+.farmshift-shortcut-icon,
+.farmgo-shortcut-icon {
   width: 44px;
   height: 44px;
   border-radius: var(--rounded-md);
@@ -497,39 +679,63 @@ h1, h2, h3, h4, h5, h6 {
   flex-shrink: 0;
 }
 
-.farmshift-shortcut-icon.meal, .farmgo-shortcut-icon.meal { background-color: var(--card-meal-bg); }
-.farmshift-shortcut-icon.health, .farmgo-shortcut-icon.health { background-color: var(--card-health-bg); }
-.farmshift-shortcut-icon.env, .farmgo-shortcut-icon.env { background-color: var(--card-env-bg); }
-.farmshift-shortcut-icon.todo, .farmgo-shortcut-icon.todo { background-color: var(--card-todo-bg); }
+.farmshift-shortcut-icon.meal,
+.farmgo-shortcut-icon.meal {
+  background-color: var(--card-meal-bg);
+}
 
-.farmshift-shortcut-info, .farmgo-shortcut-info {
+.farmshift-shortcut-icon.health,
+.farmgo-shortcut-icon.health {
+  background-color: var(--card-health-bg);
+}
+
+.farmshift-shortcut-icon.env,
+.farmgo-shortcut-icon.env {
+  background-color: var(--card-env-bg);
+}
+
+.farmshift-shortcut-icon.todo,
+.farmgo-shortcut-icon.todo {
+  background-color: var(--card-todo-bg);
+}
+
+.farmshift-shortcut-info,
+.farmgo-shortcut-info {
   display: flex;
   flex-direction: column;
 }
 
-.farmshift-shortcut-title, .farmgo-shortcut-title {
+.farmshift-shortcut-title,
+.farmgo-shortcut-title {
   font-size: 15px;
   font-weight: 500;
   color: var(--color-ink);
   line-height: 1.25;
 }
 
-.farmshift-shortcut-sub, .farmgo-shortcut-sub {
+.farmshift-shortcut-sub,
+.farmgo-shortcut-sub {
   font-size: 12px;
   color: var(--color-muted);
   margin-top: 2px;
 }
 
 /* ── DESIGN.md Cards & Panels ────────────────────────────── */
-.farmshift-card, .farmgo-card {
+.farmshift-card,
+.farmgo-card {
   background-color: var(--color-canvas);
   border: 1px solid var(--color-hairline);
   border-radius: var(--rounded-lg);
   margin-bottom: 24px;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
-.farmshift-card-header, .farmgo-card-header {
+.farmshift-card-header,
+.farmgo-card-header {
   padding: 16px 22px;
   border-bottom: 1px solid var(--color-hairline);
   display: flex;
@@ -538,7 +744,8 @@ h1, h2, h3, h4, h5, h6 {
   background-color: var(--color-canvas);
 }
 
-.farmshift-card-title, .farmgo-card-title {
+.farmshift-card-title,
+.farmgo-card-title {
   font-size: 16px;
   font-weight: 500;
   color: var(--color-ink);
@@ -548,12 +755,14 @@ h1, h2, h3, h4, h5, h6 {
   gap: 8px;
 }
 
-.farmshift-card-body, .farmgo-card-body {
+.farmshift-card-body,
+.farmgo-card-body {
   padding: 22px;
 }
 
 /* ── Toolbar: Search & Select Filter ─────────────────────── */
-.farmshift-toolbar, .farmgo-toolbar {
+.farmshift-toolbar,
+.farmgo-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -562,7 +771,8 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 18px;
 }
 
-.farmshift-search-box, .farmgo-search-box {
+.farmshift-search-box,
+.farmgo-search-box {
   display: flex;
   align-items: center;
   background-color: var(--color-canvas);
@@ -574,12 +784,14 @@ h1, h2, h3, h4, h5, h6 {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.farmshift-search-box:focus-within, .farmgo-search-box:focus-within {
+.farmshift-search-box:focus-within,
+.farmgo-search-box:focus-within {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(24, 29, 38, 0.06);
 }
 
-.farmshift-search-box input, .farmgo-search-box input {
+.farmshift-search-box input,
+.farmgo-search-box input {
   border: none;
   outline: none;
   width: 100%;
@@ -588,13 +800,15 @@ h1, h2, h3, h4, h5, h6 {
   background: transparent;
 }
 
-.farmshift-filter-group, .farmgo-filter-group {
+.farmshift-filter-group,
+.farmgo-filter-group {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.farmshift-select, .farmgo-select {
+.farmshift-select,
+.farmgo-select {
   padding: 8px 14px;
   border: 1px solid var(--color-hairline);
   border-radius: var(--rounded-md);
@@ -606,13 +820,15 @@ h1, h2, h3, h4, h5, h6 {
   transition: border-color 0.15s ease;
 }
 
-.farmshift-select:focus, .farmgo-select:focus {
+.farmshift-select:focus,
+.farmgo-select:focus {
   border-color: var(--color-primary);
 }
 
 /* ── DESIGN.md Buttons System ────────────────────────────── */
 /* Primary Action: near-black #181d26 button */
-.farmshift-btn, .farmgo-btn {
+.farmshift-btn,
+.farmgo-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -627,77 +843,167 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap;
 }
 
-.farmshift-btn-primary, .farmgo-btn-primary {
+.farmshift-btn-primary,
+.farmgo-btn-primary {
   background-color: var(--color-primary);
   color: #ffffff;
   border-color: var(--color-primary);
 }
 
-.farmshift-btn-primary:hover, .farmgo-btn-primary:hover {
+.farmshift-btn-primary:hover,
+.farmgo-btn-primary:hover {
   background-color: var(--color-primary-active);
   border-color: var(--color-primary-active);
 }
 
-.farmshift-btn-secondary, .farmgo-btn-secondary,
-.farmshift-btn-outline, .farmgo-btn-outline {
+.farmshift-btn-secondary,
+.farmgo-btn-secondary,
+.farmshift-btn-outline,
+.farmgo-btn-outline {
   background-color: var(--color-canvas);
   color: var(--color-ink);
   border: 1px solid var(--color-hairline);
 }
 
-.farmshift-btn-secondary:hover, .farmgo-btn-secondary:hover,
-.farmshift-btn-outline:hover, .farmgo-btn-outline:hover {
+.farmshift-btn-secondary:hover,
+.farmgo-btn-secondary:hover,
+.farmshift-btn-outline:hover,
+.farmgo-btn-outline:hover {
   background-color: var(--color-surface-soft);
   border-color: var(--color-border-strong);
 }
 
-.farmshift-btn-teal, .farmgo-btn-teal {
+.farmshift-btn-teal,
+.farmgo-btn-teal {
   background-color: var(--fs-teal);
   color: #ffffff;
   border-color: var(--fs-teal);
 }
 
-.farmshift-btn-teal:hover, .farmgo-btn-teal:hover {
+.farmshift-btn-teal:hover,
+.farmgo-btn-teal:hover {
   background-color: var(--fs-teal-dark);
 }
 
-.farmshift-btn-excel, .farmgo-btn-excel {
+.farmshift-btn-excel,
+.farmgo-btn-excel {
   background-color: var(--color-canvas);
   color: #107c41;
   border: 1px solid #a7d7ba;
 }
 
-.farmshift-btn-excel:hover, .farmgo-btn-excel:hover {
+.farmshift-btn-excel:hover,
+.farmgo-btn-excel:hover {
   background-color: #f0fdf4;
   border-color: #107c41;
 }
 
-.farmshift-btn-danger, .farmgo-btn-danger {
+.farmshift-btn-danger,
+.farmgo-btn-danger {
   background-color: #fef2f2;
   color: #b91c1c;
   border: 1px solid #fecaca;
 }
 
-.farmshift-btn-danger:hover, .farmgo-btn-danger:hover {
+.farmshift-btn-danger:hover,
+.farmgo-btn-danger:hover {
   background-color: #fee2e2;
 }
 
+/* ── Button Loading States & Micro-animations ──────────────── */
+.farmshift-btn.is-loading,
+.farmshift-btn-loading,
+.farmshift-btn[aria-busy="true"],
+.farmgo-btn.is-loading,
+.farmgo-btn[aria-busy="true"] {
+  cursor: wait !important;
+  pointer-events: none !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.farmshift-btn-primary.is-loading,
+.farmshift-btn-primary[aria-busy="true"],
+.farmgo-btn-primary.is-loading,
+.farmgo-btn-primary[aria-busy="true"] {
+  background: linear-gradient(90deg, #181d26 0%, #2f3b4c 50%, #181d26 100%) !important;
+  background-size: 200% 100% !important;
+  animation: farmshiftBtnShimmer 1.8s ease-in-out infinite !important;
+  box-shadow: 0 4px 14px rgba(1, 151, 136, 0.25) !important;
+}
+
+.farmshift-btn-teal.is-loading,
+.farmshift-btn-teal[aria-busy="true"],
+.farmgo-btn-teal.is-loading,
+.farmgo-btn-teal[aria-busy="true"] {
+  background: linear-gradient(90deg, #019788 0%, #0fbca9 50%, #019788 100%) !important;
+  background-size: 200% 100% !important;
+  animation: farmshiftBtnShimmer 1.8s ease-in-out infinite !important;
+  box-shadow: 0 4px 14px rgba(1, 151, 136, 0.35) !important;
+}
+
+.farmshift-btn-secondary.is-loading,
+.farmshift-btn-secondary[aria-busy="true"],
+.farmshift-btn-outline.is-loading,
+.farmshift-btn-outline[aria-busy="true"],
+.farmgo-btn-secondary.is-loading,
+.farmgo-btn-secondary[aria-busy="true"] {
+  background: linear-gradient(90deg, #ffffff 0%, #edf2f7 50%, #ffffff 100%) !important;
+  background-size: 200% 100% !important;
+  animation: farmshiftBtnShimmer 1.8s ease-in-out infinite !important;
+}
+
+@keyframes farmshiftBtnShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes farmshiftSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.farmshift-btn-spinner {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  animation: farmshiftSpin 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 /* ── Data Tables (DESIGN.md Clean Editorial Table) ───────── */
-.farmshift-table-container, .farmgo-table-container {
+.farmshift-table-container,
+.farmgo-table-container {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--color-hairline);
   border-radius: var(--rounded-lg);
   background-color: var(--color-canvas);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
-.farmshift-table, .farmgo-table {
+.farmshift-table,
+.farmgo-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13.5px;
   text-align: left;
 }
 
-.farmshift-table th, .farmgo-table th {
+.farmshift-table th,
+.farmgo-table th {
   background-color: var(--color-surface-soft);
   color: var(--color-muted);
   font-weight: 500;
@@ -707,23 +1013,27 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 13px;
 }
 
-.farmshift-table td, .farmgo-table td {
+.farmshift-table td,
+.farmgo-table td {
   padding: 13px 16px;
   border-bottom: 1px solid var(--color-hairline);
   color: var(--color-body);
   vertical-align: middle;
 }
 
-.farmshift-table tbody tr:hover, .farmgo-table tbody tr:hover {
+.farmshift-table tbody tr:hover,
+.farmgo-table tbody tr:hover {
   background-color: #f8fafc;
 }
 
-.farmshift-table tbody tr:last-child td, .farmgo-table tbody tr:last-child td {
+.farmshift-table tbody tr:last-child td,
+.farmgo-table tbody tr:last-child td {
   border-bottom: none;
 }
 
 /* ── Badges ──────────────────────────────────────────────── */
-.farmshift-badge, .farmgo-badge {
+.farmshift-badge,
+.farmgo-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -734,48 +1044,68 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap;
 }
 
-.farmshift-badge-success, .farmgo-badge-success {
+.farmshift-badge-success,
+.farmgo-badge-success {
   background-color: #e6f4ea;
   color: #137333;
   border: 1px solid #a7f3d0;
 }
 
-.farmshift-badge-warning, .farmgo-badge-warning {
+.farmshift-badge-warning,
+.farmgo-badge-warning {
   background-color: #fef7e0;
   color: #b06000;
   border: 1px solid #fde68a;
 }
 
-.farmshift-badge-danger, .farmgo-badge-danger {
+.farmshift-badge-danger,
+.farmgo-badge-danger {
   background-color: #fce8e6;
   color: #c5221f;
   border: 1px solid #fecaca;
 }
 
-.farmshift-badge-info, .farmgo-badge-info {
+.farmshift-badge-info,
+.farmgo-badge-info {
   background-color: #e8f0fe;
   color: #1a73e8;
   border: 1px solid #bad3fc;
 }
 
-.farmshift-badge-neutral, .farmgo-badge-neutral {
+.farmshift-badge-neutral,
+.farmgo-badge-neutral {
   background-color: var(--color-surface-soft);
   color: var(--color-muted);
   border: 1px solid var(--color-hairline);
 }
 
 /* ── Tabs Navigation ─────────────────────────────────────── */
-.farmshift-tabs, .farmgo-tabs {
+.farmshift-tabs,
+.farmgo-tabs {
   display: flex;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid var(--color-hairline);
   margin-bottom: 22px;
   padding-bottom: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  box-sizing: border-box;
 }
 
-.farmshift-tab-btn, .farmgo-tab-btn {
+.farmshift-tabs::-webkit-scrollbar,
+.farmgo-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.farmshift-tab-btn,
+.farmgo-tab-btn {
   background: transparent;
   border: none;
   padding: 10px 18px;
@@ -789,18 +1119,21 @@ h1, h2, h3, h4, h5, h6 {
   transition: all 0.15s ease;
 }
 
-.farmshift-tab-btn:hover, .farmgo-tab-btn:hover {
+.farmshift-tab-btn:hover,
+.farmgo-tab-btn:hover {
   color: var(--color-ink);
 }
 
-.farmshift-tab-btn.active, .farmgo-tab-btn.active {
+.farmshift-tab-btn.active,
+.farmgo-tab-btn.active {
   color: var(--color-ink);
   font-weight: 600;
   border-bottom-color: var(--color-primary);
 }
 
 /* ── Floating AI Assistant ───────────────────────────────── */
-.farmshift-ai-fab, .farmgo-ai-fab {
+.farmshift-ai-fab,
+.farmgo-ai-fab {
   position: fixed;
   bottom: 28px;
   right: 28px;
@@ -820,13 +1153,15 @@ h1, h2, h3, h4, h5, h6 {
   transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
-.farmshift-ai-fab:hover, .farmgo-ai-fab:hover {
+.farmshift-ai-fab:hover,
+.farmgo-ai-fab:hover {
   background-color: var(--color-primary-active);
   transform: translateY(-2px);
 }
 
 /* ── Modal Dialog ────────────────────────────────────────── */
-.farmshift-modal-backdrop, .farmgo-modal-backdrop {
+.farmshift-modal-backdrop,
+.farmgo-modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
@@ -841,7 +1176,8 @@ h1, h2, h3, h4, h5, h6 {
   padding: 20px;
 }
 
-.farmshift-modal, .farmgo-modal {
+.farmshift-modal,
+.farmgo-modal {
   background-color: var(--color-canvas);
   border-radius: var(--rounded-lg);
   max-width: 620px;
@@ -855,11 +1191,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes FarmShiftFadeIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.farmshift-modal-header, .farmgo-modal-header {
+.farmshift-modal-header,
+.farmgo-modal-header {
   padding: 18px 24px;
   border-bottom: 1px solid var(--color-hairline);
   display: flex;
@@ -867,19 +1211,22 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: space-between;
 }
 
-.farmshift-modal-title, .farmgo-modal-title {
+.farmshift-modal-title,
+.farmgo-modal-title {
   font-size: 17px;
   font-weight: 500;
   color: var(--color-ink);
   margin: 0;
 }
 
-.farmshift-modal-body, .farmgo-modal-body {
+.farmshift-modal-body,
+.farmgo-modal-body {
   padding: 24px;
   overflow-y: auto;
 }
 
-.farmshift-modal-footer, .farmgo-modal-footer {
+.farmshift-modal-footer,
+.farmgo-modal-footer {
   padding: 16px 24px;
   border-top: 1px solid var(--color-hairline);
   display: flex;
@@ -891,11 +1238,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Form inputs in modal */
-.farmshift-form-group, .farmgo-form-group {
+.farmshift-form-group,
+.farmgo-form-group {
   margin-bottom: 18px;
 }
 
-.farmshift-form-label, .farmgo-form-label {
+.farmshift-form-label,
+.farmgo-form-label {
   display: block;
   font-size: 13px;
   font-weight: 500;
@@ -903,7 +1252,8 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 6px;
 }
 
-.farmshift-form-control, .farmgo-form-control {
+.farmshift-form-control,
+.farmgo-form-control {
   width: 100%;
   padding: 10px 14px;
   border: 1px solid var(--color-hairline);
@@ -916,54 +1266,608 @@ h1, h2, h3, h4, h5, h6 {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.farmshift-form-control:focus, .farmgo-form-control:focus {
+.farmshift-form-control:focus,
+.farmgo-form-control:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(24, 29, 38, 0.08);
 }
 
-/* Responsive */
+/* ═════════════════════════════════════════════════════════════════
+   ── FARM SHIFT COMPREHENSIVE RESPONSIVE DESIGN SYSTEM ──────────
+   Breakpoints:
+   • Ultrawide & 2K / 4K Monitors: min-width: 1441px
+   • Laptops & Small Desktops: max-width: 1200px
+   • Tablets Landscape: max-width: 1024px
+   • Tablets Portrait & Large Phablets: max-width: 768px
+   • Smartphones & Small Handhelds: max-width: 640px
+   • Compact Phones (iPhone SE, Galaxy Mini): max-width: 480px
+   • Smallest Screens (Galaxy Fold cover): max-width: 360px
+   ═════════════════════════════════════════════════════════════════ */
+
+/* ── Base Component Enhancements for Responsive Adaptability ── */
+.farmshift-sidebar-mobile-close {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--color-hairline);
+  color: var(--color-ink);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--rounded-md);
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.farmshift-sidebar-mobile-close:hover {
+  background-color: var(--color-surface-soft);
+  color: #dc2626;
+}
+
+.farmshift-tabs,
+.farmgo-tabs {
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.farmshift-tabs::-webkit-scrollbar,
+.farmgo-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.farmshift-tab-btn,
+.farmgo-tab-btn {
+  flex-shrink: 0;
+}
+
+.farmshift-table-container,
+.farmgo-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── 1. Ultrawide & High-Resolution Displays (min-width: 1441px) ── */
+@media (min-width: 1441px) {
+
+  .farmshift-main,
+  .farmgo-main {
+    padding: 32px 48px 90px 48px;
+    width: calc(100vw - var(--fs-sidebar-width));
+    max-width: calc(100vw - var(--fs-sidebar-width));
+  }
+
+  .farmshift-main.collapsed,
+  .farmgo-main.collapsed {
+    width: calc(100vw - var(--fs-sidebar-collapsed-width));
+    max-width: calc(100vw - var(--fs-sidebar-collapsed-width));
+  }
+
+  .farmshift-shortcuts,
+  .farmgo-shortcuts {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+
+  .farmshift-shortcut-card,
+  .farmgo-shortcut-card {
+    padding: 20px 22px;
+  }
+}
+
+/* ── 2. Laptops & Small Desktops (max-width: 1200px) ────────────── */
+@media (max-width: 1200px) {
+
+  .farmshift-main,
+  .farmgo-main {
+    padding: 22px 28px 80px 28px;
+  }
+
+  .farmshift-shortcuts,
+  .farmgo-shortcuts {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .farmshift-system-map-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ── 3. Tablets Landscape (max-width: 1024px) ──────────────────── */
 @media (max-width: 1024px) {
-  .farmshift-shortcuts, .farmgo-shortcuts {
+
+  .farmshift-header,
+  .farmgo-header {
+    padding: 0 18px;
+  }
+
+  .farmshift-main,
+  .farmgo-main {
+    padding: 20px 20px 80px 20px;
+  }
+
+  .farmshift-shortcuts,
+  .farmgo-shortcuts {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .farmshift-card-header,
+  .farmgo-card-header {
+    padding: 14px 18px;
+  }
+
+  .farmshift-card-body,
+  .farmgo-card-body {
+    padding: 18px;
+  }
+
+  .farmshift-system-map-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .farmshift-cctv-wall-grid {
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)) !important;
+  }
+
+  .farmshift-iot-cards-grid {
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)) !important;
+  }
 }
 
-@media (max-width: 768px) {
-  .farmshift-sidebar, .farmgo-sidebar {
-    transform: translateX(-100%);
-  }
-  .farmshift-sidebar.mobile-open, .farmgo-sidebar.mobile-open {
-    transform: translateX(0);
-  }
-  .farmshift-main, .farmgo-main {
-    margin-left: 0 !important;
-    padding: 16px;
-  }
-  .farmshift-shortcuts, .farmgo-shortcuts {
-    grid-template-columns: 1fr;
-  }
-}
-
+/* ── 4. Tablets Portrait & Split Auth Layout (max-width: 900px) ─ */
 @media (max-width: 900px) {
   .login-visual-panel {
     display: none !important;
+  }
+
+  .farmshift-auth-form-panel {
+    padding: 36px 20px !important;
+  }
+}
+
+/* ── 5. Tablets Portrait & Mobile Handhelds (max-width: 768px) ── */
+@media (max-width: 768px) {
+
+  /* Sidebar Drawer with Backdrop */
+  .farmshift-sidebar,
+  .farmgo-sidebar {
+    transform: translateX(-100%);
+    width: 270px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    z-index: 1300;
+  }
+
+  .farmshift-sidebar.mobile-open,
+  .farmgo-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .farmshift-sidebar-mobile-close {
+    display: flex;
+  }
+
+  .farmshift-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+  }
+
+  /* Main content takes full screen */
+  .farmshift-main,
+  .farmgo-main {
+    margin-left: 0 !important;
+    padding: 18px 16px 80px 16px;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+
+  .farmshift-shortcuts,
+  .farmgo-shortcuts {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .farmshift-shortcut-card,
+  .farmgo-shortcut-card {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .farmshift-shortcut-icon,
+  .farmgo-shortcut-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .farmshift-shortcut-title,
+  .farmgo-shortcut-title {
+    font-size: 13.5px;
+  }
+
+  /* Modals inside 768px */
+  .farmshift-modal-backdrop,
+  .farmgo-modal-backdrop {
+    padding: 14px;
+  }
+
+  .farmshift-modal,
+  .farmgo-modal {
+    max-width: calc(100vw - 28px);
+    max-height: calc(100dvh - 32px);
+  }
+
+  .farmshift-modal-header,
+  .farmgo-modal-header {
+    padding: 14px 18px;
+  }
+
+  .farmshift-modal-body,
+  .farmgo-modal-body {
+    padding: 18px;
+  }
+
+  .farmshift-modal-footer,
+  .farmgo-modal-footer {
+    padding: 12px 18px;
+  }
+
+  /* Stat Grids inside Cards or Dashboards */
+  .farmshift-system-map-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .farmshift-cctv-wall-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .farmshift-iot-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── 6. Smartphones (max-width: 640px) ─────────────────────────── */
+@media (max-width: 640px) {
+  :root {
+    --fs-header-height: 56px;
+  }
+
+  .farmshift-header,
+  .farmgo-header {
+    height: 56px;
+    padding: 0 12px;
+  }
+
+  .farmshift-header-left,
+  .farmgo-header-left {
+    gap: 8px;
+  }
+
+  .farmshift-header-right,
+  .farmgo-header-right {
+    gap: 8px;
+  }
+
+  /* Hide fullscreen button and user name on mobile */
+  .farmshift-header-fullscreen-btn {
+    display: none !important;
+  }
+
+  .farmshift-user-name {
+    display: none !important;
+  }
+
+  .farmshift-user-menu,
+  .farmgo-user-menu {
+    padding: 3px;
+    border-radius: var(--rounded-full);
+  }
+
+  .farmshift-user-avatar,
+  .farmgo-user-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+
+  .farmshift-header-icon-btn,
+  .farmgo-header-icon-btn {
+    padding: 6px;
+    width: 34px;
+    height: 34px;
+  }
+
+  /* Notifications & User Dropdowns fit viewport */
+  .farmshift-notif-dropdown {
+    width: calc(100vw - 20px) !important;
+    right: -50px !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+
+  .farmshift-user-dropdown {
+    width: 220px !important;
+    right: 0 !important;
+  }
+
+  /* Main padding for small screens */
+  .farmshift-main,
+  .farmgo-main {
+    padding: 14px 12px 76px 12px;
+    margin-top: 56px;
+  }
+
+  /* Content header & Title row stacking */
+  .farmshift-header-row,
+  .farmgo-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .farmshift-page-title,
+  .farmgo-page-title {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+
+  .farmshift-breadcrumbs,
+  .farmgo-breadcrumbs {
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* Action buttons row */
+  .farmshift-header-row>div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .farmshift-header-row>div:last-child>.farmshift-btn,
+  .farmshift-header-row>div:last-child>div>.farmshift-btn {
+    flex: 1;
+    min-width: 130px;
+    justify-content: center;
+  }
+
+  /* Quick Shortcuts: 1 column on compact mobile or compact 2 column */
+  .farmshift-shortcuts,
+  .farmgo-shortcuts {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* Toolbars, Search & Filters */
+  .farmshift-toolbar,
+  .farmgo-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .farmshift-search-box,
+  .farmgo-search-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .farmshift-filter-group,
+  .farmgo-filter-group {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .farmshift-select,
+  .farmgo-select {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  /* UNIVERSAL MODAL RESPONSIVENESS */
+  .farmshift-modal-backdrop,
+  .farmgo-modal-backdrop {
+    padding: 8px;
+  }
+
+  .farmshift-modal,
+  .farmgo-modal {
+    max-width: 100%;
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    border-radius: var(--rounded-md);
+  }
+
+  .farmshift-modal-body,
+  .farmgo-modal-body {
+    padding: 16px 14px;
+  }
+
+  .farmshift-modal-footer,
+  .farmgo-modal-footer {
+    padding: 12px 14px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .farmshift-modal-footer .farmshift-btn,
+  .farmshift-modal-footer .farmgo-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* UNIVERSAL INLINE FORM GRIDS: Automatically stack 2-col and 3-col forms into 1-col on mobile */
+  .farmshift-modal-body div[style*="grid-template-columns"],
+  .farmshift-modal-body form div[style*="grid-template-columns"],
+  .farmshift-card-body div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .farmshift-modal-body div[style*="grid-column"],
+  .farmshift-modal-body div[style*="gridColumn"] {
+    grid-column: span 1 !important;
+  }
+
+  /* KPI Summary Numbers scaling */
+  div[style*="fontSize: '32px'"],
+  div[style*="font-size: 32px"],
+  div[style*="fontSize: '28px'"],
+  div[style*="font-size: 28px"],
+  div[style*="fontSize: '26px'"],
+  div[style*="font-size: 26px"] {
+    font-size: 22px !important;
+  }
+
+  /* Tables: compact padding */
+  .farmshift-table th,
+  .farmgo-table th {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .farmshift-table td,
+  .farmgo-table td {
+    padding: 10px 12px;
+    font-size: 12.5px;
+  }
+
+  /* System map nodes */
+  .farmshift-system-map-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Floating Toast notification: fit top viewport centered */
+  .farmshift-floating-toast {
+    top: 64px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: none;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22);
+  }
+
+  /* Floating AI button */
+  .farmshift-ai-fab,
+  .farmgo-ai-fab {
+    bottom: 16px;
+    right: 16px;
+    padding: 9px 16px;
+    font-size: 13px;
+  }
+
+  /* Signature Cards */
+  .signature-coral-card,
+  .signature-forest-card,
+  .hero-card-dark {
+    padding: 18px 16px;
+  }
+
+  .signature-cream-card {
+    padding: 14px 16px;
+  }
+}
+
+/* ── 7. Compact Phones (max-width: 480px) ───────────────────────── */
+@media (max-width: 480px) {
+
+  .farmshift-header-brand-tag,
+  .farmgo-header-brand-tag {
+    padding: 4px 8px;
+    font-size: 11.5px;
+  }
+
+  .farmshift-header-brand-tag span:last-child,
+  .farmgo-header-brand-tag span:last-child {
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .farmshift-notif-dropdown {
+    right: -40px !important;
+  }
+
+  /* Auth form card full width */
+  .farmshift-auth-form-panel {
+    padding: 20px 12px !important;
+  }
+
+  .farmshift-auth-form-card {
+    padding: 24px 18px !important;
+    border-radius: var(--rounded-md);
+  }
+
+  .farmshift-page-title,
+  .farmgo-page-title {
+    font-size: 18px;
+  }
+}
+
+/* ── 8. Smallest Viewports (max-width: 360px) ──────────────────── */
+@media (max-width: 360px) {
+  .farmshift-header-brand-tag span:last-child {
+    display: none;
+  }
+
+  .farmshift-btn,
+  .farmgo-btn {
+    padding: 8px 12px;
+    font-size: 12.5px;
+  }
+
+  .farmshift-tab-btn,
+  .farmgo-tab-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .farmshift-card-header,
+  .farmgo-card-header {
+    padding: 12px 14px;
+  }
+
+  .farmshift-card-body,
+  .farmgo-card-body {
+    padding: 14px 12px;
   }
 }
 
 /* ── IoT Device & Fan Control Styling ───────────────────── */
 @keyframes farmshift-spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes farmshift-spin-med {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes farmshift-spin-fast {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .farmshift-fan-spinning-1 {
@@ -1016,19 +1920,27 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
-.farmshift-iot-toggle input:checked + .farmshift-iot-slider {
+.farmshift-iot-toggle input:checked+.farmshift-iot-slider {
   background-color: #019788;
 }
 
-.farmshift-iot-toggle input:checked + .farmshift-iot-slider:before {
+.farmshift-iot-toggle input:checked+.farmshift-iot-slider:before {
   transform: translateX(20px);
 }
 
 /* ── Notification Badge Bounce ──────────────────────────── */
 @keyframes farmshift-badge-pop {
-  0% { transform: scale(0.6); }
-  60% { transform: scale(1.25); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(0.6);
+  }
+
+  60% {
+    transform: scale(1.25);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .farmshift-badge-bounce {
@@ -1046,7 +1958,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--rounded-lg, 12px);
   border: 1px solid rgba(1, 151, 136, 0.25);
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16), 0 4px 12px rgba(1, 151, 136, 0.08);
-  padding: 14px 16px;
+  padding: 14px 16px 17px 16px;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -1054,6 +1966,7 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
   animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden; /* Clips the bottom progress bar within rounded corners */
 }
 
 .farmshift-floating-toast:hover {
@@ -1061,11 +1974,41 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
 }
 
+.farmshift-toast-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3.5px;
+  width: 100%;
+  animation: farmshiftToastCountdown 4.5s linear forwards;
+  box-shadow: 0 -1px 6px rgba(16, 185, 129, 0.4);
+  transform-origin: left center;
+}
+
+.farmshift-floating-toast:hover .farmshift-toast-progress-bar {
+  animation-play-state: paused;
+}
+
+@keyframes farmshiftToastCountdown {
+  0% {
+    width: 100%;
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    width: 0%;
+    opacity: 0.5;
+  }
+}
+
 @keyframes toastSlideIn {
   from {
     opacity: 0;
     transform: translateX(40px) scale(0.96);
   }
+
   to {
     opacity: 1;
     transform: translateX(0) scale(1);
@@ -1095,6 +2038,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   gap: 8px;
   margin-bottom: 3px;
+  flex-wrap: nowrap;
 }
 
 .farmshift-toast-badge {
@@ -1104,18 +2048,27 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 4px;
   background-color: #fee2e2;
   color: #b91c1c;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .farmshift-toast-type {
   font-size: 13px;
   font-weight: 600;
   color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .farmshift-toast-time {
   font-size: 11px;
   color: #94a3b8;
   margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .farmshift-toast-text {

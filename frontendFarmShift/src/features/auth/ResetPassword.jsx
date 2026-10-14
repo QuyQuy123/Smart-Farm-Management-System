@@ -4,6 +4,7 @@ import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import { authService } from '../../services/authService';
 import { AuthLayout } from './AuthLayout';
+import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 import { getSystemMessage } from '../../constants/systemMessages';
 import '../../theme/farmshift.css';
 
@@ -253,10 +254,18 @@ export const ResetPassword = () => {
             <button
               type="submit"
               disabled={loading || otp.join('').length < 6}
-              className="farmshift-btn farmshift-btn-primary"
-              style={{ width: '100%', justifyContent: 'center', height: '44px' }}
+              aria-busy={loading}
+              className={`farmshift-btn farmshift-btn-primary ${loading ? 'is-loading' : ''}`}
+              style={{ width: '100%', justifyContent: 'center', height: '44px', gap: '10px' }}
             >
-              {loading ? 'Đang xác thực...' : 'Xác thực mã'}
+              {loading ? (
+                <>
+                  <ButtonSpinner size={18} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                  <span>Đang xác thực mã OTP...</span>
+                </>
+              ) : (
+                'Xác thực mã OTP'
+              )}
             </button>
             
             <div style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
@@ -318,10 +327,18 @@ export const ResetPassword = () => {
             <button
               type="submit"
               disabled={loading || success !== ''}
-              className="farmshift-btn farmshift-btn-primary"
-              style={{ width: '100%', justifyContent: 'center', height: '44px' }}
+              aria-busy={loading}
+              className={`farmshift-btn farmshift-btn-primary ${loading ? 'is-loading' : ''}`}
+              style={{ width: '100%', justifyContent: 'center', height: '44px', gap: '10px' }}
             >
-              {loading ? 'Đang cập nhật...' : 'Đổi mật khẩu'}
+              {loading ? (
+                <>
+                  <ButtonSpinner size={18} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                  <span>Đang cập nhật mật khẩu...</span>
+                </>
+              ) : (
+                'Đổi mật khẩu'
+              )}
             </button>
           </div>
         </form>

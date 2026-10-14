@@ -4,21 +4,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-/* ── Fallback Loader ────────────────────────────────────────── */
-const PageFallback = () => (
-  <div style={{
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100vh',
-    color: '#019788',
-    fontSize: '15px',
-    fontWeight: 600,
-    background: '#f8fafc'
-  }}>
-    Đang tải trang FarmShift...
-  </div>
-);
+import { PageLoading } from '../components/Loading/PageLoading';
 
 /* ── Lazy Loaded Auth Pages ─────────────────────────────────── */
 const Login = lazy(() => import('../features/auth/Login').then(m => ({ default: m.Login })));
@@ -45,7 +31,7 @@ const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <PageFallback />;
+    return <PageLoading />;
   }
 
   // Allow access even without login in demo mode, or redirect if required
@@ -59,7 +45,7 @@ const ProtectedRoute = ({ children }) => {
 /* ── AppRouter ─────────────────────────────────────────────── */
 export const AppRouter = () => {
   return (
-    <Suspense fallback={<PageFallback />}>
+    <Suspense fallback={<PageLoading />}>
       <Routes>
         {/* ── Public Auth Routes ──────────────────────────────── */}
         <Route path="/login" element={<Login />} />
