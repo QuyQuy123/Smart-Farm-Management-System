@@ -1148,3 +1148,46 @@ h1, h2, h3, h4, h5, h6 {
   background-color: #f1f5f9;
   color: #0f172a;
 }
+
+/* ── Senior-Friendly UX / Chế Độ Dễ Nhìn Cho Người Lớn Tuổi ───────── */
+.farmshift-senior-mode {
+  --font-size-base: 15.5px;
+}
+
+.farmshift-senior-mode .farmshift-table {
+  font-size: 15px;
+}
+
+.farmshift-senior-mode .farmshift-table th {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 14px 18px;
+  background-color: #f1f5f9;
+}
+
+.farmshift-senior-mode .farmshift-table td {
+  padding: 16px 18px;
+  font-size: 15px;
+}
+
+.farmshift-senior-mode .farmshift-badge {
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+}
+
+.farmshift-senior-mode .farmshift-search-box {
+  padding: 10px 16px;
+}
+
+.farmshift-senior-mode .farmshift-search-box input {
+  font-size: 15px;
+}
+
+.farmshift-senior-mode .farmshift-select {
+  padding: 10px 16px;
+  font-size: 14.5px;
+}
+

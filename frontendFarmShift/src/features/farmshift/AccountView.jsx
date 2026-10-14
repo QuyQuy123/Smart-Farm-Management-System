@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Users, Plus, Search, ShieldCheck, UserCheck,
   Building2, Crown, KeyRound, Edit2, X, CheckCircle, Camera,
-  Eye, RefreshCw, AlertCircle, Shield
+  Eye, RefreshCw, AlertCircle, Shield, PhoneCall, Phone
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
@@ -22,19 +22,19 @@ import { AvatarCropperModal } from '../profile/AvatarCropperModal';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
-    label: 'Chủ trang trại (Owner)',
+    label: 'Chủ trang trại (Toàn quyền)',
     badgeClass: 'farmshift-badge-neutral',
     barn: 'Toàn bộ trang trại'
   },
   ROLE_ACCOUNTANT: {
-    label: 'Kế toán (Accountant)',
+    label: 'Kế toán (Thu chi & Kho hàng)',
     badgeClass: 'farmshift-badge-info',
     barn: 'Sổ quỹ & Kho hàng'
   },
   ROLE_FARM_WORKER: {
-    label: 'Công nhân trại (Worker)',
+    label: 'Công nhân trại (Chăm sóc vật nuôi)',
     badgeClass: 'farmshift-badge-success',
-    barn: 'Khu chuồng chăn nuôi'
+    barn: 'Khu chuồng trại nuôi'
   }
 };
 
@@ -57,6 +57,18 @@ export const AccountView = () => {
   const { user, updateUser } = useAuth();
   const { showToast } = useNotification();
   const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'profile' | 'security' | 'branches' | 'plan'
+  // Chế độ Dễ nhìn (Chữ to & Độ tương phản cao dành riêng cho người lớn tuổi)
+  const [seniorMode, setSeniorMode] = useState(() => {
+    return localStorage.getItem('farmshift_senior_mode') === 'true';
+  });
+
+  const toggleSeniorMode = () => {
+    setSeniorMode(prev => {
+      const next = !prev;
+      localStorage.setItem('farmshift_senior_mode', String(next));
+      return next;
+    });
+  };
 
   // Staff List State
   const [staffList, setStaffList] = useState([]);
@@ -585,37 +597,82 @@ export const AccountView = () => {
         </button>
       </div>
 
-      {/* ── TAB 1: DANH SÁCH NHÂN SỰ ────────────────────────────────────────── */}
+      {/* ── TAB 1: DANH SÁCH NHÂN SỰ (SENIOR-FRIENDLY UI) ───────────────────── */}
       {activeTab === 'staff' && (
-        <div className="farmshift-card">
+        <div className={`farmshift-card ${seniorMode ? 'farmshift-senior-mode' : ''}`}>
           <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 className="farmshift-card-title">Quản lý tài khoản nhân viên & phân quyền</h3>
+            <h3 className="farmshift-card-title" style={{ fontSize: seniorMode ? '18px' : '16px' }}>
+              Quản lý tài khoản nhân viên & phân quyền
+            </h3>
             <button
               className="farmshift-btn farmshift-btn-secondary"
               onClick={fetchStaffList}
               disabled={isLoadingStaff}
               title="Làm mới danh sách"
-              style={{ padding: '6px 12px', fontSize: '13px' }}
+              style={{ padding: seniorMode ? '8px 16px' : '6px 12px', fontSize: seniorMode ? '14.5px' : '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
-              <RefreshCw size={14} className={isLoadingStaff ? 'farmshift-spin' : ''} />
+              <RefreshCw size={seniorMode ? 16 : 14} className={isLoadingStaff ? 'farmshift-spin' : ''} />
               Làm mới
             </button>
           </div>
 
-          {/* Toolbar: Search keyword & Filters */}
-          <div className="farmshift-toolbar" style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-hairline)', margin: 0 }}>
-            <div className="farmshift-search-box" style={{ width: '320px' }}>
+          {/* Hộp chỉ dẫn thân thiện & Nút gọi khẩn cấp dành riêng cho Bác / Cô chú chủ trại */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            padding: '12px 18px',
+            backgroundColor: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: 'var(--rounded-md)',
+            margin: '16px 20px 0',
+            fontSize: seniorMode ? '15px' : '14px',
+            color: '#166534'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '24px' }}>🌾</span>
+              <span>
+                <strong>Hướng dẫn nhanh:</strong> Bác có thể tìm nhân viên theo <strong>Tên</strong> hoặc <strong>Số điện thoại</strong> ở ô tìm kiếm. Để thêm người làm mới, bấm nút <strong>+ Thêm nhân viên</strong> ở góc trên bên phải.
+              </span>
+            </div>
+            <a
+              href="tel:0988123456"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#15803d',
+                color: '#ffffff',
+                padding: '8px 16px',
+                borderRadius: 'var(--rounded-md)',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: '13.5px',
+                boxShadow: '0 2px 4px rgba(21, 128, 61, 0.2)'
+              }}
+              title="Bấm để gọi hotline hoặc nhắn Zalo hỗ trợ kỹ thuật"
+            >
+              <PhoneCall size={16} /> Gọi hỗ trợ / Zalo: 0988.123.456
+            </a>
+          </div>
+
+          {/* Toolbar: Search keyword & Filters & Senior Mode Toggle */}
+          <div className="farmshift-toolbar" style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-hairline)', margin: 0, gap: '14px' }}>
+            <div className="farmshift-search-box" style={{ width: seniorMode ? '380px' : '340px' }}>
               {isLoadingStaff ? (
-                <RefreshCw size={16} className="farmshift-spin" style={{ color: 'var(--color-primary)' }} />
+                <RefreshCw size={18} className="farmshift-spin" style={{ color: 'var(--color-primary)' }} />
               ) : (
-                <Search size={16} color="var(--color-muted)" />
+                <Search size={18} color="var(--color-muted)" />
               )}
               <input
                 type="text"
-                placeholder="Tìm theo tên, email, số điện thoại..."
+                placeholder="🔍 Tìm theo họ tên, số điện thoại hoặc email..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 id="search-employee-input"
+                style={{ fontSize: seniorMode ? '15.5px' : '14px' }}
               />
               {searchTerm && (
                 <button
@@ -623,22 +680,23 @@ export const AccountView = () => {
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)', padding: 0 }}
                   title="Xóa tìm kiếm"
                 >
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               )}
             </div>
 
-            <div className="farmshift-filter-group">
+            <div className="farmshift-filter-group" style={{ flexWrap: 'wrap' }}>
               <select
                 className="farmshift-select"
                 value={filterRole}
                 onChange={e => setFilterRole(e.target.value)}
                 id="filter-role-select"
+                style={{ fontSize: seniorMode ? '15px' : '14px' }}
               >
-                <option value="ALL">Tất cả vai trò</option>
-                <option value="ROLE_FARM_OWNER">Chủ trang trại</option>
-                <option value="ROLE_ACCOUNTANT">Kế toán</option>
-                <option value="ROLE_FARM_WORKER">Công nhân trại</option>
+                <option value="ALL">Tất cả vai trò phụ trách</option>
+                <option value="ROLE_FARM_OWNER">👑 Chủ trang trại (Toàn quyền)</option>
+                <option value="ROLE_ACCOUNTANT">💼 Kế toán (Thu chi & Kho hàng)</option>
+                <option value="ROLE_FARM_WORKER">🌾 Công nhân trại (Chăm sóc vật nuôi)</option>
               </select>
 
               <select
@@ -646,11 +704,31 @@ export const AccountView = () => {
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
                 id="filter-status-select"
+                style={{ fontSize: seniorMode ? '15px' : '14px' }}
               >
                 <option value="ALL">Tất cả trạng thái</option>
-                <option value="true">Đang hoạt động</option>
-                <option value="false">Tạm ngưng hoạt động</option>
+                <option value="true">🟢 Đang làm việc</option>
+                <option value="false">🔴 Tạm ngưng / Nghỉ việc</option>
               </select>
+
+              {/* Nút bật/tắt chế độ Dễ nhìn (Chữ to & rõ) */}
+              <button
+                type="button"
+                className={`farmshift-btn ${seniorMode ? 'farmshift-btn-primary' : 'farmshift-btn-secondary'}`}
+                onClick={toggleSeniorMode}
+                title={seniorMode ? 'Đang bật chế độ chữ to dễ nhìn' : 'Bật chế độ chữ to dễ nhìn cho người lớn tuổi'}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: seniorMode ? '9px 15px' : '8px 13px',
+                  fontSize: seniorMode ? '14.5px' : '13px',
+                  fontWeight: 600
+                }}
+              >
+                <span>👓</span>
+                <span>Chế độ Dễ nhìn: <strong>{seniorMode ? 'BẬT' : 'TẮT'}</strong></span>
+              </button>
             </div>
           </div>
 
@@ -659,21 +737,21 @@ export const AccountView = () => {
             <table className="farmshift-table">
               <thead>
                 <tr>
-                  <th>Nhân viên</th>
-                  <th>Email</th>
-                  <th>Số điện thoại</th>
-                  <th>Vai trò phân quyền</th>
-                  <th>Phạm vi phụ trách</th>
-                  <th>Trạng thái</th>
-                  <th style={{ textAlign: 'center', width: '130px' }}>Thao tác</th>
+                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Nhân viên</th>
+                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Số điện thoại</th>
+                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Email đăng nhập</th>
+                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Vai trò phụ trách</th>
+                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Phạm vi chuồng trại</th>
+                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Trạng thái</th>
+                  <th style={{ textAlign: 'center', width: seniorMode ? '170px' : '150px', fontSize: seniorMode ? '15px' : '13.5px' }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoadingStaff ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-muted)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                        <RefreshCw size={18} className="farmshift-spin" />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: seniorMode ? '16px' : '14px' }}>
+                        <RefreshCw size={20} className="farmshift-spin" />
                         <span>Đang tải danh sách nhân viên từ hệ thống...</span>
                       </div>
                     </td>
@@ -681,9 +759,9 @@ export const AccountView = () => {
                 ) : staffList.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
-                      <AlertCircle size={24} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--color-muted)' }} />
-                      <p style={{ margin: 0, fontWeight: 500 }}>{getSystemMessage('MSG01')}</p>
-                      <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Thử thay đổi từ khóa tìm kiếm hoặc bỏ bớt bộ lọc.</p>
+                      <AlertCircle size={28} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--color-muted)' }} />
+                      <p style={{ margin: 0, fontWeight: 600, fontSize: seniorMode ? '16px' : '14px' }}>{getSystemMessage('MSG01')}</p>
+                      <p style={{ margin: '6px 0 0', fontSize: seniorMode ? '14px' : '13px' }}>Bác thử xóa từ khóa tìm kiếm hoặc bấm nút "Làm mới" phía trên.</p>
                     </td>
                   </tr>
                 ) : (
@@ -698,20 +776,21 @@ export const AccountView = () => {
                     return (
                       <tr key={st.id || st.email}>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{
-                              width: '34px',
-                              height: '34px',
+                              width: seniorMode ? '42px' : '36px',
+                              height: seniorMode ? '42px' : '36px',
                               borderRadius: '50%',
                               backgroundColor: 'var(--color-surface-soft)',
-                              border: '1px solid var(--color-hairline)',
+                              border: '2px solid var(--color-hairline)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               overflow: 'hidden',
-                              fontWeight: 600,
+                              fontWeight: 700,
                               color: 'var(--color-ink)',
-                              fontSize: '13px'
+                              fontSize: seniorMode ? '16px' : '14px',
+                              flexShrink: 0
                             }}>
                               {st.avatarUrl ? (
                                 <img src={st.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -720,54 +799,76 @@ export const AccountView = () => {
                               )}
                             </div>
                             <div>
-                              <strong style={{ color: 'var(--color-ink)', fontSize: '13.5px', display: 'block' }}>
+                              <strong style={{ color: '#0f172a', fontSize: seniorMode ? '16px' : '14.5px', display: 'block' }}>
                                 {st.fullName || 'Chưa đặt tên'}
                               </strong>
                               {isOwner && (
-                                <span style={{ fontSize: '11px', color: 'var(--color-signature-coral)', fontWeight: 600 }}>
-                                  Chủ tài khoản chính
+                                <span style={{ fontSize: '11.5px', color: 'var(--color-signature-coral)', fontWeight: 700 }}>
+                                  ⭐ Chủ tài khoản chính
                                 </span>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td style={{ color: 'var(--color-body)', fontSize: '13px' }}>{st.email}</td>
-                        <td style={{ color: 'var(--color-body)', fontSize: '13px' }}>{st.phone || '—'}</td>
                         <td>
-                          <span className={`farmshift-badge ${roleInfo.badgeClass}`}>
+                          {st.phone ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#0369a1', fontWeight: 600, fontSize: seniorMode ? '15px' : '13.5px' }}>
+                              <Phone size={14} /> {st.phone}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--color-muted)', fontSize: '13px' }}>Chưa có SĐT</span>
+                          )}
+                        </td>
+                        <td style={{ color: 'var(--color-body)', fontSize: seniorMode ? '14.5px' : '13px' }}>{st.email}</td>
+                        <td>
+                          <span className={`farmshift-badge ${roleInfo.badgeClass}`} style={{ fontSize: seniorMode ? '13.5px' : '12px', padding: seniorMode ? '4px 10px' : '3px 8px' }}>
                             {roleInfo.label}
                           </span>
                         </td>
-                        <td style={{ color: 'var(--color-muted)', fontSize: '13px' }}>
+                        <td style={{ color: 'var(--color-body)', fontSize: seniorMode ? '14px' : '13px' }}>
                           {st.barnAssigned || roleInfo.barn}
                         </td>
                         <td>
                           <span
                             className={`farmshift-badge ${st.isActive ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}
-                            style={{ cursor: isOwner ? 'default' : 'pointer' }}
+                            style={{ cursor: isOwner ? 'default' : 'pointer', fontSize: seniorMode ? '13.5px' : '12px', padding: seniorMode ? '4px 10px' : '3px 8px' }}
                             onClick={() => !isOwner && handleQuickToggleActive(st)}
-                            title={isOwner ? 'Tài khoản Chủ trại không thể vô hiệu hóa' : 'Bấm để đổi trạng thái'}
+                            title={isOwner ? 'Tài khoản Chủ trại không thể vô hiệu hóa' : 'Bấm để đổi trạng thái hoạt động'}
                           >
-                            {st.isActive ? 'Đang hoạt động' : 'Đã tạm khóa'}
+                            {st.isActive ? '🟢 Đang làm việc' : '🔴 Tạm ngưng'}
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                             <button
                               className="farmshift-btn farmshift-btn-secondary"
                               onClick={() => handleViewDetails(st)}
-                              title="Xem chi tiết"
-                              style={{ padding: '6px 8px' }}
+                              title="Xem toàn bộ thông tin chi tiết nhân viên"
+                              style={{
+                                padding: seniorMode ? '7px 14px' : '6px 10px',
+                                fontSize: seniorMode ? '14px' : '13px',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                              }}
                             >
-                              <Eye size={14} />
+                              <Eye size={15} /> Xem
                             </button>
                             <button
-                              className="farmshift-btn farmshift-btn-secondary"
+                              className="farmshift-btn farmshift-btn-primary"
                               onClick={() => handleOpenEdit(st)}
-                              title="Chỉnh sửa & Phân quyền"
-                              style={{ padding: '6px 8px' }}
+                              title="Chỉnh sửa thông tin & đổi quyền hạn"
+                              style={{
+                                padding: seniorMode ? '7px 14px' : '6px 10px',
+                                fontSize: seniorMode ? '14px' : '13px',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                              }}
                             >
-                              <Edit2 size={14} />
+                              <Edit2 size={15} /> Sửa
                             </button>
                           </div>
                         </td>
@@ -1050,45 +1151,54 @@ export const AccountView = () => {
         </div>
       )}
 
-      {/* ── MODAL 1: CREATE EMPLOYEE ──────────────────────────────────────── */}
+      {/* ── MODAL 1: CREATE EMPLOYEE (SENIOR-FRIENDLY) ───────────────────── */}
       {showAddModal && (
         <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
+          <div className="farmshift-modal" style={{ maxWidth: '580px' }}>
             <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Thêm mới nhân viên</h3>
+              <div>
+                <h3 className="farmshift-modal-title" style={{ fontSize: '18px' }}>Thêm mới nhân viên</h3>
+                <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
+                  Nhập thông tin người làm tại trại. Mật khẩu khởi tạo mặc định là 123456.
+                </span>
+              </div>
               <button
                 onClick={() => setShowAddModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
+                title="Đóng cửa sổ"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
             <form onSubmit={handleCreateStaff}>
               <div className="farmshift-modal-body">
                 {formError && (
                   <div style={{
-                    padding: '10px 14px',
+                    padding: '12px 16px',
                     marginBottom: '16px',
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fce8e6',
                     color: '#c5221f',
-                    fontSize: '13.5px',
+                    fontSize: '14px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
                   }}>
-                    <AlertCircle size={16} />
+                    <AlertCircle size={18} />
                     <span>{formError}</span>
                   </div>
                 )}
 
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Họ và tên nhân viên *</label>
+                  <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>
+                    Họ và tên nhân viên *
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="VD: Trần Văn Kế Toán, Lê Văn Công..."
+                    placeholder="VD: Trần Văn Kế Toán (Bác Ba, Chị Lan...)"
                     className="farmshift-form-control"
+                    style={{ fontSize: '15px', padding: '10px 14px' }}
                     value={newStaff.fullName}
                     onChange={e => handleFullNameChange(e.target.value)}
                   />
@@ -1097,19 +1207,22 @@ export const AccountView = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <label className="farmshift-form-label" style={{ margin: 0 }}>Email đăng nhập *</label>
+                      <label className="farmshift-form-label" style={{ margin: 0, fontSize: '14.5px', fontWeight: 600 }}>
+                        Email đăng nhập *
+                      </label>
                       {isEmailCustomized && newStaff.fullName.trim() && (
                         <button
                           type="button"
                           onClick={handleAutoSuggestEmail}
                           style={{
-                            background: 'none',
-                            border: 'none',
+                            background: '#e0f2f1',
+                            border: '1px solid #019788',
+                            borderRadius: '4px',
                             cursor: 'pointer',
                             color: 'var(--color-primary)',
-                            fontSize: '11.5px',
-                            fontWeight: 500,
-                            padding: 0
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            padding: '3px 8px'
                           }}
                           title="Tạo lại email theo họ tên"
                         >
@@ -1122,21 +1235,25 @@ export const AccountView = () => {
                       required
                       placeholder="nhanvien@smartfarm.com"
                       className="farmshift-form-control"
+                      style={{ fontSize: '14.5px', padding: '10px 14px' }}
                       value={newStaff.email}
                       onChange={e => handleEmailChange(e.target.value)}
                     />
                     {!isEmailCustomized && newStaff.email && (
-                      <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
-                        ✨ Đề xuất tự động (sửa tùy ý)
+                      <span style={{ fontSize: '12px', color: '#047857', marginTop: '5px', display: 'block', fontWeight: 500 }}>
+                        ✨ Đề xuất tự động từ họ tên (bác sửa tùy ý)
                       </span>
                     )}
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số điện thoại</label>
+                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>
+                      Số điện thoại
+                    </label>
                     <input
                       type="text"
-                      placeholder="0988..."
+                      placeholder="VD: 0988 123 456"
                       className="farmshift-form-control"
+                      style={{ fontSize: '14.5px', padding: '10px 14px' }}
                       value={newStaff.phone}
                       onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
                     />
@@ -1145,24 +1262,29 @@ export const AccountView = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Phân quyền vai trò *</label>
+                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>
+                      Phân quyền vai trò *
+                    </label>
                     <select
                       className="farmshift-form-control"
+                      style={{ fontSize: '14px', padding: '10px 12px' }}
                       value={newStaff.roleName}
                       onChange={e => setNewStaff({ ...newStaff, roleName: e.target.value })}
                     >
-                      <option value="ROLE_FARM_WORKER">Công nhân trại (Worker)</option>
-                      <option value="ROLE_ACCOUNTANT">Kế toán (Accountant)</option>
+                      <option value="ROLE_FARM_WORKER">🌾 Công nhân trại (Chăm sóc vật nuôi)</option>
+                      <option value="ROLE_ACCOUNTANT">💼 Kế toán (Thu chi & Kho cám/thuốc)</option>
                     </select>
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Mật khẩu khởi tạo</label>
+                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>
+                      Mật khẩu khởi tạo
+                    </label>
                     <div style={{ position: 'relative' }}>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Mặc định: 123456 (nếu để trống)"
                         className="farmshift-form-control"
-                        style={{ paddingRight: '36px' }}
+                        style={{ paddingRight: '40px', fontSize: '14.5px', padding: '10px 14px' }}
                         value={newStaff.password}
                         onChange={e => setNewStaff({ ...newStaff, password: e.target.value })}
                       />
@@ -1171,7 +1293,7 @@ export const AccountView = () => {
                         onClick={() => setShowPassword(!showPassword)}
                         style={{
                           position: 'absolute',
-                          right: '8px',
+                          right: '10px',
                           top: '50%',
                           transform: 'translateY(-50%)',
                           background: 'none',
@@ -1181,21 +1303,22 @@ export const AccountView = () => {
                         }}
                         title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                       >
-                        {showPassword ? <Eye size={15} /> : <KeyRound size={15} />}
+                        {showPassword ? <Eye size={18} /> : <KeyRound size={18} />}
                       </button>
                     </div>
-                    <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
-                      💡 Để trống sẽ lấy mặc định là <strong>123456</strong>
+                    <span style={{ fontSize: '12px', color: '#15803d', marginTop: '5px', display: 'block', fontWeight: 500 }}>
+                      🔒 Để trống sẽ lấy mặc định là <strong>123456</strong> (rất dễ nhớ)
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="farmshift-modal-footer">
+              <div className="farmshift-modal-footer" style={{ gap: '10px' }}>
                 <button
                   type="button"
                   className="farmshift-btn farmshift-btn-secondary"
                   onClick={() => setShowAddModal(false)}
                   disabled={isSubmitting}
+                  style={{ padding: '10px 20px', fontSize: '14.5px' }}
                 >
                   Đóng lại
                 </button>
@@ -1203,6 +1326,7 @@ export const AccountView = () => {
                   type="submit"
                   className="farmshift-btn farmshift-btn-primary"
                   disabled={isSubmitting}
+                  style={{ padding: '10px 24px', fontSize: '15px', fontWeight: 600 }}
                 >
                   {isSubmitting ? 'Đang tạo...' : 'Tạo tài khoản & Lưu'}
                 </button>
@@ -1212,41 +1336,46 @@ export const AccountView = () => {
         </div>
       )}
 
-      {/* ── MODAL 2: VIEW EMPLOYEE DETAILS ─────────────────────────────────── */}
+      {/* ── MODAL 2: VIEW EMPLOYEE DETAILS (SENIOR-FRIENDLY) ───────────────── */}
       {showDetailModal && selectedEmployee && (
         <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal" style={{ maxWidth: '580px' }}>
+          <div className="farmshift-modal" style={{ maxWidth: '600px' }}>
             <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Thông tin chi tiết nhân sự</h3>
+              <div>
+                <h3 className="farmshift-modal-title" style={{ fontSize: '18px' }}>Thông tin chi tiết nhân sự</h3>
+                <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Hồ sơ và phạm vi phụ trách tại trang trại</span>
+              </div>
               <button
                 onClick={() => setShowDetailModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
+                title="Đóng cửa sổ"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
             <div className="farmshift-modal-body">
               {isLoadingDetail ? (
                 <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-muted)' }}>
-                  <RefreshCw size={18} className="farmshift-spin" />
-                  <p style={{ marginTop: '8px' }}>Đang nạp chi tiết...</p>
+                  <RefreshCw size={22} className="farmshift-spin" />
+                  <p style={{ marginTop: '8px', fontSize: '15px' }}>Đang nạp chi tiết nhân sự...</p>
                 </div>
               ) : (
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--color-hairline)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '18px', marginBottom: '22px', paddingBottom: '18px', borderBottom: '1px solid var(--color-hairline)' }}>
                     <div style={{
-                      width: '64px',
-                      height: '64px',
+                      width: '72px',
+                      height: '72px',
                       borderRadius: '50%',
                       backgroundColor: 'var(--color-surface-soft)',
-                      border: '1px solid var(--color-hairline)',
+                      border: '2px solid var(--color-hairline)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       overflow: 'hidden',
                       fontWeight: 700,
-                      fontSize: '22px',
-                      color: 'var(--color-ink)'
+                      fontSize: '26px',
+                      color: 'var(--color-ink)',
+                      flexShrink: 0
                     }}>
                       {selectedEmployee.avatarUrl ? (
                         <img src={selectedEmployee.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1255,59 +1384,87 @@ export const AccountView = () => {
                       )}
                     </div>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '18px', color: 'var(--color-ink)' }}>
+                      <h4 style={{ margin: 0, fontSize: '20px', color: '#0f172a', fontWeight: 700 }}>
                         {selectedEmployee.fullName || 'Chưa đặt tên'}
                       </h4>
-                      <p style={{ margin: '4px 0 0', color: 'var(--color-muted)', fontSize: '13.5px' }}>
+                      <p style={{ margin: '4px 0 0', color: 'var(--color-muted)', fontSize: '14px' }}>
                         {selectedEmployee.email}
                       </p>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                        <span className={`farmshift-badge ${(ROLE_DISPLAY[selectedEmployee.roleName] || {}).badgeClass || 'farmshift-badge-neutral'}`}>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span className={`farmshift-badge ${(ROLE_DISPLAY[selectedEmployee.roleName] || {}).badgeClass || 'farmshift-badge-neutral'}`} style={{ fontSize: '13px', padding: '4px 10px' }}>
                           {(ROLE_DISPLAY[selectedEmployee.roleName] || {}).label || selectedEmployee.roleName}
                         </span>
-                        <span className={`farmshift-badge ${selectedEmployee.isActive ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}>
-                          {selectedEmployee.isActive ? 'Đang hoạt động' : 'Tạm khóa'}
+                        <span className={`farmshift-badge ${selectedEmployee.isActive ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`} style={{ fontSize: '13px', padding: '4px 10px' }}>
+                          {selectedEmployee.isActive ? '🟢 Đang làm việc' : '🔴 Tạm khóa'}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '13.5px' }}>
-                    <div>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Mã nhân viên (ID):</span>
-                      <strong style={{ color: 'var(--color-ink)' }}>#{selectedEmployee.id}</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px', fontSize: '14.5px' }}>
+                    <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Mã nhân viên (ID):</span>
+                      <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>#{selectedEmployee.id}</strong>
                     </div>
-                    <div>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Số điện thoại:</span>
-                      <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.phone || 'Chưa cập nhật'}</strong>
+
+                    <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Số điện thoại:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <strong style={{ color: '#0369a1', fontSize: '15px' }}>{selectedEmployee.phone || 'Chưa cập nhật'}</strong>
+                        {selectedEmployee.phone && (
+                          <a
+                            href={`tel:${selectedEmployee.phone}`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '12.5px',
+                              color: '#ffffff',
+                              backgroundColor: '#15803d',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              textDecoration: 'none',
+                              fontWeight: 600
+                            }}
+                            title="Bấm để gọi điện cho nhân viên này"
+                          >
+                            <PhoneCall size={12} /> Bấm gọi
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Số CMND / Căn cước:</span>
-                      <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.citizenId || 'Chưa cập nhật'}</strong>
+
+                    <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Số CMND / Căn cước:</span>
+                      <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>{selectedEmployee.citizenId || 'Chưa cập nhật'}</strong>
                     </div>
-                    <div>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Ngày sinh:</span>
-                      <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.dateOfBirth || 'Chưa cập nhật'}</strong>
+
+                    <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Ngày sinh:</span>
+                      <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>{selectedEmployee.dateOfBirth || 'Chưa cập nhật'}</strong>
                     </div>
+
+                    <div style={{ gridColumn: 'span 2', backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Địa chỉ thường trú:</span>
+                      <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>{selectedEmployee.address || 'Chưa cập nhật'}</strong>
+                    </div>
+
                     <div style={{ gridColumn: 'span 2' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Địa chỉ cư trú:</span>
-                      <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.address || 'Chưa cập nhật'}</strong>
-                    </div>
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Mô tả vai trò & phạm vi:</span>
-                      <p style={{ margin: '4px 0 0', color: 'var(--color-body)', backgroundColor: 'var(--color-surface-soft)', padding: '10px', borderRadius: 'var(--rounded-sm)', border: '1px solid var(--color-hairline)' }}>
-                        {selectedEmployee.roleDescription || (ROLE_DISPLAY[selectedEmployee.roleName] || {}).barn || 'Nhân sự thực hiện các nghiệp vụ được phân công trong phân hệ.'}
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 600 }}>Mô tả công việc & phạm vi phụ trách:</span>
+                      <p style={{ margin: 0, color: 'var(--color-body)', backgroundColor: '#f8fafc', padding: '12px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)', lineHeight: 1.6 }}>
+                        {selectedEmployee.roleDescription || (ROLE_DISPLAY[selectedEmployee.roleName] || {}).barn || 'Nhân sự thực hiện các nghiệp vụ theo phân công tại trang trại.'}
                       </p>
                     </div>
                   </div>
                 </div>
               )}
             </div>
-            <div className="farmshift-modal-footer">
+            <div className="farmshift-modal-footer" style={{ gap: '10px' }}>
               <button
                 type="button"
                 className="farmshift-btn farmshift-btn-secondary"
                 onClick={() => setShowDetailModal(false)}
+                style={{ padding: '10px 20px', fontSize: '14.5px' }}
               >
                 Đóng
               </button>
@@ -1318,69 +1475,75 @@ export const AccountView = () => {
                   setShowDetailModal(false);
                   handleOpenEdit(selectedEmployee);
                 }}
+                style={{ padding: '10px 22px', fontSize: '15px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                <Edit2 size={14} /> Chỉnh sửa thông tin
+                <Edit2 size={16} /> Chỉnh sửa thông tin
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MODAL 3: UPDATE EMPLOYEE & ROLE ───────────────────────────────── */}
+      {/* ── MODAL 3: UPDATE EMPLOYEE & ROLE (SENIOR-FRIENDLY) ──────────────── */}
       {showEditModal && (
         <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
+          <div className="farmshift-modal" style={{ maxWidth: '580px' }}>
             <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Chỉnh sửa & Phân quyền nhân viên</h3>
+              <div>
+                <h3 className="farmshift-modal-title" style={{ fontSize: '18px' }}>Chỉnh sửa & Phân quyền nhân viên</h3>
+                <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Cập nhật lại tên, số điện thoại, quyền hạn hoặc trạng thái làm việc</span>
+              </div>
               <button
                 onClick={() => setShowEditModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
+                title="Đóng cửa sổ"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
             <form onSubmit={handleUpdateStaff}>
               <div className="farmshift-modal-body">
                 {formError && (
                   <div style={{
-                    padding: '10px 14px',
+                    padding: '12px 16px',
                     marginBottom: '16px',
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fce8e6',
                     color: '#c5221f',
-                    fontSize: '13.5px',
+                    fontSize: '14px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
                   }}>
-                    <AlertCircle size={16} />
+                    <AlertCircle size={18} />
                     <span>{formError}</span>
                   </div>
                 )}
 
                 {editStaff.roleName === 'ROLE_FARM_OWNER' && (
                   <div style={{
-                    padding: '10px 14px',
+                    padding: '12px 16px',
                     marginBottom: '16px',
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fef3c7',
                     color: '#b45309',
-                    fontSize: '13px',
+                    fontSize: '13.5px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: '10px'
                   }}>
-                    <Shield size={16} />
-                    <span>Tài khoản Chủ trang trại được bảo vệ: Không thể đổi vai trò hoặc vô hiệu hóa.</span>
+                    <Shield size={18} />
+                    <span><strong>Tài khoản Chủ trang trại được bảo vệ an toàn:</strong> Không thể tự đổi vai trò hoặc tạm khóa tài khoản của chính mình.</span>
                   </div>
                 )}
 
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Họ và tên *</label>
+                  <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Họ và tên *</label>
                   <input
                     type="text"
                     required
                     className="farmshift-form-control"
+                    style={{ fontSize: '15px', padding: '10px 14px' }}
                     value={editStaff.fullName}
                     onChange={e => setEditStaff({ ...editStaff, fullName: e.target.value })}
                   />
@@ -1388,20 +1551,22 @@ export const AccountView = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Email tài khoản *</label>
+                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Email tài khoản *</label>
                     <input
                       type="email"
                       required
                       className="farmshift-form-control"
+                      style={{ fontSize: '14.5px', padding: '10px 14px' }}
                       value={editStaff.email}
                       onChange={e => setEditStaff({ ...editStaff, email: e.target.value })}
                     />
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số điện thoại</label>
+                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Số điện thoại</label>
                     <input
                       type="text"
                       className="farmshift-form-control"
+                      style={{ fontSize: '14.5px', padding: '10px 14px' }}
                       value={editStaff.phone}
                       onChange={e => setEditStaff({ ...editStaff, phone: e.target.value })}
                     />
@@ -1410,45 +1575,47 @@ export const AccountView = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Vai trò phân quyền</label>
+                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Vai trò phân quyền</label>
                     <select
                       className="farmshift-form-control"
+                      style={{ fontSize: '14px', padding: '10px 12px' }}
                       value={editStaff.roleName}
                       disabled={editStaff.roleName === 'ROLE_FARM_OWNER'}
                       onChange={e => setEditStaff({ ...editStaff, roleName: e.target.value })}
-                      style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' } : {}}
+                      style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed', fontSize: '14px', padding: '10px 12px' } : { fontSize: '14px', padding: '10px 12px' }}
                     >
                       {editStaff.roleName === 'ROLE_FARM_OWNER' ? (
-                        <option value="ROLE_FARM_OWNER">Chủ trang trại (Owner)</option>
+                        <option value="ROLE_FARM_OWNER">👑 Chủ trang trại (Toàn quyền quản lý)</option>
                       ) : (
                         <>
-                          <option value="ROLE_FARM_WORKER">Công nhân trại (Worker)</option>
-                          <option value="ROLE_ACCOUNTANT">Kế toán (Accountant)</option>
+                          <option value="ROLE_FARM_WORKER">🌾 Công nhân trại (Chăm sóc vật nuôi)</option>
+                          <option value="ROLE_ACCOUNTANT">💼 Kế toán (Thu chi & Kho hàng)</option>
                         </>
                       )}
                     </select>
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Trạng thái hoạt động</label>
+                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Trạng thái làm việc</label>
                     <select
                       className="farmshift-form-control"
                       value={editStaff.isActive ? 'true' : 'false'}
                       disabled={editStaff.roleName === 'ROLE_FARM_OWNER'}
                       onChange={e => setEditStaff({ ...editStaff, isActive: e.target.value === 'true' })}
-                      style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' } : {}}
+                      style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed', fontSize: '14px', padding: '10px 12px' } : { fontSize: '14px', padding: '10px 12px' }}
                     >
-                      <option value="true">Đang hoạt động</option>
-                      <option value="false">Tạm ngưng hoạt động</option>
+                      <option value="true">🟢 Đang làm việc (Bình thường)</option>
+                      <option value="false">🔴 Tạm ngưng hoạt động / Đã nghỉ</option>
                     </select>
                   </div>
                 </div>
               </div>
-              <div className="farmshift-modal-footer">
+              <div className="farmshift-modal-footer" style={{ gap: '10px' }}>
                 <button
                   type="button"
                   className="farmshift-btn farmshift-btn-secondary"
                   onClick={() => setShowEditModal(false)}
                   disabled={isSubmitting}
+                  style={{ padding: '10px 20px', fontSize: '14.5px' }}
                 >
                   Hủy bỏ
                 </button>
@@ -1456,6 +1623,7 @@ export const AccountView = () => {
                   type="submit"
                   className="farmshift-btn farmshift-btn-primary"
                   disabled={isSubmitting}
+                  style={{ padding: '10px 24px', fontSize: '15px', fontWeight: 600 }}
                 >
                   {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
