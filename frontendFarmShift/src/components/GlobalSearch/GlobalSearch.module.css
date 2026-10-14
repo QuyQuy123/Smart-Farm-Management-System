@@ -329,6 +329,28 @@
 
 @media (max-width: 640px) {
   .searchWrapper {
+    max-width: 38px;
+    margin: 0;
+  }
+  .searchBar {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    border-radius: var(--rounded-full, 9999px);
+  }
+  .searchPlaceholder,
+  .shortcutBadge {
     display: none;
   }
+  .dropdownModal {
+    position: fixed;
+    top: 62px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
+  }
 }
+

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Users, Plus, Search, ShieldCheck, UserCheck,
   Building2, Crown, KeyRound, Edit2, X, CheckCircle, Camera,
-  Eye, RefreshCw, AlertCircle, Shield, PhoneCall, Phone
+  Eye, RefreshCw, AlertCircle, Shield
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
@@ -19,22 +19,23 @@ import {
 } from '../../services/employeeService';
 import { getSystemMessage } from '../../utils/systemMessages';
 import { AvatarCropperModal } from '../profile/AvatarCropperModal';
+import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
-    label: 'Chủ trang trại (Toàn quyền)',
+    label: 'Chủ trang trại (Owner)',
     badgeClass: 'farmshift-badge-neutral',
     barn: 'Toàn bộ trang trại'
   },
   ROLE_ACCOUNTANT: {
-    label: 'Kế toán (Thu chi & Kho hàng)',
+    label: 'Kế toán (Accountant)',
     badgeClass: 'farmshift-badge-info',
     barn: 'Sổ quỹ & Kho hàng'
   },
   ROLE_FARM_WORKER: {
-    label: 'Công nhân trại (Chăm sóc vật nuôi)',
+    label: 'Công nhân trại (Worker)',
     badgeClass: 'farmshift-badge-success',
-    barn: 'Khu chuồng trại nuôi'
+    barn: 'Khu chuồng chăn nuôi'
   }
 };
 
@@ -53,22 +54,131 @@ export const generateEmailFromName = (fullName) => {
   return clean ? `${clean}@smartfarm.com` : '';
 };
 
+// Dynamic Field Validation for Personal Profile (Real-time FE Validation)
+export const validateProfileField = (field, value, allValues = {}) => {
+  const val = value !== undefined && value !== null ? String(value).trim() : '';
+
+  switch (field) {
+    case 'fullName':
+      if (!val) {
+        return 'Họ và tên là bắt buộc, không được để trống.';
+      }
+      if (val.length < 2) {
+        return 'Họ và tên phải có ít nhất 2 ký tự.';
+      }
+      if (val.length > 100) {
+        return 'Họ và tên không được vượt quá 100 ký tự.';
+      }
+      return '';
+
+    case 'phone':
+      if (!val) return ''; // Optional
+      if (!/^\d+$/.test(val)) {
+        return 'Số điện thoại chỉ được chứa các chữ số (0-9).';
+      }
+      if (val.length < 10 || val.length > 11) {
+        return `Số điện thoại phải gồm 10 hoặc 11 chữ số (hiện tại: ${val.length} số).`;
+      }
+      if (!/^0/.test(val)) {
+        return 'Số điện thoại hợp lệ cần bắt đầu bằng số 0 (VD: 0966...).';
+      }
+      return '';
+
+    case 'citizenId':
+      if (!val) return ''; // Optional
+      if (!/^\d+$/.test(val)) {
+        return 'Số CMND/CCCD chỉ được chứa các chữ số (0-9).';
+      }
+      if (val.length !== 9 && val.length !== 12) {
+        return `Số CMND/CCCD phải gồm đúng 9 chữ số (CMND) hoặc 12 chữ số (CCCD). Hiện tại: ${val.length} số.`;
+      }
+      return '';
+
+    case 'dateOfBirth': {
+      if (!val) return ''; // Optional
+      const birthDate = new Date(val);
+      if (isNaN(birthDate.getTime())) {
+        return 'Định dạng ngày sinh không hợp lệ.';
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (birthDate >= today) {
+        return 'Ngày sinh phải ở trong quá khứ (trước ngày hôm nay).';
+      }
+      if (birthDate.getFullYear() < 1920) {
+        return 'Năm sinh không hợp lệ (phải từ năm 1920 trở lại đây).';
+      }
+      const age = today.getFullYear() - birthDate.getFullYear();
+      if (age < 14) {
+        return 'Độ tuổi nhân sự phải từ 14 tuổi trở lên.';
+      }
+      return '';
+    }
+
+    case 'address':
+      if (val && val.length > 255) {
+        return 'Địa chỉ không được vượt quá 255 ký tự.';
+      }
+      return '';
+
+    default:
+      return '';
+  }
+};
+
+export const validateAllProfile = (formData) => {
+  const fields = ['fullName', 'phone', 'citizenId', 'dateOfBirth', 'address'];
+  const errors = {};
+  fields.forEach(f => {
+    const err = validateProfileField(f, formData[f], formData);
+    if (err) errors[f] = err;
+  });
+  return errors;
+};
+
+// Dynamic Field Validation for Change Password
+export const validatePasswordField = (field, value, allValues = {}) => {
+  const val = value !== undefined && value !== null ? String(value) : '';
+
+  switch (field) {
+    case 'currentPassword':
+      if (!val) return 'Vui lòng nhập mật khẩu hiện tại.';
+      return '';
+
+    case 'newPassword':
+      if (!val) return 'Vui lòng nhập mật khẩu mới.';
+      if (val.length < 8) return 'Mật khẩu mới phải có ít nhất 8 ký tự (MSG17).';
+      if (allValues.currentPassword && val === allValues.currentPassword) {
+        return 'Mật khẩu mới không được trùng với mật khẩu hiện tại.';
+      }
+      return '';
+
+    case 'confirmPassword':
+      if (!val) return 'Vui lòng xác nhận mật khẩu mới.';
+      if (allValues.newPassword && val !== allValues.newPassword) {
+        return 'Mật khẩu xác nhận không khớp với mật khẩu mới (MSG18).';
+      }
+      return '';
+
+    default:
+      return '';
+  }
+};
+
+export const validateAllPassword = (formData) => {
+  const fields = ['currentPassword', 'newPassword', 'confirmPassword'];
+  const errors = {};
+  fields.forEach(f => {
+    const err = validatePasswordField(f, formData[f], formData);
+    if (err) errors[f] = err;
+  });
+  return errors;
+};
+
 export const AccountView = () => {
   const { user, updateUser } = useAuth();
   const { showToast } = useNotification();
   const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'profile' | 'security' | 'branches' | 'plan'
-  // Chế độ Dễ nhìn (Chữ to & Độ tương phản cao dành riêng cho người lớn tuổi)
-  const [seniorMode, setSeniorMode] = useState(() => {
-    return localStorage.getItem('farmshift_senior_mode') === 'true';
-  });
-
-  const toggleSeniorMode = () => {
-    setSeniorMode(prev => {
-      const next = !prev;
-      localStorage.setItem('farmshift_senior_mode', String(next));
-      return next;
-    });
-  };
 
   // Staff List State
   const [staffList, setStaffList] = useState([]);
@@ -129,6 +239,8 @@ export const AccountView = () => {
     dateOfBirth: user?.dateOfBirth || '',
     avatarUrl: user?.avatarUrl || ''
   }));
+  const [profileErrors, setProfileErrors] = useState({});
+  const [profileTouched, setProfileTouched] = useState({});
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [selectedImageToCrop, setSelectedImageToCrop] = useState(null);
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
@@ -141,6 +253,8 @@ export const AccountView = () => {
     newPassword: '',
     confirmPassword: ''
   });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordTouched, setPasswordTouched] = useState({});
   const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
@@ -472,10 +586,83 @@ export const AccountView = () => {
     }
   };
 
+  // ── Profile Dynamic Validation Handlers ─────────────────────────────────
+  const handleProfileFieldChange = (field, value) => {
+    setProfileForm(prev => {
+      const next = { ...prev, [field]: value };
+      const error = validateProfileField(field, value, next);
+      setProfileErrors(prevErr => {
+        const nextErr = { ...prevErr };
+        if (error) {
+          nextErr[field] = error;
+        } else {
+          delete nextErr[field];
+        }
+        return nextErr;
+      });
+      return next;
+    });
+
+    setProfileTouched(prev => ({ ...prev, [field]: true }));
+    if (profileMessage.type === 'error') {
+      setProfileMessage({ type: '', text: '' });
+    }
+  };
+
+  const handleProfileFieldBlur = (field) => {
+    setProfileTouched(prev => ({ ...prev, [field]: true }));
+    const error = validateProfileField(field, profileForm[field], profileForm);
+    setProfileErrors(prev => {
+      const nextErr = { ...prev };
+      if (error) {
+        nextErr[field] = error;
+      } else {
+        delete nextErr[field];
+      }
+      return nextErr;
+    });
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    setIsSavingProfile(true);
     setProfileMessage({ type: '', text: '' });
+
+    // 1. Mark all fields touched for instant visual feedback
+    const allTouched = {
+      fullName: true,
+      phone: true,
+      citizenId: true,
+      dateOfBirth: true,
+      address: true
+    };
+    setProfileTouched(allTouched);
+
+    // 2. Validate all fields client-side dynamically
+    const validationErrors = validateAllProfile(profileForm);
+    setProfileErrors(validationErrors);
+
+    const errorFields = Object.keys(validationErrors).filter(k => validationErrors[k]);
+    if (errorFields.length > 0) {
+      const firstField = errorFields[0];
+      const firstMsg = validationErrors[firstField];
+      setProfileMessage({
+        type: 'error',
+        text: `Dữ liệu chưa hợp lệ: ${firstMsg}`
+      });
+      showToast(firstMsg, 'error');
+
+      // Auto-focus first invalid field with smooth scroll
+      setTimeout(() => {
+        const el = document.getElementById(`profile-${firstField}`);
+        if (el) {
+          el.focus();
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+      return; // STOP! Do not call Backend API with invalid data!
+    }
+
+    setIsSavingProfile(true);
     try {
       const payload = {
         fullName: (profileForm.fullName || '').trim(),
@@ -503,39 +690,111 @@ export const AccountView = () => {
         dateOfBirth: updated.dateOfBirth || '',
         avatarUrl: updated.avatarUrl || ''
       });
+      setProfileErrors({});
+      setProfileTouched({});
       setProfileMessage({ type: 'success', text: getSystemMessage('MSG13') });
       showToast('MSG13', 'success');
+      setTimeout(() => {
+        setProfileMessage(prev => prev.type === 'success' ? { type: '', text: '' } : prev);
+      }, 5000);
     } catch (err) {
-      const errMsg = err.response?.data?.message || getSystemMessage('MSG04');
-      setProfileMessage({ type: 'error', text: errMsg });
-      showToast('MSG04', 'error');
+      const resData = err.response?.data;
+      if (resData?.errors && typeof resData.errors === 'object') {
+        // Map backend validation field errors directly to inputs
+        setProfileErrors(prev => ({ ...prev, ...resData.errors }));
+        const firstErrKey = Object.keys(resData.errors)[0];
+        const firstErrMsg = resData.errors[firstErrKey];
+        setProfileMessage({ type: 'error', text: firstErrMsg || 'Lỗi kiểm tra dữ liệu từ máy chủ.' });
+        showToast(firstErrMsg || 'MSG04', 'error');
+        setTimeout(() => {
+          document.getElementById(`profile-${firstErrKey}`)?.focus();
+        }, 50);
+      } else {
+        const errMsg = resData?.message || getSystemMessage('MSG04');
+        setProfileMessage({ type: 'error', text: errMsg });
+        showToast('MSG04', 'error');
+      }
     } finally {
       setIsSavingProfile(false);
     }
   };
 
+  // ── Password Dynamic Validation Handlers ────────────────────────────────
+  const handlePasswordFieldChange = (field, value) => {
+    setPasswordForm(prev => {
+      const next = { ...prev, [field]: value };
+      const error = validatePasswordField(field, value, next);
+      setPasswordErrors(prevErr => {
+        const nextErr = { ...prevErr };
+        if (error) {
+          nextErr[field] = error;
+        } else {
+          delete nextErr[field];
+        }
+        return nextErr;
+      });
+      return next;
+    });
+
+    setPasswordTouched(prev => ({ ...prev, [field]: true }));
+    if (passwordMessage.type === 'error') {
+      setPasswordMessage({ type: '', text: '' });
+    }
+  };
+
+  const handlePasswordFieldBlur = (field) => {
+    setPasswordTouched(prev => ({ ...prev, [field]: true }));
+    const error = validatePasswordField(field, passwordForm[field], passwordForm);
+    setPasswordErrors(prev => {
+      const nextErr = { ...prev };
+      if (error) {
+        nextErr[field] = error;
+      } else {
+        delete nextErr[field];
+      }
+      return nextErr;
+    });
+  };
+
   const handleChangePassword = async (e) => {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordMessage({ type: 'error', text: getSystemMessage('MSG18') });
-      showToast('MSG18', 'error');
-      return;
-    }
-    if (passwordForm.newPassword.length < 8) {
-      setPasswordMessage({ type: 'error', text: getSystemMessage('MSG17') });
-      showToast('MSG17', 'error');
-      return;
+    setPasswordMessage({ type: '', text: '' });
+
+    const allTouched = { currentPassword: true, newPassword: true, confirmPassword: true };
+    setPasswordTouched(allTouched);
+
+    const validationErrors = validateAllPassword(passwordForm);
+    setPasswordErrors(validationErrors);
+
+    const errorFields = Object.keys(validationErrors).filter(k => validationErrors[k]);
+    if (errorFields.length > 0) {
+      const firstField = errorFields[0];
+      const firstMsg = validationErrors[firstField];
+      setPasswordMessage({ type: 'error', text: firstMsg });
+      showToast(firstMsg, 'error');
+      setTimeout(() => {
+        document.getElementById(`security-${firstField}`)?.focus();
+      }, 50);
+      return; // Stop immediately, do not send request to BE
     }
 
     setIsChangingPassword(true);
-    setPasswordMessage({ type: '', text: '' });
     try {
       await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
       setPasswordMessage({ type: 'success', text: getSystemMessage('MSG19') });
       showToast('MSG19', 'success');
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordErrors({});
+      setPasswordTouched({});
+      setTimeout(() => {
+        setPasswordMessage(prev => prev.type === 'success' ? { type: '', text: '' } : prev);
+      }, 5000);
     } catch (err) {
-      const errMsg = err.response?.data?.message || 'Đổi mật khẩu thất bại. Kiểm tra lại mật khẩu cũ.';
+      const resData = err.response?.data;
+      if (resData?.errors && typeof resData.errors === 'object') {
+        setPasswordErrors(prev => ({ ...prev, ...resData.errors }));
+      }
+      const errMsg = resData?.message || 'Đổi mật khẩu thất bại. Kiểm tra lại mật khẩu cũ.';
       setPasswordMessage({ type: 'error', text: errMsg });
       showToast('MSG04', 'error');
     } finally {
@@ -597,82 +856,37 @@ export const AccountView = () => {
         </button>
       </div>
 
-      {/* ── TAB 1: DANH SÁCH NHÂN SỰ (SENIOR-FRIENDLY UI) ───────────────────── */}
+      {/* ── TAB 1: DANH SÁCH NHÂN SỰ ────────────────────────────────────────── */}
       {activeTab === 'staff' && (
-        <div className={`farmshift-card ${seniorMode ? 'farmshift-senior-mode' : ''}`}>
+        <div className="farmshift-card">
           <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 className="farmshift-card-title" style={{ fontSize: seniorMode ? '18px' : '16px' }}>
-              Quản lý tài khoản nhân viên & phân quyền
-            </h3>
+            <h3 className="farmshift-card-title">Quản lý tài khoản nhân viên & phân quyền</h3>
             <button
               className="farmshift-btn farmshift-btn-secondary"
               onClick={fetchStaffList}
               disabled={isLoadingStaff}
               title="Làm mới danh sách"
-              style={{ padding: seniorMode ? '8px 16px' : '6px 12px', fontSize: seniorMode ? '14.5px' : '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              style={{ padding: '6px 12px', fontSize: '13px' }}
             >
-              <RefreshCw size={seniorMode ? 16 : 14} className={isLoadingStaff ? 'farmshift-spin' : ''} />
+              <RefreshCw size={14} className={isLoadingStaff ? 'farmshift-spin' : ''} />
               Làm mới
             </button>
           </div>
 
-          {/* Hộp chỉ dẫn thân thiện & Nút gọi khẩn cấp dành riêng cho Bác / Cô chú chủ trại */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
-            padding: '12px 18px',
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #bbf7d0',
-            borderRadius: 'var(--rounded-md)',
-            margin: '16px 20px 0',
-            fontSize: seniorMode ? '15px' : '14px',
-            color: '#166534'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '24px' }}>🌾</span>
-              <span>
-                <strong>Hướng dẫn nhanh:</strong> Bác có thể tìm nhân viên theo <strong>Tên</strong> hoặc <strong>Số điện thoại</strong> ở ô tìm kiếm. Để thêm người làm mới, bấm nút <strong>+ Thêm nhân viên</strong> ở góc trên bên phải.
-              </span>
-            </div>
-            <a
-              href="tel:0988123456"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                backgroundColor: '#15803d',
-                color: '#ffffff',
-                padding: '8px 16px',
-                borderRadius: 'var(--rounded-md)',
-                textDecoration: 'none',
-                fontWeight: 600,
-                fontSize: '13.5px',
-                boxShadow: '0 2px 4px rgba(21, 128, 61, 0.2)'
-              }}
-              title="Bấm để gọi hotline hoặc nhắn Zalo hỗ trợ kỹ thuật"
-            >
-              <PhoneCall size={16} /> Gọi hỗ trợ / Zalo: 0988.123.456
-            </a>
-          </div>
-
-          {/* Toolbar: Search keyword & Filters & Senior Mode Toggle */}
-          <div className="farmshift-toolbar" style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-hairline)', margin: 0, gap: '14px' }}>
-            <div className="farmshift-search-box" style={{ width: seniorMode ? '380px' : '340px' }}>
+          {/* Toolbar: Search keyword & Filters */}
+          <div className="farmshift-toolbar" style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-hairline)', margin: 0 }}>
+            <div className="farmshift-search-box" style={{ width: '320px' }}>
               {isLoadingStaff ? (
-                <RefreshCw size={18} className="farmshift-spin" style={{ color: 'var(--color-primary)' }} />
+                <RefreshCw size={16} className="farmshift-spin" style={{ color: 'var(--color-primary)' }} />
               ) : (
-                <Search size={18} color="var(--color-muted)" />
+                <Search size={16} color="var(--color-muted)" />
               )}
               <input
                 type="text"
-                placeholder="🔍 Tìm theo họ tên, số điện thoại hoặc email..."
+                placeholder="Tìm theo tên, email, số điện thoại..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 id="search-employee-input"
-                style={{ fontSize: seniorMode ? '15.5px' : '14px' }}
               />
               {searchTerm && (
                 <button
@@ -680,23 +894,22 @@ export const AccountView = () => {
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)', padding: 0 }}
                   title="Xóa tìm kiếm"
                 >
-                  <X size={16} />
+                  <X size={14} />
                 </button>
               )}
             </div>
 
-            <div className="farmshift-filter-group" style={{ flexWrap: 'wrap' }}>
+            <div className="farmshift-filter-group">
               <select
                 className="farmshift-select"
                 value={filterRole}
                 onChange={e => setFilterRole(e.target.value)}
                 id="filter-role-select"
-                style={{ fontSize: seniorMode ? '15px' : '14px' }}
               >
-                <option value="ALL">Tất cả vai trò phụ trách</option>
-                <option value="ROLE_FARM_OWNER">👑 Chủ trang trại (Toàn quyền)</option>
-                <option value="ROLE_ACCOUNTANT">💼 Kế toán (Thu chi & Kho hàng)</option>
-                <option value="ROLE_FARM_WORKER">🌾 Công nhân trại (Chăm sóc vật nuôi)</option>
+                <option value="ALL">Tất cả vai trò</option>
+                <option value="ROLE_FARM_OWNER">Chủ trang trại</option>
+                <option value="ROLE_ACCOUNTANT">Kế toán</option>
+                <option value="ROLE_FARM_WORKER">Công nhân trại</option>
               </select>
 
               <select
@@ -704,31 +917,11 @@ export const AccountView = () => {
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
                 id="filter-status-select"
-                style={{ fontSize: seniorMode ? '15px' : '14px' }}
               >
                 <option value="ALL">Tất cả trạng thái</option>
-                <option value="true">🟢 Đang làm việc</option>
-                <option value="false">🔴 Tạm ngưng / Nghỉ việc</option>
+                <option value="true">Đang hoạt động</option>
+                <option value="false">Tạm ngưng hoạt động</option>
               </select>
-
-              {/* Nút bật/tắt chế độ Dễ nhìn (Chữ to & rõ) */}
-              <button
-                type="button"
-                className={`farmshift-btn ${seniorMode ? 'farmshift-btn-primary' : 'farmshift-btn-secondary'}`}
-                onClick={toggleSeniorMode}
-                title={seniorMode ? 'Đang bật chế độ chữ to dễ nhìn' : 'Bật chế độ chữ to dễ nhìn cho người lớn tuổi'}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: seniorMode ? '9px 15px' : '8px 13px',
-                  fontSize: seniorMode ? '14.5px' : '13px',
-                  fontWeight: 600
-                }}
-              >
-                <span>👓</span>
-                <span>Chế độ Dễ nhìn: <strong>{seniorMode ? 'BẬT' : 'TẮT'}</strong></span>
-              </button>
             </div>
           </div>
 
@@ -737,21 +930,21 @@ export const AccountView = () => {
             <table className="farmshift-table">
               <thead>
                 <tr>
-                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Nhân viên</th>
-                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Số điện thoại</th>
-                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Email đăng nhập</th>
-                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Vai trò phụ trách</th>
-                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Phạm vi chuồng trại</th>
-                  <th style={{ fontSize: seniorMode ? '15px' : '13.5px' }}>Trạng thái</th>
-                  <th style={{ textAlign: 'center', width: seniorMode ? '170px' : '150px', fontSize: seniorMode ? '15px' : '13.5px' }}>Thao tác</th>
+                  <th>Nhân viên</th>
+                  <th>Email</th>
+                  <th>Số điện thoại</th>
+                  <th>Vai trò phân quyền</th>
+                  <th>Phạm vi phụ trách</th>
+                  <th>Trạng thái</th>
+                  <th style={{ textAlign: 'center', width: '130px' }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoadingStaff ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-muted)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: seniorMode ? '16px' : '14px' }}>
-                        <RefreshCw size={20} className="farmshift-spin" />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                        <RefreshCw size={18} className="farmshift-spin" />
                         <span>Đang tải danh sách nhân viên từ hệ thống...</span>
                       </div>
                     </td>
@@ -759,9 +952,9 @@ export const AccountView = () => {
                 ) : staffList.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
-                      <AlertCircle size={28} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--color-muted)' }} />
-                      <p style={{ margin: 0, fontWeight: 600, fontSize: seniorMode ? '16px' : '14px' }}>{getSystemMessage('MSG01')}</p>
-                      <p style={{ margin: '6px 0 0', fontSize: seniorMode ? '14px' : '13px' }}>Bác thử xóa từ khóa tìm kiếm hoặc bấm nút "Làm mới" phía trên.</p>
+                      <AlertCircle size={24} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--color-muted)' }} />
+                      <p style={{ margin: 0, fontWeight: 500 }}>{getSystemMessage('MSG01')}</p>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Thử thay đổi từ khóa tìm kiếm hoặc bỏ bớt bộ lọc.</p>
                     </td>
                   </tr>
                 ) : (
@@ -776,21 +969,20 @@ export const AccountView = () => {
                     return (
                       <tr key={st.id || st.email}>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <div style={{
-                              width: seniorMode ? '42px' : '36px',
-                              height: seniorMode ? '42px' : '36px',
+                              width: '34px',
+                              height: '34px',
                               borderRadius: '50%',
                               backgroundColor: 'var(--color-surface-soft)',
-                              border: '2px solid var(--color-hairline)',
+                              border: '1px solid var(--color-hairline)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               overflow: 'hidden',
-                              fontWeight: 700,
+                              fontWeight: 600,
                               color: 'var(--color-ink)',
-                              fontSize: seniorMode ? '16px' : '14px',
-                              flexShrink: 0
+                              fontSize: '13px'
                             }}>
                               {st.avatarUrl ? (
                                 <img src={st.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -799,76 +991,54 @@ export const AccountView = () => {
                               )}
                             </div>
                             <div>
-                              <strong style={{ color: '#0f172a', fontSize: seniorMode ? '16px' : '14.5px', display: 'block' }}>
+                              <strong style={{ color: 'var(--color-ink)', fontSize: '13.5px', display: 'block' }}>
                                 {st.fullName || 'Chưa đặt tên'}
                               </strong>
                               {isOwner && (
-                                <span style={{ fontSize: '11.5px', color: 'var(--color-signature-coral)', fontWeight: 700 }}>
-                                  ⭐ Chủ tài khoản chính
+                                <span style={{ fontSize: '11px', color: 'var(--color-signature-coral)', fontWeight: 600 }}>
+                                  Chủ tài khoản chính
                                 </span>
                               )}
                             </div>
                           </div>
                         </td>
+                        <td style={{ color: 'var(--color-body)', fontSize: '13px' }}>{st.email}</td>
+                        <td style={{ color: 'var(--color-body)', fontSize: '13px' }}>{st.phone || '—'}</td>
                         <td>
-                          {st.phone ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#0369a1', fontWeight: 600, fontSize: seniorMode ? '15px' : '13.5px' }}>
-                              <Phone size={14} /> {st.phone}
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--color-muted)', fontSize: '13px' }}>Chưa có SĐT</span>
-                          )}
-                        </td>
-                        <td style={{ color: 'var(--color-body)', fontSize: seniorMode ? '14.5px' : '13px' }}>{st.email}</td>
-                        <td>
-                          <span className={`farmshift-badge ${roleInfo.badgeClass}`} style={{ fontSize: seniorMode ? '13.5px' : '12px', padding: seniorMode ? '4px 10px' : '3px 8px' }}>
+                          <span className={`farmshift-badge ${roleInfo.badgeClass}`}>
                             {roleInfo.label}
                           </span>
                         </td>
-                        <td style={{ color: 'var(--color-body)', fontSize: seniorMode ? '14px' : '13px' }}>
+                        <td style={{ color: 'var(--color-muted)', fontSize: '13px' }}>
                           {st.barnAssigned || roleInfo.barn}
                         </td>
                         <td>
                           <span
                             className={`farmshift-badge ${st.isActive ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}
-                            style={{ cursor: isOwner ? 'default' : 'pointer', fontSize: seniorMode ? '13.5px' : '12px', padding: seniorMode ? '4px 10px' : '3px 8px' }}
+                            style={{ cursor: isOwner ? 'default' : 'pointer' }}
                             onClick={() => !isOwner && handleQuickToggleActive(st)}
-                            title={isOwner ? 'Tài khoản Chủ trại không thể vô hiệu hóa' : 'Bấm để đổi trạng thái hoạt động'}
+                            title={isOwner ? 'Tài khoản Chủ trại không thể vô hiệu hóa' : 'Bấm để đổi trạng thái'}
                           >
-                            {st.isActive ? '🟢 Đang làm việc' : '🔴 Tạm ngưng'}
+                            {st.isActive ? 'Đang hoạt động' : 'Đã tạm khóa'}
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                             <button
                               className="farmshift-btn farmshift-btn-secondary"
                               onClick={() => handleViewDetails(st)}
-                              title="Xem toàn bộ thông tin chi tiết nhân viên"
-                              style={{
-                                padding: seniorMode ? '7px 14px' : '6px 10px',
-                                fontSize: seniorMode ? '14px' : '13px',
-                                fontWeight: 600,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px'
-                              }}
+                              title="Xem chi tiết"
+                              style={{ padding: '6px 8px' }}
                             >
-                              <Eye size={15} /> Xem
+                              <Eye size={14} />
                             </button>
                             <button
-                              className="farmshift-btn farmshift-btn-primary"
+                              className="farmshift-btn farmshift-btn-secondary"
                               onClick={() => handleOpenEdit(st)}
-                              title="Chỉnh sửa thông tin & đổi quyền hạn"
-                              style={{
-                                padding: seniorMode ? '7px 14px' : '6px 10px',
-                                fontSize: seniorMode ? '14px' : '13px',
-                                fontWeight: 600,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px'
-                              }}
+                              title="Chỉnh sửa & Phân quyền"
+                              style={{ padding: '6px 8px' }}
                             >
-                              <Edit2 size={15} /> Sửa
+                              <Edit2 size={14} />
                             </button>
                           </div>
                         </td>
@@ -891,7 +1061,9 @@ export const AccountView = () => {
           <div className="farmshift-card-body">
             {profileMessage.text && (
               <div style={{
-                padding: '12px',
+                position: 'relative',
+                overflow: 'hidden',
+                padding: '12px 16px 15px 16px',
                 marginBottom: '16px',
                 borderRadius: 'var(--rounded-md)',
                 backgroundColor: profileMessage.type === 'success' ? '#e6f4ea' : '#fce8e6',
@@ -899,10 +1071,32 @@ export const AccountView = () => {
                 fontSize: '14px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
               }}>
                 {profileMessage.type === 'success' ? <CheckCircle size={16} /> : <ShieldCheck size={16} />}
-                {profileMessage.text}
+                <span style={{ flex: 1 }}>{profileMessage.text}</span>
+                {profileMessage.type === 'success' && (
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    backgroundColor: '#c6f6d5',
+                    color: '#22543d'
+                  }}>
+                    Đã đồng bộ
+                  </span>
+                )}
+                {/* Thanh animation đếm ngược chạy ở dưới cái form thông báo */}
+                <div
+                  className="farmshift-inline-alert-progress"
+                  style={{
+                    background: profileMessage.type === 'success'
+                      ? 'linear-gradient(90deg, #10b981, #059669)'
+                      : 'linear-gradient(90deg, #ef4444, #dc2626)'
+                  }}
+                />
               </div>
             )}
 
@@ -942,17 +1136,43 @@ export const AccountView = () => {
 
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Họ và tên *</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="farmshift-form-label" htmlFor="profile-fullName" style={{ margin: 0 }}>
+                        Họ và tên *
+                      </label>
+                      {profileTouched.fullName && !profileErrors.fullName && profileForm.fullName && (
+                        <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <CheckCircle size={12} /> Hợp lệ
+                        </span>
+                      )}
+                    </div>
                     <input
+                      id="profile-fullName"
+                      name="fullName"
                       type="text"
                       required
-                      className="farmshift-form-control"
+                      placeholder="Nhập họ và tên đầy đủ"
+                      className={`farmshift-form-control ${
+                        profileTouched.fullName && profileErrors.fullName
+                          ? 'is-invalid'
+                          : profileTouched.fullName && !profileErrors.fullName && profileForm.fullName
+                          ? 'is-valid'
+                          : ''
+                      }`}
                       value={profileForm.fullName}
-                      onChange={e => setProfileForm({ ...profileForm, fullName: e.target.value })}
+                      onChange={e => handleProfileFieldChange('fullName', e.target.value)}
+                      onBlur={() => handleProfileFieldBlur('fullName')}
                     />
+                    {profileTouched.fullName && profileErrors.fullName && (
+                      <div className="farmshift-field-error-msg" role="alert">
+                        <AlertCircle size={13} />
+                        <span>{profileErrors.fullName}</span>
+                      </div>
+                    )}
                   </div>
+
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Email tài khoản</label>
+                    <label className="farmshift-form-label" style={{ marginBottom: '4px' }}>Email tài khoản</label>
                     <input
                       type="email"
                       readOnly
@@ -960,56 +1180,183 @@ export const AccountView = () => {
                       style={{ backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' }}
                       value={user?.email || 'admin@farmshift.local'}
                     />
+                    <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
+                      🔒 Email tài khoản cố định theo định danh hệ thống
+                    </span>
                   </div>
+
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số điện thoại liên hệ</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="farmshift-form-label" htmlFor="profile-phone" style={{ margin: 0 }}>
+                        Số điện thoại liên hệ
+                      </label>
+                      {profileForm.phone && (
+                        <span style={{
+                          fontSize: '11px',
+                          color: profileTouched.phone && profileErrors.phone ? '#dc2626' : 'var(--color-muted)',
+                          fontWeight: 500
+                        }}>
+                          {profileForm.phone.length}/11 số
+                        </span>
+                      )}
+                    </div>
                     <input
-                      type="text"
-                      className="farmshift-form-control"
+                      id="profile-phone"
+                      name="phone"
+                      type="tel"
+                      maxLength={11}
+                      placeholder="VD: 0966755089 (10-11 số)"
+                      className={`farmshift-form-control ${
+                        profileTouched.phone && profileErrors.phone
+                          ? 'is-invalid'
+                          : profileTouched.phone && !profileErrors.phone && profileForm.phone
+                          ? 'is-valid'
+                          : ''
+                      }`}
                       value={profileForm.phone}
-                      onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      onChange={e => handleProfileFieldChange('phone', e.target.value)}
+                      onBlur={() => handleProfileFieldBlur('phone')}
                     />
+                    {profileTouched.phone && profileErrors.phone && (
+                      <div className="farmshift-field-error-msg" role="alert">
+                        <AlertCircle size={13} />
+                        <span>{profileErrors.phone}</span>
+                      </div>
+                    )}
                   </div>
+
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số CMND/CCCD</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="farmshift-form-label" htmlFor="profile-citizenId" style={{ margin: 0 }}>
+                        Số CMND/CCCD
+                      </label>
+                      {profileForm.citizenId && (
+                        <span style={{
+                          fontSize: '11px',
+                          color: profileTouched.citizenId && profileErrors.citizenId ? '#dc2626' : 'var(--color-muted)',
+                          fontWeight: 500
+                        }}>
+                          {profileForm.citizenId.length}/12 số
+                        </span>
+                      )}
+                    </div>
                     <input
+                      id="profile-citizenId"
+                      name="citizenId"
                       type="text"
-                      className="farmshift-form-control"
+                      maxLength={12}
+                      placeholder="9 số (CMND) hoặc 12 số (CCCD)"
+                      className={`farmshift-form-control ${
+                        profileTouched.citizenId && profileErrors.citizenId
+                          ? 'is-invalid'
+                          : profileTouched.citizenId && !profileErrors.citizenId && profileForm.citizenId
+                          ? 'is-valid'
+                          : ''
+                      }`}
                       value={profileForm.citizenId}
-                      onChange={e => setProfileForm({ ...profileForm, citizenId: e.target.value })}
+                      onChange={e => handleProfileFieldChange('citizenId', e.target.value)}
+                      onBlur={() => handleProfileFieldBlur('citizenId')}
                     />
+                    {profileTouched.citizenId && profileErrors.citizenId && (
+                      <div className="farmshift-field-error-msg" role="alert">
+                        <AlertCircle size={13} />
+                        <span>{profileErrors.citizenId}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Ngày sinh (YYYY-MM-DD)</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label className="farmshift-form-label" htmlFor="profile-dateOfBirth" style={{ margin: 0 }}>
+                      Ngày sinh (YYYY-MM-DD)
+                    </label>
+                    {profileTouched.dateOfBirth && !profileErrors.dateOfBirth && profileForm.dateOfBirth && (
+                      <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <CheckCircle size={12} /> Hợp lệ
+                      </span>
+                    )}
+                  </div>
                   <input
+                    id="profile-dateOfBirth"
+                    name="dateOfBirth"
                     type="date"
-                    className="farmshift-form-control"
+                    max={new Date().toISOString().split('T')[0]}
+                    className={`farmshift-form-control ${
+                      profileTouched.dateOfBirth && profileErrors.dateOfBirth
+                        ? 'is-invalid'
+                        : profileTouched.dateOfBirth && !profileErrors.dateOfBirth && profileForm.dateOfBirth
+                        ? 'is-valid'
+                        : ''
+                    }`}
                     value={profileForm.dateOfBirth}
-                    onChange={e => setProfileForm({ ...profileForm, dateOfBirth: e.target.value })}
+                    onChange={e => handleProfileFieldChange('dateOfBirth', e.target.value)}
+                    onBlur={() => handleProfileFieldBlur('dateOfBirth')}
                   />
+                  {profileTouched.dateOfBirth && profileErrors.dateOfBirth && (
+                    <div className="farmshift-field-error-msg" role="alert">
+                      <AlertCircle size={13} />
+                      <span>{profileErrors.dateOfBirth}</span>
+                    </div>
+                  )}
                 </div>
+
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Địa chỉ hiện tại</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label className="farmshift-form-label" htmlFor="profile-address" style={{ margin: 0 }}>
+                      Địa chỉ hiện tại
+                    </label>
+                    {profileForm.address && (
+                      <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                        {profileForm.address.length}/255
+                      </span>
+                    )}
+                  </div>
                   <input
+                    id="profile-address"
+                    name="address"
                     type="text"
-                    className="farmshift-form-control"
+                    maxLength={255}
+                    placeholder="VD: Yên Lạc, Vĩnh Tường, Vĩnh Phúc..."
+                    className={`farmshift-form-control ${
+                      profileTouched.address && profileErrors.address
+                        ? 'is-invalid'
+                        : profileTouched.address && !profileErrors.address && profileForm.address
+                        ? 'is-valid'
+                        : ''
+                    }`}
                     value={profileForm.address}
-                    onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                    onChange={e => handleProfileFieldChange('address', e.target.value)}
+                    onBlur={() => handleProfileFieldBlur('address')}
                   />
+                  {profileTouched.address && profileErrors.address && (
+                    <div className="farmshift-field-error-msg" role="alert">
+                      <AlertCircle size={13} />
+                      <span>{profileErrors.address}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-hairline)', paddingTop: '16px' }}>
                 <button
                   type="submit"
-                  className="farmshift-btn farmshift-btn-primary"
+                  className={`farmshift-btn farmshift-btn-primary ${isSavingProfile ? 'is-loading' : ''}`}
                   disabled={isSavingProfile || uploadingAvatar}
+                  aria-busy={isSavingProfile}
+                  id="btn-save-profile"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                 >
-                  {isSavingProfile ? 'Đang lưu...' : 'Lưu thay đổi hồ sơ'}
+                  {isSavingProfile ? (
+                    <>
+                      <ButtonSpinner size={16} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                      <span>Đang lưu hồ sơ...</span>
+                    </>
+                  ) : (
+                    'Lưu thay đổi hồ sơ'
+                  )}
                 </button>
               </div>
             </form>
@@ -1026,7 +1373,9 @@ export const AccountView = () => {
           <div className="farmshift-card-body">
             {passwordMessage.text && (
               <div style={{
-                padding: '12px',
+                position: 'relative',
+                overflow: 'hidden',
+                padding: '12px 16px 15px 16px',
                 marginBottom: '16px',
                 borderRadius: 'var(--rounded-md)',
                 backgroundColor: passwordMessage.type === 'success' ? '#e6f4ea' : '#fce8e6',
@@ -1034,56 +1383,155 @@ export const AccountView = () => {
                 fontSize: '14px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
               }}>
                 {passwordMessage.type === 'success' ? <CheckCircle size={16} /> : <ShieldCheck size={16} />}
-                {passwordMessage.text}
+                <span style={{ flex: 1 }}>{passwordMessage.text}</span>
+                {/* Thanh animation đếm ngược chạy ở dưới cái form thông báo */}
+                <div
+                  className="farmshift-inline-alert-progress"
+                  style={{
+                    background: passwordMessage.type === 'success'
+                      ? 'linear-gradient(90deg, #10b981, #059669)'
+                      : 'linear-gradient(90deg, #ef4444, #dc2626)'
+                  }}
+                />
               </div>
             )}
 
             <form onSubmit={handleChangePassword}>
               <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Mật khẩu hiện tại *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="farmshift-form-label" htmlFor="security-currentPassword" style={{ margin: 0 }}>
+                    Mật khẩu hiện tại *
+                  </label>
+                  {passwordTouched.currentPassword && !passwordErrors.currentPassword && passwordForm.currentPassword && (
+                    <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <CheckCircle size={12} /> Đã nhập
+                    </span>
+                  )}
+                </div>
                 <input
+                  id="security-currentPassword"
+                  name="currentPassword"
                   type="password"
                   required
-                  className="farmshift-form-control"
                   placeholder="Nhập mật khẩu đang dùng"
+                  className={`farmshift-form-control ${
+                    passwordTouched.currentPassword && passwordErrors.currentPassword
+                      ? 'is-invalid'
+                      : passwordTouched.currentPassword && !passwordErrors.currentPassword && passwordForm.currentPassword
+                      ? 'is-valid'
+                      : ''
+                  }`}
                   value={passwordForm.currentPassword}
-                  onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  onChange={e => handlePasswordFieldChange('currentPassword', e.target.value)}
+                  onBlur={() => handlePasswordFieldBlur('currentPassword')}
                 />
+                {passwordTouched.currentPassword && passwordErrors.currentPassword && (
+                  <div className="farmshift-field-error-msg" role="alert">
+                    <AlertCircle size={13} />
+                    <span>{passwordErrors.currentPassword}</span>
+                  </div>
+                )}
               </div>
+
               <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Mật khẩu mới *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="farmshift-form-label" htmlFor="security-newPassword" style={{ margin: 0 }}>
+                    Mật khẩu mới *
+                  </label>
+                  {passwordForm.newPassword && (
+                    <span style={{
+                      fontSize: '11px',
+                      color: passwordTouched.newPassword && passwordErrors.newPassword ? '#dc2626' : 'var(--color-muted)',
+                      fontWeight: 500
+                    }}>
+                      {passwordForm.newPassword.length}/8+ ký tự
+                    </span>
+                  )}
+                </div>
                 <input
+                  id="security-newPassword"
+                  name="newPassword"
                   type="password"
                   required
                   minLength={8}
-                  className="farmshift-form-control"
                   placeholder="Tối thiểu 8 ký tự"
+                  className={`farmshift-form-control ${
+                    passwordTouched.newPassword && passwordErrors.newPassword
+                      ? 'is-invalid'
+                      : passwordTouched.newPassword && !passwordErrors.newPassword && passwordForm.newPassword
+                      ? 'is-valid'
+                      : ''
+                  }`}
                   value={passwordForm.newPassword}
-                  onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  onChange={e => handlePasswordFieldChange('newPassword', e.target.value)}
+                  onBlur={() => handlePasswordFieldBlur('newPassword')}
                 />
+                {passwordTouched.newPassword && passwordErrors.newPassword && (
+                  <div className="farmshift-field-error-msg" role="alert">
+                    <AlertCircle size={13} />
+                    <span>{passwordErrors.newPassword}</span>
+                  </div>
+                )}
               </div>
+
               <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Xác nhận mật khẩu mới *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="farmshift-form-label" htmlFor="security-confirmPassword" style={{ margin: 0 }}>
+                    Xác nhận mật khẩu mới *
+                  </label>
+                  {passwordTouched.confirmPassword && !passwordErrors.confirmPassword && passwordForm.confirmPassword && (
+                    <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <CheckCircle size={12} /> Khớp
+                    </span>
+                  )}
+                </div>
                 <input
+                  id="security-confirmPassword"
+                  name="confirmPassword"
                   type="password"
                   required
                   minLength={8}
-                  className="farmshift-form-control"
                   placeholder="Nhập lại mật khẩu mới"
+                  className={`farmshift-form-control ${
+                    passwordTouched.confirmPassword && passwordErrors.confirmPassword
+                      ? 'is-invalid'
+                      : passwordTouched.confirmPassword && !passwordErrors.confirmPassword && passwordForm.confirmPassword
+                      ? 'is-valid'
+                      : ''
+                  }`}
                   value={passwordForm.confirmPassword}
-                  onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  onChange={e => handlePasswordFieldChange('confirmPassword', e.target.value)}
+                  onBlur={() => handlePasswordFieldBlur('confirmPassword')}
                 />
+                {passwordTouched.confirmPassword && passwordErrors.confirmPassword && (
+                  <div className="farmshift-field-error-msg" role="alert">
+                    <AlertCircle size={13} />
+                    <span>{passwordErrors.confirmPassword}</span>
+                  </div>
+                )}
               </div>
+
               <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-hairline)', paddingTop: '16px' }}>
                 <button
                   type="submit"
-                  className="farmshift-btn farmshift-btn-primary"
+                  className={`farmshift-btn farmshift-btn-primary ${isChangingPassword ? 'is-loading' : ''}`}
                   disabled={isChangingPassword}
+                  aria-busy={isChangingPassword}
+                  id="btn-change-password"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                 >
-                  {isChangingPassword ? 'Đang xử lý...' : 'Cập nhật mật khẩu'}
+                  {isChangingPassword ? (
+                    <>
+                      <ButtonSpinner size={16} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                      <span>Đang cập nhật...</span>
+                    </>
+                  ) : (
+                    'Cập nhật mật khẩu'
+                  )}
                 </button>
               </div>
             </form>
@@ -1151,54 +1599,45 @@ export const AccountView = () => {
         </div>
       )}
 
-      {/* ── MODAL 1: CREATE EMPLOYEE (SENIOR-FRIENDLY) ───────────────────── */}
+      {/* ── MODAL 1: CREATE EMPLOYEE ──────────────────────────────────────── */}
       {showAddModal && (
         <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal" style={{ maxWidth: '580px' }}>
+          <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
             <div className="farmshift-modal-header">
-              <div>
-                <h3 className="farmshift-modal-title" style={{ fontSize: '18px' }}>Thêm mới nhân viên</h3>
-                <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
-                  Nhập thông tin người làm tại trại. Mật khẩu khởi tạo mặc định là 123456.
-                </span>
-              </div>
+              <h3 className="farmshift-modal-title">Thêm mới nhân viên</h3>
               <button
                 onClick={() => setShowAddModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
-                title="Đóng cửa sổ"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
             <form onSubmit={handleCreateStaff}>
               <div className="farmshift-modal-body">
                 {formError && (
                   <div style={{
-                    padding: '12px 16px',
+                    padding: '10px 14px',
                     marginBottom: '16px',
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fce8e6',
                     color: '#c5221f',
-                    fontSize: '14px',
+                    fontSize: '13.5px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
                   }}>
-                    <AlertCircle size={18} />
+                    <AlertCircle size={16} />
                     <span>{formError}</span>
                   </div>
                 )}
 
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>
-                    Họ và tên nhân viên *
-                  </label>
+                  <label className="farmshift-form-label">Họ và tên nhân viên *</label>
                   <input
                     type="text"
                     required
-                    placeholder="VD: Trần Văn Kế Toán (Bác Ba, Chị Lan...)"
+                    placeholder="VD: Trần Văn Kế Toán, Lê Văn Công..."
                     className="farmshift-form-control"
-                    style={{ fontSize: '15px', padding: '10px 14px' }}
                     value={newStaff.fullName}
                     onChange={e => handleFullNameChange(e.target.value)}
                   />
@@ -1207,22 +1646,19 @@ export const AccountView = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <label className="farmshift-form-label" style={{ margin: 0, fontSize: '14.5px', fontWeight: 600 }}>
-                        Email đăng nhập *
-                      </label>
+                      <label className="farmshift-form-label" style={{ margin: 0 }}>Email đăng nhập *</label>
                       {isEmailCustomized && newStaff.fullName.trim() && (
                         <button
                           type="button"
                           onClick={handleAutoSuggestEmail}
                           style={{
-                            background: '#e0f2f1',
-                            border: '1px solid #019788',
-                            borderRadius: '4px',
+                            background: 'none',
+                            border: 'none',
                             cursor: 'pointer',
                             color: 'var(--color-primary)',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            padding: '3px 8px'
+                            fontSize: '11.5px',
+                            fontWeight: 500,
+                            padding: 0
                           }}
                           title="Tạo lại email theo họ tên"
                         >
@@ -1235,25 +1671,21 @@ export const AccountView = () => {
                       required
                       placeholder="nhanvien@smartfarm.com"
                       className="farmshift-form-control"
-                      style={{ fontSize: '14.5px', padding: '10px 14px' }}
                       value={newStaff.email}
                       onChange={e => handleEmailChange(e.target.value)}
                     />
                     {!isEmailCustomized && newStaff.email && (
-                      <span style={{ fontSize: '12px', color: '#047857', marginTop: '5px', display: 'block', fontWeight: 500 }}>
-                        ✨ Đề xuất tự động từ họ tên (bác sửa tùy ý)
+                      <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
+                        ✨ Đề xuất tự động (sửa tùy ý)
                       </span>
                     )}
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>
-                      Số điện thoại
-                    </label>
+                    <label className="farmshift-form-label">Số điện thoại</label>
                     <input
                       type="text"
-                      placeholder="VD: 0988 123 456"
+                      placeholder="0988..."
                       className="farmshift-form-control"
-                      style={{ fontSize: '14.5px', padding: '10px 14px' }}
                       value={newStaff.phone}
                       onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
                     />
@@ -1262,29 +1694,24 @@ export const AccountView = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>
-                      Phân quyền vai trò *
-                    </label>
+                    <label className="farmshift-form-label">Phân quyền vai trò *</label>
                     <select
                       className="farmshift-form-control"
-                      style={{ fontSize: '14px', padding: '10px 12px' }}
                       value={newStaff.roleName}
                       onChange={e => setNewStaff({ ...newStaff, roleName: e.target.value })}
                     >
-                      <option value="ROLE_FARM_WORKER">🌾 Công nhân trại (Chăm sóc vật nuôi)</option>
-                      <option value="ROLE_ACCOUNTANT">💼 Kế toán (Thu chi & Kho cám/thuốc)</option>
+                      <option value="ROLE_FARM_WORKER">Công nhân trại (Worker)</option>
+                      <option value="ROLE_ACCOUNTANT">Kế toán (Accountant)</option>
                     </select>
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>
-                      Mật khẩu khởi tạo
-                    </label>
+                    <label className="farmshift-form-label">Mật khẩu khởi tạo</label>
                     <div style={{ position: 'relative' }}>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Mặc định: 123456 (nếu để trống)"
                         className="farmshift-form-control"
-                        style={{ paddingRight: '40px', fontSize: '14.5px', padding: '10px 14px' }}
+                        style={{ paddingRight: '36px' }}
                         value={newStaff.password}
                         onChange={e => setNewStaff({ ...newStaff, password: e.target.value })}
                       />
@@ -1293,7 +1720,7 @@ export const AccountView = () => {
                         onClick={() => setShowPassword(!showPassword)}
                         style={{
                           position: 'absolute',
-                          right: '10px',
+                          right: '8px',
                           top: '50%',
                           transform: 'translateY(-50%)',
                           background: 'none',
@@ -1303,32 +1730,39 @@ export const AccountView = () => {
                         }}
                         title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                       >
-                        {showPassword ? <Eye size={18} /> : <KeyRound size={18} />}
+                        {showPassword ? <Eye size={15} /> : <KeyRound size={15} />}
                       </button>
                     </div>
-                    <span style={{ fontSize: '12px', color: '#15803d', marginTop: '5px', display: 'block', fontWeight: 500 }}>
-                      🔒 Để trống sẽ lấy mặc định là <strong>123456</strong> (rất dễ nhớ)
+                    <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
+                      💡 Để trống sẽ lấy mặc định là <strong>123456</strong>
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="farmshift-modal-footer" style={{ gap: '10px' }}>
+              <div className="farmshift-modal-footer">
                 <button
                   type="button"
                   className="farmshift-btn farmshift-btn-secondary"
                   onClick={() => setShowAddModal(false)}
                   disabled={isSubmitting}
-                  style={{ padding: '10px 20px', fontSize: '14.5px' }}
                 >
                   Đóng lại
                 </button>
                 <button
                   type="submit"
-                  className="farmshift-btn farmshift-btn-primary"
+                  className={`farmshift-btn farmshift-btn-primary ${isSubmitting ? 'is-loading' : ''}`}
                   disabled={isSubmitting}
-                  style={{ padding: '10px 24px', fontSize: '15px', fontWeight: 600 }}
+                  aria-busy={isSubmitting}
+                  style={{ gap: '8px' }}
                 >
-                  {isSubmitting ? 'Đang tạo...' : 'Tạo tài khoản & Lưu'}
+                  {isSubmitting ? (
+                    <>
+                      <ButtonSpinner size={16} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                      <span>Đang tạo tài khoản...</span>
+                    </>
+                  ) : (
+                    'Tạo tài khoản & Lưu'
+                  )}
                 </button>
               </div>
             </form>
@@ -1336,46 +1770,41 @@ export const AccountView = () => {
         </div>
       )}
 
-      {/* ── MODAL 2: VIEW EMPLOYEE DETAILS (SENIOR-FRIENDLY) ───────────────── */}
+      {/* ── MODAL 2: VIEW EMPLOYEE DETAILS ─────────────────────────────────── */}
       {showDetailModal && selectedEmployee && (
         <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal" style={{ maxWidth: '600px' }}>
+          <div className="farmshift-modal" style={{ maxWidth: '580px' }}>
             <div className="farmshift-modal-header">
-              <div>
-                <h3 className="farmshift-modal-title" style={{ fontSize: '18px' }}>Thông tin chi tiết nhân sự</h3>
-                <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Hồ sơ và phạm vi phụ trách tại trang trại</span>
-              </div>
+              <h3 className="farmshift-modal-title">Thông tin chi tiết nhân sự</h3>
               <button
                 onClick={() => setShowDetailModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
-                title="Đóng cửa sổ"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
             <div className="farmshift-modal-body">
               {isLoadingDetail ? (
                 <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-muted)' }}>
-                  <RefreshCw size={22} className="farmshift-spin" />
-                  <p style={{ marginTop: '8px', fontSize: '15px' }}>Đang nạp chi tiết nhân sự...</p>
+                  <RefreshCw size={18} className="farmshift-spin" />
+                  <p style={{ marginTop: '8px' }}>Đang nạp chi tiết...</p>
                 </div>
               ) : (
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '18px', marginBottom: '22px', paddingBottom: '18px', borderBottom: '1px solid var(--color-hairline)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--color-hairline)' }}>
                     <div style={{
-                      width: '72px',
-                      height: '72px',
+                      width: '64px',
+                      height: '64px',
                       borderRadius: '50%',
                       backgroundColor: 'var(--color-surface-soft)',
-                      border: '2px solid var(--color-hairline)',
+                      border: '1px solid var(--color-hairline)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       overflow: 'hidden',
                       fontWeight: 700,
-                      fontSize: '26px',
-                      color: 'var(--color-ink)',
-                      flexShrink: 0
+                      fontSize: '22px',
+                      color: 'var(--color-ink)'
                     }}>
                       {selectedEmployee.avatarUrl ? (
                         <img src={selectedEmployee.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1384,87 +1813,59 @@ export const AccountView = () => {
                       )}
                     </div>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '20px', color: '#0f172a', fontWeight: 700 }}>
+                      <h4 style={{ margin: 0, fontSize: '18px', color: 'var(--color-ink)' }}>
                         {selectedEmployee.fullName || 'Chưa đặt tên'}
                       </h4>
-                      <p style={{ margin: '4px 0 0', color: 'var(--color-muted)', fontSize: '14px' }}>
+                      <p style={{ margin: '4px 0 0', color: 'var(--color-muted)', fontSize: '13.5px' }}>
                         {selectedEmployee.email}
                       </p>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span className={`farmshift-badge ${(ROLE_DISPLAY[selectedEmployee.roleName] || {}).badgeClass || 'farmshift-badge-neutral'}`} style={{ fontSize: '13px', padding: '4px 10px' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                        <span className={`farmshift-badge ${(ROLE_DISPLAY[selectedEmployee.roleName] || {}).badgeClass || 'farmshift-badge-neutral'}`}>
                           {(ROLE_DISPLAY[selectedEmployee.roleName] || {}).label || selectedEmployee.roleName}
                         </span>
-                        <span className={`farmshift-badge ${selectedEmployee.isActive ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`} style={{ fontSize: '13px', padding: '4px 10px' }}>
-                          {selectedEmployee.isActive ? '🟢 Đang làm việc' : '🔴 Tạm khóa'}
+                        <span className={`farmshift-badge ${selectedEmployee.isActive ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}>
+                          {selectedEmployee.isActive ? 'Đang hoạt động' : 'Tạm khóa'}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px', fontSize: '14.5px' }}>
-                    <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Mã nhân viên (ID):</span>
-                      <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>#{selectedEmployee.id}</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '13.5px' }}>
+                    <div>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Mã nhân viên (ID):</span>
+                      <strong style={{ color: 'var(--color-ink)' }}>#{selectedEmployee.id}</strong>
                     </div>
-
-                    <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Số điện thoại:</span>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <strong style={{ color: '#0369a1', fontSize: '15px' }}>{selectedEmployee.phone || 'Chưa cập nhật'}</strong>
-                        {selectedEmployee.phone && (
-                          <a
-                            href={`tel:${selectedEmployee.phone}`}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              fontSize: '12.5px',
-                              color: '#ffffff',
-                              backgroundColor: '#15803d',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              textDecoration: 'none',
-                              fontWeight: 600
-                            }}
-                            title="Bấm để gọi điện cho nhân viên này"
-                          >
-                            <PhoneCall size={12} /> Bấm gọi
-                          </a>
-                        )}
-                      </div>
+                    <div>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Số điện thoại:</span>
+                      <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.phone || 'Chưa cập nhật'}</strong>
                     </div>
-
-                    <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Số CMND / Căn cước:</span>
-                      <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>{selectedEmployee.citizenId || 'Chưa cập nhật'}</strong>
+                    <div>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Số CMND / Căn cước:</span>
+                      <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.citizenId || 'Chưa cập nhật'}</strong>
                     </div>
-
-                    <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Ngày sinh:</span>
-                      <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>{selectedEmployee.dateOfBirth || 'Chưa cập nhật'}</strong>
+                    <div>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Ngày sinh:</span>
+                      <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.dateOfBirth || 'Chưa cập nhật'}</strong>
                     </div>
-
-                    <div style={{ gridColumn: 'span 2', backgroundColor: 'var(--color-surface-soft)', padding: '12px 14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12.5px', marginBottom: '2px' }}>Địa chỉ thường trú:</span>
-                      <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>{selectedEmployee.address || 'Chưa cập nhật'}</strong>
-                    </div>
-
                     <div style={{ gridColumn: 'span 2' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 600 }}>Mô tả công việc & phạm vi phụ trách:</span>
-                      <p style={{ margin: 0, color: 'var(--color-body)', backgroundColor: '#f8fafc', padding: '12px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)', lineHeight: 1.6 }}>
-                        {selectedEmployee.roleDescription || (ROLE_DISPLAY[selectedEmployee.roleName] || {}).barn || 'Nhân sự thực hiện các nghiệp vụ theo phân công tại trang trại.'}
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Địa chỉ cư trú:</span>
+                      <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.address || 'Chưa cập nhật'}</strong>
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Mô tả vai trò & phạm vi:</span>
+                      <p style={{ margin: '4px 0 0', color: 'var(--color-body)', backgroundColor: 'var(--color-surface-soft)', padding: '10px', borderRadius: 'var(--rounded-sm)', border: '1px solid var(--color-hairline)' }}>
+                        {selectedEmployee.roleDescription || (ROLE_DISPLAY[selectedEmployee.roleName] || {}).barn || 'Nhân sự thực hiện các nghiệp vụ được phân công trong phân hệ.'}
                       </p>
                     </div>
                   </div>
                 </div>
               )}
             </div>
-            <div className="farmshift-modal-footer" style={{ gap: '10px' }}>
+            <div className="farmshift-modal-footer">
               <button
                 type="button"
                 className="farmshift-btn farmshift-btn-secondary"
                 onClick={() => setShowDetailModal(false)}
-                style={{ padding: '10px 20px', fontSize: '14.5px' }}
               >
                 Đóng
               </button>
@@ -1475,75 +1876,69 @@ export const AccountView = () => {
                   setShowDetailModal(false);
                   handleOpenEdit(selectedEmployee);
                 }}
-                style={{ padding: '10px 22px', fontSize: '15px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                <Edit2 size={16} /> Chỉnh sửa thông tin
+                <Edit2 size={14} /> Chỉnh sửa thông tin
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MODAL 3: UPDATE EMPLOYEE & ROLE (SENIOR-FRIENDLY) ──────────────── */}
+      {/* ── MODAL 3: UPDATE EMPLOYEE & ROLE ───────────────────────────────── */}
       {showEditModal && (
         <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal" style={{ maxWidth: '580px' }}>
+          <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
             <div className="farmshift-modal-header">
-              <div>
-                <h3 className="farmshift-modal-title" style={{ fontSize: '18px' }}>Chỉnh sửa & Phân quyền nhân viên</h3>
-                <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Cập nhật lại tên, số điện thoại, quyền hạn hoặc trạng thái làm việc</span>
-              </div>
+              <h3 className="farmshift-modal-title">Chỉnh sửa & Phân quyền nhân viên</h3>
               <button
                 onClick={() => setShowEditModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
-                title="Đóng cửa sổ"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
             <form onSubmit={handleUpdateStaff}>
               <div className="farmshift-modal-body">
                 {formError && (
                   <div style={{
-                    padding: '12px 16px',
+                    padding: '10px 14px',
                     marginBottom: '16px',
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fce8e6',
                     color: '#c5221f',
-                    fontSize: '14px',
+                    fontSize: '13.5px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
                   }}>
-                    <AlertCircle size={18} />
+                    <AlertCircle size={16} />
                     <span>{formError}</span>
                   </div>
                 )}
 
                 {editStaff.roleName === 'ROLE_FARM_OWNER' && (
                   <div style={{
-                    padding: '12px 16px',
+                    padding: '10px 14px',
                     marginBottom: '16px',
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fef3c7',
                     color: '#b45309',
-                    fontSize: '13.5px',
+                    fontSize: '13px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px'
+                    gap: '8px'
                   }}>
-                    <Shield size={18} />
-                    <span><strong>Tài khoản Chủ trang trại được bảo vệ an toàn:</strong> Không thể tự đổi vai trò hoặc tạm khóa tài khoản của chính mình.</span>
+                    <Shield size={16} />
+                    <span>Tài khoản Chủ trang trại được bảo vệ: Không thể đổi vai trò hoặc vô hiệu hóa.</span>
                   </div>
                 )}
 
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Họ và tên *</label>
+                  <label className="farmshift-form-label">Họ và tên *</label>
                   <input
                     type="text"
                     required
                     className="farmshift-form-control"
-                    style={{ fontSize: '15px', padding: '10px 14px' }}
                     value={editStaff.fullName}
                     onChange={e => setEditStaff({ ...editStaff, fullName: e.target.value })}
                   />
@@ -1551,22 +1946,20 @@ export const AccountView = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Email tài khoản *</label>
+                    <label className="farmshift-form-label">Email tài khoản *</label>
                     <input
                       type="email"
                       required
                       className="farmshift-form-control"
-                      style={{ fontSize: '14.5px', padding: '10px 14px' }}
                       value={editStaff.email}
                       onChange={e => setEditStaff({ ...editStaff, email: e.target.value })}
                     />
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Số điện thoại</label>
+                    <label className="farmshift-form-label">Số điện thoại</label>
                     <input
                       type="text"
                       className="farmshift-form-control"
-                      style={{ fontSize: '14.5px', padding: '10px 14px' }}
                       value={editStaff.phone}
                       onChange={e => setEditStaff({ ...editStaff, phone: e.target.value })}
                     />
@@ -1575,57 +1968,63 @@ export const AccountView = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Vai trò phân quyền</label>
+                    <label className="farmshift-form-label">Vai trò phân quyền</label>
                     <select
                       className="farmshift-form-control"
-                      style={{ fontSize: '14px', padding: '10px 12px' }}
                       value={editStaff.roleName}
                       disabled={editStaff.roleName === 'ROLE_FARM_OWNER'}
                       onChange={e => setEditStaff({ ...editStaff, roleName: e.target.value })}
-                      style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed', fontSize: '14px', padding: '10px 12px' } : { fontSize: '14px', padding: '10px 12px' }}
+                      style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' } : {}}
                     >
                       {editStaff.roleName === 'ROLE_FARM_OWNER' ? (
-                        <option value="ROLE_FARM_OWNER">👑 Chủ trang trại (Toàn quyền quản lý)</option>
+                        <option value="ROLE_FARM_OWNER">Chủ trang trại (Owner)</option>
                       ) : (
                         <>
-                          <option value="ROLE_FARM_WORKER">🌾 Công nhân trại (Chăm sóc vật nuôi)</option>
-                          <option value="ROLE_ACCOUNTANT">💼 Kế toán (Thu chi & Kho hàng)</option>
+                          <option value="ROLE_FARM_WORKER">Công nhân trại (Worker)</option>
+                          <option value="ROLE_ACCOUNTANT">Kế toán (Accountant)</option>
                         </>
                       )}
                     </select>
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" style={{ fontSize: '14.5px', fontWeight: 600 }}>Trạng thái làm việc</label>
+                    <label className="farmshift-form-label">Trạng thái hoạt động</label>
                     <select
                       className="farmshift-form-control"
                       value={editStaff.isActive ? 'true' : 'false'}
                       disabled={editStaff.roleName === 'ROLE_FARM_OWNER'}
                       onChange={e => setEditStaff({ ...editStaff, isActive: e.target.value === 'true' })}
-                      style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed', fontSize: '14px', padding: '10px 12px' } : { fontSize: '14px', padding: '10px 12px' }}
+                      style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' } : {}}
                     >
-                      <option value="true">🟢 Đang làm việc (Bình thường)</option>
-                      <option value="false">🔴 Tạm ngưng hoạt động / Đã nghỉ</option>
+                      <option value="true">Đang hoạt động</option>
+                      <option value="false">Tạm ngưng hoạt động</option>
                     </select>
                   </div>
                 </div>
               </div>
-              <div className="farmshift-modal-footer" style={{ gap: '10px' }}>
+              <div className="farmshift-modal-footer">
                 <button
                   type="button"
                   className="farmshift-btn farmshift-btn-secondary"
                   onClick={() => setShowEditModal(false)}
                   disabled={isSubmitting}
-                  style={{ padding: '10px 20px', fontSize: '14.5px' }}
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="farmshift-btn farmshift-btn-primary"
+                  className={`farmshift-btn farmshift-btn-primary ${isSubmitting ? 'is-loading' : ''}`}
                   disabled={isSubmitting}
-                  style={{ padding: '10px 24px', fontSize: '15px', fontWeight: 600 }}
+                  aria-busy={isSubmitting}
+                  style={{ gap: '8px' }}
                 >
-                  {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  {isSubmitting ? (
+                    <>
+                      <ButtonSpinner size={16} color="#019788" secondaryColor="rgba(255, 255, 255, 0.3)" />
+                      <span>Đang lưu thay đổi...</span>
+                    </>
+                  ) : (
+                    'Lưu thay đổi'
+                  )}
                 </button>
               </div>
             </form>

@@ -173,7 +173,7 @@ export const IotDevicesTab = ({
       </div>
 
       {/* Barn IoT Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '20px' }}>
+      <div className="farmshift-iot-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '20px' }}>
         {Object.entries(barnDevices).map(([barnName, b]) => {
           if (selectedIotBarnFilter !== 'ALL' && selectedIotBarnFilter !== barnName) return null;
           const envData = envRows.find(r => r.barn === barnName) || { temp: 29.5, humidity: 68 };

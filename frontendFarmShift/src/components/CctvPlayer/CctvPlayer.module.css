@@ -359,3 +359,36 @@
   outline: none;
   border-color: #019788;
 }
+
+/* ── Responsive Mobile Optimizations ── */
+@media (max-width: 640px) {
+  .controlsBar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .osdCamName {
+    font-size: 11px;
+  }
+
+  .osdStreamSpecs {
+    display: none;
+  }
+
+  .angleBtn {
+    padding: 3px 6px;
+    font-size: 10.5px;
+  }
+
+  .toolBtn {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ptzPad {
+    display: none;
+  }
+}
+

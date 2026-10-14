@@ -78,14 +78,14 @@ export const AuthLayout = ({ children }) => {
       </div>
 
       {/* ── Right Form Panel (Clean Canvas) ────────────────── */}
-      <div style={{
+      <div className="farmshift-auth-form-panel" style={{
         flex: '1',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '48px 32px'
       }}>
-        <div style={{
+        <div className="farmshift-auth-form-card" style={{
           width: '100%',
           maxWidth: '440px',
           backgroundColor: 'var(--color-canvas)',

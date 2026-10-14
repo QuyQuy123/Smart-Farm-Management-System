@@ -311,3 +311,32 @@
   background-color: #22c55e;
   box-shadow: 0 0 6px #22c55e;
 }
+
+/* ── Responsive Mobile Optimizations ── */
+@media (max-width: 640px) {
+  .chartContainer {
+    padding: 12px 14px;
+    margin-top: 10px;
+    border-radius: 8px;
+  }
+
+  .tickerHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  .tickerCurrentVal {
+    font-size: 22px;
+  }
+
+  .chartFooter {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 11px;
+  }
+}
+

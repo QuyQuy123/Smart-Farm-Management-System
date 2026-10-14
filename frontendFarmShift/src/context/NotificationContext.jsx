@@ -84,6 +84,7 @@ export const NotificationProvider = ({ children }) => {
 
   /**
    * Bắn một thông báo hệ thống dạng Toast (hỗ trợ mã MSG hoặc text tự do)
+   * và TỰ ĐỘNG GHI NHẬN vào danh sách thông báo trung tâm (chuông Header) khi thành công!
    * @param {string} messageOrCode - Mã MSG (ví dụ 'MSG03') hoặc chuỗi text
    * @param {'success'|'error'|'warning'|'info'} [type='success']
    * @param {Object} [params={}] - Tham số nếu có
@@ -103,20 +104,48 @@ export const NotificationProvider = ({ children }) => {
       msgType = toastLevel;
     }
 
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} - Vừa xong`;
+
+    // Phân loại nguồn thao tác tự động dựa vào nội dung thông báo
+    let source = 'Hệ thống FarmShift';
+    const textLower = (text || '').toLowerCase();
+    if (textLower.includes('hồ sơ') || textLower.includes('cá nhân')) source = 'Hồ sơ cá nhân';
+    else if (textLower.includes('mật khẩu') || textLower.includes('bảo mật')) source = 'Bảo mật tài khoản';
+    else if (textLower.includes('nhân viên') || textLower.includes('nhân sự')) source = 'Tài khoản & Nhân sự';
+    else if (textLower.includes('quạt') || textLower.includes('đèn') || textLower.includes('iot')) source = 'Điều khiển thiết bị IoT';
+    else if (textLower.includes('chuồng') || textLower.includes('nhà') || textLower.includes('khu')) source = 'Khu nuôi & Chuồng trại';
+    else if (textLower.includes('kho') || textLower.includes('nhập hàng') || textLower.includes('xuất')) source = 'Kho hàng hóa';
+    else if (textLower.includes('bán') || textLower.includes('đơn hàng')) source = 'Quản lý bán hàng';
+    else if (textLower.includes('quỹ') || textLower.includes('thu') || textLower.includes('chi') || textLower.includes('tiền')) source = 'Sổ quỹ';
+    else if (textLower.includes('tiêu chuẩn') || textLower.includes('định mức')) source = 'Thiết lập chăn nuôi';
+
     const toastObj = {
-      id: 'toast-' + Date.now(),
-      time: 'Vừa xong',
-      type: msgType,
+      id: 'toast-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      time: timeStr,
+      barn: source,
+      type: toastLevel === 'Thành công' ? 'Thao tác thành công' : toastLevel,
       value: text,
       level: toastLevel,
-      status: 'Hệ thống đã ghi nhận',
+      status: toastLevel === 'Thành công' ? 'Đã hoàn tất & đồng bộ dữ liệu' : 'Hệ thống đã ghi nhận',
       isSystem: true
     };
 
+    // Khi bất cứ thao tác nào SUCCESS:
+    // Tự động ghi nhận vào danh sách thông báo trung tâm (alerts) để người dùng xem lại trong menu Chuông Header!
+    if (type === 'success' || toastLevel === 'Thành công') {
+      setAlerts(prev => [toastObj, ...prev.slice(0, 49)]); // Lưu tối đa 50 thông báo gần nhất
+      setUnreadCount(prev => prev + 1);
+    }
+
+    // Hiển thị toast popup nổi ở góc phải màn hình
     setActiveToast(toastObj);
     setTimeout(() => {
       setActiveToast(prev => prev?.id === toastObj.id ? null : prev);
     }, 4500);
+
+    // Bắn sự kiện Custom Event
+    window.dispatchEvent(new CustomEvent('farmshift_new_alert', { detail: toastObj }));
 
     return toastObj;
   };

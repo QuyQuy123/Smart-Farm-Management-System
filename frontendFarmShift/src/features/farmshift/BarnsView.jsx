@@ -672,7 +672,7 @@ export const BarnsView = () => {
           </div>
 
           {/* Lưới Camera Toàn Trại */}
-          <div style={{
+          <div className="farmshift-cctv-wall-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))',
             gap: '20px'

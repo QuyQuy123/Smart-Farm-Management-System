@@ -2,16 +2,22 @@
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
-  gap: 6px; padding: 9px 15px;
+  gap: 8px; padding: 9px 15px;
   font-family: var(--font-sans); font-size: 14px; font-weight: 500;
   line-height: 1.4; border-radius: 6px; border: 1px solid transparent;
   cursor: pointer; text-decoration: none; white-space: nowrap;
   transition: background var(--transition-fast), border-color var(--transition-fast),
-              color var(--transition-fast), opacity var(--transition-fast);
+              color var(--transition-fast), opacity var(--transition-fast), box-shadow var(--transition-fast);
   user-select: none;
+  position: relative;
+  overflow: hidden;
 }
 
-.btn:disabled, .btn[aria-busy="true"] { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+.btn:disabled, .btn[aria-busy="true"] {
+  cursor: wait !important;
+  pointer-events: none !important;
+  opacity: 0.9 !important;
+}
 
 /* Primary: near-black (DESIGN.md button-primary) */
 .primary { background-color: var(--color-primary); color: var(--color-on-primary); border-color: var(--color-primary); }
@@ -55,4 +61,30 @@
 .fullWidth { width: 100%; }
 
 /* Loading Spinner */
-.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 9999px; animation: spin 0.6s linear infinite; }
+.spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 2.2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 9999px;
+  animation: spin 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.btn[aria-busy="true"] {
+  background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0) 100%) !important;
+  background-size: 200% 100% !important;
+  animation: btnShimmer 1.8s ease-in-out infinite !important;
+  box-shadow: 0 4px 14px rgba(1, 151, 136, 0.25) !important;
+}
+
+@keyframes btnShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
