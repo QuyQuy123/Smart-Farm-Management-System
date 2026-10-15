@@ -1,6 +1,7 @@
 // src/features/farmshift/AccountView.jsx
 // Quản lý Tài khoản & Phân quyền Nhân sự chuẩn FarmShift & DESIGN.md
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Users, Plus, Search, ShieldCheck, UserCheck,
   Building2, Crown, KeyRound, Edit2, X, CheckCircle, Camera,
@@ -19,6 +20,7 @@ import {
 } from '../../services/employeeService';
 import { getSystemMessage } from '../../utils/systemMessages';
 import { AvatarCropperModal } from '../profile/AvatarCropperModal';
+import { AvatarPreviewModal } from '../profile/AvatarPreviewModal';
 import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 
 const ROLE_DISPLAY = {
@@ -178,7 +180,19 @@ export const validateAllPassword = (formData) => {
 export const AccountView = () => {
   const { user, updateUser } = useAuth();
   const { showToast } = useNotification();
-  const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'profile' | 'security' | 'branches' | 'plan'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const activeTab = ['staff', 'profile', 'security', 'branches', 'plan'].includes(requestedTab)
+    ? requestedTab
+    : 'staff';
+  const setActiveTab = (tab) => {
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params);
+      if (tab === 'staff') next.delete('tab');
+      else next.set('tab', tab);
+      return next;
+    });
+  };
 
   // Staff List State
   const [staffList, setStaffList] = useState([]);
@@ -232,6 +246,7 @@ export const AccountView = () => {
 
   // Profile Form State initialized directly from auth user if available
   const [profileForm, setProfileForm] = useState(() => ({
+    email: user?.email || '',
     fullName: user?.fullName || user?.name || '',
     phone: user?.phone || '',
     citizenId: user?.citizenId || '',
@@ -243,6 +258,7 @@ export const AccountView = () => {
   const [profileTouched, setProfileTouched] = useState({});
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [selectedImageToCrop, setSelectedImageToCrop] = useState(null);
+  const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const fileInputRef = useRef(null);
@@ -264,6 +280,7 @@ export const AccountView = () => {
     setPrevUser(user);
     if (user) {
       setProfileForm({
+        email: user.email || '',
         fullName: user.fullName || user.name || '',
         phone: user.phone || '',
         citizenId: user.citizenId || '',
@@ -281,6 +298,7 @@ export const AccountView = () => {
       .then(profile => {
         if (!isMounted || !profile) return;
         setProfileForm({
+          email: profile.email || '',
           fullName: profile.fullName || '',
           phone: profile.phone || '',
           citizenId: profile.citizenId || '',
@@ -289,6 +307,7 @@ export const AccountView = () => {
           avatarUrl: profile.avatarUrl || ''
         });
         updateUser({
+          ...(profile.email ? { email: profile.email } : {}),
           name: profile.fullName,
           fullName: profile.fullName,
           phone: profile.phone || '',
@@ -552,8 +571,8 @@ export const AccountView = () => {
   const handleAvatarFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setProfileMessage({ type: 'error', text: 'Kích thước ảnh không được vượt quá 10MB.' });
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileMessage({ type: 'error', text: 'Kích thước ảnh không được vượt quá 5MB.' });
       return;
     }
     const reader = new FileReader();
@@ -566,23 +585,17 @@ export const AccountView = () => {
 
   const handleCropComplete = async (croppedBase64, croppedFile) => {
     setSelectedImageToCrop(null);
-    setProfileForm(prev => ({ ...prev, avatarUrl: croppedBase64 }));
-    updateUser({ avatarUrl: croppedBase64 });
-
-    if (croppedFile) {
-      try {
-        setUploadingAvatar(true);
-        setProfileMessage({ type: '', text: '' });
-        const url = await fileService.uploadFile(croppedFile, 'avatars');
-        if (url) {
-          setProfileForm(prev => ({ ...prev, avatarUrl: url }));
-          updateUser({ avatarUrl: url });
-        }
-      } catch (err) {
-        console.warn('Upload ảnh avatar lên storage thất bại, giữ preview:', err);
-      } finally {
-        setUploadingAvatar(false);
-      }
+    try {
+      setUploadingAvatar(true);
+      setProfileMessage({ type: '', text: '' });
+      const url = await fileService.uploadAvatar(croppedFile, croppedBase64);
+      setProfileForm(prev => ({ ...prev, avatarUrl: url }));
+      updateUser({ avatarUrl: url });
+      setProfileMessage({ type: 'success', text: 'Đã lưu ảnh đại diện thành công.' });
+    } catch (err) {
+      setProfileMessage({ type: 'error', text: err.response?.data?.message || 'Không lưu được ảnh đại diện. Vui lòng thử lại.' });
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -665,6 +678,7 @@ export const AccountView = () => {
     setIsSavingProfile(true);
     try {
       const payload = {
+        ...(user?.role === 'ROLE_FARM_OWNER' ? { email: profileForm.email.trim() } : {}),
         fullName: (profileForm.fullName || '').trim(),
         avatarUrl: profileForm.avatarUrl || null,
         phone: profileForm.phone?.trim() || null,
@@ -674,6 +688,7 @@ export const AccountView = () => {
       };
       const updated = await updateProfile(payload);
       setProfileForm({
+        email: updated.email || user?.email || '',
         fullName: updated.fullName || '',
         phone: updated.phone || '',
         citizenId: updated.citizenId || '',
@@ -682,6 +697,7 @@ export const AccountView = () => {
         avatarUrl: updated.avatarUrl || ''
       });
       updateUser({
+        email: updated.email || user?.email,
         name: updated.fullName,
         fullName: updated.fullName,
         phone: updated.phone || '',
@@ -1060,14 +1076,23 @@ export const AccountView = () => {
           </div>
           <div className="farmshift-card-body">
             <form onSubmit={handleUpdateProfile}>
+              {profileMessage.text && (
+                <p role={profileMessage.type === 'error' ? 'alert' : 'status'}
+                  style={{ color: profileMessage.type === 'error' ? '#dc2626' : '#00846b', marginBottom: '16px' }}>
+                  {profileMessage.text}
+                </p>
+              )}
               <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                  <div style={{
+                  <button type="button" aria-label="Xem ảnh đại diện" title={profileForm.avatarUrl ? 'Bấm để xem ảnh đại diện' : 'Chưa có ảnh đại diện'}
+                    disabled={!profileForm.avatarUrl || uploadingAvatar}
+                    onClick={() => setShowAvatarPreview(true)} style={{
                     width: '100px', height: '100px', borderRadius: '50%',
                     backgroundColor: 'var(--color-surface-soft)',
                     border: '1px solid var(--color-hairline)',
                     display: 'flex', justifyContent: 'center', alignItems: 'center',
-                    overflow: 'hidden', position: 'relative'
+                    overflow: 'hidden', position: 'relative', padding: 0,
+                    cursor: profileForm.avatarUrl ? 'zoom-in' : 'default'
                   }}>
                     {profileForm.avatarUrl ? (
                       <img src={profileForm.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1079,7 +1104,7 @@ export const AccountView = () => {
                         <span style={{ fontSize: '12px', color: 'var(--color-primary)', fontWeight: 500 }}>Đang tải...</span>
                       </div>
                     )}
-                  </div>
+                  </button>
                   <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-primary)', fontWeight: 500 }}>
                     <Camera size={14} /> Thay đổi ảnh
                     <input
@@ -1088,7 +1113,7 @@ export const AccountView = () => {
                       accept="image/*"
                       style={{ display: 'none' }}
                       onChange={handleAvatarFile}
-                      disabled={uploadingAvatar}
+                      disabled={uploadingAvatar || isSavingProfile}
                     />
                   </label>
                 </div>
@@ -1134,14 +1159,14 @@ export const AccountView = () => {
                     <label className="farmshift-form-label" style={{ marginBottom: '4px' }}>Email tài khoản</label>
                     <input
                       type="email"
-                      readOnly
+                      readOnly={user?.role !== 'ROLE_FARM_OWNER'}
+                      required
+                      maxLength={50}
                       className="farmshift-form-control"
-                      style={{ backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' }}
-                      value={user?.email || 'admin@farmshift.local'}
+                      style={user?.role !== 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' } : undefined}
+                      value={profileForm.email}
+                      onChange={e => setProfileForm(prev => ({ ...prev, email: e.target.value }))}
                     />
-                    <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
-                      🔒 Email tài khoản cố định theo định danh hệ thống
-                    </span>
                   </div>
 
                   <div className="farmshift-form-group">
@@ -1230,7 +1255,7 @@ export const AccountView = () => {
                 <div className="farmshift-form-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                     <label className="farmshift-form-label" htmlFor="profile-dateOfBirth" style={{ margin: 0 }}>
-                      Ngày sinh (YYYY-MM-DD)
+                      Ngày sinh (dd/mm/yyyy)
                     </label>
                     {profileTouched.dateOfBirth && !profileErrors.dateOfBirth && profileForm.dateOfBirth && (
                       <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -1962,6 +1987,9 @@ export const AccountView = () => {
         </div>
       )}
 
+      {showAvatarPreview && profileForm.avatarUrl && (
+        <AvatarPreviewModal src={profileForm.avatarUrl} onClose={() => setShowAvatarPreview(false)} />
+      )}
       {selectedImageToCrop && (
         <AvatarCropperModal
           imageSrc={selectedImageToCrop}

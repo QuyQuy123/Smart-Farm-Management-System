@@ -11,6 +11,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UpdateProfileRequest {
+    @jakarta.validation.constraints.Email(message = "Email không hợp lệ")
+    @jakarta.validation.constraints.Size(min = 1, max = 50)
+    private String email;
     
     @NotBlank(message = "Full name is required")
     private String fullName;

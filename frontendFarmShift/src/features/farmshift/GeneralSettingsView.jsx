@@ -11,6 +11,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA, getFarmInfo, saveFarmInfo } from '../../data/farmshiftMockData';
 import { FARMSHIFT_SCREENS } from '../../data/screensMatrix';
+import { getFarm, updateFarm } from '../../services/farmService';
 
 export const GeneralSettingsView = () => {
   const { user } = useAuth();
@@ -29,6 +30,26 @@ export const GeneralSettingsView = () => {
   };
 
   const [farmInfo, setFarmInfo] = useState(() => getFarmInfo(user));
+  const [isLoadingFarm, setIsLoadingFarm] = useState(true);
+  const [isSavingFarm, setIsSavingFarm] = useState(false);
+  const [farmError, setFarmError] = useState('');
+  const canEditFarm = user?.role === 'ROLE_FARM_OWNER';
+
+  useEffect(() => {
+    let cancelled = false;
+    getFarm().then((farm) => {
+      if (cancelled) return;
+      if (farm) {
+        setFarmInfo(farm);
+        saveFarmInfo(farm);
+      }
+    }).catch(() => {
+      if (!cancelled) setFarmError('Không tải được thông tin trang trại. Vui lòng tải lại trang để thử lại.');
+    }).finally(() => {
+      if (!cancelled) setIsLoadingFarm(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [notifSaved, setNotifSaved] = useState(false);
@@ -59,10 +80,27 @@ export const GeneralSettingsView = () => {
     else if (location.pathname.includes('notifications')) setActiveTab('notifications');
   }
 
-  const handleSaveFarmInfo = (e) => {
+  const handleSaveFarmInfo = async (e) => {
     e.preventDefault();
-    saveFarmInfo(farmInfo);
-    showToast('Đã lưu thông tin cơ sở trang trại thành công!', 'success');
+    if (!canEditFarm || isLoadingFarm || isSavingFarm || farmError) return;
+    if (![farmInfo.name, farmInfo.owner, farmInfo.phone].every(value => value?.trim())) {
+      showToast('Vui lòng nhập tên cơ sở, người đại diện và số điện thoại.', 'error');
+      return;
+    }
+    setIsSavingFarm(true);
+    try {
+      const saved = await updateFarm(farmInfo);
+      setFarmInfo(saved);
+      saveFarmInfo(saved);
+      showToast('Đã lưu thông tin cơ sở trang trại thành công!', 'success');
+    } catch (error) {
+      const details = error.response?.data?.data;
+      showToast(details && typeof details === 'object'
+        ? Object.values(details).join('. ')
+        : error.response?.data?.message || 'Không lưu được thông tin trang trại. Vui lòng thử lại.', 'error');
+    } finally {
+      setIsSavingFarm(false);
+    }
   };
 
   const handleSaveNotifications = (e) => {
@@ -159,6 +197,10 @@ export const GeneralSettingsView = () => {
             )}
           </div>
           <form onSubmit={handleSaveFarmInfo}>
+            {isLoadingFarm && <p role="status">Đang tải thông tin trang trại...</p>}
+            {farmError && <p role="alert">{farmError}</p>}
+            {!canEditFarm && <p>Chỉ chủ trang trại có quyền cập nhật thông tin này.</p>}
+            <fieldset disabled={isLoadingFarm || isSavingFarm || !canEditFarm || !!farmError} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <div className="farmshift-card-body">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="farmshift-form-group">
@@ -168,6 +210,7 @@ export const GeneralSettingsView = () => {
                     required
                     className="farmshift-form-control"
                     value={farmInfo.name}
+                    maxLength={200}
                     onChange={(e) => setFarmInfo({ ...farmInfo, name: e.target.value })}
                   />
                 </div>
@@ -178,6 +221,7 @@ export const GeneralSettingsView = () => {
                     required
                     className="farmshift-form-control"
                     value={farmInfo.owner}
+                    maxLength={100}
                     onChange={(e) => setFarmInfo({ ...farmInfo, owner: e.target.value })}
                   />
                 </div>
@@ -191,6 +235,8 @@ export const GeneralSettingsView = () => {
                     required
                     className="farmshift-form-control"
                     value={farmInfo.phone}
+                    maxLength={20}
+                    inputMode="tel"
                     onChange={(e) => setFarmInfo({ ...farmInfo, phone: e.target.value })}
                   />
                 </div>
@@ -200,6 +246,7 @@ export const GeneralSettingsView = () => {
                     type="text"
                     className="farmshift-form-control"
                     value={farmInfo.scale}
+                    maxLength={100}
                     onChange={(e) => setFarmInfo({ ...farmInfo, scale: e.target.value })}
                   />
                 </div>
@@ -211,6 +258,7 @@ export const GeneralSettingsView = () => {
                   type="text"
                   className="farmshift-form-control"
                   value={farmInfo.address}
+                  maxLength={500}
                   onChange={(e) => setFarmInfo({ ...farmInfo, address: e.target.value })}
                 />
               </div>
@@ -221,15 +269,17 @@ export const GeneralSettingsView = () => {
                   type="text"
                   className="farmshift-form-control"
                   value={farmInfo.type}
+                  maxLength={200}
                   onChange={(e) => setFarmInfo({ ...farmInfo, type: e.target.value })}
                 />
               </div>
             </div>
             <div className="farmshift-card-header" style={{ justifyContent: 'flex-end', backgroundColor: 'var(--color-surface-soft)' }}>
               <button type="submit" className="farmshift-btn farmshift-btn-primary">
-                <Save size={15} /> Cập nhật thông tin
+                <Save size={15} /> {isSavingFarm ? 'Đang lưu...' : 'Cập nhật thông tin'}
               </button>
             </div>
+            </fieldset>
           </form>
         </div>
       )}

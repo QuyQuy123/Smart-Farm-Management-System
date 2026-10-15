@@ -7,6 +7,7 @@ import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 import { updateProfile, changePassword } from '../../services/userService';
 import { AvatarCropperModal } from './AvatarCropperModal';
+import { fileService } from '../../services/fileService';
 
 export const ProfilePage = ({ initialTab = 'info' }) => {
   const { user, updateUser } = useAuth();
@@ -69,8 +70,8 @@ export const ProfilePage = ({ initialTab = 'info' }) => {
   const handleAvatarFile = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        setFeedbackMsg('Kích thước ảnh không được vượt quá 10MB.');
+      if (file.size > 5 * 1024 * 1024) {
+        setFeedbackMsg('Kích thước ảnh không được vượt quá 5MB.');
         setFeedbackType('error');
         return;
       }
@@ -83,18 +84,21 @@ export const ProfilePage = ({ initialTab = 'info' }) => {
     }
   };
 
-  const handleCropComplete = async (croppedBase64) => {
+  const handleCropComplete = async (croppedBase64, croppedFile) => {
     setSelectedImageToCrop(null);
-    setAvatarUrl(croppedBase64);
-    // Immediately save avatar to global user context & local storage
-    updateUser({ avatarUrl: croppedBase64 });
+    setLoading(true);
     try {
-      await updateProfile({ fullName: name, avatarUrl: croppedBase64, phone });
+      const url = await fileService.uploadAvatar(croppedFile, croppedBase64);
+      setAvatarUrl(url);
+      updateUser({ avatarUrl: url });
+      setFeedbackMsg('Đã cập nhật ảnh đại diện thành công!');
+      setFeedbackType('success');
     } catch (err) {
-      // Offline / demo fallback succeeds locally
+      setFeedbackMsg(err.response?.data?.message || 'Không lưu được ảnh đại diện. Vui lòng thử lại.');
+      setFeedbackType('error');
+    } finally {
+      setLoading(false);
     }
-    setFeedbackMsg('Đã cập nhật ảnh đại diện thành công!');
-    setFeedbackType('success');
   };
 
   const handleRemoveAvatar = () => {

@@ -14,7 +14,8 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification, formatNotificationTime, renderNotificationContent } from '../context/NotificationContext';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { GlobalSearch } from '../components/GlobalSearch/GlobalSearch';
-import { getFarmInfo } from '../data/farmshiftMockData';
+import { getFarmInfo, saveFarmInfo } from '../data/farmshiftMockData';
+import { getFarm } from '../services/farmService';
 import farmLogo from '../assets/logo_Farm.png';
 import '../theme/farmshift.css';
 
@@ -156,6 +157,19 @@ export const FarmShiftLayout = ({
     const [prevUser, setPrevUser] = useState(user);
     const [farmInfo, setFarmInfo] = useState(() => getFarmInfo(user));
 
+    useEffect(() => {
+        let cancelled = false;
+        if (user?.email) {
+            getFarm().then((farm) => {
+                if (!cancelled && farm) {
+                    saveFarmInfo(farm);
+                    setFarmInfo(farm);
+                }
+            }).catch(() => { /* Keep the display fallback when the API is unavailable. */ });
+        }
+        return () => { cancelled = true; };
+    }, [user?.email]);
+
     if (user !== prevUser) {
         setPrevUser(user);
         setFarmInfo(getFarmInfo(user));
@@ -220,7 +234,7 @@ export const FarmShiftLayout = ({
 
                     <div className="farmshift-header-brand-tag">
                         <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#019788' }}></span>
-                        <span>Trang trại Miến Bình</span>
+                        <span>{farmInfo.name}</span>
                     </div>
                 </div>
 
@@ -413,7 +427,7 @@ export const FarmShiftLayout = ({
                                     </div>
                                 </div>
                                 <Link
-                                    to="/account"
+                                    to="/account?tab=profile"
                                     style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '13.5px', color: 'var(--color-body)', textDecoration: 'none' }}
                                     onClick={() => setUserMenuOpen(false)}
                                 >

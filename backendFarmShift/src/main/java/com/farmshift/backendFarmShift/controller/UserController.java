@@ -17,6 +17,16 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final com.farmshift.backendFarmShift.service.FileUploadService fileUploadService;
+    private final com.farmshift.backendFarmShift.security.JwtProvider jwtProvider;
+
+    @PostMapping(value = "/avatar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> uploadAvatar(
+            Principal principal, @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        String url = fileUploadService.uploadFile(file, "avatars");
+        userService.updateAvatar(principal.getName(), url);
+        return ResponseEntity.ok(ApiResponse.success("Avatar updated successfully", java.util.Map.of("url", url)));
+    }
 
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<UserProfileResponse>> getProfile(
@@ -38,6 +48,12 @@ public class UserController {
             @Valid @RequestBody UpdateProfileRequest request) {
         
         UserProfileResponse updatedProfile = userService.updateProfile(principal.getName(), request);
+        if (!principal.getName().equals(updatedProfile.getEmail())) {
+            var authentication = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                    updatedProfile.getEmail(), null,
+                    java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(updatedProfile.getRole())));
+            updatedProfile.setToken(jwtProvider.generateToken(authentication));
+        }
         return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", updatedProfile));
     }
 

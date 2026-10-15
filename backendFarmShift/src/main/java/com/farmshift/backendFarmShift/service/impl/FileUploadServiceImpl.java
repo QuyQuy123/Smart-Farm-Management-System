@@ -16,6 +16,7 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "storage.provider", havingValue = "r2", matchIfMissing = true)
 @RequiredArgsConstructor
 public class FileUploadServiceImpl implements FileUploadService {
 

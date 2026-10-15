@@ -2,6 +2,32 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
+## Lưu ảnh đại diện khi chạy local
+
+Không bổ sung bảng mới: đường dẫn ảnh dùng các cột `accounts.avatar_url` và `customers.avatar_url` hiện có. `POST /api/user/avatar` nhận ảnh multipart, lưu file và cập nhật đường dẫn cho tài khoản đăng nhập (cùng hồ sơ customer nếu có) ngay khi upload thành công.
+
+Với `STORAGE_PROVIDER=local`, file nằm ở `frontendFarmShift/public/img/avatars/<UUID>.jpg` (hoặc `.png`, `.gif`), database lưu đường dẫn web `/img/avatars/<UUID>.jpg`. Frontend Vite phục vụ ảnh từ thư mục `public`; không lưu chuỗi Base64 vào database trong luồng này. Khi chạy server với `STORAGE_PROVIDER=r2`, vẫn lưu ảnh trên Cloudflare R2 và lưu URL công khai vào các cột trên.
+
+## Bảng `farms` — Thông tin cơ sở & Trang trại
+
+Entity: `Farm`. Lưu thông tin tại **Thiết lập chung → Thông tin cơ sở & Trang trại** vào PostgreSQL, thay cho việc chỉ lưu trong trình duyệt.
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY. Phiên bản hiện tại dùng một trang trại chung cho hệ thống, ID cố định `1` do ứng dụng quản lý. |
+| `name` | VARCHAR(200) | NOT NULL. Tên cơ sở / hộ kinh doanh; hiển thị trên header và breadcrumb. |
+| `owner` | VARCHAR(100) | NOT NULL. Chủ hộ / người đại diện; độc lập với họ tên tài khoản. |
+| `phone` | VARCHAR(20) | NOT NULL. Số điện thoại liên hệ, cho phép dấu cách và ký tự định dạng. |
+| `scale` | VARCHAR(100) | Quy mô chăn nuôi, ví dụ `15,000 con`. |
+| `address` | VARCHAR(500) | Địa chỉ trang trại. |
+| `type` | VARCHAR(200) | Mô hình sản xuất chính. |
+| `created_at` | TIMESTAMP | Hibernate tự ghi thời điểm tạo. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
+
+API: `GET /api/farm` dành cho tài khoản đã đăng nhập; `PUT /api/farm` chỉ dành cho `ROLE_FARM_OWNER`. Các trường bắt buộc không được chỉ chứa khoảng trắng; API kiểm tra độ dài và định dạng số điện thoại.
+
+Với cấu hình `spring.jpa.hibernate.ddl-auto=update`, Hibernate tạo bảng khi khởi động backend. Lần bấm **Cập nhật thông tin** đầu tiên tạo bản ghi; các lần sau cập nhật cùng bản ghi. Khi chưa lưu lần nào, GET trả thành công nhưng chưa có `data`. Dữ liệu mẫu hoặc dữ liệu cũ trong trình duyệt chỉ là giá trị điền sẵn, không tự ghi vào database. Thông tin này dùng chung cho mọi tài khoản, chưa triển khai quan hệ tài khoản với nhiều trang trại.
+
 ## 1. Bảng `roles`
 Quản lý các vai trò (quyền hạn) của người dùng trong hệ thống.
 
