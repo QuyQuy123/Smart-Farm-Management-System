@@ -9,6 +9,7 @@ import java.util.List;
 public interface UserService {
     UserProfileResponse getUserProfile(String email);
     UserProfileResponse updateProfile(String email, UpdateProfileRequest request);
+    void updateAvatar(String email, String avatarUrl);
     void changePassword(String email, ChangePasswordRequest request);
     List<UserProfileResponse> getAllUsers();
 }

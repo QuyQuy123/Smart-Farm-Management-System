@@ -1,4 +1,7 @@
 DB_HOST=your_db_host_here
+STORAGE_PROVIDER=local
+# Optional absolute path; leave empty to locate frontendFarmShift/public/img automatically.
+STORAGE_LOCAL_DIRECTORY=
 DB_PORT=5432
 DB_NAME=farmshift_db
 DB_USERNAME=your_db_username_here

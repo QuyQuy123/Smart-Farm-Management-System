@@ -28,6 +28,18 @@ public class UserServiceImpl implements UserService {
     private final CustomerRepository customerRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Override
+    @Transactional
+    public void updateAvatar(String email, String avatarUrl) {
+        Account account = getAccountByEmail(email);
+        account.setAvatarUrl(avatarUrl);
+        accountRepository.save(account);
+        customerRepository.findByAccount(account).ifPresent(customer -> {
+            customer.setAvatarUrl(avatarUrl);
+            customerRepository.save(customer);
+        });
+    }
+
     public UserProfileResponse getUserProfile(String email) {
         Account account = getAccountByEmail(email);
         Optional<Customer> customerOpt = customerRepository.findByAccount(account);
@@ -37,6 +49,17 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserProfileResponse updateProfile(String email, UpdateProfileRequest request) {
         Account account = getAccountByEmail(email);
+        if (request.getEmail() != null && !request.getEmail().trim().equals(account.getEmail())) {
+            if (account.getRole() == null || !com.farmshift.backendFarmShift.security.RoleNames.FARM_OWNER.equals(account.getRole().getName())) {
+                throw new org.springframework.security.access.AccessDeniedException("Chỉ chủ trang trại được thay đổi email tài khoản.");
+            }
+            String newEmail = request.getEmail().trim();
+            if (newEmail.isBlank()) throw new BadRequestException("Email không được để trống.");
+            if (accountRepository.existsByEmailIgnoreCaseAndIdNot(newEmail, account.getId())) {
+                throw new com.farmshift.backendFarmShift.exception.ConflictException("Email đã được sử dụng.", "MSG47", "email");
+            }
+            account.setEmail(newEmail);
+        }
         
         account.setFullName(request.getFullName().trim());
         if (request.getAvatarUrl() != null) {

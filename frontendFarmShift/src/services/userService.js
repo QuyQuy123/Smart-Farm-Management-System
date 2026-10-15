@@ -9,7 +9,9 @@ export const getProfile = async () => {
 
 export const updateProfile = async (profileData) => {
   const response = await api.put('/user/profile', profileData);
-  return response.data?.data || response.data;
+  const profile = response.data?.data || response.data;
+  if (profile.token) sessionStorage.setItem('token', profile.token);
+  return profile;
 };
 
 export const changePassword = async (currentPassword, newPassword) => {

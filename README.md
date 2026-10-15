@@ -313,3 +313,16 @@ http://localhost:5173
 MIT License
 
 ---
+# Lưu avatar khi phát triển local
+
+Trong `backendFarmShift/src/main/resources/application-local.properties`, đặt:
+
+```properties
+STORAGE_PROVIDER=local
+# Không bắt buộc. Nếu cần, đặt đường dẫn tuyệt đối đến frontendFarmShift/public/img.
+STORAGE_LOCAL_DIRECTORY=
+```
+
+Khởi động backend từ thư mục gốc dự án hoặc `backendFarmShift`, và chạy frontend bằng Vite. Ảnh upload được lưu tại `frontendFarmShift/public/img/avatars`; database lưu URL `/img/avatars/...`. Nút **Cắt & Lưu ảnh** lưu cả file và đường dẫn vào database ngay, không cần bấm lưu hồ sơ thêm lần nữa. Giới hạn ảnh 5MB; local hỗ trợ PNG, JPEG và GIF.
+
+Khi triển khai server, đặt biến môi trường `STORAGE_PROVIDER=r2` để tiếp tục dùng Cloudflare R2 và cấu hình các biến `R2_*` như trước. Thư mục ảnh local được Git bỏ qua; nếu chuyển máy, cần sao chép cả thư mục ảnh cùng dữ liệu database. Nếu tùy chỉnh thư mục local, hãy trỏ nó đến `public/img` của frontend đang chạy để URL hiển thị được.

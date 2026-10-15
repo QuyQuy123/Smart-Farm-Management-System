@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import ReactCrop, { centerCrop, makeAspectCrop, convertToPixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { X } from 'lucide-react';
+import { X, Crop, Check, Move } from 'lucide-react';
 import { Button } from '../../components/Button/Button';
 import styles from './AvatarCropperModal.module.css';
 
@@ -28,7 +28,9 @@ export const AvatarCropperModal = ({ imageSrc, onClose, onCropComplete }) => {
 
   const onImageLoad = (e) => {
     const { width, height } = e.currentTarget;
-    setCrop(centerAspectCrop(width, height, 1));
+    const initialCrop = centerAspectCrop(width, height, 1);
+    setCrop(initialCrop);
+    setCompletedCrop(convertToPixelCrop(initialCrop, width, height));
   };
 
   const handleSave = async () => {
@@ -73,10 +75,16 @@ export const AvatarCropperModal = ({ imageSrc, onClose, onCropComplete }) => {
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title" aria-describedby="avatar-crop-description" onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Cắt & Căn chỉnh ảnh đại diện</h2>
-          <button className={styles.closeBtn} onClick={onClose} aria-label="Đóng">
+          <div className={styles.heading}>
+            <span className={styles.headingIcon}><Crop size={21} /></span>
+            <div>
+              <h2 id="avatar-crop-title" className={styles.title}>Chỉnh ảnh đại diện</h2>
+              <p id="avatar-crop-description" className={styles.subtitle}>Chọn góc ảnh bạn yêu thích</p>
+            </div>
+          </div>
+          <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Đóng">
             <X size={20} />
           </button>
         </div>
@@ -100,17 +108,17 @@ export const AvatarCropperModal = ({ imageSrc, onClose, onCropComplete }) => {
               />
             </ReactCrop>
           </div>
-          <p style={{ fontSize: '13px', color: 'var(--color-muted)', margin: 0, textAlign: 'center' }}>
-            Kéo hoặc co giãn khung tròn để căn góc đại diện phù hợp nhất.
+          <p className={styles.hint}>
+            <Move size={16} aria-hidden="true" /> Kéo để di chuyển, kéo các góc để điều chỉnh khung ảnh.
           </p>
         </div>
 
         <div className={styles.footer}>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" className={styles.cancelBtn} onClick={onClose}>
             Hủy bỏ
           </Button>
-          <Button type="button" onClick={handleSave}>
-            Cắt & Lưu ảnh
+          <Button type="button" variant="green" className={styles.saveBtn} disabled={!completedCrop?.width || !completedCrop?.height} onClick={handleSave}>
+            <Check size={17} /> Cắt & lưu ảnh
           </Button>
         </div>
       </div>

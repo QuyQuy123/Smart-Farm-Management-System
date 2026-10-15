@@ -7,6 +7,8 @@
 # Frontend (Node / Vite)
 frontendFarmShift/node_modules/
 frontendFarmShift/dist/
+frontendFarmShift/public/img/*
+!frontendFarmShift/public/img/.gitkeep
 frontendFarmShift/.env.local
 
 # Backend (Spring Boot / Maven / Gradle)

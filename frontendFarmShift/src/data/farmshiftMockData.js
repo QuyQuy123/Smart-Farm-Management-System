@@ -6,10 +6,7 @@ export const getFarmInfo = (user) => {
         const saved = localStorage.getItem('farmshift_farm_info');
         if (saved) {
             const parsed = JSON.parse(saved);
-            if (parsed && (!parsed.name || parsed.name.includes('Trấn Kế Toán') || parsed.name.includes('FarmShift') || parsed.name.includes('Admin') || parsed.name.includes('Miền Bình'))) {
-                parsed.name = 'Trang trại Miến Bình';
-            }
-            return parsed;
+            if (parsed && typeof parsed.name === 'string') return parsed;
         }
     } catch (e) {}
 
