@@ -1,6 +1,7 @@
 // src/features/farmshift/AccountView.jsx
 // Quản lý Tài khoản & Phân quyền Nhân sự chuẩn FarmShift & DESIGN.md
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Users, Plus, Search, ShieldCheck, UserCheck,
   Building2, Crown, KeyRound, Edit2, X, CheckCircle, Camera,
@@ -178,7 +179,19 @@ export const validateAllPassword = (formData) => {
 export const AccountView = () => {
   const { user, updateUser } = useAuth();
   const { showToast } = useNotification();
-  const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'profile' | 'security' | 'branches' | 'plan'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const activeTab = ['staff', 'profile', 'security', 'branches', 'plan'].includes(requestedTab)
+    ? requestedTab
+    : 'staff';
+  const setActiveTab = (tab) => {
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params);
+      if (tab === 'staff') next.delete('tab');
+      else next.set('tab', tab);
+      return next;
+    });
+  };
 
   // Staff List State
   const [staffList, setStaffList] = useState([]);

@@ -413,7 +413,7 @@ export const FarmShiftLayout = ({
                                     </div>
                                 </div>
                                 <Link
-                                    to="/account"
+                                    to="/account?tab=profile"
                                     style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '13.5px', color: 'var(--color-body)', textDecoration: 'none' }}
                                     onClick={() => setUserMenuOpen(false)}
                                 >
