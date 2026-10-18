@@ -2,6 +2,24 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
+## Bảng `suppliers` — Nhà cung cấp
+
+Entity `Supplier` phục vụ CRUD tại **Thiết lập danh mục → Nhà cung cấp**.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng, định danh API. |
+| `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã tự sinh `NCC` + UUID không có dấu gạch nối, không đổi khi sửa. Chỉ lưu database, không trả trong DTO và không hiển thị trên UI. |
+| `name` | VARCHAR(200) | NOT NULL. Đơn vị cung cấp. |
+| `name_key` | VARCHAR(200) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC, cắt khoảng trắng, chuyển chữ thường để ngăn trùng đơn vị. |
+| `representative` | VARCHAR(100) | NOT NULL. Người đại diện. |
+| `phone` | VARCHAR(20) | NOT NULL. Số điện thoại 9–15 chữ số; cho phép dấu cách, +, dấu ngoặc và gạch nối. |
+| `product_type_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_types.id`. Nhóm nhà cung cấp được chọn từ bảng Loại hàng hóa. |
+| `created_at` | TIMESTAMP | Ngày giờ tạo đầy đủ, không đổi khi sửa; UI chỉ hiện dd/mm/yyyy. |
+| `updated_at` | TIMESTAMP | Hibernate tự cập nhật. |
+
+API `GET /api/suppliers`, `GET /api/suppliers/{id}` cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Danh sách sắp theo ngày tạo và ID tăng dần. Loại hàng hóa đang có nhà cung cấp sử dụng không được xóa. UI có tìm kiếm, chọn nhóm từ database, xem/sửa/xác nhận xóa và thông báo chung ở header. Không thêm dữ liệu mẫu; khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo bảng.
+
 ## Bảng `measurement_units` — Đơn vị tính
 
 Entity `MeasurementUnit` phục vụ CRUD tại **Thiết lập danh mục → Đơn vị tính**.

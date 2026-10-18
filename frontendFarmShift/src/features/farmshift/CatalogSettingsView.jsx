@@ -11,6 +11,7 @@ import { ProductCategoriesView } from './ProductCategoriesView';
 import { BrandsView } from './BrandsView';
 import { ProductTypesView } from './ProductTypesView';
 import { MeasurementUnitsView } from './MeasurementUnitsView';
+import { SuppliersView } from './SuppliersView';
 
 const CATALOG_BREADCRUMBS = [{ label: 'Thiết lập danh mục' }];
 const CATALOG_ACTIONS = (
@@ -32,12 +33,6 @@ export const CatalogSettingsView = () => {
     { id: 3, name: 'Hộp 10 lọ vắc-xin', unit: 'Hộp', items: '10 lọ', note: 'Kèm lọ nước pha tiêm/nhỏ mắt' },
   ];
 
-  const suppliers = [
-    { code: 'NCC000001', name: 'Công ty Cổ phần Chăn nuôi C.P. Việt Nam', rep: 'Nguyễn Văn Long', phone: '024 3822 0000', bank: 'Vietcombank - 001100223344', group: 'Trả sau' },
-    { code: 'NCC000002', name: 'Tập đoàn DABACO Việt Nam', rep: 'Trần Đình Nam', phone: '0222 3826 077', bank: 'BIDV - 1234567890', group: 'Trả theo đơn' },
-    { code: 'NCC000003', name: 'Công ty Thuốc Thú Y Hanvet', rep: 'Lê Văn Tuấn', phone: '024 3858 3583', bank: 'Agribank - 220011334455', group: 'Trả sau' },
-    { code: 'NCC000004', name: 'Công ty Hóa chất FAVET', rep: 'Vũ Thị Lan', phone: '024 3681 1234', bank: 'MB Bank - 0888999888', group: 'Trả theo đơn' },
-  ];
 
   const customers = [
     { code: 'KH000001', name: 'Thương lái Trần Văn Tuấn', rep: 'Trần Văn Tuấn', phone: '0988 123 456', tax: '0108899881', bank: 'Vietinbank - 10988776655' },
@@ -153,46 +148,7 @@ export const CatalogSettingsView = () => {
       )}
 
       {/* ── Tab 6: Thiết lập Nhà cung cấp (Thiết lập - Nhà cung cấp.html) ── */}
-      {activeTab === 'suppliers' && (
-        <div className="farmshift-card" style={{ minHeight: '520px' }}>
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Danh bạ nhà cung cấp vật tư & thức ăn</h3>
-            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
-              + Tạo nhà cung cấp
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Mã NCC</th>
-                  <th>Đơn vị cung cấp</th>
-                  <th>Người đại diện</th>
-                  <th>Số điện thoại</th>
-                  <th>Tài khoản ngân hàng</th>
-                  <th>Nhóm đối tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {suppliers.map(s => (
-                  <tr key={s.code}>
-                    <td><span style={{ fontFamily: 'monospace' }}>{s.code}</span></td>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{s.name}</strong></td>
-                    <td>{s.rep}</td>
-                    <td>{s.phone}</td>
-                    <td style={{ fontSize: '13px', color: 'var(--color-muted)' }}>{s.bank}</td>
-                    <td>
-                      <span className={`farmshift-badge ${s.group === 'Trả sau' ? 'farmshift-badge-warning' : 'farmshift-badge-neutral'}`}>
-                        {s.group}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'suppliers' && <SuppliersView />}
 
       {/* ── Tab 7: Thiết lập Khách hàng (Thiết lập - Khách hàng.html) ── */}
       {activeTab === 'customers' && (
