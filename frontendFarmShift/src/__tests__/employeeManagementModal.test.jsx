@@ -50,9 +50,9 @@ describe('Employee Creation & Auto-suggestion logic', () => {
 
     expect(screen.getByText('Thêm mới nhân viên')).toBeInTheDocument();
 
-    const nameInput = screen.getByPlaceholderText(/VD: Trần Văn Kế Toán/i);
-    const emailInput = screen.getByPlaceholderText(/nhanvien@smartfarm\.com/i);
-    const passwordInput = screen.getByPlaceholderText(/Mặc định: 123456/i);
+    const nameInput = screen.getByPlaceholderText('Nguyễn Văn A');
+    const emailInput = screen.getByPlaceholderText('nguyenvana@example.com');
+    const passwordInput = screen.getByPlaceholderText('Nhập mật khẩu');
 
     // 1. Type name -> Email auto-fills
     fireEvent.change(nameInput, { target: { value: 'Nguyễn Văn Nông Nghiệp' } });

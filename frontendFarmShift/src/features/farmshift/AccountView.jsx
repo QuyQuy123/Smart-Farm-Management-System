@@ -23,6 +23,7 @@ import { AvatarCropperModal } from '../profile/AvatarCropperModal';
 import { AvatarPreviewModal } from '../profile/AvatarPreviewModal';
 import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 import { PasswordInput } from '../../components/PasswordInput/PasswordInput';
+import employeeFormStyles from './EmployeeForm.module.css';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
@@ -857,6 +858,7 @@ export const AccountView = () => {
             className="farmshift-btn farmshift-btn-primary"
             onClick={handleOpenAddModal}
             id="btn-add-employee"
+            style={{ backgroundColor: '#e0f5ef', borderColor: '#a7dfcf', color: '#007968' }}
           >
             <Plus size={16} /> Thêm nhân viên
           </button>
@@ -1511,7 +1513,7 @@ export const AccountView = () => {
                 <X size={18} />
               </button>
             </div>
-            <form onSubmit={handleCreateStaff}>
+            <form onSubmit={handleCreateStaff} className={employeeFormStyles.form}>
               <div className="farmshift-modal-body">
                 {formError && (
                   <div style={{
@@ -1535,7 +1537,7 @@ export const AccountView = () => {
                   <input
                     type="text"
                     required
-                    placeholder="VD: Trần Văn Kế Toán, Lê Văn Công..."
+                    placeholder="Nguyễn Văn A"
                     className="farmshift-form-control"
                     value={newStaff.fullName}
                     onChange={e => handleFullNameChange(e.target.value)}
@@ -1568,7 +1570,7 @@ export const AccountView = () => {
                     <input
                       type="email"
                       required
-                      placeholder="nhanvien@smartfarm.com"
+                      placeholder="nguyenvana@example.com"
                       className="farmshift-form-control"
                       value={newStaff.email}
                       onChange={e => handleEmailChange(e.target.value)}
@@ -1583,7 +1585,7 @@ export const AccountView = () => {
                     <label className="farmshift-form-label">Số điện thoại</label>
                     <input
                       type="text"
-                      placeholder="0988..."
+                      placeholder="0912345678"
                       className="farmshift-form-control"
                       value={newStaff.phone}
                       onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
@@ -1608,7 +1610,7 @@ export const AccountView = () => {
                     <div style={{ position: 'relative' }}>
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="Mặc định: 123456 (nếu để trống)"
+                        placeholder="Nhập mật khẩu"
                         className="farmshift-form-control"
                         style={{ paddingRight: '36px' }}
                         value={newStaff.password}
@@ -1632,8 +1634,8 @@ export const AccountView = () => {
                         {showPassword ? <Eye size={15} /> : <KeyRound size={15} />}
                       </button>
                     </div>
-                    <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
-                      💡 Để trống sẽ lấy mặc định là <strong>123456</strong>
+                    <span className={employeeFormStyles.passwordHint}>
+                      Mặc định khi để trống: <code>123456</code>
                     </span>
                   </div>
                 </div>
@@ -1652,7 +1654,7 @@ export const AccountView = () => {
                   className={`farmshift-btn farmshift-btn-primary ${isSubmitting ? 'is-loading' : ''}`}
                   disabled={isSubmitting}
                   aria-busy={isSubmitting}
-                  style={{ gap: '8px' }}
+                  style={{ gap: '8px', backgroundColor: '#e0f5ef', borderColor: '#a7dfcf', color: '#007968' }}
                 >
                   {isSubmitting ? (
                     <>
