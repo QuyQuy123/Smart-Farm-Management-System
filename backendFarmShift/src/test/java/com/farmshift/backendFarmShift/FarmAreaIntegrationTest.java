@@ -54,7 +54,6 @@ class FarmAreaIntegrationTest {
         Map<String, Object> body = new HashMap<>();
         body.put("areaId", areaId);
         body.put("name", name);
-        body.put("status", "INACTIVE");
         body.put("capacity", capacity);
         body.put("areaM2", 1000);
         body.put("targetWeight", 2.3);
@@ -124,9 +123,7 @@ class FarmAreaIntegrationTest {
 
         mvc.perform(put(BARNS + "/" + empty).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(j, "Nhà B1", 100))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.areaId").value(j)).andExpect(jsonPath("$.data.name").value("Nhà B1"));
-        Map<String, Object> move = barn(j, "Nhà A2", 100);
-        move.put("status", "ACTIVE");
-        mvc.perform(put(BARNS + "/" + stocked).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(move)))
+        mvc.perform(put(BARNS + "/" + stocked).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(j, "Nhà A2", 100))))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_ACTIVE_CYCLE_MOVE"));
     }
 
@@ -168,16 +165,12 @@ class FarmAreaIntegrationTest {
 
         long barnId = create(BARNS, barn(areaId, "Nhà 1", 100));
         stock(barnId, 80);
-        Map<String, Object> shrink = barn(areaId, "Nhà 1", 50);
-        shrink.put("status", "ACTIVE");
-        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(shrink)))
+        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(areaId, "Nhà 1", 50))))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_CAPACITY_BELOW_STOCK"));
-        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(areaId, "Nhà 1", 100))))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_ACTIVE_CYCLE_STATUS"));
-        Map<String, Object> bigger = barn(areaId, "Nhà 1", 200);
-        bigger.put("status", "ACTIVE");
-        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(bigger)))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.data.capacity").value(200)).andExpect(jsonPath("$.data.currentQuantity").value(80));
+        // Editing a barn never changes its status: it stays active while the cycle runs.
+        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(areaId, "Nhà 1", 200))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.capacity").value(200)).andExpect(jsonPath("$.data.currentQuantity").value(80))
+            .andExpect(jsonPath("$.data.status").value("ACTIVE"));
     }
 
     @Test

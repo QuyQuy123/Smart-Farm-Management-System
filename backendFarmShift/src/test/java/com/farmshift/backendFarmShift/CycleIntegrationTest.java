@@ -56,7 +56,7 @@ class CycleIntegrationTest {
     }
 
     private long barn(String name, int capacity) throws Exception {
-        return id(post("/api/barns", Map.of("areaId", areaId, "name", name, "status", "INACTIVE",
+        return id(post("/api/barns", Map.of("areaId", areaId, "name", name,
                 "capacity", capacity, "areaM2", 1000)));
     }
 
@@ -222,10 +222,8 @@ class CycleIntegrationTest {
     }
 
     @Test
-    void rejectsCyclesForClosedBarnsAndFutureDates() throws Exception {
-        long closed = id(post("/api/barns", Map.of("areaId", areaId, "name", "Nhà đóng", "status", "CLOSED", "capacity", 10)));
-        post("/api/barns/" + closed + "/cycles", Map.of("startDate", START.toString()))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("CYCLE_BARN_CLOSED"));
+    void rejectsCyclesWithFutureOrInvalidDates() throws Exception {
+        mvc.perform(get("/api/barns/" + barnId)).andExpect(jsonPath("$.data.status").value("INACTIVE"));
         post("/api/barns/" + barnId + "/cycles", Map.of("startDate", TODAY.plusDays(1).toString()))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("CYCLE_FUTURE_DATE"));
         post("/api/barns/" + barnId + "/cycles", Map.of("startDate", START.toString(), "hatchDate", START.plusDays(1).toString()))

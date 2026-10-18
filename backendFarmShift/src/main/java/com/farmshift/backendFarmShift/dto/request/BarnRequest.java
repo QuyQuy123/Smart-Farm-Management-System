@@ -1,15 +1,16 @@
 package com.farmshift.backendFarmShift.dto.request;
 
-import com.farmshift.backendFarmShift.entity.BarnStatus;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 
-/** Số con hiện có không nằm trong request: chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt và xuất bán. */
+/**
+ * Số con hiện có và trạng thái không nằm trong request: số con chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt,
+ * xuất bán; trạng thái chuyển theo lứa nuôi (khai báo lứa = đang hoạt động, kết thúc lứa = chưa hoạt động).
+ */
 public record BarnRequest(
         @NotNull(message = "Vui lòng chọn khu nuôi.") Long areaId,
         @NotBlank(message = "Vui lòng nhập tên chuồng.")
         @Size(max = 100, message = "Tên chuồng không quá 100 ký tự.") String name,
-        @NotNull(message = "Vui lòng chọn trạng thái hoạt động.") BarnStatus status,
         @NotNull(message = "Vui lòng nhập sức chứa tối đa.")
         @Min(value = 1, message = "Sức chứa tối đa phải lớn hơn 0.")
         @Max(value = 10_000_000, message = "Sức chứa tối đa không quá 10.000.000 con.") Integer capacity,

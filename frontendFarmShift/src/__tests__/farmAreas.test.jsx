@@ -142,7 +142,7 @@ describe('Farm area management', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await screen.findByText('Nhà A3');
     expect(service.createBarn).toHaveBeenCalledWith({
-      areaId: 1, name: 'Nhà A3', status: 'INACTIVE', capacity: 100, areaM2: 120, targetWeight: null, description: '',
+      areaId: 1, name: 'Nhà A3', capacity: 100, areaM2: 120, targetWeight: null, description: '',
     });
   });
 

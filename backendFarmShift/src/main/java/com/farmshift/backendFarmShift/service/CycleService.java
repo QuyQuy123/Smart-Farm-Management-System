@@ -43,9 +43,6 @@ public class CycleService {
     @Transactional
     public CycleSummaryResponse start(Long barnId, StartCycleRequest request) {
         Barn barn = barnService.find(barnId);
-        if (barn.getStatus() == BarnStatus.CLOSED) {
-            throw new BadRequestException("Chuồng đã đóng. Hãy mở lại chuồng trước khi khai báo lứa nuôi.", "CYCLE_BARN_CLOSED");
-        }
         if (repository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE).isPresent()) {
             throw new ConflictException("Chuồng " + barn.getName() + " đang có lứa nuôi. Hãy kết thúc lứa hiện tại trước khi khai báo lứa mới.",
                     "CYCLE_ALREADY_ACTIVE", null);

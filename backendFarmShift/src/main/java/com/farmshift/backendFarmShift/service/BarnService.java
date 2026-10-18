@@ -56,7 +56,7 @@ public class BarnService {
                     + " con. Hãy xuất bán hoặc chuyển hết vật nuôi trước khi xóa chuồng.", "BARN_NOT_EMPTY", null);
         }
         if (cycleRepository.existsByBarnId(id)) {
-            throw new ConflictException("Chuồng " + barn.getName() + " đã có lịch sử lứa nuôi nên không thể xóa. Hãy chuyển trạng thái sang Đã đóng.",
+            throw new ConflictException("Chuồng " + barn.getName() + " đã có lịch sử lứa nuôi nên không thể xóa để giữ số liệu các lứa đã nuôi.",
                     "BARN_HAS_CYCLES", null);
         }
         repository.delete(barn);
@@ -83,7 +83,8 @@ public class BarnService {
         barn.setArea(area);
         barn.setName(name);
         barn.setNameKey(key);
-        barn.setStatus(request.status());
+        // New barns wait for a cycle; afterwards the status follows the cycle (see CycleService).
+        if (creating) barn.setStatus(BarnStatus.INACTIVE);
         barn.setCapacity(request.capacity());
         barn.setAreaM2(request.areaM2());
         barn.setTargetWeight(request.targetWeight());
@@ -95,7 +96,7 @@ public class BarnService {
         }
     }
 
-    /** A barn running a cycle must stay active in its area, and its capacity must cover the animals it holds. */
+    /** A barn running a cycle must stay in its area, and its capacity must cover the animals it holds. */
     private void validate(Barn barn, BarnRequest request, FarmArea area, Long activeCycle) {
         int current = barn.getCurrentQuantity();
         if (request.capacity() < current) {
@@ -103,10 +104,6 @@ public class BarnService {
                     "BARN_CAPACITY_BELOW_STOCK");
         }
         if (activeCycle == null) return;
-        if (request.status() != BarnStatus.ACTIVE) {
-            throw new BadRequestException("Chuồng đang có lứa nuôi nên phải ở trạng thái Đang hoạt động. Hãy kết thúc lứa trước.",
-                    "BARN_ACTIVE_CYCLE_STATUS");
-        }
         if (!barn.getArea().getId().equals(area.getId())) {
             throw new BadRequestException("Chuồng đang có lứa nuôi nên không thể chuyển sang khu khác.", "BARN_ACTIVE_CYCLE_MOVE");
         }
