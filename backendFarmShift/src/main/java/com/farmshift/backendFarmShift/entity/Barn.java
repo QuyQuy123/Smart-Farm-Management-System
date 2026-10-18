@@ -23,9 +23,6 @@ public class Barn {
     private String nameKey;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private BarnPurpose purpose;
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
     private BarnStatus status;
     @Column(nullable = false)
     private int capacity;

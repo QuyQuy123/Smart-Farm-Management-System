@@ -15,7 +15,7 @@ import {
 import { BarnDialog } from './FarmAreaDialogs';
 import { FormDialog, ProgramDialog } from './CycleDialogs';
 import {
-  BARN_PURPOSES, EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, PROGRAM_TYPES, STEP_STATES,
+  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, PROGRAM_TYPES, STEP_STATES,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
 } from './farmAreaOptions';
 import styles from './BarnDetailView.module.css';
@@ -341,7 +341,7 @@ export const BarnDetailView = () => {
     <dl className={styles.facts}>
       <dt>Khu vực</dt><dd>{barn.areaName}</dd>
       <dt>Tên chuồng</dt><dd>{barn.name}</dd>
-      <dt>Loại hình sản xuất</dt><dd>Gà thịt · {labelOf(BARN_PURPOSES, barn.purpose)}</dd>
+      <dt>Loại hình sản xuất</dt><dd>Gà thịt</dd>
       <dt>Diện tích (m²)</dt><dd>{num(barn.areaM2, 2)}</dd>
       <dt>Sức chứa tối đa</dt><dd>{num(barn.capacity)} con</dd>
       <dt>Đang nuôi</dt><dd>{num(barn.currentQuantity)} con</dd>
@@ -362,7 +362,7 @@ export const BarnDetailView = () => {
   </Card>;
 
   const renderNoCycle = () => {
-    const blocked = barn.purpose !== 'FARMING' ? 'Chuồng xử lý hóa sinh không dùng để nuôi.' : barn.status === 'CLOSED' ? 'Chuồng đã đóng. Hãy mở lại chuồng trước khi khai báo lứa.' : '';
+    const blocked = barn.status === 'CLOSED' ? 'Chuồng đã đóng. Hãy mở lại chuồng trước khi khai báo lứa.' : '';
     return <div className={styles.columns}>
       <div className={styles.left}>{barnInfo}</div>
       <div className={styles.right}>

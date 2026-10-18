@@ -83,7 +83,6 @@ public class BarnService {
         barn.setArea(area);
         barn.setName(name);
         barn.setNameKey(key);
-        barn.setPurpose(request.purpose());
         barn.setStatus(request.status());
         barn.setCapacity(request.capacity());
         barn.setAreaM2(request.areaM2());
@@ -96,7 +95,7 @@ public class BarnService {
         }
     }
 
-    /** A barn holding animals or running a cycle must stay an active farming barn in its area, with room for its stock. */
+    /** A barn running a cycle must stay active in its area, and its capacity must cover the animals it holds. */
     private void validate(Barn barn, BarnRequest request, FarmArea area, Long activeCycle) {
         int current = barn.getCurrentQuantity();
         if (request.capacity() < current) {
@@ -107,9 +106,6 @@ public class BarnService {
         if (request.status() != BarnStatus.ACTIVE) {
             throw new BadRequestException("Chuồng đang có lứa nuôi nên phải ở trạng thái Đang hoạt động. Hãy kết thúc lứa trước.",
                     "BARN_ACTIVE_CYCLE_STATUS");
-        }
-        if (request.purpose() != BarnPurpose.FARMING) {
-            throw new BadRequestException("Chuồng đang có lứa nuôi nên không thể đổi sang xử lý hóa sinh.", "BARN_ACTIVE_CYCLE_PURPOSE");
         }
         if (!barn.getArea().getId().equals(area.getId())) {
             throw new BadRequestException("Chuồng đang có lứa nuôi nên không thể chuyển sang khu khác.", "BARN_ACTIVE_CYCLE_MOVE");
@@ -123,7 +119,7 @@ public class BarnService {
     static BarnResponse response(Barn barn, Long activeCycleId) {
         FarmArea area = barn.getArea();
         return new BarnResponse(barn.getId(), String.format(Locale.ROOT, "CH%06d", barn.getId()), area.getId(), area.getName(),
-                barn.getName(), barn.getPurpose(), barn.getStatus(), barn.getCapacity(),
+                barn.getName(), barn.getStatus(), barn.getCapacity(),
                 barn.getCurrentQuantity(), barn.getAreaM2(), barn.getTargetWeight(), barn.getDescription(), activeCycleId,
                 barn.getCreatedAt(), barn.getUpdatedAt());
     }

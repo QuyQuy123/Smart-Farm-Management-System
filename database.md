@@ -80,7 +80,6 @@ Entity: `Barn`. Lưu chuồng thuộc một khu nuôi, xem tại **Khu nuôi →
 | `area_id` | BIGINT | NOT NULL, FOREIGN KEY → `farm_areas(id)`. Đổi được khi chuyển chuồng sang khu khác. |
 | `name` | VARCHAR(100) | NOT NULL. Tên chuồng, ví dụ `Nhà A1`. |
 | `name_key` | VARCHAR(100) | NOT NULL. Tên chuẩn hóa; UNIQUE cùng `area_id` (`uk_barns_area_name`): hai khu khác nhau được trùng tên chuồng. |
-| `purpose` | VARCHAR(20) | NOT NULL. `FARMING` (Thả nuôi) hoặc `BIO_TREATMENT` (Xử lý hóa sinh). |
 | `status` | VARCHAR(20) | NOT NULL. `INACTIVE` (Chưa hoạt động), `ACTIVE` (Đang hoạt động), `CLOSED` (Đã đóng). |
 | `capacity` | INT | NOT NULL, từ 1 đến 10.000.000. Sức chứa tối đa (con). |
 | `current_quantity` | INT | NOT NULL, ≥ 0 và ≤ `capacity`. Tổng tồn các đàn của lứa đang nuôi; không nhập tay, chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt, loại thải, xuất bán. |
@@ -90,7 +89,7 @@ Entity: `Barn`. Lưu chuồng thuộc một khu nuôi, xem tại **Khu nuôi →
 | `created_at` | TIMESTAMP | Hibernate tự ghi thời điểm tạo. |
 | `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
 
-Quy tắc nghiệp vụ (kiểm tra ở cả backend và form): khi tạo chuồng phải khai báo sức chứa tối đa; sức chứa không nhỏ hơn số con đang nuôi (`BARN_CAPACITY_BELOW_STOCK`); chuồng đang có lứa nuôi phải giữ trạng thái Đang hoạt động (`BARN_ACTIVE_CYCLE_STATUS`), mục đích Thả nuôi (`BARN_ACTIVE_CYCLE_PURPOSE`) và không chuyển khu (`BARN_ACTIVE_CYCLE_MOVE`); không xóa chuồng còn vật nuôi (409 `BARN_NOT_EMPTY`) hoặc đã có lịch sử lứa nuôi (409 `BARN_HAS_CYCLES`, hãy chuyển sang Đã đóng); trùng tên trong cùng khu trả 409 `BARN_DUPLICATE`. API trả thêm `activeCycleId` (lứa đang nuôi, null nếu chưa có).
+Quy tắc nghiệp vụ (kiểm tra ở cả backend và form): khi tạo chuồng phải khai báo sức chứa tối đa; form gợi ý sức chứa = diện tích × 8 con/m² (mật độ khuyến nghị cho gà thịt) và cảnh báo khi mật độ vượt mức này, người dùng vẫn được nhập số khác; sức chứa không nhỏ hơn số con đang nuôi (`BARN_CAPACITY_BELOW_STOCK`); chuồng đang có lứa nuôi phải giữ trạng thái Đang hoạt động (`BARN_ACTIVE_CYCLE_STATUS`) và không chuyển khu (`BARN_ACTIVE_CYCLE_MOVE`); không xóa chuồng còn vật nuôi (409 `BARN_NOT_EMPTY`) hoặc đã có lịch sử lứa nuôi (409 `BARN_HAS_CYCLES`, hãy chuyển sang Đã đóng); trùng tên trong cùng khu trả 409 `BARN_DUPLICATE`. API trả thêm `activeCycleId` (lứa đang nuôi, null nếu chưa có). Mọi chuồng đều dùng để nuôi gà thịt nên không có cột mục đích sử dụng; cột cũ `purpose` được `insert_data.txt` (mục 5) xóa bằng `ALTER TABLE barns DROP COLUMN IF EXISTS purpose`.
 
 API: `GET /api/barns` (lọc theo khu bằng `?areaId=`), `GET /api/barns/{id}` cho mọi tài khoản đã đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Giao diện ẩn nút thêm/sửa/xóa và hiện thông báo chế độ chỉ đọc với kế toán và công nhân.
 
@@ -112,7 +111,7 @@ Entity: `FarmingCycle`. Một đợt nuôi trong một chuồng, từ lúc khai 
 | `note` | VARCHAR(1000) | Ghi chú. |
 | `created_at`, `updated_at` | TIMESTAMP | Hibernate tự ghi. |
 
-Quy tắc: chỉ khai báo lứa cho chuồng Thả nuôi (`CYCLE_BARN_NOT_FARMING`), chưa đóng (`CYCLE_BARN_CLOSED`) và chưa có lứa đang nuôi (409 `CYCLE_ALREADY_ACTIVE`); khai báo lứa chuyển chuồng sang Đang hoạt động. Chỉ kết thúc lứa khi tồn đàn bằng 0 (409 `CYCLE_HAS_ANIMALS`); ngày kết thúc từ ngày bắt đầu đến hôm nay và không trước ghi nhận cuối cùng (`CYCLE_END_DATE`); kết thúc lứa chuyển chuồng về Chưa hoạt động. Lứa đã kết thúc chỉ xem được (409 `CYCLE_CLOSED`). Mọi ngày ghi nhận phải trong khoảng từ ngày bắt đầu lứa đến hôm nay (`CYCLE_DATE_OUT_OF_RANGE`).
+Quy tắc: chỉ khai báo lứa cho chuồng chưa đóng (`CYCLE_BARN_CLOSED`) và chưa có lứa đang nuôi (409 `CYCLE_ALREADY_ACTIVE`); khai báo lứa chuyển chuồng sang Đang hoạt động. Chỉ kết thúc lứa khi tồn đàn bằng 0 (409 `CYCLE_HAS_ANIMALS`); ngày kết thúc từ ngày bắt đầu đến hôm nay và không trước ghi nhận cuối cùng (`CYCLE_END_DATE`); kết thúc lứa chuyển chuồng về Chưa hoạt động. Lứa đã kết thúc chỉ xem được (409 `CYCLE_CLOSED`). Mọi ngày ghi nhận phải trong khoảng từ ngày bắt đầu lứa đến hôm nay (`CYCLE_DATE_OUT_OF_RANGE`).
 
 API: `GET /api/barns/{barnId}/cycles` (lịch sử lứa), `POST /api/barns/{barnId}/cycles` (chủ trại), `GET /api/cycles/{id}` (toàn bộ dữ liệu trang chi tiết kèm chỉ số kỹ thuật), `POST /api/cycles/{id}/close` (chủ trại).
 

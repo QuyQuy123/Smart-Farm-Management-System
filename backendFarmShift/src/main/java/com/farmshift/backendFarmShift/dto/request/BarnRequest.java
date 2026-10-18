@@ -1,6 +1,5 @@
 package com.farmshift.backendFarmShift.dto.request;
 
-import com.farmshift.backendFarmShift.entity.BarnPurpose;
 import com.farmshift.backendFarmShift.entity.BarnStatus;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
@@ -10,7 +9,6 @@ public record BarnRequest(
         @NotNull(message = "Vui lòng chọn khu nuôi.") Long areaId,
         @NotBlank(message = "Vui lòng nhập tên chuồng.")
         @Size(max = 100, message = "Tên chuồng không quá 100 ký tự.") String name,
-        @NotNull(message = "Vui lòng chọn mục đích sử dụng.") BarnPurpose purpose,
         @NotNull(message = "Vui lòng chọn trạng thái hoạt động.") BarnStatus status,
         @NotNull(message = "Vui lòng nhập sức chứa tối đa.")
         @Min(value = 1, message = "Sức chứa tối đa phải lớn hơn 0.")
