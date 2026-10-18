@@ -8,19 +8,12 @@ import {
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { WarehouseCategoriesView } from './WarehouseCategoriesView';
 import { ProductCategoriesView } from './ProductCategoriesView';
+import { BrandsView } from './BrandsView';
 
 export const CatalogSettingsView = () => {
   const [activeTab, setActiveTab] = useState('warehouses');
   // 'categories' | 'brands' | 'units' | 'specs' | 'warehouses' | 'suppliers' | 'customers'
 
-
-  const brands = [
-    { id: 1, name: 'Tập đoàn Dabaco', type: 'Con giống & Cám', country: 'Việt Nam', note: 'Gà giống J-Dabaco, Mía Dabaco' },
-    { id: 2, name: 'C.P. Group (C.P. Việt Nam)', type: 'Thức ăn chăn nuôi', country: 'Thái Lan / VN', note: 'Dòng cám Higro 01, 02, 03' },
-    { id: 3, name: 'Hanvet', type: 'Thuốc thú y & Vắc-xin', country: 'Việt Nam', note: 'Vắc-xin Lasota, Gumboro' },
-    { id: 4, name: 'FAVET', type: 'Hóa chất sát trùng', country: 'Việt Nam', note: 'Thuốc sát trùng BKC 80%' },
-    { id: 5, name: 'De Heus', type: 'Thức ăn chăn nuôi', country: 'Hà Lan / VN', note: 'Dòng thức ăn gia cầm chuyên biệt' },
-  ];
 
   const units = [
     { id: 1, name: 'Kg', type: 'Khối lượng', note: 'Cân gà xuất chuồng, thức ăn' },
@@ -73,7 +66,7 @@ export const CatalogSettingsView = () => {
           className={`farmshift-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
           onClick={() => setActiveTab('categories')}
         >
-          Danh mục hàng hóa
+          Tên hàng hóa
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'brands' ? 'active' : ''}`}
@@ -110,38 +103,7 @@ export const CatalogSettingsView = () => {
       {activeTab === 'categories' && <ProductCategoriesView />}
 
       {/* ── Tab 2: Nhãn hiệu ─────────────────────────────── */}
-      {activeTab === 'brands' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Danh sách thương hiệu đối tác</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
-              + Thêm nhãn hiệu
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tên thương hiệu</th>
-                  <th>Lĩnh vực sản phẩm</th>
-                  <th>Xuất xứ</th>
-                  <th>Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody>
-                {brands.map(b => (
-                  <tr key={b.id}>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{b.name}</strong></td>
-                    <td>{b.type}</td>
-                    <td>{b.country}</td>
-                    <td style={{ color: 'var(--color-muted)' }}>{b.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'brands' && <BrandsView />}
 
       {/* ── Tab 3: Đơn vị tính ──────────────────────────── */}
       {activeTab === 'units' && (

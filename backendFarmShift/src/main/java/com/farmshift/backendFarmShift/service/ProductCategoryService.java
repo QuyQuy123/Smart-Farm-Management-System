@@ -20,6 +20,7 @@ import java.util.Locale;
 @Transactional(readOnly = true)
 public class ProductCategoryService {
     private final ProductCategoryRepository repository;
+    private final com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouseRepository;
 
     public List<ProductCategoryResponse> list() {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
@@ -41,7 +42,7 @@ public class ProductCategoryService {
     public void delete(Long id) { repository.delete(find(id)); }
 
     private ProductCategory find(Long id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục hàng hóa."));
+        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tên hàng hóa."));
     }
 
     private ProductCategoryResponse save(ProductCategory category, ProductCategoryRequest request) {
@@ -53,6 +54,11 @@ public class ProductCategoryService {
         category.setName(name);
         category.setNameKey(key);
         category.setDescription(request.description() == null ? "" : request.description().strip());
+        category.setSpecification(request.specification() == null ? "" : request.specification().strip());
+        category.setBrand(request.brand() == null ? "" : request.brand().strip());
+        category.setProductType(request.productType() == null ? "" : request.productType().strip());
+        category.setWarehouse(warehouseRepository.findById(request.warehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Kho đã chọn không tồn tại. Vui lòng chọn lại.")));
         try {
             return response(repository.saveAndFlush(category));
         } catch (DataIntegrityViolationException exception) {
@@ -61,12 +67,16 @@ public class ProductCategoryService {
     }
 
     private ConflictException duplicateName() {
-        return new ConflictException("Tên danh mục hàng hóa đã tồn tại.", "PRODUCT_CATEGORY_DUPLICATE", "name");
+        return new ConflictException("Tên hàng hóa đã tồn tại.", "PRODUCT_CATEGORY_DUPLICATE", "name");
     }
 
     private ProductCategoryResponse response(ProductCategory category) {
         // No inventory-item entity exists yet; derive the count from that relationship when it is added.
         return new ProductCategoryResponse(category.getId(), String.format(Locale.ROOT, "HH%06d", category.getId()),
-                category.getName(), category.getDescription(), 0L, category.getCreatedAt());
+                category.getName(), category.getDescription(),
+                category.getSpecification(), category.getBrand(), category.getProductType(),
+                0L, category.getCreatedAt(),
+                category.getWarehouse() == null ? null : category.getWarehouse().getId(),
+                category.getWarehouse() == null ? null : category.getWarehouse().getName());
     }
 }

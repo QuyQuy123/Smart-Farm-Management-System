@@ -19,6 +19,15 @@ public class ProductCategory {
     private String nameKey;
     @Column(length = 1000)
     private String description;
+    @Column(length = 150)
+    private String specification;
+    @Column(length = 150)
+    private String brand;
+    @Column(name = "product_type", length = 150)
+    private String productType;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id", foreignKey = @ForeignKey(name = "fk_product_category_warehouse"))
+    private WarehouseCategory warehouse;
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
