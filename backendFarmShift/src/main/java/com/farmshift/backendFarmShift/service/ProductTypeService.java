@@ -21,6 +21,7 @@ import java.util.Locale;
 @Transactional(readOnly = true)
 public class ProductTypeService {
     private final ProductTypeRepository repository;
+    private final com.farmshift.backendFarmShift.repository.SupplierRepository suppliers;
 
     public List<ProductTypeResponse> list() {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
@@ -42,7 +43,9 @@ public class ProductTypeService {
 
     @Transactional
     public void delete(Long id) {
-        repository.delete(find(id));
+        var type = find(id);
+        if (suppliers.existsByProductType_Id(id)) throw new ConflictException("Không thể xóa loại hàng hóa đang được nhà cung cấp sử dụng.", "PRODUCT_TYPE_IN_USE", null);
+        repository.delete(type);
     }
 
     private ProductType find(Long id) {

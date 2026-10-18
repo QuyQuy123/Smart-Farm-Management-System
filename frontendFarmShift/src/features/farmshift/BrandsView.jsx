@@ -51,8 +51,8 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
       setError('Vui lòng nhập tên nhãn hiệu.');
       return;
     }
-    const parsedQuantity = parseInt(quantity, 10);
-    if (!deleting && (isNaN(parsedQuantity) || parsedQuantity < 0)) {
+    const parsedQuantity = mode === 'create' ? 0 : parseInt(quantity, 10);
+    if (!deleting && mode !== 'create' && (isNaN(parsedQuantity) || parsedQuantity < 0)) {
       setError('Số lượng phải là số nguyên không âm.');
       return;
     }
@@ -62,7 +62,7 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
     const payload = {
       name: name.trim(),
       productType: productType.trim(),
-      quantity: isNaN(parsedQuantity) ? 0 : parsedQuantity,
+      quantity: mode === 'create' ? 0 : (isNaN(parsedQuantity) ? 0 : parsedQuantity),
       note: note.trim()
     };
 
@@ -150,20 +150,22 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
                   )}
                 </div>
 
-                <div className={`${styles.formField} ${styles.fullWidth}`}>
-                  <label htmlFor="brand-quantity">Số lượng</label>
-                  <input
-                    id="brand-quantity"
-                    type="number"
-                    min="0"
-                    className="farmshift-form-control"
-                    placeholder="0"
-                    value={quantity}
-                    onChange={event => setQuantity(event.target.value)}
-                    readOnly={readOnly}
-                    disabled={saving}
-                  />
-                </div>
+                {mode !== 'create' && (
+                  <div className={`${styles.formField} ${styles.fullWidth}`}>
+                    <label htmlFor="brand-quantity">Số lượng</label>
+                    <input
+                      id="brand-quantity"
+                      type="number"
+                      min="0"
+                      className="farmshift-form-control"
+                      placeholder="0"
+                      value={quantity}
+                      onChange={event => setQuantity(event.target.value)}
+                      readOnly={readOnly}
+                      disabled={saving}
+                    />
+                  </div>
+                )}
 
                 <div className={`${styles.formField} ${styles.fullWidth}`}>
                   <label htmlFor="brand-note">Ghi chú</label>

@@ -7,7 +7,7 @@ import styles from './WarehouseCategoriesView.module.css';
 import { listWarehouseCategories } from '../../services/warehouseCategoryService';
 import { listBrands } from '../../services/brandService';
 import { listProductTypes } from '../../services/productTypeService';
-import { listSpecifications } from '../../services/specificationService';
+import { listMeasurementUnits } from '../../services/measurementUnitService';
 
 const errorMessage = error => error.response?.data?.message || 'Không thể kết nối máy chủ. Vui lòng thử lại.';
 
@@ -65,9 +65,9 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
 
     setLoadingSpecifications(true);
     setSpecificationError('');
-    listSpecifications()
+    listMeasurementUnits()
       .then(data => { if (!cancelled) setSpecifications(Array.isArray(data) ? data : []); })
-      .catch(() => { if (!cancelled) setSpecificationError('Không tải được danh sách quy cách.'); })
+      .catch(() => { if (!cancelled) setSpecificationError('Không tải được danh sách đơn vị tính.'); })
       .finally(() => { if (!cancelled) setLoadingSpecifications(false); });
 
     return () => { cancelled = true; };
@@ -130,7 +130,7 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
               </div>
 
               <div className={styles.formField}>
-                <label htmlFor="product-category-specification">Quy cách</label>
+                <label htmlFor="product-category-specification">Đơn vị</label>
                 {readOnly ? <input id="product-category-specification" className="farmshift-form-control" value={specification || '—'} readOnly /> : <>
                   <select
                     id="product-category-specification"
@@ -139,12 +139,12 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
                     onChange={event => setSpecification(event.target.value)}
                     disabled={saving || loadingSpecifications || !!specificationError}
                   >
-                    <option value="">{loadingSpecifications ? 'Đang tải danh sách quy cách...' : 'Chọn quy cách'}</option>
+                    <option value="">{loadingSpecifications ? 'Đang tải danh sách đơn vị tính...' : 'Chọn đơn vị tính'}</option>
                     {specification && !specifications.some(s => s.name === specification) && (
                       <option value={specification}>{specification}</option>
                     )}
                     {specifications.map(s => (
-                      <option key={s.id} value={s.name}>{s.name}</option>
+                      <option key={s.id} value={s.name}>{s.name} ({s.code})</option>
                     ))}
                   </select>
                   {specificationError && <p role="alert" className={styles.error} style={{ marginTop: '6px' }}>{specificationError} <button type="button" onClick={() => setMetadataRevision(value => value + 1)}>Thử lại</button></p>}
@@ -249,7 +249,7 @@ export const ProductCategoriesView = () => {
     {error ? <div role="alert" className={styles.empty}><p>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div> :
       <div className="farmshift-table-container" style={{ border: 0 }}>
         <table className={`farmshift-table ${styles.table}`}>
-          <thead><tr><th>Tên hàng hóa</th><th>Quy cách</th><th>Nhãn hiệu</th><th>Loại hàng hóa</th><th>Kho lưu trữ</th><th>Mô tả</th><th>Thao tác</th></tr></thead>
+          <thead><tr><th>Tên hàng hóa</th><th>Đơn vị</th><th>Nhãn hiệu</th><th>Loại hàng hóa</th><th>Kho lưu trữ</th><th>Mô tả</th><th>Thao tác</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={7} className={styles.empty} role="status">Đang tải tên hàng hóa...</td></tr> : filtered.length === 0 ? <tr><td colSpan={7} className={styles.empty}>{query ? 'Không tìm thấy tên hàng hóa phù hợp.' : 'Chưa có tên hàng hóa nào. Thêm tên hàng hóa đầu tiên để bắt đầu.'}</td></tr> :
               filtered.map(category => <tr key={category.id}>

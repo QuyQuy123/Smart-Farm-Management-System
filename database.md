@@ -2,6 +2,60 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
+## Bảng `customer_contacts` — Danh bạ khách hàng
+
+Entity `CustomerContact` phục vụ CRUD tại **Thiết lập danh mục → Khách hàng**. Bảng này riêng biệt với `customers` hiện dùng cho hồ sơ tài khoản/nhân sự; không dùng chung dữ liệu.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng, định danh API. |
+| `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã tự sinh `KH` + UUID bỏ dấu gạch nối, không đổi khi sửa. Chỉ lưu database, không trả trong DTO hoặc hiển thị trên UI. |
+| `name` | VARCHAR(200) | NOT NULL. Tên khách hàng, chuẩn hóa NFC và cắt khoảng trắng đầu/cuối. Cho phép trùng tên vì các khách hàng có thể cùng tên. |
+| `phone` | VARCHAR(20) | NOT NULL. Chỉ chữ số 0–9: đầu 024/028 phải có đúng 11 số, các đầu khác đúng 10 số. |
+| `created_at` | TIMESTAMP | Ngày giờ tạo gồm giây, không đổi khi sửa. |
+| `updated_at` | TIMESTAMP | Hibernate cập nhật khi sửa. |
+
+API `GET /api/customer-contacts?page=0&q=...` phân trang tại database, kích thước cố định **10 bản ghi/trang**, số trang bắt đầu từ 0. Response `data` gồm `content`, `totalElements`, `totalPages`, `page`, `size`; chỉ trả `id`, `name`, `phone` của từng khách hàng. Sắp xếp theo `created_at`, rồi ID tăng dần. Tìm theo tên (không phân biệt hoa/thường) hoặc số điện thoại trước khi phân trang.
+
+`GET /api/customer-contacts/{id}` dành cho tài khoản đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. UI có CRUD, xác nhận xóa, tìm kiếm, Trang trước/Trang sau và thông báo dùng chung ở header. Khi xóa khách hàng cuối của trang, UI tự quay về trang hợp lệ gần nhất. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo bảng; không tự thêm dữ liệu mẫu.
+
+## Bảng `suppliers` — Nhà cung cấp
+
+Entity `Supplier` phục vụ CRUD tại **Thiết lập danh mục → Nhà cung cấp**.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng, định danh API. |
+| `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã tự sinh `NCC` + UUID không có dấu gạch nối, không đổi khi sửa. Chỉ lưu database, không trả trong DTO và không hiển thị trên UI. |
+| `name` | VARCHAR(200) | NOT NULL. Đơn vị cung cấp. |
+| `name_key` | VARCHAR(200) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC, cắt khoảng trắng, chuyển chữ thường để ngăn trùng đơn vị. |
+| `representative` | VARCHAR(100) | NOT NULL. Người đại diện. |
+| `phone` | VARCHAR(20) | NOT NULL. Chỉ chữ số 0–9: đầu 024/028 phải có đúng 11 số, các đầu khác đúng 10 số. |
+| `product_type_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_types.id`. Nhóm nhà cung cấp được chọn từ bảng Loại hàng hóa. |
+| `created_at` | TIMESTAMP | Ngày giờ tạo đầy đủ, không đổi khi sửa; UI chỉ hiện dd/mm/yyyy. |
+| `updated_at` | TIMESTAMP | Hibernate tự cập nhật. |
+
+API `GET /api/suppliers`, `GET /api/suppliers/{id}` cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Danh sách sắp theo ngày tạo và ID tăng dần. Loại hàng hóa đang có nhà cung cấp sử dụng không được xóa. UI có tìm kiếm, chọn nhóm từ database, xem/sửa/xác nhận xóa và thông báo chung ở header. Không thêm dữ liệu mẫu; khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo bảng.
+
+## Bảng `measurement_units` — Đơn vị tính
+
+Entity `MeasurementUnit` phục vụ CRUD tại **Thiết lập danh mục → Đơn vị tính**.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng, dùng làm định danh API. |
+| `code` | VARCHAR(30) | NOT NULL. Mã nhập tay, cho phép sửa, ví dụ KG, BAO25. |
+| `code_key` | VARCHAR(30) | NOT NULL, UNIQUE. Mã chuẩn hóa Unicode NFC, cắt khoảng trắng đầu/cuối, chuyển chữ thường để kiểm tra trùng. |
+| `name` | VARCHAR(150) | NOT NULL. Tên đơn vị. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa như trên để ngăn trùng. |
+| `description` | VARCHAR(1000) | Mô tả, có thể bỏ trống. |
+| `created_at` | TIMESTAMP | Thời điểm tạo gồm giờ/phút/giây, không đổi khi sửa; UI hiển thị dd/mm/yyyy. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi khi cập nhật. |
+
+Số lượng hàng hóa (`itemCount`) chỉ đọc, được tính từ số bản ghi `product_categories` có `specification` (nhãn UI: Đơn vị) khớp tên đơn vị, bỏ khoảng trắng đầu/cuối và không phân biệt hoa/thường. Hiện liên kết bằng chuỗi, chưa có khóa ngoại đơn vị. Khi đổi tên đơn vị, service cập nhật các chuỗi khớp trong cùng transaction. Không cho xóa đơn vị có hàng hóa sử dụng. Đây là số loại/tên hàng hóa, không phải tổng tồn kho, không nhập tay hoặc lưu số đếm giả.
+
+API `GET /api/measurement-units`, `GET /api/measurement-units/{id}` dành cho tài khoản đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Sắp xếp theo thời điểm tạo và ID tăng dần. UI có tìm kiếm, xem, thêm, sửa, xác nhận xóa, nút nền xanh nhạt và thông báo chung ở header. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo bảng; không tự thêm dữ liệu mẫu.
+
 ## Bảng `product_categories` — Tên hàng hóa
 
 Entity `ProductCategory` lưu danh mục tại **Thiết lập danh mục → Tên hàng hóa** (tên tab trước đây là Danh mục hàng hóa / Loại hàng hóa). Mỗi tên hàng hóa chọn một kho từ `warehouse_categories` qua `warehouse_id`. Kho có hàng hóa liên quan không được xóa; cần chuyển hoặc xóa các hàng hóa liên quan trước.
