@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, X } from 'lucide-react';
 import { createBarn, createFarmArea, deleteBarn, deleteFarmArea, updateBarn, updateFarmArea } from '../../services/farmAreaService';
-import { ANIMAL_METRICS, BARN_PURPOSES, BARN_STATUSES, ENVIRONMENT_METRICS, LIVESTOCK_TYPES, MEALS_PER_DAY, apiErrorMessage, validateBarn } from './farmAreaOptions';
+import { ANIMAL_METRICS, BARN_PURPOSES, BARN_STATUSES, ENVIRONMENT_METRICS, apiErrorMessage, validateBarn } from './farmAreaOptions';
 import styles from './AreasView.module.css';
 
 // Validation (400) and duplicate-name (409) responses carry { field: message } in data.
@@ -54,8 +54,6 @@ export function AreaDialog({ area, onClose, onSaved }) {
   const editing = Boolean(area);
   const [form, setForm] = useState(() => ({
     name: area?.name || '',
-    livestockType: area?.livestockType || 'POULTRY',
-    mealsPerDay: area?.mealsPerDay ?? 3,
     environmentMetrics: area?.environmentMetrics || ['HUMIDITY', 'TEMPERATURE'],
     animalMetrics: area?.animalMetrics || ['WEIGHT', 'LOSS'],
     description: area?.description || '',
@@ -72,7 +70,7 @@ export function AreaDialog({ area, onClose, onSaved }) {
     if (!name) { setErrors({ name: 'Vui lòng nhập tên khu nuôi.' }); return; }
     setSaving(true);
     setError('');
-    const payload = { ...form, name, mealsPerDay: Number(form.mealsPerDay), description: form.description.trim() };
+    const payload = { ...form, name, description: form.description.trim() };
     try {
       if (editing) await updateFarmArea(area.id, payload);
       else await createFarmArea(payload);
@@ -94,22 +92,6 @@ export function AreaDialog({ area, onClose, onSaved }) {
           placeholder="Ví dụ: Khu Mía Thịt" onChange={event => set('name', event.target.value)} disabled={saving}
           aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'farm-area-name-error' : undefined} autoFocus />
         <FieldError id="farm-area-name-error" message={errors.name} />
-        <div className={styles.formGrid}>
-          <div>
-            <label htmlFor="farm-area-type">Loại vật nuôi <span className={styles.required}>*</span></label>
-            <select id="farm-area-type" className="farmshift-form-control" value={form.livestockType} onChange={event => set('livestockType', event.target.value)} disabled={saving}>
-              {LIVESTOCK_TYPES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            <FieldError message={errors.livestockType} />
-          </div>
-          <div>
-            <label htmlFor="farm-area-meals">Số bữa ăn trong ngày</label>
-            <select id="farm-area-meals" className="farmshift-form-control" value={form.mealsPerDay} onChange={event => set('mealsPerDay', event.target.value)} disabled={saving}>
-              {MEALS_PER_DAY.map(value => <option key={value} value={value}>{value}</option>)}
-            </select>
-            <FieldError message={errors.mealsPerDay} />
-          </div>
-        </div>
         <MetricPicker legend="Theo dõi môi trường" options={ENVIRONMENT_METRICS} value={form.environmentMetrics} onChange={value => set('environmentMetrics', value)} disabled={saving} />
         <MetricPicker legend="Theo dõi vật nuôi" options={ANIMAL_METRICS} value={form.animalMetrics} onChange={value => set('animalMetrics', value)} disabled={saving} />
         <label htmlFor="farm-area-description">Ghi chú</label>

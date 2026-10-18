@@ -39,7 +39,7 @@ const iso = offset => {
 const START = iso(-17);
 
 const barn = (id, name, extra = {}) => ({
-  id, code: `CH00000${id}`, areaId: 1, areaName: 'Khu Mía Thịt', livestockType: 'POULTRY', name, purpose: 'FARMING', status: 'ACTIVE',
+  id, code: `CH00000${id}`, areaId: 1, areaName: 'Khu Mía Thịt', name, purpose: 'FARMING', status: 'ACTIVE',
   capacity: 50000, currentQuantity: 30000, areaM2: 1000, targetWeight: 2.3, description: '', activeCycleId: id * 10, ...extra,
 });
 const flock = (id, name, gender, quantity, unitPrice) => ({

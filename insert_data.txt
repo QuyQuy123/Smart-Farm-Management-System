@@ -40,11 +40,16 @@ ON CONFLICT (account_id) DO NOTHING;
 -- Mã chỉ số theo dõi: môi trường HUMIDITY, TEMPERATURE;
 -- vật nuôi WEIGHT, LOSS, MANURE, ANIMAL_PHOTO, DEAD_PHOTO, NOTE.
 -- ---------------------------------------------------------------------
-INSERT INTO farm_areas (name, name_key, livestock_type, meals_per_day, environment_metrics, animal_metrics, description, created_at, updated_at)
-VALUES ('Khu Mía Thịt', 'khu mía thịt', 'POULTRY', 3, 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', 'Khu nuôi gà Mía thương phẩm', '2026-10-01 08:00:00', '2026-10-01 08:00:00'),
-       ('Khu J Thịt', 'khu j thịt', 'POULTRY', 3, 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', 'Khu nuôi gà J-Dabaco thịt', '2026-10-01 08:30:00', '2026-10-01 08:30:00'),
-       ('Khu đông tảo', 'khu đông tảo', 'POULTRY', 3, 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', '', '2026-10-06 08:00:00', '2026-10-06 08:00:00'),
-       ('Khu A', 'khu a', 'POULTRY', 3, 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', '', '2026-10-07 08:00:00', '2026-10-07 08:00:00')
+-- Hệ thống chỉ nuôi gà thịt: bỏ cột loại vật nuôi và số cữ ăn (cữ ăn theo chương trình nuôi của đàn).
+-- Hibernate (ddl-auto=update) không tự xóa cột cũ nên xóa tại đây; chạy lại nhiều lần vẫn an toàn.
+ALTER TABLE farm_areas DROP COLUMN IF EXISTS livestock_type;
+ALTER TABLE farm_areas DROP COLUMN IF EXISTS meals_per_day;
+
+INSERT INTO farm_areas (name, name_key, environment_metrics, animal_metrics, description, created_at, updated_at)
+VALUES ('Khu Mía Thịt', 'khu mía thịt', 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', 'Khu nuôi gà Mía thương phẩm', '2026-10-01 08:00:00', '2026-10-01 08:00:00'),
+       ('Khu J Thịt', 'khu j thịt', 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', 'Khu nuôi gà J-Dabaco thịt', '2026-10-01 08:30:00', '2026-10-01 08:30:00'),
+       ('Khu đông tảo', 'khu đông tảo', 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', '', '2026-10-06 08:00:00', '2026-10-06 08:00:00'),
+       ('Khu A', 'khu a', 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', '', '2026-10-07 08:00:00', '2026-10-07 08:00:00')
 ON CONFLICT (name_key) DO NOTHING;
 
 -- ---------------------------------------------------------------------

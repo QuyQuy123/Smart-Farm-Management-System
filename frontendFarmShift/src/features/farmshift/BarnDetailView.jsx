@@ -15,7 +15,7 @@ import {
 import { BarnDialog } from './FarmAreaDialogs';
 import { FormDialog, ProgramDialog } from './CycleDialogs';
 import {
-  BARN_PURPOSES, EXPENSE_CATEGORIES, FLOCK_GENDERS, LIVESTOCK_TYPES, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, PROGRAM_TYPES, STEP_STATES,
+  BARN_PURPOSES, EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, PROGRAM_TYPES, STEP_STATES,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
 } from './farmAreaOptions';
 import styles from './BarnDetailView.module.css';
@@ -190,11 +190,11 @@ export const BarnDetailView = () => {
   };
 
   const openTransfer = flock => {
-    const targets = barns.filter(item => item.activeCycleId && item.id !== barn.id && item.livestockType === barn.livestockType);
+    const targets = barns.filter(item => item.activeCycleId && item.id !== barn.id);
     setModal({
       title: `Tách / chuyển đàn ${flock.code}`,
       intro: `Đàn ${flock.name} đang tồn ${num(flock.quantity)} con. Giá vốn con giống chuyển theo tỷ lệ số con; tổng số con toàn trại giữ nguyên.`,
-      warning: targets.length ? null : 'Chưa có chuồng nào khác đang có lứa nuôi cùng loại vật nuôi. Hãy khai báo lứa cho chuồng đích trước.',
+      warning: targets.length ? null : 'Chưa có chuồng nào khác đang có lứa nuôi. Hãy khai báo lứa cho chuồng đích trước.',
       initial: { targetBarnId: targets[0] ? String(targets[0].id) : '', quantity: '', transferDate: today, name: flock.name, avgWeight: '', note: '' },
       fields: [
         { key: 'targetBarnId', label: 'Chuồng đích đang có lứa', type: 'select', required: true,
@@ -341,7 +341,7 @@ export const BarnDetailView = () => {
     <dl className={styles.facts}>
       <dt>Khu vực</dt><dd>{barn.areaName}</dd>
       <dt>Tên chuồng</dt><dd>{barn.name}</dd>
-      <dt>Loại hình sản xuất</dt><dd>{labelOf(LIVESTOCK_TYPES, barn.livestockType)} · {labelOf(BARN_PURPOSES, barn.purpose)}</dd>
+      <dt>Loại hình sản xuất</dt><dd>Gà thịt · {labelOf(BARN_PURPOSES, barn.purpose)}</dd>
       <dt>Diện tích (m²)</dt><dd>{num(barn.areaM2, 2)}</dd>
       <dt>Sức chứa tối đa</dt><dd>{num(barn.capacity)} con</dd>
       <dt>Đang nuôi</dt><dd>{num(barn.currentQuantity)} con</dd>

@@ -1,10 +1,4 @@
 // Vietnamese labels for the farm-area / barn codes returned by /api/farm-areas and /api/barns.
-export const LIVESTOCK_TYPES = [
-  { value: 'AQUACULTURE', label: 'Thủy sản' },
-  { value: 'LIVESTOCK', label: 'Gia súc' },
-  { value: 'POULTRY', label: 'Gia cầm' },
-];
-
 export const BARN_PURPOSES = [
   { value: 'FARMING', label: 'Thả nuôi' },
   { value: 'BIO_TREATMENT', label: 'Xử lý hóa sinh' },
@@ -29,8 +23,6 @@ export const ANIMAL_METRICS = [
   { value: 'DEAD_PHOTO', label: 'Ảnh chết loại' },
   { value: 'NOTE', label: 'Ghi chú' },
 ];
-
-export const MEALS_PER_DAY = [0, 1, 2, 3, 4, 5, 6];
 
 export const labelOf = (options, value) => options.find(option => option.value === value)?.label || value || '—';
 

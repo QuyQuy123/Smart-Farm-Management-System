@@ -76,8 +76,6 @@ public class FarmAreaService {
         if (duplicate) throw duplicateName();
         area.setName(name);
         area.setNameKey(key);
-        area.setLivestockType(request.livestockType());
-        area.setMealsPerDay(request.mealsPerDay());
         area.setEnvironmentMetrics(String.join(",", metrics(request.environmentMetrics(), ENVIRONMENT_METRICS, "môi trường")));
         area.setAnimalMetrics(String.join(",", metrics(request.animalMetrics(), ANIMAL_METRICS, "vật nuôi")));
         area.setDescription(request.description() == null ? "" : request.description().strip());
@@ -125,7 +123,7 @@ public class FarmAreaService {
     private FarmAreaResponse response(FarmArea area, long[] summary) {
         long[] counts = summary == null ? new long[4] : summary;
         return new FarmAreaResponse(area.getId(), String.format(Locale.ROOT, "KN%06d", area.getId()), area.getName(),
-                area.getLivestockType(), area.getMealsPerDay(), split(area.getEnvironmentMetrics()), split(area.getAnimalMetrics()),
+                split(area.getEnvironmentMetrics()), split(area.getAnimalMetrics()),
                 area.getDescription(), counts[0], counts[1], counts[2], counts[3], area.getCreatedAt(), area.getUpdatedAt());
     }
 }

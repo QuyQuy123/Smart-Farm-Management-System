@@ -75,9 +75,6 @@ public class FlockService {
         FarmingCycle targetCycle = cycleRepository.findFirstByBarnIdAndStatus(target.getId(), CycleStatus.ACTIVE)
                 .orElseThrow(() -> new BadRequestException("Chuồng " + target.getName() + " chưa có lứa nuôi. Hãy khai báo lứa cho chuồng đích trước.",
                         "TRANSFER_TARGET_NO_CYCLE"));
-        if (target.getArea().getLivestockType() != sourceBarn.getArea().getLivestockType()) {
-            throw new BadRequestException("Chuồng đích thuộc khu nuôi khác loại vật nuôi.", "TRANSFER_LIVESTOCK_MISMATCH");
-        }
         int quantity = request.quantity();
         checkStock(source, quantity);
         checkCapacity(target, quantity);

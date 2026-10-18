@@ -123,7 +123,7 @@ public class BarnService {
     static BarnResponse response(Barn barn, Long activeCycleId) {
         FarmArea area = barn.getArea();
         return new BarnResponse(barn.getId(), String.format(Locale.ROOT, "CH%06d", barn.getId()), area.getId(), area.getName(),
-                area.getLivestockType(), barn.getName(), barn.getPurpose(), barn.getStatus(), barn.getCapacity(),
+                barn.getName(), barn.getPurpose(), barn.getStatus(), barn.getCapacity(),
                 barn.getCurrentQuantity(), barn.getAreaM2(), barn.getTargetWeight(), barn.getDescription(), activeCycleId,
                 barn.getCreatedAt(), barn.getUpdatedAt());
     }

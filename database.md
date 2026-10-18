@@ -56,8 +56,6 @@ Entity: `FarmArea`. Lưu các khu nuôi tại **Khu nuôi** (`/areas`). Mỗi kh
 | `id` | BIGINT | PRIMARY KEY, tự tăng. API sinh mã hiển thị `KN000001` từ ID. |
 | `name` | VARCHAR(150) | NOT NULL. Tên khu nuôi; khoảng trắng thừa được gộp lại khi lưu. |
 | `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC, chữ thường để chặn trùng tên không phân biệt hoa thường. |
-| `livestock_type` | VARCHAR(20) | NOT NULL. `AQUACULTURE` (Thủy sản), `LIVESTOCK` (Gia súc), `POULTRY` (Gia cầm). |
-| `meals_per_day` | INT | NOT NULL, từ 0 đến 6. Số bữa ăn trong ngày dùng cho ghi cám. |
 | `environment_metrics` | VARCHAR(200) | Chỉ số môi trường cần theo dõi, các mã ngăn cách bởi dấu phẩy: `HUMIDITY`, `TEMPERATURE`. |
 | `animal_metrics` | VARCHAR(200) | Chỉ số vật nuôi cần theo dõi: `WEIGHT`, `LOSS`, `MANURE`, `ANIMAL_PHOTO`, `DEAD_PHOTO`, `NOTE`. |
 | `description` | VARCHAR(1000) | Ghi chú / mô tả khu nuôi. |
@@ -68,7 +66,9 @@ API trả thêm các số liệu tính từ bảng `barns`, không lưu cột ri
 
 API: `GET /api/farm-areas`, `GET /api/farm-areas/{id}` cho mọi tài khoản đã đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Không xóa được khu nuôi còn chuồng (409 `FARM_AREA_HAS_BARNS`); trùng tên trả 409 `FARM_AREA_DUPLICATE`.
 
-Dữ liệu mẫu: mục 4 trong `insert_data.txt` thêm 4 khu gia cầm `Khu Mía Thịt`, `Khu J Thịt`, `Khu đông tảo`, `Khu A`. Khi thêm bằng SQL phải tự điền `name_key` (tên viết thường).
+Hệ thống chỉ quản lý gà thịt nên khu nuôi **không có** cột loại vật nuôi; số cữ ăn trong ngày cũng không khai báo ở khu nuôi vì phụ thuộc chương trình nuôi theo giống của từng đàn trong chuồng (xem `farming_programs`). Hai cột cũ `livestock_type` và `meals_per_day` đã bị bỏ: `insert_data.txt` (mục 4) chạy `ALTER TABLE farm_areas DROP COLUMN IF EXISTS ...` để xóa chúng khỏi database đã tạo trước đây, vì `ddl-auto=update` không tự xóa cột.
+
+Dữ liệu mẫu: mục 4 trong `insert_data.txt` thêm 4 khu nuôi gà thịt `Khu Mía Thịt`, `Khu J Thịt`, `Khu đông tảo`, `Khu A`. Khi thêm bằng SQL phải tự điền `name_key` (tên viết thường).
 
 ## Bảng `barns` — Chuồng nuôi
 
