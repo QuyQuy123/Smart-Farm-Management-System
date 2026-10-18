@@ -12,6 +12,7 @@ import { BrandsView } from './BrandsView';
 import { ProductTypesView } from './ProductTypesView';
 import { MeasurementUnitsView } from './MeasurementUnitsView';
 import { SuppliersView } from './SuppliersView';
+import { CustomerContactsView } from './CustomerContactsView';
 
 const CATALOG_BREADCRUMBS = [{ label: 'Thiết lập danh mục' }];
 const CATALOG_ACTIONS = (
@@ -34,11 +35,6 @@ export const CatalogSettingsView = () => {
   ];
 
 
-  const customers = [
-    { code: 'KH000001', name: 'Thương lái Trần Văn Tuấn', rep: 'Trần Văn Tuấn', phone: '0988 123 456', tax: '0108899881', bank: 'Vietinbank - 10988776655' },
-    { code: 'KH000002', name: 'Công ty Thực phẩm Sạch Minh Tâm', rep: 'Phạm Minh Tâm', phone: '0977 654 321', tax: '0107766554', bank: 'Techcombank - 19033445566' },
-    { code: 'KH000003', name: 'Hợp tác xã Chăn nuôi & Tiêu thụ An Phát', rep: 'Đỗ Quốc An', phone: '0912 345 678', tax: '0106655443', bank: 'MB Bank - 0912345678' },
-  ];
 
   return (
     <FarmShiftLayout
@@ -151,42 +147,7 @@ export const CatalogSettingsView = () => {
       {activeTab === 'suppliers' && <SuppliersView />}
 
       {/* ── Tab 7: Thiết lập Khách hàng (Thiết lập - Khách hàng.html) ── */}
-      {activeTab === 'customers' && (
-        <div className="farmshift-card" style={{ minHeight: '520px' }}>
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Danh bạ thương lái & Đối tác tiêu thụ</h3>
-            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
-              + Tạo khách hàng
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Mã KH</th>
-                  <th>Đơn vị mua</th>
-                  <th>Mã số thuế</th>
-                  <th>Người đại diện</th>
-                  <th>Số điện thoại</th>
-                  <th>Tài khoản ngân hàng</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map(c => (
-                  <tr key={c.code}>
-                    <td><span style={{ fontFamily: 'monospace' }}>{c.code}</span></td>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{c.name}</strong></td>
-                    <td><span style={{ fontFamily: 'monospace' }}>{c.tax}</span></td>
-                    <td>{c.rep}</td>
-                    <td>{c.phone}</td>
-                    <td style={{ fontSize: '13px', color: 'var(--color-muted)' }}>{c.bank}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'customers' && <CustomerContactsView />}
     </FarmShiftLayout>
   );
 };

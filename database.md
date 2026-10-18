@@ -2,6 +2,23 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
+## Bảng `customer_contacts` — Danh bạ khách hàng
+
+Entity `CustomerContact` phục vụ CRUD tại **Thiết lập danh mục → Khách hàng**. Bảng này riêng biệt với `customers` hiện dùng cho hồ sơ tài khoản/nhân sự; không dùng chung dữ liệu.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng, định danh API. |
+| `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã tự sinh `KH` + UUID bỏ dấu gạch nối, không đổi khi sửa. Chỉ lưu database, không trả trong DTO hoặc hiển thị trên UI. |
+| `name` | VARCHAR(200) | NOT NULL. Tên khách hàng, chuẩn hóa NFC và cắt khoảng trắng đầu/cuối. Cho phép trùng tên vì các khách hàng có thể cùng tên. |
+| `phone` | VARCHAR(20) | NOT NULL. Chỉ chữ số 0–9: đầu 024/028 phải có đúng 11 số, các đầu khác đúng 10 số. |
+| `created_at` | TIMESTAMP | Ngày giờ tạo gồm giây, không đổi khi sửa. |
+| `updated_at` | TIMESTAMP | Hibernate cập nhật khi sửa. |
+
+API `GET /api/customer-contacts?page=0&q=...` phân trang tại database, kích thước cố định **10 bản ghi/trang**, số trang bắt đầu từ 0. Response `data` gồm `content`, `totalElements`, `totalPages`, `page`, `size`; chỉ trả `id`, `name`, `phone` của từng khách hàng. Sắp xếp theo `created_at`, rồi ID tăng dần. Tìm theo tên (không phân biệt hoa/thường) hoặc số điện thoại trước khi phân trang.
+
+`GET /api/customer-contacts/{id}` dành cho tài khoản đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. UI có CRUD, xác nhận xóa, tìm kiếm, Trang trước/Trang sau và thông báo dùng chung ở header. Khi xóa khách hàng cuối của trang, UI tự quay về trang hợp lệ gần nhất. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo bảng; không tự thêm dữ liệu mẫu.
+
 ## Bảng `suppliers` — Nhà cung cấp
 
 Entity `Supplier` phục vụ CRUD tại **Thiết lập danh mục → Nhà cung cấp**.
@@ -13,7 +30,7 @@ Entity `Supplier` phục vụ CRUD tại **Thiết lập danh mục → Nhà cun
 | `name` | VARCHAR(200) | NOT NULL. Đơn vị cung cấp. |
 | `name_key` | VARCHAR(200) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC, cắt khoảng trắng, chuyển chữ thường để ngăn trùng đơn vị. |
 | `representative` | VARCHAR(100) | NOT NULL. Người đại diện. |
-| `phone` | VARCHAR(20) | NOT NULL. Số điện thoại 9–15 chữ số; cho phép dấu cách, +, dấu ngoặc và gạch nối. |
+| `phone` | VARCHAR(20) | NOT NULL. Chỉ chữ số 0–9: đầu 024/028 phải có đúng 11 số, các đầu khác đúng 10 số. |
 | `product_type_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_types.id`. Nhóm nhà cung cấp được chọn từ bảng Loại hàng hóa. |
 | `created_at` | TIMESTAMP | Ngày giờ tạo đầy đủ, không đổi khi sửa; UI chỉ hiện dd/mm/yyyy. |
 | `updated_at` | TIMESTAMP | Hibernate tự cập nhật. |

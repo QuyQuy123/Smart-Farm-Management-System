@@ -5,6 +5,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { listSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../services/supplierService';
 import { listProductTypes } from '../../services/productTypeService';
 import styles from './WarehouseCategoriesView.module.css';
+import { validateContactPhone } from '../../utils/contactPhone';
 
 const date = value => value ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
 const message = error => error.response?.data?.message || 'Không thể kết nối máy chủ. Vui lòng thử lại.';
@@ -14,6 +15,8 @@ function SupplierDialog({ mode, supplier, onClose, onSaved }) {
   const [name, setName] = useState(supplier?.name || '');
   const [representative, setRepresentative] = useState(supplier?.representative || '');
   const [phone, setPhone] = useState(supplier?.phone || '');
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const phoneError = validateContactPhone(phone);
   const [productTypeId, setProductTypeId] = useState(String(supplier?.productTypeId || ''));
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(!['view', 'delete'].includes(mode));
@@ -43,7 +46,7 @@ function SupplierDialog({ mode, supplier, onClose, onSaved }) {
     if (saving) return;
     if (!deleting && (!name.trim() || !representative.trim() || !phone.trim())) { setError('Vui lòng nhập đầy đủ thông tin bắt buộc.'); return; }
     if (!deleting && (loading || groupError || !groups.some(group => String(group.id) === productTypeId))) { setError('Vui lòng chọn nhóm nhà cung cấp hợp lệ.'); return; }
-    if (!deleting && !/^(?=(?:\D*\d){9,15}\D*$)[0-9+() .-]{9,20}$/.test(phone.trim())) { setError('Số điện thoại phải có từ 9 đến 15 chữ số.'); return; }
+    if (!deleting && phoneError) { setPhoneTouched(true); setError(phoneError); return; }
     setSaving(true); setError('');
     try {
       const payload = { name: name.trim(), representative: representative.trim(), phone: phone.trim(), productTypeId: Number(productTypeId) };
@@ -67,7 +70,10 @@ function SupplierDialog({ mode, supplier, onClose, onSaved }) {
             <label htmlFor="supplier-representative">Người đại diện {!readOnly && <span className={styles.required}>*</span>}</label>
             <input id="supplier-representative" className="farmshift-form-control" placeholder="Nguyễn Văn A" required maxLength={100} value={representative} onChange={event => setRepresentative(event.target.value)} readOnly={readOnly} disabled={saving} />
             <label htmlFor="supplier-phone">Số điện thoại {!readOnly && <span className={styles.required}>*</span>}</label>
-            <input id="supplier-phone" type="tel" className="farmshift-form-control" placeholder="0912345678" required maxLength={20} value={phone} onChange={event => setPhone(event.target.value)} readOnly={readOnly} disabled={saving} />
+            <input id="supplier-phone" type="tel" inputMode="numeric" className="farmshift-form-control" placeholder="0912345678" required maxLength={11} value={phone}
+              onChange={event => { setPhone(event.target.value.replace(/[^0-9]/g, '')); setPhoneTouched(true); }} onBlur={() => setPhoneTouched(true)}
+              aria-invalid={!readOnly && phoneTouched && !!phoneError} aria-describedby={!readOnly && phoneTouched && phoneError ? 'supplier-phone-error' : undefined} readOnly={readOnly} disabled={saving} />
+            {!readOnly && phoneTouched && phoneError && <p id="supplier-phone-error" role="alert" style={{ color: '#dc2626', fontSize: '12px', margin: '-12px 0 16px' }}>{phoneError}</p>}
             <label htmlFor="supplier-group">Nhóm nhà cung cấp {!readOnly && <span className={styles.required}>*</span>}</label>
             {readOnly ? <input id="supplier-group" className="farmshift-form-control" value={supplier.productTypeName} readOnly /> : <>
               <select id="supplier-group" className="farmshift-form-control" required value={productTypeId} onChange={event => setProductTypeId(event.target.value)} disabled={saving || loading || !!groupError}>
