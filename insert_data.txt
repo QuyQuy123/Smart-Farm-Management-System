@@ -54,7 +54,7 @@ ON CONFLICT (name_key) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- 5. Chèn dữ liệu Chuồng (Barns) - gắn vào khu nuôi theo tên khu
--- status : INACTIVE (Chưa hoạt động) | ACTIVE (Đang hoạt động) | CLOSED (Đã đóng)
+-- status : INACTIVE (Chưa hoạt động) | ACTIVE (Đang hoạt động) - hệ thống tự quản theo lứa nuôi
 -- Mọi chuồng đều để nuôi gà thịt nên không có cột mục đích sử dụng; xóa cột cũ nếu database đã có.
 -- ---------------------------------------------------------------------
 ALTER TABLE barns DROP COLUMN IF EXISTS purpose;
@@ -117,8 +117,9 @@ WHERE NOT EXISTS (SELECT 1 FROM flock_movements m WHERE m.flock_id = f.id AND m.
 -- Số con của chuồng = tổng tồn các đàn trong lứa đang nuôi; chuồng có lứa đang nuôi ở trạng thái ACTIVE
 UPDATE barns b SET current_quantity = COALESCE((SELECT SUM(f.quantity) FROM flocks f JOIN farming_cycles c ON c.id = f.cycle_id
                                                 WHERE c.barn_id = b.id AND c.status = 'ACTIVE'), 0);
-UPDATE barns b SET status = 'ACTIVE'
-WHERE EXISTS (SELECT 1 FROM farming_cycles c WHERE c.barn_id = b.id AND c.status = 'ACTIVE');
+-- Trạng thái chuồng theo lứa nuôi: có lứa đang nuôi là ACTIVE, còn lại INACTIVE (kể cả giá trị CLOSED cũ đã bỏ).
+UPDATE barns b SET status = CASE WHEN EXISTS (SELECT 1 FROM farming_cycles c WHERE c.barn_id = b.id AND c.status = 'ACTIVE')
+                                 THEN 'ACTIVE' ELSE 'INACTIVE' END;
 
 -- ---------------------------------------------------------------------
 -- 9. Chương trình nuôi mẫu (Farming Programs) - type: FEED | HEALTH | WORK

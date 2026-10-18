@@ -9,7 +9,6 @@ export const suggestCapacity = areaM2 => {
 export const BARN_STATUSES = [
   { value: 'INACTIVE', label: 'Chưa hoạt động', tone: 'neutral' },
   { value: 'ACTIVE', label: 'Đang hoạt động', tone: 'success' },
-  { value: 'CLOSED', label: 'Đã đóng', tone: 'closed' },
 ];
 
 export const ENVIRONMENT_METRICS = [
@@ -47,7 +46,6 @@ export const validateBarn = (form, barn) => {
     errors.targetWeight = 'Mục tiêu cân nặng từ 0 đến 999 kg.';
   }
   if (barn?.activeCycleId) {
-    if (form.status !== 'ACTIVE') errors.status = 'Chuồng đang có lứa nuôi nên phải ở trạng thái Đang hoạt động.';
     if (String(form.areaId) !== String(barn.areaId)) errors.areaId = 'Chuồng đang có lứa nuôi nên không thể chuyển sang khu khác.';
   }
   return errors;

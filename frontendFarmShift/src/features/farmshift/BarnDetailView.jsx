@@ -362,15 +362,14 @@ export const BarnDetailView = () => {
   </Card>;
 
   const renderNoCycle = () => {
-    const blocked = barn.status === 'CLOSED' ? 'Chuồng đã đóng. Hãy mở lại chuồng trước khi khai báo lứa.' : '';
     return <div className={styles.columns}>
       <div className={styles.left}>{barnInfo}</div>
       <div className={styles.right}>
         <section className={`${styles.card} ${styles.emptyCycle}`}>
           <Sprout size={34} />
           <h3>Chuồng chưa có lứa nuôi</h3>
-          <p>{blocked || 'Khai báo lứa nuôi để nhập đàn, ghi nhật ký và theo dõi chỉ số kỹ thuật.'}</p>
-          {isOwner && !blocked && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={openStartCycle}><PlusCircle size={16} />Khai báo lứa nuôi</button>}
+          <p>Khai báo lứa nuôi để nhập đàn, ghi nhật ký và theo dõi chỉ số kỹ thuật. Chuồng sẽ tự chuyển sang Đang hoạt động.</p>
+          {isOwner && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={openStartCycle}><PlusCircle size={16} />Khai báo lứa nuôi</button>}
         </section>
         {history}
       </div>

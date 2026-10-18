@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, X } from 'lucide-react';
 import { createBarn, createFarmArea, deleteBarn, deleteFarmArea, updateBarn, updateFarmArea } from '../../services/farmAreaService';
-import { ANIMAL_METRICS, BARN_STATUSES, BIRDS_PER_M2, ENVIRONMENT_METRICS, apiErrorMessage, suggestCapacity, validateBarn } from './farmAreaOptions';
+import { ANIMAL_METRICS, BIRDS_PER_M2, ENVIRONMENT_METRICS, apiErrorMessage, suggestCapacity, validateBarn } from './farmAreaOptions';
 import styles from './AreasView.module.css';
 
 // Validation (400) and duplicate-name (409) responses carry { field: message } in data.
@@ -112,7 +112,6 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({
     areaId: String(barn?.areaId || defaultAreaId || areas[0]?.id || ''),
     name: barn?.name || '',
-    status: barn?.status || 'INACTIVE',
     capacity: String(barn?.capacity ?? ''),
     areaM2: barn?.areaM2 == null ? '' : String(barn.areaM2),
     targetWeight: barn?.targetWeight == null ? '' : String(barn.targetWeight),
@@ -146,7 +145,7 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     setSaving(true);
     setError('');
     const payload = {
-      areaId: Number(form.areaId), name: form.name.trim(), status: form.status,
+      areaId: Number(form.areaId), name: form.name.trim(),
       capacity: Number(form.capacity), areaM2: form.areaM2 === '' ? null : Number(form.areaM2),
       targetWeight: form.targetWeight === '' ? null : Number(form.targetWeight), description: form.description.trim(),
     };
@@ -186,14 +185,11 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
             type="number" min="0" step="0.01" inputMode="decimal" placeholder="Ví dụ: 1000" />)}
           {field('capacity', 'Sức chứa tối đa (con)', <input {...inputProps('capacity')} onChange={event => setCapacity(event.target.value)}
             type="number" min="1" step="1" inputMode="numeric" placeholder="Ví dụ: 8000" />, true, capacityHint)}
-          {field('status', 'Trạng thái hoạt động', <select {...inputProps('status')}>
-            {BARN_STATUSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>, true)}
           {field('targetWeight', 'Mục tiêu cân nặng xuất chuồng (kg/con)', <input {...inputProps('targetWeight')} type="number" min="0" max="999" step="0.01" inputMode="decimal" placeholder="Ví dụ: 2.3" />)}
         </div>
         <p className={styles.formHint}>{editing
           ? `Đang nuôi ${(barn.currentQuantity || 0).toLocaleString('vi-VN')} con. Số con chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt và xuất bán.`
-          : 'Sức chứa là số con tối đa chuồng được nuôi; mỗi lần nhập đàn sẽ được kiểm tra theo sức chứa này.'}</p>
+          : 'Sức chứa là số con tối đa chuồng được nuôi; mỗi lần nhập đàn sẽ được kiểm tra theo sức chứa này. Chuồng mới ở trạng thái Chưa hoạt động và tự chuyển sang Đang hoạt động khi khai báo lứa nuôi.'}</p>
         <label htmlFor="barn-description">Ghi chú</label>
         <textarea id="barn-description" className="farmshift-form-control" rows={3} maxLength={1000} value={form.description}
           onChange={event => set('description', event.target.value)} disabled={saving} />
