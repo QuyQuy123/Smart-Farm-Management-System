@@ -5,6 +5,9 @@ import { useNotification } from '../../context/NotificationContext';
 import { listProductCategories, createProductCategory, updateProductCategory, deleteProductCategory } from '../../services/productCategoryService';
 import styles from './WarehouseCategoriesView.module.css';
 import { listWarehouseCategories } from '../../services/warehouseCategoryService';
+import { listBrands } from '../../services/brandService';
+import { listProductTypes } from '../../services/productTypeService';
+import { listSpecifications } from '../../services/specificationService';
 
 const errorMessage = error => error.response?.data?.message || 'Không thể kết nối máy chủ. Vui lòng thử lại.';
 
@@ -19,7 +22,16 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
   const [warehouses, setWarehouses] = useState([]);
   const [loadingWarehouses, setLoadingWarehouses] = useState(!['view', 'delete'].includes(mode));
   const [warehouseError, setWarehouseError] = useState('');
-  const [warehouseRevision, setWarehouseRevision] = useState(0);
+  const [brands, setBrands] = useState([]);
+  const [loadingBrands, setLoadingBrands] = useState(!['view', 'delete'].includes(mode));
+  const [brandError, setBrandError] = useState('');
+  const [productTypes, setProductTypes] = useState([]);
+  const [loadingProductTypes, setLoadingProductTypes] = useState(!['view', 'delete'].includes(mode));
+  const [productTypeError, setProductTypeError] = useState('');
+  const [specifications, setSpecifications] = useState([]);
+  const [loadingSpecifications, setLoadingSpecifications] = useState(!['view', 'delete'].includes(mode));
+  const [specificationError, setSpecificationError] = useState('');
+  const [metadataRevision, setMetadataRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const readOnly = mode === 'view';
@@ -29,13 +41,37 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
   useEffect(() => {
     if (readOnly || deleting) return;
     let cancelled = false;
+
     setLoadingWarehouses(true);
     setWarehouseError('');
-    listWarehouseCategories().then(data => { if (!cancelled) setWarehouses(Array.isArray(data) ? data : []); })
+    listWarehouseCategories()
+      .then(data => { if (!cancelled) setWarehouses(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancelled) setWarehouseError('Không tải được danh sách kho.'); })
       .finally(() => { if (!cancelled) setLoadingWarehouses(false); });
+
+    setLoadingBrands(true);
+    setBrandError('');
+    listBrands()
+      .then(data => { if (!cancelled) setBrands(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setBrandError('Không tải được danh sách nhãn hiệu.'); })
+      .finally(() => { if (!cancelled) setLoadingBrands(false); });
+
+    setLoadingProductTypes(true);
+    setProductTypeError('');
+    listProductTypes()
+      .then(data => { if (!cancelled) setProductTypes(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setProductTypeError('Không tải được danh sách loại hàng hóa.'); })
+      .finally(() => { if (!cancelled) setLoadingProductTypes(false); });
+
+    setLoadingSpecifications(true);
+    setSpecificationError('');
+    listSpecifications()
+      .then(data => { if (!cancelled) setSpecifications(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setSpecificationError('Không tải được danh sách quy cách.'); })
+      .finally(() => { if (!cancelled) setLoadingSpecifications(false); });
+
     return () => { cancelled = true; };
-  }, [readOnly, deleting, warehouseRevision]);
+  }, [readOnly, deleting, metadataRevision]);
 
   useEffect(() => {
     const element = dialog.current;
@@ -83,7 +119,7 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
                     <option value="">{loadingWarehouses ? 'Đang tải danh sách kho...' : 'Chọn kho lưu trữ'}</option>
                     {warehouses.map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name} ({warehouse.code})</option>)}
                   </select>
-                  {warehouseError && <p role="alert" className={styles.error} style={{ marginTop: '6px' }}>{warehouseError} <button type="button" onClick={() => setWarehouseRevision(value => value + 1)}>Thử lại</button></p>}
+                  {warehouseError && <p role="alert" className={styles.error} style={{ marginTop: '6px' }}>{warehouseError} <button type="button" onClick={() => setMetadataRevision(value => value + 1)}>Thử lại</button></p>}
                   {!loadingWarehouses && !warehouseError && !warehouses.length && <p className={styles.error} style={{ marginTop: '6px' }}>Chưa có kho. Vui lòng thêm kho trong tab Danh mục kho trước.</p>}
                 </>}
               </div>
@@ -95,17 +131,68 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
 
               <div className={styles.formField}>
                 <label htmlFor="product-category-specification">Quy cách</label>
-                <input id="product-category-specification" className="farmshift-form-control" placeholder="Ví dụ: Bao 25kg, Chai 1L..." value={specification} onChange={event => setSpecification(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
+                {readOnly ? <input id="product-category-specification" className="farmshift-form-control" value={specification || '—'} readOnly /> : <>
+                  <select
+                    id="product-category-specification"
+                    className="farmshift-form-control"
+                    value={specification}
+                    onChange={event => setSpecification(event.target.value)}
+                    disabled={saving || loadingSpecifications || !!specificationError}
+                  >
+                    <option value="">{loadingSpecifications ? 'Đang tải danh sách quy cách...' : 'Chọn quy cách'}</option>
+                    {specification && !specifications.some(s => s.name === specification) && (
+                      <option value={specification}>{specification}</option>
+                    )}
+                    {specifications.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+                  {specificationError && <p role="alert" className={styles.error} style={{ marginTop: '6px' }}>{specificationError} <button type="button" onClick={() => setMetadataRevision(value => value + 1)}>Thử lại</button></p>}
+                </>}
               </div>
 
               <div className={styles.formField}>
                 <label htmlFor="product-category-brand">Nhãn hiệu</label>
-                <input id="product-category-brand" className="farmshift-form-control" placeholder="Ví dụ: C.P., Dabaco, Hanvet..." value={brand} onChange={event => setBrand(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
+                {readOnly ? <input id="product-category-brand" className="farmshift-form-control" value={brand || '—'} readOnly /> : <>
+                  <select
+                    id="product-category-brand"
+                    className="farmshift-form-control"
+                    value={brand}
+                    onChange={event => setBrand(event.target.value)}
+                    disabled={saving || loadingBrands || !!brandError}
+                  >
+                    <option value="">{loadingBrands ? 'Đang tải danh sách nhãn hiệu...' : 'Chọn nhãn hiệu'}</option>
+                    {brand && !brands.some(b => b.name === brand) && (
+                      <option value={brand}>{brand}</option>
+                    )}
+                    {brands.map(b => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                  {brandError && <p role="alert" className={styles.error} style={{ marginTop: '6px' }}>{brandError} <button type="button" onClick={() => setMetadataRevision(value => value + 1)}>Thử lại</button></p>}
+                </>}
               </div>
 
               <div className={`${styles.formField} ${styles.fullWidth}`}>
                 <label htmlFor="product-category-product-type">Loại hàng hóa</label>
-                <input id="product-category-product-type" className="farmshift-form-control" placeholder="Ví dụ: Thức ăn, Thuốc thú y, Vắc-xin..." value={productType} onChange={event => setProductType(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
+                {readOnly ? <input id="product-category-product-type" className="farmshift-form-control" value={productType || '—'} readOnly /> : <>
+                  <select
+                    id="product-category-product-type"
+                    className="farmshift-form-control"
+                    value={productType}
+                    onChange={event => setProductType(event.target.value)}
+                    disabled={saving || loadingProductTypes || !!productTypeError}
+                  >
+                    <option value="">{loadingProductTypes ? 'Đang tải loại hàng hóa...' : 'Chọn loại hàng hóa'}</option>
+                    {productType && !productTypes.some(pt => pt.name === productType) && (
+                      <option value={productType}>{productType}</option>
+                    )}
+                    {productTypes.map(pt => (
+                      <option key={pt.id} value={pt.name}>{pt.name}</option>
+                    ))}
+                  </select>
+                  {productTypeError && <p role="alert" className={styles.error} style={{ marginTop: '6px' }}>{productTypeError} <button type="button" onClick={() => setMetadataRevision(value => value + 1)}>Thử lại</button></p>}
+                </>}
               </div>
 
               <div className={`${styles.formField} ${styles.fullWidth}`}>

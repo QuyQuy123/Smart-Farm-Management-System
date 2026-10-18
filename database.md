@@ -74,6 +74,23 @@ Entity `ProductType` lưu danh mục tại **Thiết lập danh mục → Loại
 
 API `GET /api/product-types` và `GET /api/product-types/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Danh sách sắp xếp theo `created_at`, rồi ID tăng dần. UI hỗ trợ tìm kiếm, xem, thêm, sửa, xác nhận xóa và hiển thị các cột: Tên loại hàng, Mô tả, Số lượng, Ngày tạo, Thao tác (ẩn mã loại hàng hóa). Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tự động tạo bảng `product_types`.
 
+## Bảng `specifications` — Đơn vị quy cách
+
+Entity `Specification` lưu danh mục tại **Thiết lập danh mục → Đơn vị quy cách** và phục vụ danh sách chọn khi tạo / sửa tên hàng hóa.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `name` | VARCHAR(150) | NOT NULL. Tên quy cách đóng gói (VD: Bao 25kg, Chai 1L, Thùng 102 con...), bắt buộc nhập. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa Unicode NFC, bỏ khoảng trắng đầu/cuối và chuyển chữ thường để ngăn trùng tên. |
+| `unit` | VARCHAR(150) | Đơn vị lớn (VD: Bao, Thùng, Hộp, Chai...). |
+| `items` | VARCHAR(150) | Giá trị quy đổi / đóng gói (VD: 25 kg, 102 con, 10 lọ...). |
+| `note` | VARCHAR(1000) | Mô tả chi tiết quy cách, có thể để trống. |
+| `created_at` | TIMESTAMP | Thời điểm tạo bản ghi. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
+
+API: `GET /api/specifications` và `GET /api/specifications/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Danh sách sắp xếp theo `created_at`, rồi ID tăng dần. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tự động tạo bảng `specifications`.
+
 ## Lưu ảnh đại diện khi chạy local
 
 Không bổ sung bảng mới: đường dẫn ảnh dùng các cột `accounts.avatar_url` và `customers.avatar_url` hiện có. `POST /api/user/avatar` nhận ảnh multipart, lưu file và cập nhật đường dẫn cho tài khoản đăng nhập (cùng hồ sơ customer nếu có) ngay khi upload thành công.

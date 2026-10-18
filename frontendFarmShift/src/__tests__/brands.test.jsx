@@ -3,10 +3,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { BrandsView } from '../features/farmshift/BrandsView';
 import * as service from '../services/brandService';
+import { listProductTypes } from '../services/productTypeService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: mocks.role } }) }));
+vi.mock('../services/productTypeService', () => ({
+  listProductTypes: vi.fn(),
+}));
 vi.mock('../services/brandService', () => ({
   listBrands: vi.fn(),
   createBrand: vi.fn(),
@@ -33,6 +37,10 @@ describe('Brands CRUD', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.role = 'ROLE_FARM_OWNER';
+    listProductTypes.mockResolvedValue([
+      { id: 1, name: 'Thức ăn chăn nuôi' },
+      { id: 2, name: 'Con giống & Cám' },
+    ]);
     items = [
       { id: 1, code: 'NH000001', name: 'Dabaco', productType: 'Con giống & Cám', quantity: 150, note: 'Gà giống J-Dabaco' },
     ];

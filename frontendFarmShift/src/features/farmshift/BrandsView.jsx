@@ -3,6 +3,7 @@ import { Plus, Search, Eye, Pencil, Trash2, X, Tag, AlertCircle } from 'lucide-r
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listBrands, createBrand, updateBrand, deleteBrand } from '../../services/brandService';
+import { listProductTypes } from '../../services/productTypeService';
 import styles from './WarehouseCategoriesView.module.css';
 
 const errorMessage = error => error.response?.data?.message || 'Không thể kết nối máy chủ. Vui lòng thử lại.';
@@ -13,11 +14,27 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
   const [productType, setProductType] = useState(brand?.productType || '');
   const [quantity, setQuantity] = useState(brand?.quantity !== undefined && brand?.quantity !== null ? String(brand.quantity) : '0');
   const [note, setNote] = useState(brand?.note || '');
+  const [productTypes, setProductTypes] = useState([]);
+  const [loadingProductTypes, setLoadingProductTypes] = useState(!['view', 'delete'].includes(mode));
+  const [productTypeError, setProductTypeError] = useState('');
+  const [productTypeRevision, setProductTypeRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const readOnly = mode === 'view';
   const deleting = mode === 'delete';
   const title = { create: 'Thêm nhãn hiệu', edit: 'Chỉnh sửa nhãn hiệu', view: 'Chi tiết nhãn hiệu', delete: 'Xóa nhãn hiệu' }[mode];
+
+  useEffect(() => {
+    if (readOnly || deleting) return;
+    let cancelled = false;
+    setLoadingProductTypes(true);
+    setProductTypeError('');
+    listProductTypes()
+      .then(data => { if (!cancelled) setProductTypes(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setProductTypeError('Không tải được danh sách loại hàng hóa.'); })
+      .finally(() => { if (!cancelled) setLoadingProductTypes(false); });
+    return () => { cancelled = true; };
+  }, [readOnly, deleting, productTypeRevision]);
 
   useEffect(() => {
     const element = dialog.current;
@@ -64,7 +81,7 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
     <dialog ref={dialog} className={styles.dialog} aria-labelledby="brand-modal-title"
       onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
       onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-      <section className={styles.modal}>
+      <section className={`${styles.modal} ${styles.modalWide}`}>
         <header className={styles.modalHeader}>
           <h2 id="brand-modal-title">{title}</h2>
           <button type="button" className={styles.iconButton} onClick={onClose} disabled={saving} aria-label="Đóng"><X size={20} /></button>
@@ -75,58 +92,94 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
             {deleting ? (
               <p>Bạn muốn xóa nhãn hiệu <strong>{brand.name}</strong>? Thao tác này không thể hoàn tác.</p>
             ) : (
-              <>
-                <label htmlFor="brand-name">Tên nhãn hiệu {!readOnly && <span className={styles.required}>*</span>}</label>
-                <input
-                  id="brand-name"
-                  className="farmshift-form-control"
-                  placeholder="Ví dụ: Tập đoàn Dabaco, C.P. Group..."
-                  value={name}
-                  onChange={event => setName(event.target.value)}
-                  required
-                  maxLength={150}
-                  readOnly={readOnly}
-                  disabled={saving}
-                />
+              <div className={styles.formGrid}>
+                <div className={styles.formField}>
+                  <label htmlFor="brand-name">Tên nhãn hiệu {!readOnly && <span className={styles.required}>*</span>}</label>
+                  <input
+                    id="brand-name"
+                    className="farmshift-form-control"
+                    placeholder="Ví dụ: Tập đoàn Dabaco, C.P. Group..."
+                    value={name}
+                    onChange={event => setName(event.target.value)}
+                    required
+                    maxLength={150}
+                    readOnly={readOnly}
+                    disabled={saving}
+                  />
+                </div>
 
-                <label htmlFor="brand-product-type">Loại hàng hóa</label>
-                <input
-                  id="brand-product-type"
-                  className="farmshift-form-control"
-                  placeholder="Ví dụ: Con giống & Cám, Thức ăn chăn nuôi..."
-                  value={productType}
-                  onChange={event => setProductType(event.target.value)}
-                  maxLength={150}
-                  readOnly={readOnly}
-                  disabled={saving}
-                />
+                <div className={styles.formField}>
+                  <label htmlFor="brand-product-type">Loại hàng hóa</label>
+                  {readOnly ? (
+                    <input
+                      id="brand-product-type"
+                      className="farmshift-form-control"
+                      value={productType || 'Chưa chọn loại hàng'}
+                      readOnly
+                    />
+                  ) : (
+                    <>
+                      <select
+                        id="brand-product-type"
+                        className="farmshift-form-control"
+                        value={productType}
+                        onChange={event => setProductType(event.target.value)}
+                        disabled={saving || loadingProductTypes || !!productTypeError}
+                      >
+                        <option value="">{loadingProductTypes ? 'Đang tải loại hàng hóa...' : 'Chọn loại hàng hóa'}</option>
+                        {productType && !productTypes.some(pt => pt.name === productType) && (
+                          <option value={productType}>{productType}</option>
+                        )}
+                        {productTypes.map(pt => (
+                          <option key={pt.id} value={pt.name}>
+                            {pt.name}
+                          </option>
+                        ))}
+                      </select>
+                      {productTypeError && (
+                        <p role="alert" className={styles.error} style={{ marginTop: '6px' }}>
+                          {productTypeError} <button type="button" onClick={() => setProductTypeRevision(v => v + 1)}>Thử lại</button>
+                        </p>
+                      )}
+                      {!loadingProductTypes && !productTypeError && !productTypes.length && (
+                        <p className={styles.error} style={{ marginTop: '6px' }}>
+                          Chưa có loại hàng hóa. Vui lòng thêm trong tab Loại hàng hóa trước.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
 
-                <label htmlFor="brand-quantity">Số lượng</label>
-                <input
-                  id="brand-quantity"
-                  type="number"
-                  min="0"
-                  className="farmshift-form-control"
-                  placeholder="0"
-                  value={quantity}
-                  onChange={event => setQuantity(event.target.value)}
-                  readOnly={readOnly}
-                  disabled={saving}
-                />
+                <div className={`${styles.formField} ${styles.fullWidth}`}>
+                  <label htmlFor="brand-quantity">Số lượng</label>
+                  <input
+                    id="brand-quantity"
+                    type="number"
+                    min="0"
+                    className="farmshift-form-control"
+                    placeholder="0"
+                    value={quantity}
+                    onChange={event => setQuantity(event.target.value)}
+                    readOnly={readOnly}
+                    disabled={saving}
+                  />
+                </div>
 
-                <label htmlFor="brand-note">Ghi chú</label>
-                <textarea
-                  id="brand-note"
-                  className="farmshift-form-control"
-                  rows={3}
-                  placeholder="Nhập ghi chú nhãn hiệu"
-                  value={note}
-                  onChange={event => setNote(event.target.value)}
-                  maxLength={1000}
-                  readOnly={readOnly}
-                  disabled={saving}
-                />
-              </>
+                <div className={`${styles.formField} ${styles.fullWidth}`}>
+                  <label htmlFor="brand-note">Ghi chú</label>
+                  <textarea
+                    id="brand-note"
+                    className="farmshift-form-control"
+                    rows={2}
+                    placeholder="Nhập ghi chú nhãn hiệu"
+                    value={note}
+                    onChange={event => setNote(event.target.value)}
+                    maxLength={1000}
+                    readOnly={readOnly}
+                    disabled={saving}
+                  />
+                </div>
+              </div>
             )}
           </div>
           <footer className={styles.footer}>
@@ -137,7 +190,7 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
               <button
                 type="submit"
                 className={`farmshift-btn ${deleting ? styles.deleteButton : 'farmshift-btn-mint'}`}
-                disabled={saving}
+                disabled={saving || (!deleting && loadingProductTypes)}
                 aria-busy={saving}
               >
                 {saving ? 'Đang xử lý...' : deleting ? 'Xóa nhãn hiệu' : 'Lưu nhãn hiệu'}
