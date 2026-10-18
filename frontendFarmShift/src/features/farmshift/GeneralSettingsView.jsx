@@ -88,10 +88,12 @@ export const GeneralSettingsView = () => {
       return;
     }
     setIsSavingFarm(true);
+    setSavedSuccess(false);
     try {
       const saved = await updateFarm(farmInfo);
       setFarmInfo(saved);
       saveFarmInfo(saved);
+      setSavedSuccess(true);
       showToast('Đã lưu thông tin cơ sở trang trại thành công!', 'success');
     } catch (error) {
       const details = error.response?.data?.data;
@@ -196,7 +198,7 @@ export const GeneralSettingsView = () => {
               </span>
             )}
           </div>
-          <form onSubmit={handleSaveFarmInfo}>
+          <form onSubmit={handleSaveFarmInfo} onChange={() => setSavedSuccess(false)}>
             {isLoadingFarm && <p role="status">Đang tải thông tin trang trại...</p>}
             {farmError && <p role="alert">{farmError}</p>}
             {!canEditFarm && <p>Chỉ chủ trang trại có quyền cập nhật thông tin này.</p>}
@@ -275,7 +277,7 @@ export const GeneralSettingsView = () => {
               </div>
             </div>
             <div className="farmshift-card-header" style={{ justifyContent: 'flex-end', backgroundColor: 'var(--color-surface-soft)' }}>
-              <button type="submit" className="farmshift-btn farmshift-btn-primary">
+              <button type="submit" className="farmshift-btn farmshift-btn-mint" aria-busy={isSavingFarm}>
                 <Save size={15} /> {isSavingFarm ? 'Đang lưu...' : 'Cập nhật thông tin'}
               </button>
             </div>
