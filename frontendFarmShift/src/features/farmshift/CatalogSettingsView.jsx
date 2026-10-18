@@ -10,6 +10,7 @@ import { WarehouseCategoriesView } from './WarehouseCategoriesView';
 import { ProductCategoriesView } from './ProductCategoriesView';
 import { BrandsView } from './BrandsView';
 import { ProductTypesView } from './ProductTypesView';
+import { MeasurementUnitsView } from './MeasurementUnitsView';
 
 const CATALOG_BREADCRUMBS = [{ label: 'Thiết lập danh mục' }];
 const CATALOG_ACTIONS = (
@@ -23,14 +24,6 @@ export const CatalogSettingsView = () => {
   // 'categories' | 'brands' | 'units' | 'specs' | 'warehouses' | 'suppliers' | 'customers'
 
 
-  const units = [
-    { id: 1, name: 'Kg', type: 'Khối lượng', note: 'Cân gà xuất chuồng, thức ăn' },
-    { id: 2, name: 'Bao (25kg)', type: 'Bao bì', note: 'Đóng gói cám tiêu chuẩn' },
-    { id: 3, name: 'Con', type: 'Đơn vị đếm', note: 'Con giống, đàn gà' },
-    { id: 4, name: 'Lọ (1000 liều)', type: 'Dược phẩm', note: 'Vắc-xin phòng bệnh' },
-    { id: 5, name: 'Chai / Can (1L - 5L)', type: 'Chất lỏng', note: 'Thuốc sát trùng khử khuẩn' },
-    { id: 6, name: 'Khay (30 quả)', type: 'Quy cách trứng', note: 'Khay đựng trứng thương phẩm' },
-  ];
 
 
   const specs = [
@@ -97,13 +90,6 @@ export const CatalogSettingsView = () => {
         </button>
         <button
           type="button"
-          className={`farmshift-tab-btn ${activeTab === 'specs' ? 'active' : ''}`}
-          onClick={() => setActiveTab('specs')}
-        >
-          Đơn vị quy cách
-        </button>
-        <button
-          type="button"
           className={`farmshift-tab-btn ${activeTab === 'suppliers' ? 'active' : ''}`}
           onClick={() => setActiveTab('suppliers')}
         >
@@ -130,37 +116,7 @@ export const CatalogSettingsView = () => {
       {/* ── Tab 2: Nhãn hiệu ─────────────────────────────── */}
       {activeTab === 'brands' && <BrandsView />}
 
-      {/* ── Tab 3: Đơn vị tính ──────────────────────────── */}
-      {activeTab === 'units' && (
-        <div className="farmshift-card" style={{ minHeight: '520px' }}>
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Đơn vị đo lường cơ bản</h3>
-            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
-              + Thêm đơn vị
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tên đơn vị</th>
-                  <th>Phân loại</th>
-                  <th>Áp dụng cho</th>
-                </tr>
-              </thead>
-              <tbody>
-                {units.map(u => (
-                  <tr key={u.id}>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{u.name}</strong></td>
-                    <td>{u.type}</td>
-                    <td style={{ color: 'var(--color-muted)' }}>{u.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'units' && <MeasurementUnitsView />}
 
       {/* ── Tab 4: Đơn vị quy cách ──────────────────────── */}
       {activeTab === 'specs' && (

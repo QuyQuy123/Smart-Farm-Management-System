@@ -2,6 +2,25 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
+## Bảng `measurement_units` — Đơn vị tính
+
+Entity `MeasurementUnit` phục vụ CRUD tại **Thiết lập danh mục → Đơn vị tính**.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng, dùng làm định danh API. |
+| `code` | VARCHAR(30) | NOT NULL. Mã nhập tay, cho phép sửa, ví dụ KG, BAO25. |
+| `code_key` | VARCHAR(30) | NOT NULL, UNIQUE. Mã chuẩn hóa Unicode NFC, cắt khoảng trắng đầu/cuối, chuyển chữ thường để kiểm tra trùng. |
+| `name` | VARCHAR(150) | NOT NULL. Tên đơn vị. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa như trên để ngăn trùng. |
+| `description` | VARCHAR(1000) | Mô tả, có thể bỏ trống. |
+| `created_at` | TIMESTAMP | Thời điểm tạo gồm giờ/phút/giây, không đổi khi sửa; UI hiển thị dd/mm/yyyy. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi khi cập nhật. |
+
+Số lượng hàng hóa (`itemCount`) chỉ đọc, được tính từ số bản ghi `product_categories` có `specification` (nhãn UI: Đơn vị) khớp tên đơn vị, bỏ khoảng trắng đầu/cuối và không phân biệt hoa/thường. Hiện liên kết bằng chuỗi, chưa có khóa ngoại đơn vị. Khi đổi tên đơn vị, service cập nhật các chuỗi khớp trong cùng transaction. Không cho xóa đơn vị có hàng hóa sử dụng. Đây là số loại/tên hàng hóa, không phải tổng tồn kho, không nhập tay hoặc lưu số đếm giả.
+
+API `GET /api/measurement-units`, `GET /api/measurement-units/{id}` dành cho tài khoản đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Sắp xếp theo thời điểm tạo và ID tăng dần. UI có tìm kiếm, xem, thêm, sửa, xác nhận xóa, nút nền xanh nhạt và thông báo chung ở header. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo bảng; không tự thêm dữ liệu mẫu.
+
 ## Bảng `product_categories` — Tên hàng hóa
 
 Entity `ProductCategory` lưu danh mục tại **Thiết lập danh mục → Tên hàng hóa** (tên tab trước đây là Danh mục hàng hóa / Loại hàng hóa). Mỗi tên hàng hóa chọn một kho từ `warehouse_categories` qua `warehouse_id`. Kho có hàng hóa liên quan không được xóa; cần chuyển hoặc xóa các hàng hóa liên quan trước.

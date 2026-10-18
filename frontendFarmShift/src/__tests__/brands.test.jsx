@@ -73,10 +73,10 @@ describe('Brands CRUD', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thêm nhãn hiệu' }));
     let dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByText(/NH\d+/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Số lượng')).not.toBeInTheDocument();
 
     fireEvent.change(within(dialog).getByLabelText(/Tên nhãn hiệu/), { target: { value: 'C.P. Group' } });
     fireEvent.change(within(dialog).getByLabelText('Loại hàng hóa'), { target: { value: 'Thức ăn chăn nuôi' } });
-    fireEvent.change(within(dialog).getByLabelText('Số lượng'), { target: { value: '200' } });
     fireEvent.change(within(dialog).getByLabelText('Ghi chú'), { target: { value: 'Dòng cám Higro' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu nhãn hiệu' }));
 
@@ -84,7 +84,7 @@ describe('Brands CRUD', () => {
     expect(service.createBrand).toHaveBeenCalledWith({
       name: 'C.P. Group',
       productType: 'Thức ăn chăn nuôi',
-      quantity: 200,
+      quantity: 0,
       note: 'Dòng cám Higro',
     });
     expect(mocks.showToast).toHaveBeenCalledWith('Đã lưu nhãn hiệu thành công.', 'success');
@@ -101,7 +101,9 @@ describe('Brands CRUD', () => {
     // Edit
     fireEvent.click(screen.getByRole('button', { name: 'Sửa C.P. Group' }));
     dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText('Số lượng')).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Tên nhãn hiệu/), { target: { value: 'C.P. Việt Nam' } });
+    fireEvent.change(within(dialog).getByLabelText('Số lượng'), { target: { value: '200' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu nhãn hiệu' }));
     await screen.findByText('C.P. Việt Nam');
     expect(service.updateBrand).toHaveBeenCalledWith(2, {

@@ -6,12 +6,12 @@ import * as service from '../services/productCategoryService';
 import { listWarehouseCategories } from '../services/warehouseCategoryService';
 import { listBrands } from '../services/brandService';
 import { listProductTypes } from '../services/productTypeService';
-import { listSpecifications } from '../services/specificationService';
+import { listMeasurementUnits } from '../services/measurementUnitService';
 
 vi.mock('../services/warehouseCategoryService', () => ({ listWarehouseCategories: vi.fn() }));
 vi.mock('../services/brandService', () => ({ listBrands: vi.fn() }));
 vi.mock('../services/productTypeService', () => ({ listProductTypes: vi.fn() }));
-vi.mock('../services/specificationService', () => ({ listSpecifications: vi.fn() }));
+vi.mock('../services/measurementUnitService', () => ({ listMeasurementUnits: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
@@ -39,7 +39,7 @@ describe('Product category CRUD', () => {
     listWarehouseCategories.mockResolvedValue([{ id: 10, code: 'DM000010', name: 'Kho kiểm thử' }]);
     listBrands.mockResolvedValue([{ id: 1, name: 'Hanvet' }, { id: 2, name: 'C.P.' }]);
     listProductTypes.mockResolvedValue([{ id: 1, name: 'Thuốc thú y' }, { id: 2, name: 'Thức ăn chăn nuôi' }]);
-    listSpecifications.mockResolvedValue([{ id: 1, name: 'Lọ 100ml' }, { id: 2, name: 'Bao 25kg' }]);
+    listMeasurementUnits.mockResolvedValue([{ id: 1, code: 'LO', name: 'Lọ 100ml' }, { id: 2, code: 'BAO25', name: 'Bao 25kg' }]);
     items = [{ id: 1, code: 'HH000001', name: 'Cám gà', description: 'Thức ăn', specification: 'Bao 25kg', brand: 'C.P.', productType: 'Thức ăn chăn nuôi', itemCount: 0, createdAt: '2026-10-18T10:00:00' }];
     service.listProductCategories.mockImplementation(async () => [...items]);
     service.createProductCategory.mockImplementation(async data => { const item = { ...items[0], ...data, id: 2, code: 'HH000002' }; items.push(item); return item; });
@@ -55,7 +55,7 @@ describe('Product category CRUD', () => {
     fireEvent.change(within(dialog).getByLabelText(/Tên hàng hóa/), { target: { value: 'Thuốc Hanvet' } });
     await waitFor(() => expect(within(dialog).getByLabelText(/Kho lưu trữ/)).toBeEnabled());
     fireEvent.change(within(dialog).getByLabelText(/Kho lưu trữ/), { target: { value: '10' } });
-    fireEvent.change(within(dialog).getByLabelText('Quy cách'), { target: { value: 'Lọ 100ml' } });
+    fireEvent.change(within(dialog).getByLabelText('Đơn vị'), { target: { value: 'Lọ 100ml' } });
     fireEvent.change(within(dialog).getByLabelText('Nhãn hiệu'), { target: { value: 'Hanvet' } });
     fireEvent.change(within(dialog).getByLabelText('Loại hàng hóa'), { target: { value: 'Thuốc thú y' } });
     fireEvent.change(within(dialog).getByLabelText('Mô tả'), { target: { value: 'Thuốc kháng sinh' } });
@@ -70,7 +70,7 @@ describe('Product category CRUD', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Xem Thuốc Hanvet' }));
     dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByLabelText(/Tên hàng hóa/)).toHaveAttribute('readonly');
-    expect(within(dialog).getByLabelText('Quy cách')).toHaveAttribute('readonly');
+    expect(within(dialog).getByLabelText('Đơn vị')).toHaveAttribute('readonly');
     expect(within(dialog).getByLabelText('Nhãn hiệu')).toHaveAttribute('readonly');
     expect(within(dialog).getByLabelText('Loại hàng hóa')).toHaveAttribute('readonly');
     fireEvent.click(within(dialog).getAllByRole('button', { name: 'Đóng' })[0]);
