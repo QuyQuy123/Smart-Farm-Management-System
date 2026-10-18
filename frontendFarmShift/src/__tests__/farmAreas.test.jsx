@@ -126,21 +126,21 @@ describe('Farm area management', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByLabelText(/Khu nuôi/)).toHaveValue('1');
     fireEvent.change(within(dialog).getByLabelText(/Tên chuồng/), { target: { value: 'Nhà A3' } });
-    fireEvent.change(within(dialog).getByLabelText(/Sức chứa tối đa/), { target: { value: '100' } });
-    fireEvent.change(within(dialog).getByLabelText(/Số con hiện có/), { target: { value: '150' } });
+    // Animals arrive only through flock imports, so the barn form declares capacity and area instead of a stock count.
+    expect(within(dialog).queryByLabelText(/Số con hiện có/)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText(/Sức chứa tối đa/), { target: { value: '0' } });
+    fireEvent.change(within(dialog).getByLabelText(/Diện tích/), { target: { value: '-5' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
-    expect(await within(dialog).findByText(/vượt quá sức chứa tối đa/)).toBeInTheDocument();
-
-    fireEvent.change(within(dialog).getByLabelText(/Số con hiện có/), { target: { value: '80' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
-    expect(await within(dialog).findByText('Chỉ chuồng đang hoạt động mới được có vật nuôi.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Sức chứa tối đa phải là số nguyên lớn hơn 0.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Diện tích phải lớn hơn 0.')).toBeInTheDocument();
     expect(service.createBarn).not.toHaveBeenCalled();
 
-    fireEvent.change(within(dialog).getByLabelText(/Trạng thái hoạt động/), { target: { value: 'ACTIVE' } });
+    fireEvent.change(within(dialog).getByLabelText(/Sức chứa tối đa/), { target: { value: '100' } });
+    fireEvent.change(within(dialog).getByLabelText(/Diện tích/), { target: { value: '120' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await screen.findByText('Nhà A3');
     expect(service.createBarn).toHaveBeenCalledWith({
-      areaId: 1, name: 'Nhà A3', purpose: 'FARMING', status: 'ACTIVE', capacity: 100, currentQuantity: 80, targetWeight: null, description: '',
+      areaId: 1, name: 'Nhà A3', purpose: 'FARMING', status: 'INACTIVE', capacity: 100, areaM2: 120, targetWeight: null, description: '',
     });
   });
 
@@ -154,6 +154,7 @@ describe('Farm area management', () => {
     fireEvent.change(within(dialog).getByLabelText(/Sức chứa tối đa/), { target: { value: '10' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     expect(await within(dialog).findByText('Tên chuồng đã tồn tại trong Khu Mía Thịt.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Nhà A1' })).toHaveAttribute('href', '/barns/1');
     expect(within(dialog).getByLabelText(/Tên chuồng/)).toHaveAttribute('aria-invalid', 'true');
   });
 

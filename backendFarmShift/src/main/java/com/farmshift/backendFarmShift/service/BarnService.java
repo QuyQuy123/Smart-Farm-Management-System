@@ -2,20 +2,20 @@ package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.dto.request.BarnRequest;
 import com.farmshift.backendFarmShift.dto.response.BarnResponse;
-import com.farmshift.backendFarmShift.entity.Barn;
-import com.farmshift.backendFarmShift.entity.BarnPurpose;
-import com.farmshift.backendFarmShift.entity.BarnStatus;
-import com.farmshift.backendFarmShift.entity.FarmArea;
+import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.BarnRepository;
+import com.farmshift.backendFarmShift.repository.FarmingCycleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,14 +23,20 @@ import java.util.Locale;
 public class BarnService {
     private final BarnRepository repository;
     private final FarmAreaService areaService;
+    private final FarmingCycleRepository cycleRepository;
 
     public List<BarnResponse> list(Long areaId) {
-        if (areaId == null) return repository.findAllByOrderByCreatedAtAscIdAsc().stream().map(this::response).toList();
-        areaService.find(areaId);
-        return repository.findAllByAreaIdOrderByCreatedAtAscIdAsc(areaId).stream().map(this::response).toList();
+        List<Barn> barns = areaId == null ? repository.findAllByOrderByCreatedAtAscIdAsc()
+                : repository.findAllByAreaIdOrderByCreatedAtAscIdAsc(areaService.find(areaId).getId());
+        Map<Long, Long> activeCycles = cycleRepository.findAllByStatus(CycleStatus.ACTIVE).stream()
+                .collect(Collectors.toMap(cycle -> cycle.getBarn().getId(), FarmingCycle::getId, (first, second) -> first));
+        return barns.stream().map(barn -> response(barn, activeCycles.get(barn.getId()))).toList();
     }
 
-    public BarnResponse get(Long id) { return response(find(id)); }
+    public BarnResponse get(Long id) {
+        Barn barn = find(id);
+        return response(barn, activeCycleId(id));
+    }
 
     @Transactional
     public BarnResponse create(BarnRequest request) {
@@ -49,19 +55,29 @@ public class BarnService {
             throw new ConflictException("Chuồng " + barn.getName() + " đang nuôi " + barn.getCurrentQuantity()
                     + " con. Hãy xuất bán hoặc chuyển hết vật nuôi trước khi xóa chuồng.", "BARN_NOT_EMPTY", null);
         }
+        if (cycleRepository.existsByBarnId(id)) {
+            throw new ConflictException("Chuồng " + barn.getName() + " đã có lịch sử lứa nuôi nên không thể xóa. Hãy chuyển trạng thái sang Đã đóng.",
+                    "BARN_HAS_CYCLES", null);
+        }
         repository.delete(barn);
     }
 
-    private Barn find(Long id) {
+    Barn find(Long id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuồng."));
+    }
+
+    private Long activeCycleId(Long barnId) {
+        return cycleRepository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE).map(FarmingCycle::getId).orElse(null);
     }
 
     private BarnResponse save(Barn barn, BarnRequest request) {
         FarmArea area = areaService.find(request.areaId());
-        validateQuantity(request);
+        boolean creating = barn.getId() == null;
+        Long activeCycle = creating ? null : activeCycleId(barn.getId());
+        validate(barn, request, area, activeCycle);
         String name = FarmAreaService.normalizeName(request.name());
         String key = name.toLowerCase(Locale.ROOT);
-        boolean duplicate = barn.getId() == null ? repository.existsByAreaIdAndNameKey(area.getId(), key)
+        boolean duplicate = creating ? repository.existsByAreaIdAndNameKey(area.getId(), key)
                 : repository.existsByAreaIdAndNameKeyAndIdNot(area.getId(), key, barn.getId());
         if (duplicate) throw duplicateName(area);
         barn.setArea(area);
@@ -70,29 +86,33 @@ public class BarnService {
         barn.setPurpose(request.purpose());
         barn.setStatus(request.status());
         barn.setCapacity(request.capacity());
-        barn.setCurrentQuantity(request.currentQuantity());
+        barn.setAreaM2(request.areaM2());
         barn.setTargetWeight(request.targetWeight());
         barn.setDescription(request.description() == null ? "" : request.description().strip());
         try {
-            return response(repository.saveAndFlush(barn));
+            return response(repository.saveAndFlush(barn), activeCycle);
         } catch (DataIntegrityViolationException exception) {
             throw duplicateName(area);
         }
     }
 
-    /** Animals may only live in an active farming barn, and never above its capacity. */
-    private void validateQuantity(BarnRequest request) {
-        int current = request.currentQuantity();
-        if (current > request.capacity()) {
-            throw new BadRequestException("Số con hiện có (" + current + ") vượt quá sức chứa tối đa (" + request.capacity() + ").",
-                    "BARN_OVER_CAPACITY");
+    /** A barn holding animals or running a cycle must stay an active farming barn in its area, with room for its stock. */
+    private void validate(Barn barn, BarnRequest request, FarmArea area, Long activeCycle) {
+        int current = barn.getCurrentQuantity();
+        if (request.capacity() < current) {
+            throw new BadRequestException("Sức chứa tối đa (" + request.capacity() + ") nhỏ hơn số con đang nuôi (" + current + ").",
+                    "BARN_CAPACITY_BELOW_STOCK");
         }
-        if (current > 0 && request.purpose() == BarnPurpose.BIO_TREATMENT) {
-            throw new BadRequestException("Chuồng xử lý hóa sinh không chứa vật nuôi. Số con hiện có phải bằng 0.", "BARN_TREATMENT_NOT_EMPTY");
+        if (activeCycle == null) return;
+        if (request.status() != BarnStatus.ACTIVE) {
+            throw new BadRequestException("Chuồng đang có lứa nuôi nên phải ở trạng thái Đang hoạt động. Hãy kết thúc lứa trước.",
+                    "BARN_ACTIVE_CYCLE_STATUS");
         }
-        if (current > 0 && request.status() != BarnStatus.ACTIVE) {
-            throw new BadRequestException("Chỉ chuồng đang hoạt động mới được có vật nuôi. Hãy chuyển hết vật nuôi trước khi đổi trạng thái.",
-                    "BARN_INACTIVE_NOT_EMPTY");
+        if (request.purpose() != BarnPurpose.FARMING) {
+            throw new BadRequestException("Chuồng đang có lứa nuôi nên không thể đổi sang xử lý hóa sinh.", "BARN_ACTIVE_CYCLE_PURPOSE");
+        }
+        if (!barn.getArea().getId().equals(area.getId())) {
+            throw new BadRequestException("Chuồng đang có lứa nuôi nên không thể chuyển sang khu khác.", "BARN_ACTIVE_CYCLE_MOVE");
         }
     }
 
@@ -100,10 +120,11 @@ public class BarnService {
         return new ConflictException("Tên chuồng đã tồn tại trong " + area.getName() + ".", "BARN_DUPLICATE", "name");
     }
 
-    private BarnResponse response(Barn barn) {
+    static BarnResponse response(Barn barn, Long activeCycleId) {
         FarmArea area = barn.getArea();
         return new BarnResponse(barn.getId(), String.format(Locale.ROOT, "CH%06d", barn.getId()), area.getId(), area.getName(),
-                barn.getName(), barn.getPurpose(), barn.getStatus(), barn.getCapacity(), barn.getCurrentQuantity(),
-                barn.getTargetWeight(), barn.getDescription(), barn.getCreatedAt(), barn.getUpdatedAt());
+                area.getLivestockType(), barn.getName(), barn.getPurpose(), barn.getStatus(), barn.getCapacity(),
+                barn.getCurrentQuantity(), barn.getAreaM2(), barn.getTargetWeight(), barn.getDescription(), activeCycleId,
+                barn.getCreatedAt(), barn.getUpdatedAt());
     }
 }

@@ -80,6 +80,7 @@
 .modalBody p { line-height: 1.6; margin: 0; }
 .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 12px 0; }
 .required { color: #dc2626; }
+.formHint { margin: 0 0 14px !important; font-size: 12px; color: #607781; line-height: 1.5; }
 .invalid { border-color: #e11d48 !important; }
 .fieldError { color: #e11d48 !important; font-size: 12px; margin: 2px 0 8px !important; }
 .metricGroup { border: 0; padding: 0; margin: 0 0 16px; min-width: 0; }
@@ -102,3 +103,20 @@
   .formGrid { grid-template-columns: 1fr; }
   .dialog { padding: 12px; }
 }
+
+/* Cycle dialogs (CycleDialogs.jsx) */
+.fullRow { grid-column: 1 / -1; }
+.fieldHint { display: block; margin: 2px 0 8px; font-size: 12px; color: #71818a; }
+.infoNote { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; margin: 0 0 16px !important; border-radius: 8px; background: #eef6ff; color: #254fad; border: 1px solid #c9dcfb; font-size: 13px; }
+.infoNote svg { flex-shrink: 0; margin-top: 3px; }
+.segmented { display: flex; gap: 4px; padding: 4px; margin-bottom: 16px; border-radius: 10px; background: #f0f4f6; }
+.segmented button { flex: 1; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: #42545c; font: inherit; font-size: 13px; cursor: pointer; }
+.segmented button:disabled { opacity: 0.5; cursor: not-allowed; }
+.segmented .segmentActive { background: #fff; color: #00695c; font-weight: 600; box-shadow: 0 1px 3px #0f1e3522; }
+.stepPreview { list-style: none; margin: 12px 0 0; padding: 0; border: 1px solid #e3ebe8; border-radius: 10px; }
+.stepPreview li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; font-size: 13px; border-top: 1px solid #edf1f0; }
+.stepPreview li:first-child { border-top: 0; }
+.stepPreview span { color: #71818a; white-space: nowrap; }
+.stepRow { display: grid; grid-template-columns: 2fr 0.8fr 0.8fr 1fr 0.9fr 32px; gap: 6px; align-items: center; margin-bottom: 8px; }
+.stepRow > p { grid-column: 1 / -1; }
+@media (max-width: 640px) { .stepRow { grid-template-columns: 1fr 1fr; } }

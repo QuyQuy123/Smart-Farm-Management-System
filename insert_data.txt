@@ -62,3 +62,87 @@ FROM (VALUES ('khu mía thịt', 'Nhà A1', 'nhà a1', 'FARMING', 'ACTIVE', 5000
      AS b(area_key, name, name_key, purpose, status, capacity, current_quantity, created_at)
 JOIN farm_areas a ON a.name_key = b.area_key
 ON CONFLICT ON CONSTRAINT uk_barns_area_name DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 6. Diện tích chuồng (m²) - dùng để tính mật độ nuôi
+-- ---------------------------------------------------------------------
+UPDATE barns b SET area_m2 = v.area_m2
+FROM (VALUES ('khu mía thịt', 'nhà a1', 1000), ('khu mía thịt', 'nhà a2', 1000), ('khu mía thịt', 'nhà a3', 1000),
+             ('khu j thịt', 'nhà b1', 1600), ('khu j thịt', 'nhà b2', 1600)) AS v(area_key, barn_key, area_m2),
+     farm_areas a
+WHERE a.id = b.area_id AND a.name_key = v.area_key AND b.name_key = v.barn_key AND b.area_m2 IS NULL;
+
+-- ---------------------------------------------------------------------
+-- 7. Lứa nuôi (Farming Cycles) - lứa thứ 1 của 5 chuồng mẫu, đang nuôi
+-- ---------------------------------------------------------------------
+INSERT INTO farming_cycles (barn_id, cycle_number, start_date, hatch_date, end_date, status, note, created_at, updated_at)
+SELECT b.id, 1, DATE '2026-10-01', NULL, NULL, 'ACTIVE', '', TIMESTAMP '2026-10-01 07:00:00', TIMESTAMP '2026-10-01 07:00:00'
+FROM barns b JOIN farm_areas a ON a.id = b.area_id
+WHERE (a.name_key, b.name_key) IN (('khu mía thịt', 'nhà a1'), ('khu mía thịt', 'nhà a2'), ('khu mía thịt', 'nhà a3'),
+                                   ('khu j thịt', 'nhà b1'), ('khu j thịt', 'nhà b2'))
+ON CONFLICT ON CONSTRAINT uk_cycles_barn_number DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 8. Đàn (Flocks) - gender: MALE (Trống) | FEMALE (Mái) | MIXED (Xô)
+-- Nhà A3: đàn trống 20.000 con x 11.000đ + đàn mái 10.000 con x 11.500đ = 335.000.000đ
+-- ---------------------------------------------------------------------
+INSERT INTO flocks (cycle_id, name, gender, source_type, source_note, source_flock_id, import_date, age_at_import, import_quantity,
+                    import_avg_weight, unit_price, quantity, status, note, created_at, updated_at)
+SELECT c.id, v.name, v.gender, 'PURCHASE', 'Khác', NULL, DATE '2026-10-01', 1, v.qty, 0.040, v.price, v.qty, 'ACTIVE', '',
+       TIMESTAMP '2026-10-01 08:00:00', TIMESTAMP '2026-10-01 08:00:00'
+FROM (VALUES ('khu mía thịt', 'nhà a1', 'MÍA-DABACO XÔ', 'MIXED', 50000, 11000),
+             ('khu mía thịt', 'nhà a2', 'MÍA-DABACO XÔ', 'MIXED', 40000, 11000),
+             ('khu mía thịt', 'nhà a3', 'MÍA-DABACO TRỐNG', 'MALE', 20000, 11000),
+             ('khu mía thịt', 'nhà a3', 'MÍA-DABACO MÁI', 'FEMALE', 10000, 11500),
+             ('khu j thịt', 'nhà b1', 'J-DABACO XÔ', 'MIXED', 50000, 10500),
+             ('khu j thịt', 'nhà b2', 'J-DABACO XÔ', 'MIXED', 50000, 10500)) AS v(area_key, barn_key, name, gender, qty, price)
+JOIN farm_areas a ON a.name_key = v.area_key
+JOIN barns b ON b.area_id = a.id AND b.name_key = v.barn_key
+JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = 1
+WHERE NOT EXISTS (SELECT 1 FROM flocks f WHERE f.cycle_id = c.id AND f.name = v.name);
+
+-- Biến động "Nhập đàn" cho mỗi đàn mẫu (dùng để tính tổng nhập, khối lượng vào và FCR)
+INSERT INTO flock_movements (flock_id, type, movement_date, quantity, weight_kg, unit_price, related_flock_id, note, created_by, created_at)
+SELECT f.id, 'IMPORT', f.import_date, f.import_quantity, f.import_quantity * f.import_avg_weight, NULL, NULL, 'Dữ liệu mẫu', 'seed', f.created_at
+FROM flocks f
+WHERE NOT EXISTS (SELECT 1 FROM flock_movements m WHERE m.flock_id = f.id AND m.type = 'IMPORT');
+
+-- Số con của chuồng = tổng tồn các đàn trong lứa đang nuôi; chuồng có lứa đang nuôi ở trạng thái ACTIVE
+UPDATE barns b SET current_quantity = COALESCE((SELECT SUM(f.quantity) FROM flocks f JOIN farming_cycles c ON c.id = f.cycle_id
+                                                WHERE c.barn_id = b.id AND c.status = 'ACTIVE'), 0);
+UPDATE barns b SET status = 'ACTIVE'
+WHERE EXISTS (SELECT 1 FROM farming_cycles c WHERE c.barn_id = b.id AND c.status = 'ACTIVE');
+
+-- ---------------------------------------------------------------------
+-- 9. Chương trình nuôi mẫu (Farming Programs) - type: FEED | HEALTH | WORK
+-- ---------------------------------------------------------------------
+INSERT INTO farming_programs (name, name_key, type, description, created_at, updated_at)
+VALUES ('Lịch vắc-xin gà thịt', 'lịch vắc-xin gà thịt', 'HEALTH', 'Lịch phòng bệnh cơ bản cho gà thịt lông màu', TIMESTAMP '2026-10-01 06:00:00', TIMESTAMP '2026-10-01 06:00:00'),
+       ('Định mức cám gà thịt', 'định mức cám gà thịt', 'FEED', 'Lượng cám theo giai đoạn (g/con/ngày)', TIMESTAMP '2026-10-01 06:00:00', TIMESTAMP '2026-10-01 06:00:00'),
+       ('Công việc chăm sóc hằng ngày', 'công việc chăm sóc hằng ngày', 'WORK', 'Dùng khi ghi việc đã làm', TIMESTAMP '2026-10-01 06:00:00', TIMESTAMP '2026-10-01 06:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+INSERT INTO farming_program_steps (program_id, name, day_from, day_to, quantity, unit, note)
+SELECT p.id, v.name, v.day_from, v.day_to, v.quantity, v.unit, ''
+FROM (VALUES ('lịch vắc-xin gà thịt', 'Newcastle + IB lần 1 (Lasota)', 5, 5, 1, 'liều/con'),
+             ('lịch vắc-xin gà thịt', 'Gumboro lần 1', 10, 10, 1, 'liều/con'),
+             ('lịch vắc-xin gà thịt', 'Gumboro lần 2', 17, 17, 1, 'liều/con'),
+             ('lịch vắc-xin gà thịt', 'Newcastle lần 2 (Lasota)', 21, 21, 1, 'liều/con'),
+             ('định mức cám gà thịt', 'Cám giai đoạn 1 (Higro 01)', 1, 14, 25, 'g/con/ngày'),
+             ('định mức cám gà thịt', 'Cám giai đoạn 2 (Higro 02)', 15, 35, 85, 'g/con/ngày'),
+             ('định mức cám gà thịt', 'Cám giai đoạn 3 (Higro 03)', 36, 75, 120, 'g/con/ngày'),
+             ('công việc chăm sóc hằng ngày', 'Vệ sinh máng ăn và máng uống', 1, 90, NULL, ''),
+             ('công việc chăm sóc hằng ngày', 'Kiểm tra thông gió chuồng', 1, 90, NULL, ''))
+     AS v(program_key, name, day_from, day_to, quantity, unit)
+JOIN farming_programs p ON p.name_key = v.program_key
+WHERE NOT EXISTS (SELECT 1 FROM farming_program_steps s WHERE s.program_id = p.id AND s.name = v.name);
+
+-- Áp dụng "Lịch vắc-xin gà thịt" và "Định mức cám gà thịt" cho lứa đang nuôi của Nhà A3
+INSERT INTO cycle_programs (cycle_id, program_id, created_at)
+SELECT c.id, p.id, TIMESTAMP '2026-10-01 09:00:00'
+FROM farming_cycles c
+JOIN barns b ON b.id = c.barn_id AND b.name_key = 'nhà a3'
+JOIN farm_areas a ON a.id = b.area_id AND a.name_key = 'khu mía thịt'
+JOIN farming_programs p ON p.name_key IN ('lịch vắc-xin gà thịt', 'định mức cám gà thịt')
+WHERE c.cycle_number = 1
+ON CONFLICT ON CONSTRAINT uk_cycle_programs DO NOTHING;

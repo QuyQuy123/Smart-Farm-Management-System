@@ -228,7 +228,7 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
               const status = BARN_STATUSES.find(option => option.value === barn.status);
               const fill = barn.capacity ? Math.min(100, Math.round((barn.currentQuantity / barn.capacity) * 100)) : 0;
               return <tr key={barn.id}>
-                <td><strong className={styles.barnName}>{barn.name}</strong>{barn.description && <small className={styles.subtext}>{barn.description}</small>}</td>
+                <td><Link to={`/barns/${barn.id}`} className={styles.nameLink}>{barn.name}</Link>{barn.description && <small className={styles.subtext}>{barn.description}</small>}</td>
                 <td><Link to={`/areas/${barn.areaId}`} className={styles.areaLink}>{barn.areaName}</Link></td>
                 <td>{labelOf(BARN_PURPOSES, barn.purpose)}</td>
                 <td><span className={`${styles.badge} ${styles[`badge_${status?.tone || 'neutral'}`]}`}>{status?.label || barn.status}</span></td>
@@ -236,10 +236,13 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
                   <span className={styles.fillTrack} aria-hidden="true"><span style={{ width: `${fill}%` }} /></span></td>
                 {area && <td>{barn.targetWeight == null ? '—' : Number(barn.targetWeight).toLocaleString('vi-VN')}</td>}
                 <td className={styles.date}>{formatDate(barn.createdAt)}</td>
-                <td className={styles.actionCell}>{canEdit && <RowMenu label={barn.name} items={[
-                  { label: 'Chỉnh sửa chuồng', icon: Pencil, onClick: () => onOpen({ type: 'barn', item: barn }) },
-                  { label: 'Xóa chuồng', icon: Trash2, danger: true, onClick: () => onOpen({ type: 'delete', kind: 'barn', item: barn }) },
-                ]} />}</td>
+                <td className={styles.actionCell}><RowMenu label={barn.name} items={[
+                  { label: 'Xem chi tiết chuồng', icon: Eye, onClick: () => navigate(`/barns/${barn.id}`) },
+                  ...(canEdit ? [
+                    { label: 'Chỉnh sửa chuồng', icon: Pencil, onClick: () => onOpen({ type: 'barn', item: barn }) },
+                    { label: 'Xóa chuồng', icon: Trash2, danger: true, onClick: () => onOpen({ type: 'delete', kind: 'barn', item: barn }) },
+                  ] : []),
+                ]} /></td>
               </tr>;
             })}
         </tbody>

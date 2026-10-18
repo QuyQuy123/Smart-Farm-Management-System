@@ -1,7 +1,6 @@
 package com.farmshift.backendFarmShift;
 
-import com.farmshift.backendFarmShift.repository.BarnRepository;
-import com.farmshift.backendFarmShift.repository.FarmAreaRepository;
+import com.farmshift.backendFarmShift.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +38,6 @@ class FarmAreaIntegrationTest {
 
     @BeforeEach
     void reset() {
-        barnRepository.deleteAll();
         areaRepository.deleteAll();
     }
 
@@ -53,14 +52,14 @@ class FarmAreaIntegrationTest {
         return body;
     }
 
-    private Map<String, Object> barn(long areaId, String name, int capacity, int current) {
+    private Map<String, Object> barn(long areaId, String name, int capacity) {
         Map<String, Object> body = new HashMap<>();
         body.put("areaId", areaId);
         body.put("name", name);
         body.put("purpose", "FARMING");
-        body.put("status", current > 0 ? "ACTIVE" : "INACTIVE");
+        body.put("status", "INACTIVE");
         body.put("capacity", capacity);
-        body.put("currentQuantity", current);
+        body.put("areaM2", 1000);
         body.put("targetWeight", 2.3);
         return body;
     }
@@ -69,6 +68,15 @@ class FarmAreaIntegrationTest {
         var result = mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
             .andExpect(status().isCreated()).andReturn();
         return mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+    }
+
+    /** Animals only enter a barn through a farming cycle: declare the cycle, then import a flock. */
+    private long stock(long barnId, int quantity) throws Exception {
+        String today = LocalDate.now().toString();
+        long cycleId = create(BARNS + "/" + barnId + "/cycles", Map.of("startDate", today));
+        create("/api/cycles/" + cycleId + "/flocks", Map.of("name", "Gà Mía", "gender", "MIXED", "importDate", today,
+                "ageAtImport", 1, "quantity", quantity, "avgWeight", 0.04, "unitPrice", 12000));
+        return cycleId;
     }
 
     @Test
@@ -84,9 +92,9 @@ class FarmAreaIntegrationTest {
             .andExpect(jsonPath("$.data.barnCount").value(0));
         long areaId = areaRepository.findAll().get(0).getId();
 
-        create(BARNS, barn(areaId, "Nhà A1", 50000, 50000));
-        create(BARNS, barn(areaId, "Nhà A2", 50000, 40000));
-        create(BARNS, barn(areaId, "Nhà A3", 50000, 0));
+        stock(create(BARNS, barn(areaId, "Nhà A1", 50000)), 50000);
+        stock(create(BARNS, barn(areaId, "Nhà A2", 50000)), 40000);
+        create(BARNS, barn(areaId, "Nhà A3", 50000));
 
         mvc.perform(get(AREAS + "/" + areaId)).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.barnCount").value(3))
@@ -97,15 +105,20 @@ class FarmAreaIntegrationTest {
             .andExpect(jsonPath("$.data.length()").value(3))
             .andExpect(jsonPath("$.data[0].name").value("Nhà A1"))
             .andExpect(jsonPath("$.data[0].areaName").value("Khu Mía Thịt"))
+            .andExpect(jsonPath("$.data[0].status").value("ACTIVE"))
+            .andExpect(jsonPath("$.data[0].activeCycleId").isNumber())
+            .andExpect(jsonPath("$.data[2].activeCycleId").doesNotExist())
             .andExpect(jsonPath("$.data[0].code").value(org.hamcrest.Matchers.startsWith("CH")));
         mvc.perform(get(AREAS)).andExpect(status().isOk()).andExpect(jsonPath("$.data[0].barnCount").value(3));
     }
 
     @Test
-    void updatesAreaAndMovesBarnBetweenAreas() throws Exception {
+    void updatesAreaAndMovesOnlyBarnsWithoutRunningCycle() throws Exception {
         long mia = create(AREAS, area("Khu Mía Thịt"));
         long j = create(AREAS, area("Khu J Thịt"));
-        long barnId = create(BARNS, barn(mia, "Nhà A1", 100, 10));
+        long empty = create(BARNS, barn(mia, "Nhà A1", 100));
+        long stocked = create(BARNS, barn(mia, "Nhà A2", 100));
+        stock(stocked, 20);
 
         Map<String, Object> rename = area("Khu Mía Thịt 2");
         rename.put("livestockType", "LIVESTOCK");
@@ -114,11 +127,12 @@ class FarmAreaIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.livestockType").value("LIVESTOCK"))
             .andExpect(jsonPath("$.data.mealsPerDay").value(0));
 
-        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(j, "Nhà B1", 100, 20))))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.data.areaId").value(j))
-            .andExpect(jsonPath("$.data.name").value("Nhà B1")).andExpect(jsonPath("$.data.currentQuantity").value(20));
-        mvc.perform(get(AREAS + "/" + mia)).andExpect(jsonPath("$.data.barnCount").value(0));
-        mvc.perform(get(AREAS + "/" + j)).andExpect(jsonPath("$.data.animalCount").value(20));
+        mvc.perform(put(BARNS + "/" + empty).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(j, "Nhà B1", 100))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.areaId").value(j)).andExpect(jsonPath("$.data.name").value("Nhà B1"));
+        Map<String, Object> move = barn(j, "Nhà A2", 100);
+        move.put("status", "ACTIVE");
+        mvc.perform(put(BARNS + "/" + stocked).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(move)))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_ACTIVE_CYCLE_MOVE"));
     }
 
     @Test
@@ -130,11 +144,11 @@ class FarmAreaIntegrationTest {
         mvc.perform(put(AREAS + "/" + mia).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(area("Khu Mía Thịt"))))
             .andExpect(status().isOk());
 
-        create(BARNS, barn(mia, "Nhà A1", 100, 0));
-        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(mia, "nhà a1", 100, 0))))
+        create(BARNS, barn(mia, "Nhà A1", 100));
+        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(mia, "nhà a1", 100))))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("BARN_DUPLICATE"));
         // The same barn name is allowed in a different area.
-        create(BARNS, barn(j, "Nhà A1", 100, 0));
+        create(BARNS, barn(j, "Nhà A1", 100));
     }
 
     @Test
@@ -158,42 +172,50 @@ class FarmAreaIntegrationTest {
     }
 
     @Test
-    void enforcesBarnQuantityRules() throws Exception {
+    void enforcesBarnRulesAgainstItsStockAndCycle() throws Exception {
         long areaId = create(AREAS, area("Khu A"));
-        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(areaId, "Nhà 1", 100, 101))))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_OVER_CAPACITY"));
-        Map<String, Object> treatment = barn(areaId, "Bể xử lý", 100, 5);
-        treatment.put("purpose", "BIO_TREATMENT");
-        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(treatment)))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_TREATMENT_NOT_EMPTY"));
-        Map<String, Object> closed = barn(areaId, "Nhà 2", 100, 5);
-        closed.put("status", "CLOSED");
-        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(closed)))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_INACTIVE_NOT_EMPTY"));
-        Map<String, Object> zeroCapacity = barn(areaId, "Nhà 3", 0, 0);
-        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(zeroCapacity)))
+        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(areaId, "Nhà 0", 0))))
             .andExpect(status().isBadRequest());
-        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(99999, "Nhà 4", 10, 0))))
+        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(99999, "Nhà 4", 10))))
             .andExpect(status().isNotFound());
-        assertEquals(0, barnRepository.count());
+
+        long barnId = create(BARNS, barn(areaId, "Nhà 1", 100));
+        stock(barnId, 80);
+        Map<String, Object> shrink = barn(areaId, "Nhà 1", 50);
+        shrink.put("status", "ACTIVE");
+        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(shrink)))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_CAPACITY_BELOW_STOCK"));
+        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(areaId, "Nhà 1", 100))))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_ACTIVE_CYCLE_STATUS"));
+        Map<String, Object> treatment = barn(areaId, "Nhà 1", 100);
+        treatment.put("status", "ACTIVE");
+        treatment.put("purpose", "BIO_TREATMENT");
+        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(treatment)))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_ACTIVE_CYCLE_PURPOSE"));
+        Map<String, Object> bigger = barn(areaId, "Nhà 1", 200);
+        bigger.put("status", "ACTIVE");
+        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(bigger)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.capacity").value(200)).andExpect(jsonPath("$.data.currentQuantity").value(80));
     }
 
     @Test
-    void blocksDeletingAreaWithBarnsAndBarnWithAnimals() throws Exception {
+    void blocksDeletingAreaWithBarnsAndBarnsWithAnimalsOrHistory() throws Exception {
         long areaId = create(AREAS, area("Khu A"));
-        long barnId = create(BARNS, barn(areaId, "Nhà 1", 100, 30));
+        long stocked = create(BARNS, barn(areaId, "Nhà 1", 100));
+        stock(stocked, 30);
+        long empty = create(BARNS, barn(areaId, "Nhà 2", 100));
 
         mvc.perform(delete(AREAS + "/" + areaId)).andExpect(status().isConflict())
             .andExpect(jsonPath("$.errorCode").value("FARM_AREA_HAS_BARNS"));
-        mvc.perform(delete(BARNS + "/" + barnId)).andExpect(status().isConflict())
+        mvc.perform(delete(BARNS + "/" + stocked)).andExpect(status().isConflict())
             .andExpect(jsonPath("$.errorCode").value("BARN_NOT_EMPTY"));
+        mvc.perform(delete(BARNS + "/" + empty)).andExpect(status().isOk());
 
-        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(areaId, "Nhà 1", 100, 0))))
-            .andExpect(status().isOk());
-        mvc.perform(delete(BARNS + "/" + barnId)).andExpect(status().isOk());
-        mvc.perform(delete(AREAS + "/" + areaId)).andExpect(status().isOk());
-        mvc.perform(get(AREAS + "/" + areaId)).andExpect(status().isNotFound());
-        mvc.perform(get(BARNS).param("areaId", String.valueOf(areaId))).andExpect(status().isNotFound());
+        long historyBarn = create(BARNS, barn(areaId, "Nhà 3", 100));
+        create(BARNS + "/" + historyBarn + "/cycles", Map.of("startDate", LocalDate.now().toString()));
+        mvc.perform(delete(BARNS + "/" + historyBarn)).andExpect(status().isConflict())
+            .andExpect(jsonPath("$.errorCode").value("BARN_HAS_CYCLES"));
+        mvc.perform(get(BARNS).param("areaId", "99999")).andExpect(status().isNotFound());
     }
 
     @Test
@@ -206,7 +228,7 @@ class FarmAreaIntegrationTest {
         mvc.perform(put(AREAS + "/1").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(area("Khu A"))))
             .andExpect(status().isForbidden());
         mvc.perform(delete(AREAS + "/1")).andExpect(status().isForbidden());
-        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(1, "Nhà 1", 10, 0))))
+        mvc.perform(post(BARNS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(1, "Nhà 1", 10))))
             .andExpect(status().isForbidden());
         mvc.perform(delete(BARNS + "/1")).andExpect(status().isForbidden());
     }
