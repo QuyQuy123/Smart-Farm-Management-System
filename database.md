@@ -2,6 +2,23 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
+## Bảng `product_categories` — Danh mục hàng hóa
+
+Entity `ProductCategory` lưu nhóm/loại hàng tại **Thiết lập danh mục → Danh mục hàng hóa** (tên tab trước đây là Loại hàng hóa). Bảng này độc lập với `warehouse_categories`.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. API sinh mã hiển thị `HH000001` từ ID, giữ nguyên khi đổi tên. |
+| `name` | VARCHAR(150) | NOT NULL. Tên danh mục hàng hóa, bắt buộc nhập. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa Unicode NFC, bỏ khoảng trắng đầu/cuối và chuyển chữ thường để ngăn trùng tên. |
+| `description` | VARCHAR(1000) | Mô tả / ghi chú, có thể để trống. |
+| `created_at` | TIMESTAMP | Thời điểm tạo đầy đủ giờ/phút/giây; UI chỉ hiển thị `dd/mm/yyyy`. Không đổi khi sửa danh mục. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
+
+API `GET /api/product-categories` và `GET /api/product-categories/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Danh sách sắp xếp theo `created_at`, rồi ID tăng dần. UI hỗ trợ tìm kiếm, xem, thêm, sửa, xác nhận xóa và sử dụng thông báo chung ở header.
+
+Chưa có entity hàng hóa nên `itemCount` hiện là `0`, không lưu số lượng giả hoặc nhập thủ công. Khi có entity hàng hóa, cần liên kết khóa ngoại, đếm mặt hàng và chặn xóa danh mục đang được sử dụng. Không tự thêm dữ liệu mẫu. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo bảng.
+
 ## Bảng `warehouse_categories` — Danh mục kho
 
 Entity `WarehouseCategory` lưu danh mục tại **Thiết lập danh mục → Danh mục kho**. Đây là danh mục nhóm hàng lưu trữ (Kho cám, Kho thuốc...), chưa phải danh sách kho vật lý với vị trí và sức chứa.

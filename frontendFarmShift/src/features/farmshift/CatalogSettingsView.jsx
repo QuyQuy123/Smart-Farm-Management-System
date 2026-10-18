@@ -7,19 +7,12 @@ import {
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { WarehouseCategoriesView } from './WarehouseCategoriesView';
+import { ProductCategoriesView } from './ProductCategoriesView';
 
 export const CatalogSettingsView = () => {
   const [activeTab, setActiveTab] = useState('warehouses');
   // 'categories' | 'brands' | 'units' | 'specs' | 'warehouses' | 'suppliers' | 'customers'
 
-  const categories = [
-    { id: 1, name: 'Con giống gia cầm', code: 'CG', count: 2, note: 'Gà giống J-Dabaco, Mía Dabaco' },
-    { id: 2, name: 'Nguyên liệu / Thức ăn chăn nuôi', code: 'TA', count: 3, note: 'Cám úm Higro 01, Cám thịt Higro 02, Cám vỗ béo 03' },
-    { id: 3, name: 'Vắc-xin phòng bệnh', code: 'VX', count: 2, note: 'Newcastle Lasota, Gumboro D78 bảo quản lạnh' },
-    { id: 4, name: 'Thuốc thú y & Kháng sinh', code: 'TH', count: 2, note: 'Kháng sinh Doxycycline, hạ sốt Paracetamol C' },
-    { id: 5, name: 'Hóa chất khử trùng', code: 'HC', count: 2, note: 'BKC 80%, Iodine khử trùng chuồng trại' },
-    { id: 6, name: 'Hàng thu hoạch', code: 'THUHOACH', count: 2, note: 'Gà thịt xuất chuồng, trứng gà sạch' },
-  ];
 
   const brands = [
     { id: 1, name: 'Tập đoàn Dabaco', type: 'Con giống & Cám', country: 'Việt Nam', note: 'Gà giống J-Dabaco, Mía Dabaco' },
@@ -80,7 +73,7 @@ export const CatalogSettingsView = () => {
           className={`farmshift-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
           onClick={() => setActiveTab('categories')}
         >
-          Loại hàng hóa
+          Danh mục hàng hóa
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'brands' ? 'active' : ''}`}
@@ -114,39 +107,7 @@ export const CatalogSettingsView = () => {
         </button>
       </div>
 
-      {/* ── Tab 1: Loại hàng hóa ─────────────────────────── */}
-      {activeTab === 'categories' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Phân loại danh mục hàng hóa</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
-              + Thêm loại hàng
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Mã loại</th>
-                  <th>Tên loại hàng hóa</th>
-                  <th>Số mặt hàng đang quản lý</th>
-                  <th>Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map(c => (
-                  <tr key={c.id}>
-                    <td><span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{c.code}</span></td>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{c.name}</strong></td>
-                    <td><strong>{c.count}</strong> mặt hàng</td>
-                    <td style={{ color: 'var(--color-muted)' }}>{c.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'categories' && <ProductCategoriesView />}
 
       {/* ── Tab 2: Nhãn hiệu ─────────────────────────────── */}
       {activeTab === 'brands' && (
