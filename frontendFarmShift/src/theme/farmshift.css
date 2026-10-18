@@ -911,6 +911,24 @@ h6 {
 }
 
 /* ── Button Loading States & Micro-animations ──────────────── */
+.farmshift-btn-mint {
+  background: #e0f5ef;
+  border-color: #a7dfcf;
+  color: #007968;
+}
+
+.farmshift-btn-mint:hover,
+.farmshift-btn-mint:active {
+  background: #d3eee5;
+  border-color: #8ecfbb;
+}
+
+.farmshift-btn-mint[aria-busy="true"] {
+  background: #e0f5ef;
+  border-color: #a7dfcf;
+  color: #007968;
+}
+
 .farmshift-btn.is-loading,
 .farmshift-btn-loading,
 .farmshift-btn[aria-busy="true"],

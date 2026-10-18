@@ -1,0 +1,45 @@
+.card { overflow: hidden; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #edf1f0; flex-wrap: wrap; }
+.heading { display: flex; align-items: center; gap: 12px; }
+.headingIcon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #e8f6f1; color: #008577; }
+.heading h2 { margin: 0; font-size: 17px; font-weight: 600; color: #182b31; }
+.heading p { margin: 4px 0 0; font-size: 12px; color: #71818a; }
+.searchRow { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 24px; flex-wrap: wrap; }
+.search { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid #dce5e2; border-radius: 10px; width: min(100%, 360px); color: #71818a; box-sizing: border-box; }
+.search:focus-within { border-color: #008577; box-shadow: 0 0 0 3px #e0f5ef; }
+.search input { width: 100%; min-width: 0; border: 0; outline: 0; font: inherit; font-size: 13px; background: transparent; }
+.total { color: #71818a; font-size: 12px; }
+.table { min-width: 780px; }
+.table th { font-size: 12px; font-weight: 600; color: #607781; background: #f6f9f8; }
+.table td { padding-top: 18px; padding-bottom: 18px; }
+.code { font-family: monospace; font-size: 13px; color: #007968; background: #edf7f4; padding: 5px 8px; border-radius: 6px; }
+.description { max-width: 380px; white-space: normal; overflow-wrap: anywhere; color: #71818a; }
+.table td:nth-child(2) { max-width: 260px; white-space: normal; overflow-wrap: anywhere; }
+.count { display: inline-block; min-width: 24px; text-align: center; border-radius: 6px; padding: 3px 7px; background: #f0f4f6; color: #536b76; }
+.date { white-space: nowrap; color: #607781; }
+.actions { display: flex; gap: 6px; }
+.iconButton { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; padding: 0; border: 1px solid #e2eae7; border-radius: 8px; background: #fff; color: #607781; cursor: pointer; }
+.iconButton:hover { background: #e8f6f1; color: #008577; border-color: #bddfd2; }
+.iconButton:focus-visible { outline: 2px solid #008577; outline-offset: 2px; }
+.iconButton:disabled { opacity: 0.5; cursor: wait; }
+.danger:hover { color: #c63030; background: #fff0f0; border-color: #f2bcbc; }
+.empty { padding: 40px 24px !important; text-align: center; font-size: 13px; color: #71818a; }
+.dialog { position: fixed; inset: 0; margin: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; border: 0; padding: 20px; box-sizing: border-box; background: transparent; }
+.dialog[open] { display: grid; place-items: center; }
+.dialog::backdrop { background: rgba(15, 30, 35, 0.48); backdrop-filter: blur(4px); }
+.modal { width: min(100%, 500px); max-height: 100%; overflow-y: auto; background: #fff; border-radius: 18px; box-shadow: 0 24px 80px #0f1e3533; }
+.modalHeader { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; gap: 16px; border-bottom: 1px solid #edf1f0; }
+.modalHeader h2 { margin: 0; font-size: 18px; font-weight: 600; color: #182b31; }
+.modalBody { padding: 24px; }
+.modalBody label { display: block; font-size: 13px; font-weight: 500; margin: 0 0 8px; }
+.modalBody textarea { margin-top: 0; resize: vertical; min-height: 100px; }
+.modalBody input { margin-bottom: 20px; }
+.modalBody p { line-height: 1.6; margin: 0; }
+.modalBody [readonly] { background: #f6f9f8; }
+.required { color: #dc2626; }
+.metadata { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: #71818a; margin-bottom: 22px; }
+.error { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; margin: 0 0 18px !important; border-radius: 8px; background: #fff1f0; color: #c63030; font-size: 13px; }
+.error svg { flex-shrink: 0; margin-top: 2px; }
+.footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #f8fbfa; border-top: 1px solid #edf1f0; }
+.footer .deleteButton { background: #fff0f0; color: #c63030; border-color: #f2bcbc; }
+@media (max-width: 480px) { .toolbar, .searchRow, .modalHeader, .modalBody { padding: 16px; } .dialog { padding: 12px; } .toolbar > button { width: 100%; } .search { width: 100%; } }

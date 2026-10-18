@@ -88,10 +88,12 @@ export const GeneralSettingsView = () => {
       return;
     }
     setIsSavingFarm(true);
+    setSavedSuccess(false);
     try {
       const saved = await updateFarm(farmInfo);
       setFarmInfo(saved);
       saveFarmInfo(saved);
+      setSavedSuccess(true);
       showToast('Đã lưu thông tin cơ sở trang trại thành công!', 'success');
     } catch (error) {
       const details = error.response?.data?.data;
@@ -157,7 +159,7 @@ export const GeneralSettingsView = () => {
           className={`farmshift-tab-btn ${activeTab === 'barn_roles' ? 'active' : ''}`}
           onClick={() => setActiveTab('barn_roles')}
         >
-          Phân vai trò theo Chuồng
+          Vai trò khu nuôi
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'warehouse_roles' ? 'active' : ''}`}
@@ -196,7 +198,7 @@ export const GeneralSettingsView = () => {
               </span>
             )}
           </div>
-          <form onSubmit={handleSaveFarmInfo}>
+          <form onSubmit={handleSaveFarmInfo} onChange={() => setSavedSuccess(false)}>
             {isLoadingFarm && <p role="status">Đang tải thông tin trang trại...</p>}
             {farmError && <p role="alert">{farmError}</p>}
             {!canEditFarm && <p>Chỉ chủ trang trại có quyền cập nhật thông tin này.</p>}
@@ -275,7 +277,7 @@ export const GeneralSettingsView = () => {
               </div>
             </div>
             <div className="farmshift-card-header" style={{ justifyContent: 'flex-end', backgroundColor: 'var(--color-surface-soft)' }}>
-              <button type="submit" className="farmshift-btn farmshift-btn-primary">
+              <button type="submit" className="farmshift-btn farmshift-btn-mint" aria-busy={isSavingFarm}>
                 <Save size={15} /> {isSavingFarm ? 'Đang lưu...' : 'Cập nhật thông tin'}
               </button>
             </div>
@@ -337,7 +339,7 @@ export const GeneralSettingsView = () => {
       {activeTab === 'barn_roles' && (
         <div className="farmshift-card">
           <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Phân quyền quản lý lứa nuôi theo từng Chuồng</h3>
+            <h3 className="farmshift-card-title">Vai trò khu nuôi</h3>
           </div>
           <div className="farmshift-table-container" style={{ border: 'none' }}>
             <table className="farmshift-table">
@@ -346,8 +348,6 @@ export const GeneralSettingsView = () => {
                   <th>Chuồng nuôi</th>
                   <th>Khu nuôi</th>
                   <th>Công nhân phụ trách chính</th>
-                  <th>Kỹ thuật viên giám sát</th>
-                  <th>Quyền ghi nhật ký</th>
                 </tr>
               </thead>
               <tbody>
@@ -355,29 +355,21 @@ export const GeneralSettingsView = () => {
                   <td><strong>Nhà A1</strong></td>
                   <td>Khu Mía Thịt</td>
                   <td>Trần Văn Bình</td>
-                  <td>Nguyễn Hiệp (Chủ trại)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Được phép</span></td>
                 </tr>
                 <tr>
                   <td><strong>Nhà A2</strong></td>
                   <td>Khu Mía Thịt</td>
                   <td>Trần Văn Bình</td>
-                  <td>Nguyễn Hiệp (Chủ trại)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Được phép</span></td>
                 </tr>
                 <tr>
                   <td><strong>Nhà B1</strong></td>
                   <td>Khu J Thịt</td>
                   <td>Trần Thị Mai</td>
-                  <td>Nguyễn Hiệp (Chủ trại)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Được phép</span></td>
                 </tr>
                 <tr>
                   <td><strong>Nhà B2</strong></td>
                   <td>Khu J Thịt</td>
                   <td>Lê Văn Cường</td>
-                  <td>Nguyễn Hiệp (Chủ trại)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Được phép</span></td>
                 </tr>
               </tbody>
             </table>
