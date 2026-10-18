@@ -54,17 +54,19 @@ ON CONFLICT (name_key) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- 5. Chèn dữ liệu Chuồng (Barns) - gắn vào khu nuôi theo tên khu
--- purpose: FARMING (Thả nuôi) | BIO_TREATMENT (Xử lý hóa sinh)
 -- status : INACTIVE (Chưa hoạt động) | ACTIVE (Đang hoạt động) | CLOSED (Đã đóng)
+-- Mọi chuồng đều để nuôi gà thịt nên không có cột mục đích sử dụng; xóa cột cũ nếu database đã có.
 -- ---------------------------------------------------------------------
-INSERT INTO barns (area_id, name, name_key, purpose, status, capacity, current_quantity, target_weight, description, created_at, updated_at)
-SELECT a.id, b.name, b.name_key, b.purpose, b.status, b.capacity, b.current_quantity, NULL, '', b.created_at, b.created_at
-FROM (VALUES ('khu mía thịt', 'Nhà A1', 'nhà a1', 'FARMING', 'ACTIVE', 50000, 50000, TIMESTAMP '2026-10-01 09:00:00'),
-             ('khu mía thịt', 'Nhà A2', 'nhà a2', 'FARMING', 'ACTIVE', 50000, 40000, TIMESTAMP '2026-10-01 09:10:00'),
-             ('khu mía thịt', 'Nhà A3', 'nhà a3', 'FARMING', 'ACTIVE', 50000, 30000, TIMESTAMP '2026-10-01 09:20:00'),
-             ('khu j thịt', 'Nhà B1', 'nhà b1', 'FARMING', 'ACTIVE', 80000, 50000, TIMESTAMP '2026-10-01 09:30:00'),
-             ('khu j thịt', 'Nhà B2', 'nhà b2', 'FARMING', 'ACTIVE', 80000, 50000, TIMESTAMP '2026-10-01 09:40:00'))
-     AS b(area_key, name, name_key, purpose, status, capacity, current_quantity, created_at)
+ALTER TABLE barns DROP COLUMN IF EXISTS purpose;
+
+INSERT INTO barns (area_id, name, name_key, status, capacity, current_quantity, target_weight, description, created_at, updated_at)
+SELECT a.id, b.name, b.name_key, b.status, b.capacity, b.current_quantity, NULL, '', b.created_at, b.created_at
+FROM (VALUES ('khu mía thịt', 'Nhà A1', 'nhà a1', 'ACTIVE', 50000, 50000, TIMESTAMP '2026-10-01 09:00:00'),
+             ('khu mía thịt', 'Nhà A2', 'nhà a2', 'ACTIVE', 50000, 40000, TIMESTAMP '2026-10-01 09:10:00'),
+             ('khu mía thịt', 'Nhà A3', 'nhà a3', 'ACTIVE', 50000, 30000, TIMESTAMP '2026-10-01 09:20:00'),
+             ('khu j thịt', 'Nhà B1', 'nhà b1', 'ACTIVE', 80000, 50000, TIMESTAMP '2026-10-01 09:30:00'),
+             ('khu j thịt', 'Nhà B2', 'nhà b2', 'ACTIVE', 80000, 50000, TIMESTAMP '2026-10-01 09:40:00'))
+     AS b(area_key, name, name_key, status, capacity, current_quantity, created_at)
 JOIN farm_areas a ON a.name_key = b.area_key
 ON CONFLICT ON CONSTRAINT uk_barns_area_name DO NOTHING;
 

@@ -54,7 +54,6 @@ class FarmAreaIntegrationTest {
         Map<String, Object> body = new HashMap<>();
         body.put("areaId", areaId);
         body.put("name", name);
-        body.put("purpose", "FARMING");
         body.put("status", "INACTIVE");
         body.put("capacity", capacity);
         body.put("areaM2", 1000);
@@ -175,11 +174,6 @@ class FarmAreaIntegrationTest {
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_CAPACITY_BELOW_STOCK"));
         mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(areaId, "Nhà 1", 100))))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_ACTIVE_CYCLE_STATUS"));
-        Map<String, Object> treatment = barn(areaId, "Nhà 1", 100);
-        treatment.put("status", "ACTIVE");
-        treatment.put("purpose", "BIO_TREATMENT");
-        mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(treatment)))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_ACTIVE_CYCLE_PURPOSE"));
         Map<String, Object> bigger = barn(areaId, "Nhà 1", 200);
         bigger.put("status", "ACTIVE");
         mvc.perform(put(BARNS + "/" + barnId).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(bigger)))

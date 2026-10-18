@@ -35,7 +35,7 @@ const area = (id, name, extra = {}) => ({
   createdAt: `2026-10-0${id}T08:00:00`, ...extra,
 });
 const barn = (id, areaId, name, extra = {}) => ({
-  id, code: `CH00000${id}`, areaId, areaName: areas.find(item => item.id === areaId).name, name, purpose: 'FARMING', status: 'ACTIVE',
+  id, code: `CH00000${id}`, areaId, areaName: areas.find(item => item.id === areaId).name, name, status: 'ACTIVE',
   capacity: 50000, currentQuantity: 40000, targetWeight: 2.3, description: '', createdAt: `2026-10-0${id}T09:00:00`, ...extra,
 });
 
@@ -142,8 +142,28 @@ describe('Farm area management', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await screen.findByText('Nhà A3');
     expect(service.createBarn).toHaveBeenCalledWith({
-      areaId: 1, name: 'Nhà A3', purpose: 'FARMING', status: 'INACTIVE', capacity: 100, areaM2: 120, targetWeight: null, description: '',
+      areaId: 1, name: 'Nhà A3', status: 'INACTIVE', capacity: 100, areaM2: 120, targetWeight: null, description: '',
     });
+  });
+
+  it('suggests barn capacity from the floor area at 8 birds per m²', async () => {
+    renderAt('/areas/1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Tạo Chuồng' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByLabelText(/Mục đích sử dụng/)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText(/Diện tích/), { target: { value: '400' } });
+    expect(within(dialog).getByLabelText(/Sức chứa tối đa/)).toHaveValue(3200);
+    expect(within(dialog).getByText('3.200 con')).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText(/Sức chứa tối đa/), { target: { value: '4000' } });
+    expect(within(dialog).getByText(/Mật độ 10 con\/m² cao hơn mức khuyến nghị/)).toBeInTheDocument();
+    // A capacity typed by the owner is kept when the area changes; the suggestion can be applied on demand.
+    fireEvent.change(within(dialog).getByLabelText(/Diện tích/), { target: { value: '450' } });
+    expect(within(dialog).getByLabelText(/Sức chứa tối đa/)).toHaveValue(4000);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Dùng gợi ý' }));
+    expect(within(dialog).getByLabelText(/Sức chứa tối đa/)).toHaveValue(3600);
+    fireEvent.change(within(dialog).getByLabelText(/Diện tích/), { target: { value: '600' } });
+    expect(within(dialog).getByLabelText(/Sức chứa tối đa/)).toHaveValue(4800);
   });
 
   it('shows server-side duplicate errors under the field', async () => {

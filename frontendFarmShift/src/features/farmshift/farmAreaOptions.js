@@ -1,8 +1,10 @@
 // Vietnamese labels for the farm-area / barn codes returned by /api/farm-areas and /api/barns.
-export const BARN_PURPOSES = [
-  { value: 'FARMING', label: 'Thả nuôi' },
-  { value: 'BIO_TREATMENT', label: 'Xử lý hóa sinh' },
-];
+/** Mật độ nuôi gà thịt khuyến nghị, dùng để gợi ý sức chứa từ diện tích chuồng. */
+export const BIRDS_PER_M2 = 8;
+export const suggestCapacity = areaM2 => {
+  const area = Number(areaM2);
+  return areaM2 !== '' && area > 0 ? Math.floor(area * BIRDS_PER_M2) : null;
+};
 
 export const BARN_STATUSES = [
   { value: 'INACTIVE', label: 'Chưa hoạt động', tone: 'neutral' },
@@ -46,7 +48,6 @@ export const validateBarn = (form, barn) => {
   }
   if (barn?.activeCycleId) {
     if (form.status !== 'ACTIVE') errors.status = 'Chuồng đang có lứa nuôi nên phải ở trạng thái Đang hoạt động.';
-    if (form.purpose !== 'FARMING') errors.purpose = 'Chuồng đang có lứa nuôi nên không thể đổi sang xử lý hóa sinh.';
     if (String(form.areaId) !== String(barn.areaId)) errors.areaId = 'Chuồng đang có lứa nuôi nên không thể chuyển sang khu khác.';
   }
   return errors;

@@ -8,7 +8,7 @@ import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { getFarmArea, listBarns, listFarmAreas } from '../../services/farmAreaService';
-import { BARN_PURPOSES, BARN_STATUSES, apiErrorMessage, labelOf } from './farmAreaOptions';
+import { BARN_STATUSES, apiErrorMessage } from './farmAreaOptions';
 import { AreaDialog, BarnDialog, DeleteDialog } from './FarmAreaDialogs';
 import styles from './AreasView.module.css';
 
@@ -173,12 +173,11 @@ function AreaList({ areas, canEdit, onOpen }) {
 
 function BarnList({ barns, areas, area, canEdit, onOpen }) {
   const navigate = useNavigate();
-  const [filters, setFilters] = useState({ name: '', areaId: '', purpose: '', status: '', quantity: '', target: '', date: '' });
+  const [filters, setFilters] = useState({ name: '', areaId: '', status: '', quantity: '', target: '', date: '' });
   const [direction, setDirection] = useState(1);
   const set = key => event => setFilters(current => ({ ...current, [key]: event.target.value }));
   const filtered = useMemo(() => barns.filter(barn => contains(barn.name, filters.name)
     && (!filters.areaId || String(barn.areaId) === filters.areaId)
-    && (!filters.purpose || barn.purpose === filters.purpose)
     && (!filters.status || barn.status === filters.status)
     && contains(barn.currentQuantity, filters.quantity)
     && contains(barn.targetWeight ?? '', filters.target)
@@ -204,9 +203,6 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
             <th><select aria-label="Lọc khu nuôi" value={filters.areaId} onChange={set('areaId')} disabled={Boolean(area)}>
               <option value="">Tất cả</option>{areas.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select></th>
-            <th><select aria-label="Lọc mục đích sử dụng" value={filters.purpose} onChange={set('purpose')}>
-              <option value="">Tất cả</option>{BARN_PURPOSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select></th>
             <th><select aria-label="Lọc trạng thái hoạt động" value={filters.status} onChange={set('status')}>
               <option value="">Tất cả</option>{BARN_STATUSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select></th>
@@ -225,7 +221,6 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
               return <tr key={barn.id}>
                 <td><Link to={`/barns/${barn.id}`} className={styles.nameLink}>{barn.name}</Link>{barn.description && <small className={styles.subtext}>{barn.description}</small>}</td>
                 <td><Link to={`/areas/${barn.areaId}`} className={styles.areaLink}>{barn.areaName}</Link></td>
-                <td>{labelOf(BARN_PURPOSES, barn.purpose)}</td>
                 <td><span className={`${styles.badge} ${styles[`badge_${status?.tone || 'neutral'}`]}`}>{status?.label || barn.status}</span></td>
                 <td><span className={styles.quantity}><strong>{formatNumber(barn.currentQuantity)}</strong> /{formatNumber(barn.capacity)}</span>
                   <span className={styles.fillTrack} aria-hidden="true"><span style={{ width: `${fill}%` }} /></span></td>

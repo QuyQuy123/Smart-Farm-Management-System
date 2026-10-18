@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, X } from 'lucide-react';
 import { createBarn, createFarmArea, deleteBarn, deleteFarmArea, updateBarn, updateFarmArea } from '../../services/farmAreaService';
-import { ANIMAL_METRICS, BARN_PURPOSES, BARN_STATUSES, ENVIRONMENT_METRICS, apiErrorMessage, validateBarn } from './farmAreaOptions';
+import { ANIMAL_METRICS, BARN_STATUSES, BIRDS_PER_M2, ENVIRONMENT_METRICS, apiErrorMessage, suggestCapacity, validateBarn } from './farmAreaOptions';
 import styles from './AreasView.module.css';
 
 // Validation (400) and duplicate-name (409) responses carry { field: message } in data.
@@ -112,7 +112,6 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({
     areaId: String(barn?.areaId || defaultAreaId || areas[0]?.id || ''),
     name: barn?.name || '',
-    purpose: barn?.purpose || 'FARMING',
     status: barn?.status || 'INACTIVE',
     capacity: String(barn?.capacity ?? ''),
     areaM2: barn?.areaM2 == null ? '' : String(barn.areaM2),
@@ -122,7 +121,21 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // Capacity follows the area suggestion until the owner types their own number.
+  const [capacityAuto, setCapacityAuto] = useState(() => !barn || String(suggestCapacity(barn.areaM2 ?? '')) === String(barn.capacity));
   const set = (key, value) => { setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+  const setArea = value => {
+    const suggested = suggestCapacity(value);
+    setForm(current => ({ ...current, areaM2: value, ...(capacityAuto && suggested ? { capacity: String(suggested) } : {}) }));
+    setErrors(current => ({ ...current, areaM2: undefined, capacity: undefined }));
+  };
+  const setCapacity = value => { setCapacityAuto(false); set('capacity', value); };
+  const suggested = suggestCapacity(form.areaM2);
+  const density = suggested && Number(form.capacity) > 0 ? Number(form.capacity) / Number(form.areaM2) : null;
+  const capacityHint = suggested == null ? `Nhập diện tích để được gợi ý sức chứa theo mức ${BIRDS_PER_M2} con/m².`
+    : <>Gợi ý: {Number(form.areaM2).toLocaleString('vi-VN')} m² × {BIRDS_PER_M2} con/m² = <strong>{suggested.toLocaleString('vi-VN')} con</strong>
+      {String(suggested) !== form.capacity && <> · <button type="button" className={styles.inlineLink} onClick={() => { setCapacityAuto(true); set('capacity', String(suggested)); }}>Dùng gợi ý</button></>}
+      {density > BIRDS_PER_M2 && <span className={styles.densityWarning}> · Mật độ {density.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} con/m² cao hơn mức khuyến nghị.</span>}</>;
 
   const submit = async event => {
     event.preventDefault();
@@ -133,7 +146,7 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     setSaving(true);
     setError('');
     const payload = {
-      areaId: Number(form.areaId), name: form.name.trim(), purpose: form.purpose, status: form.status,
+      areaId: Number(form.areaId), name: form.name.trim(), status: form.status,
       capacity: Number(form.capacity), areaM2: form.areaM2 === '' ? null : Number(form.areaM2),
       targetWeight: form.targetWeight === '' ? null : Number(form.targetWeight), description: form.description.trim(),
     };
@@ -149,9 +162,10 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     }
   };
 
-  const field = (key, label, input, required) => <div>
+  const field = (key, label, input, required, hint) => <div>
     <label htmlFor={`barn-${key}`}>{label} {required && <span className={styles.required}>*</span>}</label>
     {input}
+    {hint && !errors[key] && <small id={`barn-${key}-hint`} className={styles.fieldHint}>{hint}</small>}
     <FieldError id={`barn-${key}-error`} message={errors[key]} />
   </div>;
   const inputProps = key => ({
@@ -168,14 +182,13 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
             {areas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
           </select>, true)}
           {field('name', 'Tên chuồng', <input {...inputProps('name')} maxLength={100} placeholder="Ví dụ: Nhà A1" autoFocus />, true)}
-          {field('purpose', 'Mục đích sử dụng', <select {...inputProps('purpose')}>
-            {BARN_PURPOSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>, true)}
+          {field('areaM2', 'Diện tích (m²)', <input {...inputProps('areaM2')} onChange={event => setArea(event.target.value)}
+            type="number" min="0" step="0.01" inputMode="decimal" placeholder="Ví dụ: 1000" />)}
+          {field('capacity', 'Sức chứa tối đa (con)', <input {...inputProps('capacity')} onChange={event => setCapacity(event.target.value)}
+            type="number" min="1" step="1" inputMode="numeric" placeholder="Ví dụ: 8000" />, true, capacityHint)}
           {field('status', 'Trạng thái hoạt động', <select {...inputProps('status')}>
             {BARN_STATUSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>, true)}
-          {field('capacity', 'Sức chứa tối đa (con)', <input {...inputProps('capacity')} type="number" min="1" step="1" inputMode="numeric" placeholder="Ví dụ: 50000" />, true)}
-          {field('areaM2', 'Diện tích (m²)', <input {...inputProps('areaM2')} type="number" min="0" step="0.01" inputMode="decimal" placeholder="Ví dụ: 1000" />)}
           {field('targetWeight', 'Mục tiêu cân nặng xuất chuồng (kg/con)', <input {...inputProps('targetWeight')} type="number" min="0" max="999" step="0.01" inputMode="decimal" placeholder="Ví dụ: 2.3" />)}
         </div>
         <p className={styles.formHint}>{editing

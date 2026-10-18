@@ -43,9 +43,6 @@ public class CycleService {
     @Transactional
     public CycleSummaryResponse start(Long barnId, StartCycleRequest request) {
         Barn barn = barnService.find(barnId);
-        if (barn.getPurpose() != BarnPurpose.FARMING) {
-            throw new BadRequestException("Chuồng xử lý hóa sinh không dùng để nuôi nên không khai báo được lứa nuôi.", "CYCLE_BARN_NOT_FARMING");
-        }
         if (barn.getStatus() == BarnStatus.CLOSED) {
             throw new BadRequestException("Chuồng đã đóng. Hãy mở lại chuồng trước khi khai báo lứa nuôi.", "CYCLE_BARN_CLOSED");
         }

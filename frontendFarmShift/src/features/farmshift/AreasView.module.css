@@ -120,3 +120,5 @@
 .stepRow { display: grid; grid-template-columns: 2fr 0.8fr 0.8fr 1fr 0.9fr 32px; gap: 6px; align-items: center; margin-bottom: 8px; }
 .stepRow > p { grid-column: 1 / -1; }
 @media (max-width: 640px) { .stepRow { grid-template-columns: 1fr 1fr; } }
+.inlineLink { padding: 0; border: 0; background: none; color: #1b61c9; font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }
+.densityWarning { color: #a35f00; }
