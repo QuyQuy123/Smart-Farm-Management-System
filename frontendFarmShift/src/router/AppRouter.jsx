@@ -15,6 +15,7 @@ const ResetPassword = lazy(() => import('../features/auth/ResetPassword').then(m
 const DashboardView = lazy(() => import('../features/farmshift/DashboardView').then(m => ({ default: m.DashboardView })));
 const BarnsView = lazy(() => import('../features/farmshift/BarnsView').then(m => ({ default: m.BarnsView })));
 const AreasView = lazy(() => import('../features/farmshift/AreasView').then(m => ({ default: m.AreasView })));
+const BarnDetailView = lazy(() => import('../features/farmshift/BarnDetailView').then(m => ({ default: m.BarnDetailView })));
 const JournalView = lazy(() => import('../features/farmshift/JournalView').then(m => ({ default: m.JournalView })));
 const InventoryView = lazy(() => import('../features/farmshift/InventoryView').then(m => ({ default: m.InventoryView })));
 const PurchasesView = lazy(() => import('../features/farmshift/PurchasesView').then(m => ({ default: m.PurchasesView })));
@@ -60,6 +61,7 @@ export const AppRouter = () => {
         <Route path="/areas" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
         <Route path="/areas/:id" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
         <Route path="/barns" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
+        <Route path="/barns/:id" element={<ProtectedRoute><BarnDetailView /></ProtectedRoute>} />
         <Route path="/journal" element={<ProtectedRoute><JournalView /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><InventoryView /></ProtectedRoute>} />
         <Route path="/transfers" element={<ProtectedRoute><TransfersView /></ProtectedRoute>} />

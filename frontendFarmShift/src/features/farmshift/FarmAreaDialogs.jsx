@@ -10,7 +10,7 @@ const apiFieldErrors = error => {
   return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
 };
 
-function Dialog({ title, labelId, busy, onClose, wide, children }) {
+export function Dialog({ title, labelId, busy, onClose, wide, children }) {
   const dialog = useRef(null);
   useEffect(() => {
     const element = dialog.current;
@@ -32,7 +32,7 @@ function Dialog({ title, labelId, busy, onClose, wide, children }) {
   </dialog>;
 }
 
-const FieldError = ({ id, message }) => message ? <p id={id} className={styles.fieldError}>{message}</p> : null;
+export const FieldError = ({ id, message }) => message ? <p id={id} className={styles.fieldError}>{message}</p> : null;
 
 function MetricPicker({ legend, options, value, onChange, disabled }) {
   const toggle = code => onChange(value.includes(code) ? value.filter(item => item !== code) : [...value, code]);
@@ -133,7 +133,7 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     purpose: barn?.purpose || 'FARMING',
     status: barn?.status || 'INACTIVE',
     capacity: String(barn?.capacity ?? ''),
-    currentQuantity: String(barn?.currentQuantity ?? 0),
+    areaM2: barn?.areaM2 == null ? '' : String(barn.areaM2),
     targetWeight: barn?.targetWeight == null ? '' : String(barn.targetWeight),
     description: barn?.description || '',
   }));
@@ -145,14 +145,14 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
   const submit = async event => {
     event.preventDefault();
     if (saving) return;
-    const found = validateBarn(form);
+    const found = validateBarn(form, barn);
     setErrors(found);
     if (Object.keys(found).length) return;
     setSaving(true);
     setError('');
     const payload = {
       areaId: Number(form.areaId), name: form.name.trim(), purpose: form.purpose, status: form.status,
-      capacity: Number(form.capacity), currentQuantity: Number(form.currentQuantity),
+      capacity: Number(form.capacity), areaM2: form.areaM2 === '' ? null : Number(form.areaM2),
       targetWeight: form.targetWeight === '' ? null : Number(form.targetWeight), description: form.description.trim(),
     };
     try {
@@ -193,9 +193,12 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
             {BARN_STATUSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>, true)}
           {field('capacity', 'Sức chứa tối đa (con)', <input {...inputProps('capacity')} type="number" min="1" step="1" inputMode="numeric" placeholder="Ví dụ: 50000" />, true)}
-          {field('currentQuantity', 'Số con hiện có', <input {...inputProps('currentQuantity')} type="number" min="0" step="1" inputMode="numeric" />, true)}
+          {field('areaM2', 'Diện tích (m²)', <input {...inputProps('areaM2')} type="number" min="0" step="0.01" inputMode="decimal" placeholder="Ví dụ: 1000" />)}
           {field('targetWeight', 'Mục tiêu cân nặng xuất chuồng (kg/con)', <input {...inputProps('targetWeight')} type="number" min="0" max="999" step="0.01" inputMode="decimal" placeholder="Ví dụ: 2.3" />)}
         </div>
+        <p className={styles.formHint}>{editing
+          ? `Đang nuôi ${(barn.currentQuantity || 0).toLocaleString('vi-VN')} con. Số con chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt và xuất bán.`
+          : 'Sức chứa là số con tối đa chuồng được nuôi; mỗi lần nhập đàn sẽ được kiểm tra theo sức chứa này.'}</p>
         <label htmlFor="barn-description">Ghi chú</label>
         <textarea id="barn-description" className="farmshift-form-control" rows={3} maxLength={1000} value={form.description}
           onChange={event => set('description', event.target.value)} disabled={saving} />

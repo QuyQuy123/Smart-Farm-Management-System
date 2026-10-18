@@ -29,8 +29,12 @@ public class Barn {
     private BarnStatus status;
     @Column(nullable = false)
     private int capacity;
+    /** Tổng tồn của các đàn đang nuôi; chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt, xuất bán. */
     @Column(name = "current_quantity", nullable = false)
     private int currentQuantity;
+    /** Diện tích chuồng (m²), dùng để tính mật độ nuôi. */
+    @Column(name = "area_m2", precision = 10, scale = 2)
+    private BigDecimal areaM2;
     @Column(name = "target_weight", precision = 5, scale = 2)
     private BigDecimal targetWeight;
     @Column(length = 1000)
