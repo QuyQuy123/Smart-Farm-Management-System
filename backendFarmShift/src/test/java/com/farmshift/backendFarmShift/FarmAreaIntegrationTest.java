@@ -44,8 +44,6 @@ class FarmAreaIntegrationTest {
     private Map<String, Object> area(String name) {
         Map<String, Object> body = new HashMap<>();
         body.put("name", name);
-        body.put("livestockType", "POULTRY");
-        body.put("mealsPerDay", 3);
         body.put("environmentMetrics", List.of("TEMPERATURE", "HUMIDITY", "TEMPERATURE"));
         body.put("animalMetrics", List.of("LOSS", "WEIGHT"));
         body.put("description", " Gà thịt ");
@@ -120,12 +118,10 @@ class FarmAreaIntegrationTest {
         long stocked = create(BARNS, barn(mia, "Nhà A2", 100));
         stock(stocked, 20);
 
-        Map<String, Object> rename = area("Khu Mía Thịt 2");
-        rename.put("livestockType", "LIVESTOCK");
-        rename.put("mealsPerDay", 0);
-        mvc.perform(put(AREAS + "/" + mia).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(rename)))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.data.livestockType").value("LIVESTOCK"))
-            .andExpect(jsonPath("$.data.mealsPerDay").value(0));
+        mvc.perform(put(AREAS + "/" + mia).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(area("Khu Mía Thịt 2"))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Khu Mía Thịt 2"))
+            .andExpect(jsonPath("$.data.livestockType").doesNotExist())
+            .andExpect(jsonPath("$.data.mealsPerDay").doesNotExist());
 
         mvc.perform(put(BARNS + "/" + empty).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(barn(j, "Nhà B1", 100))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.areaId").value(j)).andExpect(jsonPath("$.data.name").value("Nhà B1"));
@@ -156,18 +152,10 @@ class FarmAreaIntegrationTest {
         Map<String, Object> blank = area(" ");
         mvc.perform(post(AREAS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(blank)))
             .andExpect(status().isBadRequest());
-        Map<String, Object> meals = area("Khu A");
-        meals.put("mealsPerDay", 7);
-        mvc.perform(post(AREAS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(meals)))
-            .andExpect(status().isBadRequest());
         Map<String, Object> metric = area("Khu A");
         metric.put("environmentMetrics", List.of("CO2"));
         mvc.perform(post(AREAS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(metric)))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FARM_AREA_INVALID_METRIC"));
-        Map<String, Object> type = area("Khu A");
-        type.put("livestockType", "DINOSAUR");
-        mvc.perform(post(AREAS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(type)))
-            .andExpect(status().isBadRequest());
         assertEquals(0, areaRepository.count());
     }
 

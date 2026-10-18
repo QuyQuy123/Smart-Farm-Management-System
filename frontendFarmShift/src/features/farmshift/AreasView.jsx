@@ -8,7 +8,7 @@ import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { getFarmArea, listBarns, listFarmAreas } from '../../services/farmAreaService';
-import { BARN_PURPOSES, BARN_STATUSES, LIVESTOCK_TYPES, apiErrorMessage, labelOf } from './farmAreaOptions';
+import { BARN_PURPOSES, BARN_STATUSES, apiErrorMessage, labelOf } from './farmAreaOptions';
 import { AreaDialog, BarnDialog, DeleteDialog } from './FarmAreaDialogs';
 import styles from './AreasView.module.css';
 
@@ -114,19 +114,18 @@ function SortButton({ direction, onToggle }) {
 
 function AreaList({ areas, canEdit, onOpen }) {
   const navigate = useNavigate();
-  const [filters, setFilters] = useState({ name: '', barns: '', type: '', description: '', date: '' });
+  const [filters, setFilters] = useState({ name: '', barns: '', description: '', date: '' });
   const [direction, setDirection] = useState(1);
   const set = key => event => setFilters(current => ({ ...current, [key]: event.target.value }));
   const filtered = useMemo(() => areas.filter(area => contains(area.name, filters.name)
     && (filters.barns === '' || area.barnCount === Number(filters.barns))
-    && (!filters.type || area.livestockType === filters.type)
     && contains(area.description, filters.description)
     && sameDay(area.createdAt, filters.date)).sort(byCreated(direction)), [areas, filters, direction]);
   const { rows, pager } = usePaging(filtered, JSON.stringify([filters, direction]));
 
   const exportAreas = () => exportCsv('danh-sach-khu-nuoi.csv',
-    ['Mã khu', 'Tên khu nuôi', 'Số chuồng', 'Chuồng đang hoạt động', 'Tổng số con', 'Loại vật nuôi', 'Mô tả', 'Ngày tạo'],
-    filtered.map(area => [area.code, area.name, area.barnCount, area.activeBarnCount, area.animalCount, labelOf(LIVESTOCK_TYPES, area.livestockType), area.description, formatDate(area.createdAt)]));
+    ['Mã khu', 'Tên khu nuôi', 'Số chuồng', 'Chuồng đang hoạt động', 'Tổng số con', 'Mô tả', 'Ngày tạo'],
+    filtered.map(area => [area.code, area.name, area.barnCount, area.activeBarnCount, area.animalCount, area.description, formatDate(area.createdAt)]));
 
   return <>
     <div className={styles.toolbar}>
@@ -140,13 +139,10 @@ function AreaList({ areas, canEdit, onOpen }) {
     <div className="farmshift-table-container" style={{ border: 0 }}>
       <table className={`farmshift-table ${styles.table}`}>
         <thead>
-          <tr><th>Tên khu nuôi</th><th>Số chuồng</th><th>Loại vật nuôi</th><th>Mô tả</th><th>Ngày tạo</th><th aria-label="Thao tác" /></tr>
+          <tr><th>Tên khu nuôi</th><th>Số chuồng</th><th>Mô tả</th><th>Ngày tạo</th><th aria-label="Thao tác" /></tr>
           <tr className={styles.filterRow}>
             <th><input aria-label="Lọc tên khu nuôi" placeholder="Tìm kiếm..." value={filters.name} onChange={set('name')} /></th>
             <th><input aria-label="Lọc số chuồng" type="number" min="0" value={filters.barns} onChange={set('barns')} /></th>
-            <th><select aria-label="Lọc loại vật nuôi" value={filters.type} onChange={set('type')}>
-              <option value="">Tất cả</option>{LIVESTOCK_TYPES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select></th>
             <th><input aria-label="Lọc mô tả" placeholder="Tìm kiếm..." value={filters.description} onChange={set('description')} /></th>
             <th><div className={styles.dateFilter}><input aria-label="Lọc ngày tạo khu nuôi" type="date" value={filters.date} onChange={set('date')} />
               <SortButton direction={direction} onToggle={() => setDirection(value => -value)} /></div></th>
@@ -154,11 +150,10 @@ function AreaList({ areas, canEdit, onOpen }) {
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? <tr><td colSpan={6} className={styles.empty}>{areas.length ? 'Không có khu nuôi phù hợp với bộ lọc.' : canEdit ? 'Chưa có khu nuôi. Bấm "Tạo khu nuôi" để quy hoạch khu đầu tiên.' : 'Chưa có khu nuôi nào.'}</td></tr>
+          {rows.length === 0 ? <tr><td colSpan={5} className={styles.empty}>{areas.length ? 'Không có khu nuôi phù hợp với bộ lọc.' : canEdit ? 'Chưa có khu nuôi. Bấm "Tạo khu nuôi" để quy hoạch khu đầu tiên.' : 'Chưa có khu nuôi nào.'}</td></tr>
             : rows.map(area => <tr key={area.id}>
               <td><Link to={`/areas/${area.id}`} className={styles.nameLink}>{area.name}</Link></td>
               <td><strong>{formatNumber(area.barnCount)}</strong> <span className={styles.muted}>({formatNumber(area.activeBarnCount)} đang nuôi)</span></td>
-              <td>{labelOf(LIVESTOCK_TYPES, area.livestockType)}</td>
               <td className={styles.description}>{area.description || '—'}</td>
               <td className={styles.date}>{formatDate(area.createdAt)}</td>
               <td className={styles.actionCell}><RowMenu label={area.name} items={[
@@ -256,8 +251,8 @@ function AreaSummary({ area }) {
   const stats = [
     ['Tổng số chuồng', formatNumber(area.barnCount), `${formatNumber(area.activeBarnCount)} chuồng đang hoạt động`],
     ['Tổng đàn hiện tại', `${formatNumber(area.animalCount)} con`, `Sức chứa ${formatNumber(area.totalCapacity)} con`],
-    ['Tỷ lệ lấp đầy', `${fill}%`, labelOf(LIVESTOCK_TYPES, area.livestockType)],
-    ['Số bữa ăn / ngày', area.mealsPerDay, area.description || 'Chưa có ghi chú'],
+    ['Tỷ lệ lấp đầy', `${fill}%`, 'Gà thịt'],
+    ['Chỗ còn trống', `${formatNumber(Math.max(area.totalCapacity - area.animalCount, 0))} con`, area.description || 'Chưa có ghi chú'],
   ];
   return <div className={styles.summary}>
     {stats.map(([label, value, hint]) => <div key={label} className={styles.stat}><span>{label}</span><strong>{value}</strong><small>{hint}</small></div>)}

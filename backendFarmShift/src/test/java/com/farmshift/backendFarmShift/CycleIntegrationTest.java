@@ -39,7 +39,7 @@ class CycleIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        areaId = id(post("/api/farm-areas", Map.of("name", "Khu Mía Thịt", "livestockType", "POULTRY", "mealsPerDay", 3)));
+        areaId = id(post("/api/farm-areas", Map.of("name", "Khu Mía Thịt")));
         barnId = barn("Nhà A3", 50000);
     }
 

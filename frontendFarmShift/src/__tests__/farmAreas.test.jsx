@@ -30,7 +30,7 @@ afterAll(() => {
 let areas;
 let barns;
 const area = (id, name, extra = {}) => ({
-  id, code: `KN00000${id}`, name, livestockType: 'POULTRY', mealsPerDay: 3, environmentMetrics: ['HUMIDITY', 'TEMPERATURE'],
+  id, code: `KN00000${id}`, name, environmentMetrics: ['HUMIDITY', 'TEMPERATURE'],
   animalMetrics: ['WEIGHT'], description: '', barnCount: 0, activeBarnCount: 0, animalCount: 0, totalCapacity: 0,
   createdAt: `2026-10-0${id}T08:00:00`, ...extra,
 });
@@ -50,7 +50,7 @@ describe('Farm area management', () => {
     mocks.role = 'ROLE_FARM_OWNER';
     areas = [
       area(1, 'Khu Mía Thịt', { barnCount: 2, activeBarnCount: 2, animalCount: 90000, totalCapacity: 100000 }),
-      area(2, 'Khu đông tảo', { livestockType: 'LIVESTOCK' }),
+      area(2, 'Khu đông tảo'),
     ];
     barns = [barn(1, 1, 'Nhà A1', { currentQuantity: 50000 }), barn(2, 1, 'Nhà A2')];
     service.listFarmAreas.mockImplementation(async () => [...areas]);
@@ -74,22 +74,24 @@ describe('Farm area management', () => {
     expect(service.createFarmArea).not.toHaveBeenCalled();
 
     fireEvent.change(within(dialog).getByLabelText(/Tên khu nuôi/), { target: { value: '  Khu A  ' } });
-    fireEvent.change(within(dialog).getByLabelText('Số bữa ăn trong ngày'), { target: { value: '4' } });
+    expect(within(dialog).queryByLabelText(/Loại vật nuôi/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/Số bữa ăn/)).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Độ ẩm' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Ảnh chết loại' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await screen.findByRole('link', { name: 'Khu A' });
     expect(service.createFarmArea).toHaveBeenCalledWith({
-      name: 'Khu A', livestockType: 'POULTRY', mealsPerDay: 4, environmentMetrics: ['TEMPERATURE'],
+      name: 'Khu A', environmentMetrics: ['TEMPERATURE'],
       animalMetrics: ['WEIGHT', 'LOSS', 'DEAD_PHOTO'], description: '',
     });
     expect(mocks.showToast).toHaveBeenCalledWith('Đã thêm khu nuôi Khu A.', 'success');
   });
 
-  it('filters the area list by livestock type and name', async () => {
+  it('filters the area list by barn count and name', async () => {
     renderAt('/areas');
     await screen.findByRole('link', { name: 'Khu Mía Thịt' });
-    fireEvent.change(screen.getByLabelText('Lọc loại vật nuôi'), { target: { value: 'LIVESTOCK' } });
+    expect(screen.queryByLabelText('Lọc loại vật nuôi')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Lọc số chuồng'), { target: { value: '0' } });
     expect(screen.queryByRole('link', { name: 'Khu Mía Thịt' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Khu đông tảo' })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Lọc tên khu nuôi'), { target: { value: 'mía' } });

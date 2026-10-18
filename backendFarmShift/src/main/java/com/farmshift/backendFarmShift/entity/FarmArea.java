@@ -17,11 +17,6 @@ public class FarmArea {
     private String name;
     @Column(name = "name_key", nullable = false, unique = true, length = 150)
     private String nameKey;
-    @Enumerated(EnumType.STRING)
-    @Column(name = "livestock_type", nullable = false, length = 20)
-    private LivestockType livestockType;
-    @Column(name = "meals_per_day", nullable = false)
-    private int mealsPerDay;
     /** Chỉ số môi trường cần theo dõi, lưu các mã ngăn cách bởi dấu phẩy. */
     @Column(name = "environment_metrics", length = 200)
     private String environmentMetrics;
