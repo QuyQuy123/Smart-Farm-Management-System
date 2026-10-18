@@ -159,7 +159,7 @@ export const GeneralSettingsView = () => {
           className={`farmshift-tab-btn ${activeTab === 'barn_roles' ? 'active' : ''}`}
           onClick={() => setActiveTab('barn_roles')}
         >
-          Phân vai trò theo Chuồng
+          Vai trò khu nuôi
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'warehouse_roles' ? 'active' : ''}`}
@@ -339,7 +339,7 @@ export const GeneralSettingsView = () => {
       {activeTab === 'barn_roles' && (
         <div className="farmshift-card">
           <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Phân quyền quản lý lứa nuôi theo từng Chuồng</h3>
+            <h3 className="farmshift-card-title">Vai trò khu nuôi</h3>
           </div>
           <div className="farmshift-table-container" style={{ border: 'none' }}>
             <table className="farmshift-table">
@@ -348,8 +348,6 @@ export const GeneralSettingsView = () => {
                   <th>Chuồng nuôi</th>
                   <th>Khu nuôi</th>
                   <th>Công nhân phụ trách chính</th>
-                  <th>Kỹ thuật viên giám sát</th>
-                  <th>Quyền ghi nhật ký</th>
                 </tr>
               </thead>
               <tbody>
@@ -357,29 +355,21 @@ export const GeneralSettingsView = () => {
                   <td><strong>Nhà A1</strong></td>
                   <td>Khu Mía Thịt</td>
                   <td>Trần Văn Bình</td>
-                  <td>Nguyễn Hiệp (Chủ trại)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Được phép</span></td>
                 </tr>
                 <tr>
                   <td><strong>Nhà A2</strong></td>
                   <td>Khu Mía Thịt</td>
                   <td>Trần Văn Bình</td>
-                  <td>Nguyễn Hiệp (Chủ trại)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Được phép</span></td>
                 </tr>
                 <tr>
                   <td><strong>Nhà B1</strong></td>
                   <td>Khu J Thịt</td>
                   <td>Trần Thị Mai</td>
-                  <td>Nguyễn Hiệp (Chủ trại)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Được phép</span></td>
                 </tr>
                 <tr>
                   <td><strong>Nhà B2</strong></td>
                   <td>Khu J Thịt</td>
                   <td>Lê Văn Cường</td>
-                  <td>Nguyễn Hiệp (Chủ trại)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Được phép</span></td>
                 </tr>
               </tbody>
             </table>
