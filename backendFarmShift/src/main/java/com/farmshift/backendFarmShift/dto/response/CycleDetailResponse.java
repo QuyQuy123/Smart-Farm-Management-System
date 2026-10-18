@@ -11,5 +11,6 @@ import java.util.Map;
 public record CycleDetailResponse(CycleSummaryResponse cycle, BarnResponse barn, CycleMetrics metrics, CycleFinance finance,
                                   List<FlockResponse> flocks, List<FarmingProgramResponse> programs,
                                   List<FlockMovementResponse> movements, List<CycleRecordResponse> feedRecords,
-                                  List<CycleRecordResponse> weightSamples, List<CycleRecordResponse> expenses) {
+                                  List<CycleRecordResponse> weightSamples, List<CycleRecordResponse> expenses,
+                                  List<FlockDayPlan> todayPlan) {
 }

@@ -33,7 +33,6 @@ public class CycleService {
     private final FeedRecordRepository feedRepository;
     private final WeightSampleRepository weightRepository;
     private final CycleExpenseRepository expenseRepository;
-    private final CycleProgramRepository cycleProgramRepository;
 
     public List<CycleSummaryResponse> list(Long barnId) {
         barnService.find(barnId);
@@ -104,15 +103,21 @@ public class CycleService {
 
         CycleMetrics metrics = metrics(cycle, barn, flocks, movements, feeds, samples);
         int currentDay = metrics.ageDays() != null ? metrics.ageDays() : metrics.dayOfCycle();
-        List<FarmingProgramResponse> programs = cycleProgramRepository.findAllByCycleIdOrderByIdAsc(cycleId).stream()
-                .map(link -> FarmingProgramService.response(link.getProgram(), 0, currentDay)).toList();
+        // The cycle follows the programs (breeds) of its flocks; steps are marked against each program's oldest flock.
+        Map<Long, FarmingProgramResponse> programs = new LinkedHashMap<>();
+        for (Flock flock : flocks) {
+            FarmingProgram program = flock.getProgram();
+            if (program == null || programs.containsKey(program.getId())) continue;
+            long active = flocks.stream().filter(f -> f.getProgram() == program && f.getStatus() == FlockStatus.ACTIVE).count();
+            programs.put(program.getId(), FarmingProgramService.response(program, active, ageOn(flock, reference)));
+        }
 
         return new CycleDetailResponse(summary(cycle, flocks),
                 BarnService.response(barn, cycle.getStatus() == CycleStatus.ACTIVE ? cycle.getId() : activeCycleId(barn)),
                 metrics,
                 canSeeFinance ? finance(movements, feeds, expenses, metrics) : null,
                 flocks.stream().map(flock -> flockResponse(flock, reference, canSeeFinance)).toList(),
-                programs,
+                List.copyOf(programs.values()),
                 movements.stream().filter(m -> m.getType() != FlockMovementType.IMPORT)
                         .sorted(Comparator.comparing(FlockMovement::getMovementDate).thenComparing(FlockMovement::getId).reversed())
                         .map(m -> movementResponse(m, canSeeFinance)).toList(),
@@ -122,7 +127,32 @@ public class CycleService {
                 samples.stream().map(s -> new CycleRecordResponse(s.getId(), "WEIGHT", s.getSampleDate(), "Cân mẫu", s.getAvgWeightKg(),
                         null, null, s.getSampleSize(), null, s.getNote(), s.getCreatedBy())).toList(),
                 canSeeFinance ? expenses.stream().map(e -> new CycleRecordResponse(e.getId(), "EXPENSE", e.getExpenseDate(), e.getCategory().name(),
-                        null, null, e.getAmount(), null, e.getCategory().name(), e.getNote(), e.getCreatedBy())).toList() : null);
+                        null, null, e.getAmount(), null, e.getCategory().name(), e.getNote(), e.getCreatedBy())).toList() : null,
+                cycle.getStatus() == CycleStatus.ACTIVE ? todayPlan(flocks) : List.of());
+    }
+
+    /** What each running flock needs today according to its program and age: feed ration, vaccines, medicine, temperature, work. */
+    private static List<FlockDayPlan> todayPlan(List<Flock> flocks) {
+        LocalDate today = today();
+        List<FlockDayPlan> plans = new ArrayList<>();
+        for (Flock flock : flocks) {
+            if (flock.getStatus() != FlockStatus.ACTIVE || flock.getProgram() == null) continue;
+            int age = ageOn(flock, today);
+            List<FlockDayPlan.Item> items = flock.getProgram().getSteps().stream()
+                    .filter(step -> age >= step.getDayFrom() && age <= step.getDayTo())
+                    .sorted(Comparator.comparing(FarmingProgramStep::getCategory))
+                    .map(step -> {
+                        BigDecimal total = step.getCategory() == ProgramStepCategory.FEED && step.getQuantity() != null
+                                ? FarmingProgramService.kg(step.getQuantity(), flock.getQuantity()) : null;
+                        BigDecimal perMeal = total != null && step.getMealsPerDay() != null && step.getMealsPerDay() > 0
+                                ? total.divide(BigDecimal.valueOf(step.getMealsPerDay()), 1, RoundingMode.HALF_UP) : null;
+                        return new FlockDayPlan.Item(step.getCategory(), step.getName(), step.getQuantity(), step.getUnit(), step.getMealsPerDay(),
+                                step.getMethod(), step.getTempMin(), step.getTempMax(), total, perMeal, step.getNote());
+                    }).toList();
+            plans.add(new FlockDayPlan(flock.getId(), flockCode(flock), flock.getName(), flock.getProgram().getId(), flock.getProgram().getName(),
+                    age, flock.getQuantity(), items));
+        }
+        return plans;
     }
 
     // ---------------------------------------------------------------- shared rules
@@ -259,8 +289,10 @@ public class CycleService {
 
     static FlockResponse flockResponse(Flock flock, LocalDate reference, boolean canSeeFinance) {
         int age = ageOn(flock, reference);
-        return new FlockResponse(flock.getId(), flockCode(flock), flock.getName(), flock.getGender(), flock.getSourceType(),
-                flock.getSourceNote(), flockCode(flock.getSourceFlock()), flock.getImportDate(), flock.getAgeAtImport(), age, (age + 6) / 7,
+        FarmingProgram program = flock.getProgram();
+        return new FlockResponse(flock.getId(), flockCode(flock), flock.getName(), program == null ? null : program.getId(),
+                program == null ? null : program.getName(), flock.getGender(), flock.getSourceType(),
+                flock.getSourceNote(), flockCode(flock.getSourceFlock()), flock.getImportDate(), flock.getAgeAtImport(), age,
                 flock.getImportQuantity(), flock.getImportAvgWeight(),
                 flock.getImportAvgWeight().multiply(BigDecimal.valueOf(flock.getImportQuantity())).setScale(1, RoundingMode.HALF_UP),
                 canSeeFinance ? flock.getUnitPrice() : null, flock.getQuantity(), flock.getStatus(), flock.getNote());

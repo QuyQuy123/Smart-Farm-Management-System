@@ -5,12 +5,14 @@ import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Chương trình nuôi mẫu: các nội dung (cám, vắc-xin, công việc) theo khoảng ngày tuổi. */
+/**
+ * Chương trình nuôi theo giống (ví dụ Gà ta thả vườn 105 ngày): cám định mức, lịch vắc-xin, thuốc trộn,
+ * nhiệt độ chuồng và công việc chăm sóc theo ngày tuổi. Đàn được gắn với một chương trình khi nhập đàn.
+ */
 @Entity
 @Table(name = "farming_programs")
 @Data
@@ -22,9 +24,16 @@ public class FarmingProgram {
     private String name;
     @Column(name = "name_key", nullable = false, unique = true, length = 150)
     private String nameKey;
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private ProgramType type;
+    /** Giống gà áp dụng, ví dụ Gà ta, Gà Mía, Gà J-Dabaco. */
+    @Column(nullable = false, length = 100)
+    private String breed;
+    /** Thời gian nuôi dự kiến (ngày tuổi xuất chuồng). */
+    @Column(name = "duration_days", nullable = false)
+    private int durationDays;
+    @Column(name = "target_weight_min", precision = 5, scale = 2)
+    private BigDecimal targetWeightMin;
+    @Column(name = "target_weight_max", precision = 5, scale = 2)
+    private BigDecimal targetWeightMax;
     @Column(length = 1000)
     private String description;
     @OneToMany(mappedBy = "program", cascade = CascadeType.ALL, orphanRemoval = true)

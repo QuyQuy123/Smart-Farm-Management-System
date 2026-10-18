@@ -122,35 +122,83 @@ UPDATE barns b SET status = CASE WHEN EXISTS (SELECT 1 FROM farming_cycles c WHE
                                  THEN 'ACTIVE' ELSE 'INACTIVE' END;
 
 -- ---------------------------------------------------------------------
--- 9. Chương trình nuôi mẫu (Farming Programs) - type: FEED | HEALTH | WORK
+-- 9. Chương trình nuôi theo giống (Farming Programs)
+-- Mỗi chương trình: giống, thời gian nuôi, cân xuất chuồng và các nội dung theo ngày tuổi:
+--   FEED (cám: quantity = g/con/ngày, meals_per_day = số cữ) | VACCINE (method + liều)
+--   MEDICINE (thuốc trộn: method MIX_FEED/MIX_WATER + liều/đơn vị) | TEMPERATURE (temp_min/temp_max) | WORK
+-- method vắc-xin: EYE_NOSE nhỏ mắt mũi | MOUTH nhỏ miệng | DRINKING_WATER pha nước | INJECTION tiêm | WING_WEB chủng màng cánh
 -- ---------------------------------------------------------------------
-INSERT INTO farming_programs (name, name_key, type, description, created_at, updated_at)
-VALUES ('Lịch vắc-xin gà thịt', 'lịch vắc-xin gà thịt', 'HEALTH', 'Lịch phòng bệnh cơ bản cho gà thịt lông màu', TIMESTAMP '2026-10-01 06:00:00', TIMESTAMP '2026-10-01 06:00:00'),
-       ('Định mức cám gà thịt', 'định mức cám gà thịt', 'FEED', 'Lượng cám theo giai đoạn (g/con/ngày)', TIMESTAMP '2026-10-01 06:00:00', TIMESTAMP '2026-10-01 06:00:00'),
-       ('Công việc chăm sóc hằng ngày', 'công việc chăm sóc hằng ngày', 'WORK', 'Dùng khi ghi việc đã làm', TIMESTAMP '2026-10-01 06:00:00', TIMESTAMP '2026-10-01 06:00:00')
+-- Mô hình cũ (chương trình theo loại, gắn vào lứa) đã bỏ: xóa bảng/cột cũ nếu database còn.
+DROP TABLE IF EXISTS cycle_programs;
+ALTER TABLE farming_programs DROP COLUMN IF EXISTS type;
+
+INSERT INTO farming_programs (name, name_key, breed, duration_days, target_weight_min, target_weight_max, description, created_at, updated_at)
+VALUES ('Gà ta thả vườn', 'gà ta thả vườn', 'Gà ta', 105, 1.50, 2.20, 'Nuôi thả vườn khoảng 5 tháng, xuất chuồng 1,5–2,2 kg/con', TIMESTAMP '2026-09-25 08:00:00', TIMESTAMP '2026-09-25 08:00:00'),
+       ('Gà Mía thương phẩm', 'gà mía thương phẩm', 'Gà Mía', 90, 2.00, 2.60, 'Gà Mía Dabaco nuôi bán chăn thả', TIMESTAMP '2026-09-25 08:10:00', TIMESTAMP '2026-09-25 08:10:00'),
+       ('Gà J-Dabaco thương phẩm', 'gà j-dabaco thương phẩm', 'Gà J-Dabaco', 75, 2.20, 2.60, 'Gà J lông màu nuôi chuồng kín', TIMESTAMP '2026-09-25 08:20:00', TIMESTAMP '2026-09-25 08:20:00')
 ON CONFLICT (name_key) DO NOTHING;
 
-INSERT INTO farming_program_steps (program_id, name, day_from, day_to, quantity, unit, note)
-SELECT p.id, v.name, v.day_from, v.day_to, v.quantity, v.unit, ''
-FROM (VALUES ('lịch vắc-xin gà thịt', 'Newcastle + IB lần 1 (Lasota)', 5, 5, 1, 'liều/con'),
-             ('lịch vắc-xin gà thịt', 'Gumboro lần 1', 10, 10, 1, 'liều/con'),
-             ('lịch vắc-xin gà thịt', 'Gumboro lần 2', 17, 17, 1, 'liều/con'),
-             ('lịch vắc-xin gà thịt', 'Newcastle lần 2 (Lasota)', 21, 21, 1, 'liều/con'),
-             ('định mức cám gà thịt', 'Cám giai đoạn 1 (Higro 01)', 1, 14, 25, 'g/con/ngày'),
-             ('định mức cám gà thịt', 'Cám giai đoạn 2 (Higro 02)', 15, 35, 85, 'g/con/ngày'),
-             ('định mức cám gà thịt', 'Cám giai đoạn 3 (Higro 03)', 36, 75, 120, 'g/con/ngày'),
-             ('công việc chăm sóc hằng ngày', 'Vệ sinh máng ăn và máng uống', 1, 90, NULL, ''),
-             ('công việc chăm sóc hằng ngày', 'Kiểm tra thông gió chuồng', 1, 90, NULL, ''))
-     AS v(program_key, name, day_from, day_to, quantity, unit)
+INSERT INTO farming_program_steps (program_id, category, name, day_from, day_to, quantity, unit, meals_per_day, method, temp_min, temp_max, note)
+SELECT p.id, v.category, v.name, v.day_from, v.day_to, v.quantity, v.unit, v.meals, v.method, v.temp_min, v.temp_max, v.note
+FROM (VALUES
+  -- Gà ta thả vườn (105 ngày)
+  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 1, 7, 10.0, 'g/con/ngày', 6, NULL, NULL, NULL, 'Rải cám mỏng trên khay, ăn tự do'),
+  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 8, 14, 18.0, 'g/con/ngày', 5, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 15, 21, 25.0, 'g/con/ngày', 4, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED', 'Cám gà choai (Higro 02)', 22, 35, 40.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED', 'Cám gà choai (Higro 02)', 36, 56, 55.0, 'g/con/ngày', 3, NULL, NULL, NULL, 'Bắt đầu thả vườn ban ngày'),
+  ('gà ta thả vườn', 'FEED', 'Cám gà lớn (Higro 03) + ngô', 57, 84, 70.0, 'g/con/ngày', 2, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED', 'Cám gà lớn (Higro 03) + ngô', 85, 105, 80.0, 'g/con/ngày', 2, NULL, NULL, NULL, 'Vỗ béo trước xuất chuồng'),
+  ('gà ta thả vườn', 'VACCINE', 'Marek', 1, 1, 1, 'liều/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cổ'),
+  ('gà ta thả vườn', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 3, 3, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE', 'Gumboro lần 1', 7, 7, 1, 'giọt/con', NULL, 'MOUTH', NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE', 'Đậu gà', 8, 8, 1, 'liều/con', NULL, 'WING_WEB', NULL, NULL, 'Chủng màng cánh bằng kim chủng'),
+  ('gà ta thả vườn', 'VACCINE', 'Gumboro lần 2', 14, 14, 1, 'liều/con', NULL, 'DRINKING_WATER', NULL, NULL, 'Cho uống hết trong 2 giờ'),
+  ('gà ta thả vườn', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE', 'Cúm gia cầm H5N1', 35, 35, 0.5, 'ml/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cổ'),
+  ('gà ta thả vườn', 'VACCINE', 'Newcastle hệ I (M)', 42, 42, 0.2, 'ml/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cánh'),
+  ('gà ta thả vườn', 'MEDICINE', 'Vitamin C + điện giải', 1, 7, 2, 'g/lít nước', NULL, 'MIX_WATER', NULL, NULL, 'Chống stress úm'),
+  ('gà ta thả vườn', 'MEDICINE', 'Amoxicillin phòng úm', 1, 3, 1, 'g/lít nước', NULL, 'MIX_WATER', NULL, NULL, ''),
+  ('gà ta thả vườn', 'MEDICINE', 'Toltrazuril phòng cầu trùng', 15, 17, 1, 'ml/lít nước', NULL, 'MIX_WATER', NULL, NULL, ''),
+  ('gà ta thả vườn', 'MEDICINE', 'Men tiêu hóa', 30, 34, 2, 'g/kg cám', NULL, 'MIX_FEED', NULL, NULL, 'Trộn đều với cám trước khi cho ăn'),
+  ('gà ta thả vườn', 'MEDICINE', 'Toltrazuril phòng cầu trùng lần 2', 45, 47, 1, 'ml/lít nước', NULL, 'MIX_WATER', NULL, NULL, 'Ngừng thuốc 14 ngày trước xuất bán'),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm 3 ngày đầu', 1, 3, NULL, NULL, NULL, NULL, 32, 34, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 1', 4, 7, NULL, NULL, NULL, NULL, 30, 32, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 2', 8, 14, NULL, NULL, NULL, NULL, 28, 30, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 3', 15, 21, NULL, NULL, NULL, NULL, 26, 28, 'Giảm dần đèn sưởi'),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Gà lớn', 22, 105, NULL, NULL, NULL, NULL, 22, 30, 'Mở bạt thông thoáng'),
+  ('gà ta thả vườn', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 105, NULL, NULL, NULL, NULL, NULL, NULL, 'Mỗi sáng'),
+  ('gà ta thả vườn', 'WORK', 'Kiểm tra quây úm, đèn sưởi', 1, 21, NULL, NULL, NULL, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'WORK', 'Thả vườn ban ngày, nhốt chuồng ban đêm', 36, 105, NULL, NULL, NULL, NULL, NULL, NULL, ''),
+  -- Gà Mía thương phẩm (90 ngày)
+  ('gà mía thương phẩm', 'FEED', 'Higro 01', 1, 14, 20.0, 'g/con/ngày', 5, NULL, NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED', 'Higro 02', 15, 35, 60.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED', 'Higro 02', 36, 60, 85.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED', 'Higro 03', 61, 90, 110.0, 'g/con/ngày', 2, NULL, NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 5, 5, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE', 'Gumboro lần 1', 10, 10, 1, 'giọt/con', NULL, 'MOUTH', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE', 'Gumboro lần 2', 17, 17, 1, 'liều/con', NULL, 'DRINKING_WATER', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'MEDICINE', 'Men tiêu hóa', 15, 19, 2, 'g/kg cám', NULL, 'MIX_FEED', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'TEMPERATURE', 'Úm', 1, 14, NULL, NULL, NULL, NULL, 29, 33, ''),
+  ('gà mía thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 90, NULL, NULL, NULL, NULL, 24, 30, ''),
+  ('gà mía thương phẩm', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 90, NULL, NULL, NULL, NULL, NULL, NULL, ''),
+  -- Gà J-Dabaco thương phẩm (75 ngày)
+  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 01', 1, 14, 22.0, 'g/con/ngày', 5, NULL, NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 02', 15, 42, 75.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 03', 43, 75, 120.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 5, 5, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE', 'Gumboro lần 1', 10, 10, 1, 'giọt/con', NULL, 'MOUTH', NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Úm', 1, 14, NULL, NULL, NULL, NULL, 29, 33, ''),
+  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 75, NULL, NULL, NULL, NULL, 22, 28, ''),
+  ('gà j-dabaco thương phẩm', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 75, NULL, NULL, NULL, NULL, NULL, NULL, ''))
+  AS v(program_key, category, name, day_from, day_to, quantity, unit, meals, method, temp_min, temp_max, note)
 JOIN farming_programs p ON p.name_key = v.program_key
-WHERE NOT EXISTS (SELECT 1 FROM farming_program_steps s WHERE s.program_id = p.id AND s.name = v.name);
+WHERE NOT EXISTS (SELECT 1 FROM farming_program_steps s WHERE s.program_id = p.id AND s.category = v.category AND s.name = v.name AND s.day_from = v.day_from);
 
--- Áp dụng "Lịch vắc-xin gà thịt" và "Định mức cám gà thịt" cho lứa đang nuôi của Nhà A3
-INSERT INTO cycle_programs (cycle_id, program_id, created_at)
-SELECT c.id, p.id, TIMESTAMP '2026-10-01 09:00:00'
-FROM farming_cycles c
-JOIN barns b ON b.id = c.barn_id AND b.name_key = 'nhà a3'
-JOIN farm_areas a ON a.id = b.area_id AND a.name_key = 'khu mía thịt'
-JOIN farming_programs p ON p.name_key IN ('lịch vắc-xin gà thịt', 'định mức cám gà thịt')
-WHERE c.cycle_number = 1
-ON CONFLICT ON CONSTRAINT uk_cycle_programs DO NOTHING;
+-- Gắn chương trình cho các đàn mẫu theo giống (đàn Mía -> Gà Mía, đàn J -> Gà J-Dabaco)
+UPDATE flocks f SET program_id = p.id
+FROM farming_programs p
+WHERE f.program_id IS NULL
+  AND ((f.name LIKE 'MÍA%' AND p.name_key = 'gà mía thương phẩm') OR (f.name LIKE 'J-%' AND p.name_key = 'gà j-dabaco thương phẩm'));

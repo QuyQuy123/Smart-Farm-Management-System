@@ -36,11 +36,22 @@ class CycleIntegrationTest {
     @Autowired ObjectMapper mapper;
     long areaId;
     long barnId;
+    long programId;
 
     @BeforeEach
     void setUp() throws Exception {
         areaId = id(post("/api/farm-areas", Map.of("name", "Khu Mía Thịt")));
         barnId = barn("Nhà A3", 50000);
+        programId = id(post("/api/farming-programs", Map.of("name", "Gà Mía thương phẩm", "breed", "Gà Mía", "durationDays", 90,
+                "steps", List.of(
+                        Map.of("category", "FEED", "name", "Higro 01", "dayFrom", 1, "dayTo", 14, "quantity", 20, "mealsPerDay", 5),
+                        Map.of("category", "FEED", "name", "Higro 02", "dayFrom", 15, "dayTo", 90, "quantity", 80, "mealsPerDay", 3),
+                        Map.of("category", "VACCINE", "name", "Lasota lần 1", "dayFrom", 5, "dayTo", 5, "method", "EYE_NOSE"),
+                        Map.of("category", "VACCINE", "name", "Gumboro", "dayFrom", 11, "dayTo", 11, "method", "MOUTH"),
+                        Map.of("category", "VACCINE", "name", "Lasota lần 2", "dayFrom", 21, "dayTo", 21, "method", "EYE_NOSE"),
+                        Map.of("category", "MEDICINE", "name", "Men tiêu hóa", "dayFrom", 10, "dayTo", 12, "method", "MIX_FEED",
+                                "quantity", 2, "unit", "g/kg cám"),
+                        Map.of("category", "TEMPERATURE", "name", "Úm", "dayFrom", 1, "dayTo", 14, "tempMin", 28, "tempMax", 32)))));
     }
 
     // ---------------------------------------------------------------- helpers
@@ -67,6 +78,7 @@ class CycleIntegrationTest {
     private Map<String, Object> flock(String name, String gender, LocalDate date, int quantity) {
         Map<String, Object> body = new HashMap<>();
         body.put("name", name);
+        body.put("programId", programId);
         body.put("gender", gender);
         body.put("importDate", date.toString());
         body.put("ageAtImport", 1);
@@ -116,7 +128,7 @@ class CycleIntegrationTest {
         org.junit.jupiter.api.Assertions.assertEquals(START.plusDays(3).toString(), metrics.path("importDeadline").asText());
         org.junit.jupiter.api.Assertions.assertEquals("MALE", data.path("flocks").get(0).path("gender").asText());
         org.junit.jupiter.api.Assertions.assertEquals(11, data.path("flocks").get(0).path("currentAgeDays").asInt());
-        org.junit.jupiter.api.Assertions.assertEquals(2, data.path("flocks").get(0).path("currentAgeWeeks").asInt());
+        org.junit.jupiter.api.Assertions.assertTrue(data.path("flocks").get(0).path("currentAgeWeeks").isMissingNode());
         org.junit.jupiter.api.Assertions.assertEquals(330000000, data.path("finance").path("chickCost").asLong());
         mvc.perform(get("/api/barns/" + barnId)).andExpect(jsonPath("$.data.currentQuantity").value(30000));
     }
@@ -231,34 +243,35 @@ class CycleIntegrationTest {
     }
 
     @Test
-    void appliesFarmingProgramsWithStepProgress() throws Exception {
-        Map<String, Object> program = Map.of("name", "Lịch vắc-xin gà thịt", "type", "HEALTH", "steps", List.of(
-                Map.of("name", "Lasota lần 1", "dayFrom", 5, "dayTo", 5),
-                Map.of("name", "Gumboro", "dayFrom", 10, "dayTo", 12),
-                Map.of("name", "Lasota lần 2", "dayFrom", 21, "dayTo", 21)));
-        long programId = id(post("/api/farming-programs", program));
-        post("/api/farming-programs", program).andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("PROGRAM_DUPLICATE"));
-        post("/api/farming-programs", Map.of("name", "Sai", "type", "WORK", "steps", List.of(Map.of("name", "X", "dayFrom", 9, "dayTo", 3))))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("PROGRAM_STEP_RANGE"));
-        post("/api/farming-programs", Map.of("name", "Rỗng", "type", "WORK", "steps", List.of())).andExpect(status().isBadRequest());
-
+    void flockFollowsItsBreedProgramWithTodaysPlan() throws Exception {
         long cycle = startCycle(barnId, START);
-        importFlock(cycle, "Gà Mía", "MIXED", START, 100);
-        post("/api/cycles/" + cycle + "/programs", Map.of("programId", programId)).andExpect(status().isCreated());
-        post("/api/cycles/" + cycle + "/programs", Map.of("programId", programId))
-            .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("PROGRAM_ALREADY_ATTACHED"));
+        Map<String, Object> noProgram = flock("Gà Mía", "MIXED", START, 100);
+        noProgram.remove("programId");
+        post("/api/cycles/" + cycle + "/flocks", noProgram).andExpect(status().isBadRequest());
+        Map<String, Object> unknownProgram = flock("Gà Mía", "MIXED", START, 100);
+        unknownProgram.put("programId", 99999);
+        post("/api/cycles/" + cycle + "/flocks", unknownProgram).andExpect(status().isNotFound());
 
-        // The flock is 11 days old today.
+        importFlock(cycle, "Gà Mía", "MIXED", START, 1000);
+        // The flock is 11 days old today: Lasota 1 is done, Gumboro and the medicine run today, Lasota 2 is upcoming.
         mvc.perform(get("/api/cycles/" + cycle))
-            .andExpect(jsonPath("$.data.metrics.ageDays").value(11))
-            .andExpect(jsonPath("$.data.programs[0].steps[0].state").value("DONE"))
-            .andExpect(jsonPath("$.data.programs[0].steps[1].state").value("IN_PROGRESS"))
-            .andExpect(jsonPath("$.data.programs[0].steps[2].state").value("UPCOMING"));
-        mvc.perform(get("/api/farming-programs")).andExpect(jsonPath("$.data[0].activeCycleCount").value(1));
+            .andExpect(jsonPath("$.data.flocks[0].programName").value("Gà Mía thương phẩm"))
+            .andExpect(jsonPath("$.data.programs[0].currentDay").value(11))
+            .andExpect(jsonPath("$.data.programs[0].activeFlockCount").value(1))
+            .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Lasota lần 1')].state").value("DONE"))
+            .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Gumboro')].state").value("IN_PROGRESS"))
+            .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Lasota lần 2')].state").value("UPCOMING"))
+            .andExpect(jsonPath("$.data.todayPlan[0].ageDays").value(11))
+            .andExpect(jsonPath("$.data.todayPlan[0].items.length()").value(4))
+            // 20 g x 1000 birds = 20 kg a day over 5 meals = 4 kg a meal.
+            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'FEED')].totalFeedKg").value(20.0))
+            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'FEED')].feedKgPerMeal").value(4.0))
+            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'VACCINE')].name").value("Gumboro"))
+            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'MEDICINE')].unit").value("g/kg cám"))
+            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'TEMPERATURE')].name").value("Úm"));
+
         mvc.perform(delete("/api/farming-programs/" + programId)).andExpect(status().isConflict())
             .andExpect(jsonPath("$.errorCode").value("PROGRAM_IN_USE"));
-        mvc.perform(delete("/api/cycles/" + cycle + "/programs/" + programId)).andExpect(status().isOk());
-        mvc.perform(delete("/api/farming-programs/" + programId)).andExpect(status().isOk());
     }
 
     @Test

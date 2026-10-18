@@ -67,10 +67,16 @@ class FarmAreaIntegrationTest {
     }
 
     /** Animals only enter a barn through a farming cycle: declare the cycle, then import a flock. */
+    private long programId;
+
     private long stock(long barnId, int quantity) throws Exception {
+        if (programId == 0) {
+            programId = create("/api/farming-programs", Map.of("name", "Gà Mía", "breed", "Gà Mía", "durationDays", 90,
+                    "steps", List.of(Map.of("category", "FEED", "name", "Higro 01", "dayFrom", 1, "dayTo", 90, "quantity", 60, "mealsPerDay", 3))));
+        }
         String today = LocalDate.now().toString();
         long cycleId = create(BARNS + "/" + barnId + "/cycles", Map.of("startDate", today));
-        create("/api/cycles/" + cycleId + "/flocks", Map.of("name", "Gà Mía", "gender", "MIXED", "importDate", today,
+        create("/api/cycles/" + cycleId + "/flocks", Map.of("name", "Gà Mía", "programId", programId, "gender", "MIXED", "importDate", today,
                 "ageAtImport", 1, "quantity", quantity, "avgWeight", 0.04, "unitPrice", 12000));
         return cycleId;
     }

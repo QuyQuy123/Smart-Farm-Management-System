@@ -1,12 +1,10 @@
 package com.farmshift.backendFarmShift.dto.response;
 
-import com.farmshift.backendFarmShift.entity.*;
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
-public record FarmingProgramResponse(Long id, String code, String name, ProgramType type, String description,
-                                     List<ProgramStepResponse> steps, long activeCycleCount) {
+/** activeFlockCount: số đàn đang nuôi theo chương trình này. currentDay: ngày tuổi dùng để tính state (null nếu là mẫu). */
+public record FarmingProgramResponse(Long id, String code, String name, String breed, int durationDays, BigDecimal targetWeightMin,
+                                     BigDecimal targetWeightMax, String description, List<ProgramStepResponse> steps,
+                                     long activeFlockCount, Integer currentDay) {
 }

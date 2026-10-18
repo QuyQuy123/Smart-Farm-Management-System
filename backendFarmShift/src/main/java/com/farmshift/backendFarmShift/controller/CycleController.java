@@ -8,7 +8,6 @@ import com.farmshift.backendFarmShift.dto.response.FlockResponse;
 import com.farmshift.backendFarmShift.security.RoleNames;
 import com.farmshift.backendFarmShift.service.CycleRecordService;
 import com.farmshift.backendFarmShift.service.CycleService;
-import com.farmshift.backendFarmShift.service.FarmingProgramService;
 import com.farmshift.backendFarmShift.service.FlockService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Lứa nuôi và nhật ký của lứa. Quyền: chủ trại khai báo/kết thúc lứa, nhập đàn, áp dụng chương trình;
+ * Lứa nuôi và nhật ký của lứa. Quyền: chủ trại khai báo/kết thúc lứa, nhập đàn (chọn chương trình nuôi theo giống);
  * công nhân ghi cám và cân mẫu; kế toán ghi khoản chi. Mọi tài khoản đã đăng nhập được xem.
  */
 @RestController
@@ -30,7 +29,6 @@ public class CycleController {
     private final CycleService service;
     private final FlockService flockService;
     private final CycleRecordService recordService;
-    private final FarmingProgramService programService;
 
     static boolean canSeeFinance(Authentication authentication) {
         return authentication.getAuthorities().stream().anyMatch(authority -> FINANCE_ROLES.contains(authority.getAuthority()));
@@ -106,20 +104,5 @@ public class CycleController {
     public ApiResponse<Void> deleteExpense(@PathVariable Long id, @PathVariable Long expenseId) {
         recordService.deleteExpense(id, expenseId);
         return ApiResponse.success("Đã xóa khoản chi");
-    }
-
-    @PostMapping("/api/cycles/{id}/programs")
-    @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
-    public ApiResponse<Void> attachProgram(@PathVariable Long id, @Valid @RequestBody AttachProgramRequest request) {
-        programService.attach(id, request.programId());
-        return ApiResponse.success("Đã áp dụng chương trình nuôi");
-    }
-
-    @DeleteMapping("/api/cycles/{id}/programs/{programId}")
-    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
-    public ApiResponse<Void> detachProgram(@PathVariable Long id, @PathVariable Long programId) {
-        programService.detach(id, programId);
-        return ApiResponse.success("Đã bỏ chương trình nuôi khỏi lứa");
     }
 }

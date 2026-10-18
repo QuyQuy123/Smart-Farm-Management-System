@@ -79,11 +79,97 @@ export const EXPENSE_CATEGORIES = [
   { value: 'OTHER', label: 'Chi phí khác' },
 ];
 
-export const PROGRAM_TYPES = [
-  { value: 'FEED', label: 'Định mức cám' },
-  { value: 'HEALTH', label: 'Phòng & chữa bệnh' },
-  { value: 'WORK', label: 'Công việc' },
+// ---------------------------------------------------------------- farming programs (by breed)
+
+export const STEP_CATEGORIES = [
+  { value: 'FEED', label: 'Cám định mức', item: 'mức cám' },
+  { value: 'VACCINE', label: 'Lịch vắc-xin', item: 'mũi vắc-xin' },
+  { value: 'MEDICINE', label: 'Thuốc trộn', item: 'đợt thuốc' },
+  { value: 'TEMPERATURE', label: 'Nhiệt độ', item: 'mức nhiệt' },
+  { value: 'WORK', label: 'Công việc', item: 'công việc' },
 ];
+
+export const VACCINE_METHODS = [
+  { value: 'EYE_NOSE', label: 'Nhỏ mắt, mũi' },
+  { value: 'MOUTH', label: 'Nhỏ miệng' },
+  { value: 'DRINKING_WATER', label: 'Pha nước uống' },
+  { value: 'INJECTION', label: 'Tiêm' },
+  { value: 'WING_WEB', label: 'Chủng màng cánh' },
+];
+
+export const MEDICINE_METHODS = [
+  { value: 'MIX_FEED', label: 'Trộn cám' },
+  { value: 'MIX_WATER', label: 'Pha nước uống' },
+];
+
+export const METHODS = [...VACCINE_METHODS, ...MEDICINE_METHODS];
+
+export const MEDICINE_UNITS = ['g/kg cám', 'ml/lít nước', 'g/lít nước', 'ml/kg cám'];
+
+const isWhole = value => value !== '' && value != null && Number.isInteger(Number(value));
+const positive = value => value !== '' && value != null && Number(value) > 0;
+
+/**
+ * Mirrors the backend program rules. Returns { fields: { key: message }, steps: { index: message } }.
+ * Steps are { category, name, dayFrom, dayTo, quantity, unit, mealsPerDay, method, tempMin, tempMax, note } with string inputs.
+ */
+export const validateProgram = draft => {
+  const fields = {};
+  const steps = {};
+  const duration = Number(draft.durationDays);
+  if (!draft.name.trim()) fields.name = 'Vui lòng nhập tên chương trình.';
+  if (!draft.breed.trim()) fields.breed = 'Vui lòng nhập giống gà.';
+  if (!isWhole(draft.durationDays) || duration < 1 || duration > 365) fields.durationDays = 'Thời gian nuôi từ 1 đến 365 ngày.';
+  ['targetWeightMin', 'targetWeightMax'].forEach(key => {
+    if (draft[key] !== '' && !(Number(draft[key]) > 0 && Number(draft[key]) <= 20)) fields[key] = 'Cân nặng từ 0,01 đến 20 kg.';
+  });
+  if (!fields.targetWeightMin && !fields.targetWeightMax && draft.targetWeightMin !== '' && draft.targetWeightMax !== ''
+    && Number(draft.targetWeightMin) > Number(draft.targetWeightMax)) fields.targetWeightMax = 'Cân nặng tối đa phải lớn hơn hoặc bằng tối thiểu.';
+
+  draft.steps.forEach((step, index) => {
+    const from = Number(step.dayFrom);
+    const to = Number(step.dayTo);
+    let message;
+    if (!step.name.trim()) message = 'Vui lòng nhập tên nội dung.';
+    else if (!isWhole(step.dayFrom) || !isWhole(step.dayTo) || from < 1 || to < 1) message = 'Ngày tuổi phải là số nguyên từ 1.';
+    else if (from > to) message = 'Ngày tuổi bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.';
+    else if (!fields.durationDays && to > duration) message = `Ngày tuổi ${to} vượt thời gian nuôi ${duration} ngày.`;
+    else if (step.category === 'FEED' && (!positive(step.quantity) || !isWhole(step.mealsPerDay) || Number(step.mealsPerDay) < 1 || Number(step.mealsPerDay) > 8)) {
+      message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
+    } else if (step.category === 'VACCINE' && !VACCINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng vắc-xin.';
+    else if (step.category === 'MEDICINE' && !MEDICINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng thuốc (trộn cám hoặc pha nước).';
+    else if (step.category === 'MEDICINE' && (!positive(step.quantity) || !step.unit.trim())) message = 'Cần liều lượng và đơn vị (ví dụ 2 g/kg cám).';
+    else if (step.category === 'TEMPERATURE' && !(step.tempMin !== '' && step.tempMax !== '' && Number(step.tempMin) < Number(step.tempMax))) {
+      message = 'Nhiệt độ thấp nhất phải nhỏ hơn nhiệt độ cao nhất.';
+    }
+    if (message) steps[index] = message;
+  });
+
+  if (!draft.steps.some(step => step.category === 'FEED')) fields.steps = 'Chương trình nuôi cần có định mức cám.';
+  // One feed ration and one temperature band per day of age.
+  ['FEED', 'TEMPERATURE'].forEach(category => {
+    const rows = draft.steps.map((step, index) => ({ ...step, index })).filter(step => step.category === category && !steps[step.index])
+      .sort((a, b) => Number(a.dayFrom) - Number(b.dayFrom));
+    for (let i = 1; i < rows.length; i += 1) {
+      if (Number(rows[i].dayFrom) <= Number(rows[i - 1].dayTo)) {
+        steps[rows[i].index] = `Bị chồng ngày với dòng ngày ${rows[i - 1].dayFrom}–${rows[i - 1].dayTo}. Mỗi ngày tuổi chỉ có một mức.`;
+      }
+    }
+  });
+  return { fields, steps };
+};
+
+/** Short human description of one program step, e.g. "85 g/con/ngày · 3 cữ" or "Nhỏ mắt, mũi · 1 liều/con". */
+export const describeStep = step => {
+  const number = value => Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 });
+  switch (step.category) {
+    case 'FEED': return `${number(step.quantity)} g/con/ngày · ${step.mealsPerDay} cữ/ngày`;
+    case 'VACCINE': return [METHODS.find(item => item.value === step.method)?.label, step.quantity != null ? `${number(step.quantity)} ${step.unit || ''}`.trim() : null].filter(Boolean).join(' · ');
+    case 'MEDICINE': return `${METHODS.find(item => item.value === step.method)?.label || ''} · ${number(step.quantity)} ${step.unit || ''}`.trim();
+    case 'TEMPERATURE': return `${number(step.tempMin)} – ${number(step.tempMax)} °C`;
+    default: return '';
+  }
+};
 
 export const STEP_STATES = {
   DONE: { label: 'Đã qua', tone: 'neutral' },

@@ -132,6 +132,7 @@ Entity: `Flock`. Một lô vật nuôi nhập (hoặc tách/chuyển) vào lứa
 | `source_type` | VARCHAR(20) | NOT NULL. `PURCHASE` (nhập con giống) hoặc `TRANSFER` (tách/chuyển từ chuồng khác). |
 | `source_note` | VARCHAR(200) | Nguồn nhập (mặc định `Khác`) hoặc `Chuyển từ <chuồng> (<mã đàn>)`. |
 | `source_flock_id` | BIGINT | FOREIGN KEY → `flocks(id)`. Đàn nguồn khi chuyển đàn. |
+| `program_id` | BIGINT | FOREIGN KEY → `farming_programs(id)`. Chương trình nuôi (giống) chọn khi nhập đàn (bắt buộc khi nhập mới); đàn chuyển đến giữ chương trình của đàn nguồn. |
 | `import_date` | DATE | NOT NULL. Ngày nhập / ngày chuyển đến. |
 | `age_at_import` | INT | NOT NULL, 1–365. Ngày tuổi lúc nhập; ngày tuổi hiện tại = `age_at_import` + số ngày từ `import_date`. Đàn chuyển đến giữ nguyên ngày tuổi của đàn nguồn. |
 | `import_quantity` | INT | NOT NULL, ≥ 1. Số con nhập. |
@@ -178,17 +179,46 @@ Entity: `WeightSample`. Các cột: `id`, `cycle_id` (FK), `sample_date` (DATE, 
 
 Entity: `CycleExpense`. Các cột: `id`, `cycle_id` (FK), `expense_date` (DATE, NOT NULL), `category` (VARCHAR(20): `ELECTRICITY` tiền điện, `WATER` tiền nước, `LABOR` công nhân, `MEDICINE` thuốc & vắc-xin, `OTHER` chi phí khác), `amount` (NUMERIC(16,2), > 0), `note`, `created_by`, `created_at`. API: `POST` / `DELETE /api/cycles/{id}/expenses[/{expenseId}]` (chủ trại, kế toán). Công nhân không xem được khoản chi.
 
-## Bảng `farming_programs`, `farming_program_steps`, `cycle_programs` — Chương trình nuôi
+## Bảng `farming_programs`, `farming_program_steps` — Chương trình nuôi theo giống
 
-`farming_programs` (entity `FarmingProgram`, mã `CT0001`): `id`, `name` (VARCHAR(150), NOT NULL), `name_key` (UNIQUE, chặn trùng tên - `PROGRAM_DUPLICATE`), `type` (`FEED` định mức cám, `HEALTH` phòng & chữa bệnh, `WORK` công việc), `description`, `created_at`, `updated_at`.
+Xem / tạo / sửa tại **Thiết lập chăn nuôi → Chương trình nuôi**. Mỗi chương trình dành cho một giống gà (ví dụ Gà ta thả vườn 105 ngày, xuất chuồng 1,5–2,2 kg) và quy định theo ngày tuổi: cám định mức, lịch vắc-xin, thuốc trộn, nhiệt độ chuồng, công việc chăm sóc. Khi nhập đàn, chủ trại chọn chương trình cho đàn; trang chi tiết chuồng dùng chương trình và ngày tuổi của từng đàn để lập **Kế hoạch hôm nay** (cơ sở để công nhân đánh dấu hoàn thành công việc hằng ngày ở bước sau).
 
-`farming_program_steps` (entity `FarmingProgramStep`): `id`, `program_id` (FK), `name` (VARCHAR(200)), `day_from`, `day_to` (INT 1–365, `day_from` ≤ `day_to` - `PROGRAM_STEP_RANGE`), `quantity` (NUMERIC(14,3), định mức, có thể trống), `unit` (VARCHAR(50), ví dụ `g/con/ngày`, `liều/con`), `note`. Mỗi chương trình cần ít nhất một nội dung.
+`farming_programs` (entity `FarmingProgram`, mã `CT0001`):
 
-`cycle_programs` (entity `CycleProgram`): `id`, `cycle_id` (FK), `program_id` (FK), `created_at`; UNIQUE (`cycle_id`, `program_id`) - `uk_cycle_programs` (409 `PROGRAM_ALREADY_ATTACHED`). Trang chi tiết đánh dấu từng nội dung `DONE` (đã qua), `IN_PROGRESS` (đang áp dụng), `UPCOMING` (sắp tới) theo ngày tuổi hiện tại của lứa.
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `name` | VARCHAR(150) | NOT NULL. Tên chương trình. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa chữ thường, chặn trùng tên (409 `PROGRAM_DUPLICATE`). |
+| `breed` | VARCHAR(100) | NOT NULL. Giống gà, ví dụ `Gà ta`, `Gà Mía`, `Gà J-Dabaco`. |
+| `duration_days` | INT | NOT NULL, 1–365. Thời gian nuôi (ngày tuổi xuất chuồng). Mọi nội dung phải nằm trong khoảng này (`PROGRAM_STEP_OUT_OF_DURATION`). |
+| `target_weight_min`, `target_weight_max` | NUMERIC(5,2) | Cân xuất chuồng mục tiêu (kg/con), có thể trống; min ≤ max (`PROGRAM_WEIGHT_RANGE`). |
+| `description` | VARCHAR(1000) | Mô tả. |
+| `created_at`, `updated_at` | TIMESTAMP | Hibernate tự ghi. |
 
-API: `GET /api/farming-programs`, `GET /api/farming-programs/{id}` (mọi tài khoản); `POST`, `PUT /{id}`, `DELETE /{id}` (chủ trại; không xóa chương trình đã áp dụng cho lứa - 409 `PROGRAM_IN_USE`); `POST /api/cycles/{id}/programs`, `DELETE /api/cycles/{id}/programs/{programId}` (chủ trại).
+`farming_program_steps` (entity `FarmingProgramStep`): mỗi dòng là một nội dung áp dụng từ ngày tuổi `day_from` đến `day_to`.
 
-Dữ liệu mẫu: mục 7 trong `insert_data.txt` khai báo lứa thứ 1 (bắt đầu 01/10/2026) cho Nhà A1–A3, B1, B2; mục 8 nhập các đàn (Nhà A3: `MÍA-DABACO TRỐNG` 20.000 con × 11.000đ và `MÍA-DABACO MÁI` 10.000 con × 11.500đ = 335.000.000đ) kèm biến động `IMPORT`, rồi tính lại `barns.current_quantity`; mục 9 thêm 3 chương trình nuôi mẫu và áp dụng `Lịch vắc-xin gà thịt`, `Định mức cám gà thịt` cho lứa của Nhà A3.
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `program_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_programs(id)`; xóa chương trình xóa luôn các dòng. |
+| `category` | VARCHAR(20) | NOT NULL. `FEED` cám định mức, `VACCINE` vắc-xin, `MEDICINE` thuốc trộn, `TEMPERATURE` nhiệt độ, `WORK` công việc. |
+| `name` | VARCHAR(200) | NOT NULL. Loại cám / tên vắc-xin / tên thuốc / giai đoạn nhiệt độ / tên công việc. |
+| `day_from`, `day_to` | INT | NOT NULL, 1–365, `day_from` ≤ `day_to` (`PROGRAM_STEP_RANGE`). |
+| `quantity` | NUMERIC(14,3) | FEED: g/con/ngày (bắt buộc > 0); VACCINE: liều (tùy chọn); MEDICINE: liều lượng (bắt buộc > 0). |
+| `unit` | VARCHAR(50) | FEED luôn là `g/con/ngày`; VACCINE ví dụ `liều/con`, `giọt/con`; MEDICINE bắt buộc, ví dụ `g/kg cám`, `ml/lít nước`. |
+| `meals_per_day` | INT | FEED: số cữ ăn trong ngày, 1–8 (bắt buộc). |
+| `method` | VARCHAR(20) | VACCINE: `EYE_NOSE` nhỏ mắt mũi, `MOUTH` nhỏ miệng, `DRINKING_WATER` pha nước uống, `INJECTION` tiêm, `WING_WEB` chủng màng cánh. MEDICINE: `MIX_FEED` trộn cám, `MIX_WATER` pha nước uống. Sai nhóm hoặc thiếu trả `PROGRAM_METHOD_REQUIRED`. |
+| `temp_min`, `temp_max` | NUMERIC(4,1) | TEMPERATURE: nhiệt độ chuồng °C (10–45), `temp_min` < `temp_max` (`PROGRAM_TEMPERATURE_RANGE`). |
+| `note` | VARCHAR(1000) | Ghi chú cách làm. |
+
+Quy tắc: chương trình phải có ít nhất một mức cám (`PROGRAM_FEED_REQUIRED`); các mức cám không chồng ngày nhau (`PROGRAM_FEED_OVERLAP`), các mức nhiệt độ không chồng ngày nhau (`PROGRAM_TEMPERATURE_OVERLAP`) — mỗi ngày tuổi chỉ có một khẩu phần và một khoảng nhiệt; FEED thiếu định mức hoặc số cữ trả `PROGRAM_FEED_INCOMPLETE`, MEDICINE thiếu liều hoặc đơn vị trả `PROGRAM_MEDICINE_DOSE`. Cột không thuộc nhóm của dòng được bỏ trống khi lưu. Kế hoạch hôm nay: cám = `quantity` × số con của đàn ÷ 1000 (kg/ngày), chia cho `meals_per_day` ra kg mỗi cữ.
+
+API: `GET /api/farming-programs`, `GET /api/farming-programs/{id}` (mọi tài khoản, trả thêm `activeFlockCount` số đàn đang nuôi theo chương trình); `POST`, `PUT /{id}` (thay toàn bộ nội dung), `DELETE /{id}` (chủ trại; không xóa chương trình đã dùng cho đàn - 409 `PROGRAM_IN_USE`). `GET /api/cycles/{id}` trả `programs` (các chương trình của đàn trong lứa, mỗi nội dung có `state` `DONE` / `IN_PROGRESS` / `UPCOMING` theo ngày tuổi) và `todayPlan` (kế hoạch hôm nay của từng đàn đang nuôi).
+
+Mô hình cũ (chương trình theo loại `type` gắn vào lứa qua bảng `cycle_programs`) đã bỏ; `insert_data.txt` (mục 9) chạy `DROP TABLE IF EXISTS cycle_programs` và `ALTER TABLE farming_programs DROP COLUMN IF EXISTS type`.
+
+Dữ liệu mẫu: mục 7 trong `insert_data.txt` khai báo lứa thứ 1 (bắt đầu 01/10/2026) cho Nhà A1–A3, B1, B2; mục 8 nhập các đàn (Nhà A3: `MÍA-DABACO TRỐNG` 20.000 con × 11.000đ và `MÍA-DABACO MÁI` 10.000 con × 11.500đ = 335.000.000đ) kèm biến động `IMPORT`, rồi tính lại `barns.current_quantity`; mục 9 thêm 3 chương trình theo giống (`Gà ta thả vườn` 105 ngày đầy đủ cám 7 giai đoạn, 8 mũi vắc-xin, 5 đợt thuốc, 5 mức nhiệt, 3 công việc; `Gà Mía thương phẩm` 90 ngày; `Gà J-Dabaco thương phẩm` 75 ngày) và gắn chương trình cho các đàn mẫu theo tên giống.
 
 ## 1. Bảng `roles`
 Quản lý các vai trò (quyền hạn) của người dùng trong hệ thống.

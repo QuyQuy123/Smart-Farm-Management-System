@@ -10,6 +10,7 @@ import java.util.List;
 public record FlockImportRequest(
         @NotBlank(message = "Vui lòng nhập tên đàn.")
         @Size(max = 150, message = "Tên đàn không quá 150 ký tự.") String name,
+        @NotNull(message = "Vui lòng chọn chương trình nuôi (giống) của đàn.") Long programId,
         @NotNull(message = "Vui lòng chọn giới tính đàn.") FlockGender gender,
         @NotNull(message = "Vui lòng chọn ngày nhập.") LocalDate importDate,
         @NotNull(message = "Vui lòng nhập ngày tuổi lúc nhập.")
