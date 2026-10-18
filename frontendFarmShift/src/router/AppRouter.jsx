@@ -14,6 +14,7 @@ const ResetPassword = lazy(() => import('../features/auth/ResetPassword').then(m
 /* ── Lazy Loaded Core FarmShift Modules ─────────────────────── */
 const DashboardView = lazy(() => import('../features/farmshift/DashboardView').then(m => ({ default: m.DashboardView })));
 const BarnsView = lazy(() => import('../features/farmshift/BarnsView').then(m => ({ default: m.BarnsView })));
+const AreasView = lazy(() => import('../features/farmshift/AreasView').then(m => ({ default: m.AreasView })));
 const JournalView = lazy(() => import('../features/farmshift/JournalView').then(m => ({ default: m.JournalView })));
 const InventoryView = lazy(() => import('../features/farmshift/InventoryView').then(m => ({ default: m.InventoryView })));
 const PurchasesView = lazy(() => import('../features/farmshift/PurchasesView').then(m => ({ default: m.PurchasesView })));
@@ -56,9 +57,9 @@ export const AppRouter = () => {
         {/* ── Core FarmShift Functional Routes ────────────────── */}
         <Route path="/" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
-        <Route path="/areas" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
-        <Route path="/areas/:id" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
-        <Route path="/barns" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
+        <Route path="/areas" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
+        <Route path="/areas/:id" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
+        <Route path="/barns" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
         <Route path="/journal" element={<ProtectedRoute><JournalView /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><InventoryView /></ProtectedRoute>} />
         <Route path="/transfers" element={<ProtectedRoute><TransfersView /></ProtectedRoute>} />

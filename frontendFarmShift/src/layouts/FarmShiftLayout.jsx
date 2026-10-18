@@ -16,6 +16,7 @@ import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { GlobalSearch } from '../components/GlobalSearch/GlobalSearch';
 import { getFarmInfo, saveFarmInfo } from '../data/farmshiftMockData';
 import { getFarm } from '../services/farmService';
+import { FARM_AREAS_CHANGED, listFarmAreas } from '../services/farmAreaService';
 import farmLogo from '../assets/logo_Farm.png';
 import '../theme/farmshift.css';
 
@@ -183,6 +184,26 @@ export const FarmShiftLayout = ({
         return () => window.removeEventListener('farmshift_info_updated', handleFarmUpdate);
     }, [user]);
 
+    // Khu nuôi submenu (Tất cả + từng khu), loaded only while browsing the area pages.
+    const inAreaPages = location.pathname.startsWith('/areas') || location.pathname.startsWith('/barns');
+    const [areaLinks, setAreaLinks] = useState([]);
+    useEffect(() => {
+        if (!inAreaPages || !user?.email) return undefined;
+        let cancelled = false;
+        const load = () => listFarmAreas()
+            .then(list => { if (!cancelled && Array.isArray(list)) setAreaLinks(list); })
+            .catch(() => { /* The submenu is optional; the page itself reports API errors. */ });
+        const onStorage = event => { if (event.key === FARM_AREAS_CHANGED) load(); };
+        load();
+        window.addEventListener(FARM_AREAS_CHANGED, load);
+        window.addEventListener('storage', onStorage);
+        return () => {
+            cancelled = true;
+            window.removeEventListener(FARM_AREAS_CHANGED, load);
+            window.removeEventListener('storage', onStorage);
+        };
+    }, [inAreaPages, user?.email]);
+
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(() => { });
@@ -195,7 +216,7 @@ export const FarmShiftLayout = ({
 
     const navMenuItems = [
         { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard },
-        { id: 'areas', label: 'Khu nuôi & Chuồng', path: '/areas', icon: Warehouse },
+        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse },
         { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList },
         { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package },
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight },
@@ -517,7 +538,8 @@ export const FarmShiftLayout = ({
                 <ul className="farmshift-menu">
                     {navMenuItems.map(item => {
                         const Icon = item.icon;
-                        const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/');
+                        const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/')
+                            || (item.id === 'areas' && inAreaPages);
                         return (
                             <li key={item.id}>
                                 <NavLink
@@ -537,6 +559,23 @@ export const FarmShiftLayout = ({
                                         </span>
                                     )}
                                 </NavLink>
+                                {item.id === 'areas' && inAreaPages && !collapsed && (
+                                    <ul className="farmshift-submenu">
+                                        <li>
+                                            <NavLink to="/barns" className={`farmshift-submenu-item ${location.pathname === '/barns' ? 'active' : ''}`}>Tất cả</NavLink>
+                                        </li>
+                                        {areaLinks.map(area => {
+                                            const areaPath = `/areas/${area.id}`;
+                                            return (
+                                                <li key={area.id}>
+                                                    <NavLink to={areaPath} className={`farmshift-submenu-item ${location.pathname === areaPath ? 'active' : ''}`}>
+                                                        {area.name}({area.barnCount})
+                                                    </NavLink>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                )}
                             </li>
                         );
                     })}

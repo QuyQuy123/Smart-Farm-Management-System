@@ -2119,3 +2119,33 @@ h6 {
   background-color: #f1f5f9;
   color: #0f172a;
 }
+
+/* Sidebar submenu (Khu nuôi → Tất cả / từng khu) */
+.farmshift-submenu {
+  list-style: none;
+  margin: 2px 0 6px 31px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--color-hairline);
+}
+
+.farmshift-submenu-item {
+  display: block;
+  padding: 7px 10px;
+  border-radius: var(--rounded-md);
+  color: var(--color-body);
+  font-size: 13px;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.farmshift-submenu-item:hover {
+  background-color: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+
+.farmshift-submenu-item.active {
+  color: #019788;
+  font-weight: 600;
+}
