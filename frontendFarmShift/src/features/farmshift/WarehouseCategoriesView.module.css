@@ -1,4 +1,4 @@
-.card { overflow: hidden; }
+.card { overflow: hidden; min-height: 520px; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #edf1f0; flex-wrap: wrap; }
 .heading { display: flex; align-items: center; gap: 12px; }
 .headingIcon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #e8f6f1; color: #008577; }
@@ -42,4 +42,12 @@
 .error svg { flex-shrink: 0; margin-top: 2px; }
 .footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #f8fbfa; border-top: 1px solid #edf1f0; }
 .footer .deleteButton { background: #fff0f0; color: #c63030; border-color: #f2bcbc; }
+.modalWide { width: min(100%, 740px); }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; row-gap: 16px; }
+.fullWidth { grid-column: 1 / -1; }
+.formField { display: flex; flex-direction: column; }
+.formField label { display: block; font-size: 13px; font-weight: 500; margin: 0 0 6px; }
+.formField input, .formField select, .formField textarea { margin-bottom: 0 !important; }
+.formField textarea { min-height: 72px; resize: vertical; }
+@media (max-width: 640px) { .formGrid { grid-template-columns: 1fr; row-gap: 14px; } }
 @media (max-width: 480px) { .toolbar, .searchRow, .modalHeader, .modalBody { padding: 16px; } .dialog { padding: 12px; } .toolbar > button { width: 100%; } .search { width: 100%; } }

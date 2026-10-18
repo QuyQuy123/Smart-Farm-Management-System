@@ -7,27 +7,21 @@ import {
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { WarehouseCategoriesView } from './WarehouseCategoriesView';
+import { ProductCategoriesView } from './ProductCategoriesView';
+import { BrandsView } from './BrandsView';
+import { ProductTypesView } from './ProductTypesView';
+
+const CATALOG_BREADCRUMBS = [{ label: 'Thiết lập danh mục' }];
+const CATALOG_ACTIONS = (
+  <button type="button" className="farmshift-btn farmshift-btn-excel">
+    <FileSpreadsheet size={15} /> Xuất Excel
+  </button>
+);
 
 export const CatalogSettingsView = () => {
   const [activeTab, setActiveTab] = useState('warehouses');
   // 'categories' | 'brands' | 'units' | 'specs' | 'warehouses' | 'suppliers' | 'customers'
 
-  const categories = [
-    { id: 1, name: 'Con giống gia cầm', code: 'CG', count: 2, note: 'Gà giống J-Dabaco, Mía Dabaco' },
-    { id: 2, name: 'Nguyên liệu / Thức ăn chăn nuôi', code: 'TA', count: 3, note: 'Cám úm Higro 01, Cám thịt Higro 02, Cám vỗ béo 03' },
-    { id: 3, name: 'Vắc-xin phòng bệnh', code: 'VX', count: 2, note: 'Newcastle Lasota, Gumboro D78 bảo quản lạnh' },
-    { id: 4, name: 'Thuốc thú y & Kháng sinh', code: 'TH', count: 2, note: 'Kháng sinh Doxycycline, hạ sốt Paracetamol C' },
-    { id: 5, name: 'Hóa chất khử trùng', code: 'HC', count: 2, note: 'BKC 80%, Iodine khử trùng chuồng trại' },
-    { id: 6, name: 'Hàng thu hoạch', code: 'THUHOACH', count: 2, note: 'Gà thịt xuất chuồng, trứng gà sạch' },
-  ];
-
-  const brands = [
-    { id: 1, name: 'Tập đoàn Dabaco', type: 'Con giống & Cám', country: 'Việt Nam', note: 'Gà giống J-Dabaco, Mía Dabaco' },
-    { id: 2, name: 'C.P. Group (C.P. Việt Nam)', type: 'Thức ăn chăn nuôi', country: 'Thái Lan / VN', note: 'Dòng cám Higro 01, 02, 03' },
-    { id: 3, name: 'Hanvet', type: 'Thuốc thú y & Vắc-xin', country: 'Việt Nam', note: 'Vắc-xin Lasota, Gumboro' },
-    { id: 4, name: 'FAVET', type: 'Hóa chất sát trùng', country: 'Việt Nam', note: 'Thuốc sát trùng BKC 80%' },
-    { id: 5, name: 'De Heus', type: 'Thức ăn chăn nuôi', country: 'Hà Lan / VN', note: 'Dòng thức ăn gia cầm chuyên biệt' },
-  ];
 
   const units = [
     { id: 1, name: 'Kg', type: 'Khối lượng', note: 'Cân gà xuất chuồng, thức ăn' },
@@ -61,52 +55,62 @@ export const CatalogSettingsView = () => {
   return (
     <FarmShiftLayout
       pageTitle="Thiết lập danh mục"
-      breadcrumbs={[{ label: 'Thiết lập danh mục' }]}
-      actions={
-        <button className="farmshift-btn farmshift-btn-excel">
-          <FileSpreadsheet size={15} /> Xuất Excel
-        </button>
-      }
+      breadcrumbs={CATALOG_BREADCRUMBS}
+      actions={CATALOG_ACTIONS}
     >
       {/* ── Tabs Navigation (All 7 Master Data Views) ─────── */}
       <div className="farmshift-tabs">
         <button
+          type="button"
           className={`farmshift-tab-btn ${activeTab === 'warehouses' ? 'active' : ''}`}
           onClick={() => setActiveTab('warehouses')}
         >
           Danh mục kho
         </button>
         <button
+          type="button"
           className={`farmshift-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
           onClick={() => setActiveTab('categories')}
+        >
+          Tên hàng hóa
+        </button>
+        <button
+          type="button"
+          className={`farmshift-tab-btn ${activeTab === 'types' ? 'active' : ''}`}
+          onClick={() => setActiveTab('types')}
         >
           Loại hàng hóa
         </button>
         <button
+          type="button"
           className={`farmshift-tab-btn ${activeTab === 'brands' ? 'active' : ''}`}
           onClick={() => setActiveTab('brands')}
         >
           Nhãn hiệu
         </button>
         <button
+          type="button"
           className={`farmshift-tab-btn ${activeTab === 'units' ? 'active' : ''}`}
           onClick={() => setActiveTab('units')}
         >
           Đơn vị tính
         </button>
         <button
+          type="button"
           className={`farmshift-tab-btn ${activeTab === 'specs' ? 'active' : ''}`}
           onClick={() => setActiveTab('specs')}
         >
           Đơn vị quy cách
         </button>
         <button
+          type="button"
           className={`farmshift-tab-btn ${activeTab === 'suppliers' ? 'active' : ''}`}
           onClick={() => setActiveTab('suppliers')}
         >
           Nhà cung cấp
         </button>
         <button
+          type="button"
           className={`farmshift-tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
           onClick={() => setActiveTab('customers')}
         >
@@ -114,80 +118,24 @@ export const CatalogSettingsView = () => {
         </button>
       </div>
 
-      {/* ── Tab 1: Loại hàng hóa ─────────────────────────── */}
-      {activeTab === 'categories' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Phân loại danh mục hàng hóa</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
-              + Thêm loại hàng
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Mã loại</th>
-                  <th>Tên loại hàng hóa</th>
-                  <th>Số mặt hàng đang quản lý</th>
-                  <th>Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map(c => (
-                  <tr key={c.id}>
-                    <td><span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{c.code}</span></td>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{c.name}</strong></td>
-                    <td><strong>{c.count}</strong> mặt hàng</td>
-                    <td style={{ color: 'var(--color-muted)' }}>{c.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* ── Tab 1: Danh mục kho ───────────────────────────── */}
+      {activeTab === 'warehouses' && <WarehouseCategoriesView />}
+
+      {/* ── Tab Tên hàng hóa ─────────────────────────────── */}
+      {activeTab === 'categories' && <ProductCategoriesView />}
+
+      {/* ── Tab Loại hàng hóa ────────────────────────────── */}
+      {activeTab === 'types' && <ProductTypesView />}
 
       {/* ── Tab 2: Nhãn hiệu ─────────────────────────────── */}
-      {activeTab === 'brands' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Danh sách thương hiệu đối tác</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
-              + Thêm nhãn hiệu
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tên thương hiệu</th>
-                  <th>Lĩnh vực sản phẩm</th>
-                  <th>Xuất xứ</th>
-                  <th>Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody>
-                {brands.map(b => (
-                  <tr key={b.id}>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{b.name}</strong></td>
-                    <td>{b.type}</td>
-                    <td>{b.country}</td>
-                    <td style={{ color: 'var(--color-muted)' }}>{b.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'brands' && <BrandsView />}
 
       {/* ── Tab 3: Đơn vị tính ──────────────────────────── */}
       {activeTab === 'units' && (
-        <div className="farmshift-card">
+        <div className="farmshift-card" style={{ minHeight: '520px' }}>
           <div className="farmshift-card-header">
             <h3 className="farmshift-card-title">Đơn vị đo lường cơ bản</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
+            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
               + Thêm đơn vị
             </button>
           </div>
@@ -216,10 +164,10 @@ export const CatalogSettingsView = () => {
 
       {/* ── Tab 4: Đơn vị quy cách ──────────────────────── */}
       {activeTab === 'specs' && (
-        <div className="farmshift-card">
+        <div className="farmshift-card" style={{ minHeight: '520px' }}>
           <div className="farmshift-card-header">
             <h3 className="farmshift-card-title">Quy cách đóng gói & tỷ lệ quy đổi</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
+            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
               + Thêm quy cách
             </button>
           </div>
@@ -248,15 +196,12 @@ export const CatalogSettingsView = () => {
         </div>
       )}
 
-      {/* ── Tab 5: Danh mục kho hàng ────────────────────── */}
-      {activeTab === 'warehouses' && <WarehouseCategoriesView />}
-
       {/* ── Tab 6: Thiết lập Nhà cung cấp (Thiết lập - Nhà cung cấp.html) ── */}
       {activeTab === 'suppliers' && (
-        <div className="farmshift-card">
+        <div className="farmshift-card" style={{ minHeight: '520px' }}>
           <div className="farmshift-card-header">
             <h3 className="farmshift-card-title">Danh bạ nhà cung cấp vật tư & thức ăn</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
+            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
               + Tạo nhà cung cấp
             </button>
           </div>
@@ -295,10 +240,10 @@ export const CatalogSettingsView = () => {
 
       {/* ── Tab 7: Thiết lập Khách hàng (Thiết lập - Khách hàng.html) ── */}
       {activeTab === 'customers' && (
-        <div className="farmshift-card">
+        <div className="farmshift-card" style={{ minHeight: '520px' }}>
           <div className="farmshift-card-header">
             <h3 className="farmshift-card-title">Danh bạ thương lái & Đối tác tiêu thụ</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
+            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
               + Tạo khách hàng
             </button>
           </div>

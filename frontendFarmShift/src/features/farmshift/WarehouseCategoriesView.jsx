@@ -83,14 +83,15 @@ export const WarehouseCategoriesView = () => {
     let cancelled = false;
     setLoading(true);
     setError('');
-    listWarehouseCategories().then(data => { if (!cancelled) setCategories(data); })
+    listWarehouseCategories().then(data => { if (!cancelled) setCategories(Array.isArray(data) ? data : []); })
       .catch(error => { if (!cancelled) setError(errorMessage(error)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [revision]);
 
   const needle = query.trim().toLocaleLowerCase('vi');
-  const filtered = categories.filter(category => [category.code, category.name, category.description].some(value => value?.toLocaleLowerCase('vi').includes(needle)));
+  const safeCategories = Array.isArray(categories) ? categories : [];
+  const filtered = safeCategories.filter(category => [category.code, category.name, category.description].some(value => value?.toLocaleLowerCase('vi').includes(needle)));
   const open = (mode, category) => { setModal({ mode, category }); };
 
   return <div className={`farmshift-card ${styles.card}`}>
