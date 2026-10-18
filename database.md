@@ -45,6 +45,50 @@ API: `GET /api/farm` dành cho tài khoản đã đăng nhập; `PUT /api/farm` 
 
 Với cấu hình `spring.jpa.hibernate.ddl-auto=update`, Hibernate tạo bảng khi khởi động backend. Lần bấm **Cập nhật thông tin** đầu tiên tạo bản ghi; các lần sau cập nhật cùng bản ghi. Khi chưa lưu lần nào, GET trả thành công nhưng chưa có `data`. Dữ liệu mẫu hoặc dữ liệu cũ trong trình duyệt chỉ là giá trị điền sẵn, không tự ghi vào database. Thông tin này dùng chung cho mọi tài khoản, chưa triển khai quan hệ tài khoản với nhiều trang trại.
 
+## Bảng `farm_areas` — Khu nuôi
+
+Entity: `FarmArea`. Lưu các khu nuôi tại **Khu nuôi** (`/areas`). Mỗi khu chứa nhiều chuồng (bảng `barns`).
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. API sinh mã hiển thị `KN000001` từ ID. |
+| `name` | VARCHAR(150) | NOT NULL. Tên khu nuôi; khoảng trắng thừa được gộp lại khi lưu. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC, chữ thường để chặn trùng tên không phân biệt hoa thường. |
+| `livestock_type` | VARCHAR(20) | NOT NULL. `AQUACULTURE` (Thủy sản), `LIVESTOCK` (Gia súc), `POULTRY` (Gia cầm). |
+| `meals_per_day` | INT | NOT NULL, từ 0 đến 6. Số bữa ăn trong ngày dùng cho ghi cám. |
+| `environment_metrics` | VARCHAR(200) | Chỉ số môi trường cần theo dõi, các mã ngăn cách bởi dấu phẩy: `HUMIDITY`, `TEMPERATURE`. |
+| `animal_metrics` | VARCHAR(200) | Chỉ số vật nuôi cần theo dõi: `WEIGHT`, `LOSS`, `MANURE`, `ANIMAL_PHOTO`, `DEAD_PHOTO`, `NOTE`. |
+| `description` | VARCHAR(1000) | Ghi chú / mô tả khu nuôi. |
+| `created_at` | TIMESTAMP | Hibernate tự ghi thời điểm tạo. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
+
+API trả thêm các số liệu tính từ bảng `barns`, không lưu cột riêng: `barnCount` (số chuồng), `activeBarnCount` (chuồng đang hoạt động), `animalCount` (tổng số con), `totalCapacity` (tổng sức chứa).
+
+API: `GET /api/farm-areas`, `GET /api/farm-areas/{id}` cho mọi tài khoản đã đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Không xóa được khu nuôi còn chuồng (409 `FARM_AREA_HAS_BARNS`); trùng tên trả 409 `FARM_AREA_DUPLICATE`.
+
+## Bảng `barns` — Chuồng nuôi
+
+Entity: `Barn`. Lưu chuồng thuộc một khu nuôi, xem tại **Khu nuôi → Tất cả** (`/barns`) hoặc trang chuồng của từng khu (`/areas/{id}`).
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. API sinh mã hiển thị `CH000001` từ ID. |
+| `area_id` | BIGINT | NOT NULL, FOREIGN KEY → `farm_areas(id)`. Đổi được khi chuyển chuồng sang khu khác. |
+| `name` | VARCHAR(100) | NOT NULL. Tên chuồng, ví dụ `Nhà A1`. |
+| `name_key` | VARCHAR(100) | NOT NULL. Tên chuẩn hóa; UNIQUE cùng `area_id` (`uk_barns_area_name`): hai khu khác nhau được trùng tên chuồng. |
+| `purpose` | VARCHAR(20) | NOT NULL. `FARMING` (Thả nuôi) hoặc `BIO_TREATMENT` (Xử lý hóa sinh). |
+| `status` | VARCHAR(20) | NOT NULL. `INACTIVE` (Chưa hoạt động), `ACTIVE` (Đang hoạt động), `CLOSED` (Đã đóng). |
+| `capacity` | INT | NOT NULL, từ 1 đến 10.000.000. Sức chứa tối đa (con). |
+| `current_quantity` | INT | NOT NULL, ≥ 0 và ≤ `capacity`. Số con hiện có. |
+| `target_weight` | NUMERIC(5,2) | Mục tiêu cân nặng xuất chuồng (kg/con), 0–999, có thể để trống. |
+| `description` | VARCHAR(1000) | Ghi chú chuồng. |
+| `created_at` | TIMESTAMP | Hibernate tự ghi thời điểm tạo. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
+
+Quy tắc nghiệp vụ (kiểm tra ở cả backend và form): số con không vượt sức chứa (`BARN_OVER_CAPACITY`); chuồng xử lý hóa sinh không chứa vật nuôi (`BARN_TREATMENT_NOT_EMPTY`); chỉ chuồng đang hoạt động mới có vật nuôi (`BARN_INACTIVE_NOT_EMPTY`); không xóa chuồng còn vật nuôi (409 `BARN_NOT_EMPTY`); trùng tên trong cùng khu trả 409 `BARN_DUPLICATE`.
+
+API: `GET /api/barns` (lọc theo khu bằng `?areaId=`), `GET /api/barns/{id}` cho mọi tài khoản đã đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Giao diện ẩn nút thêm/sửa/xóa và hiện thông báo chế độ chỉ đọc với kế toán và công nhân.
+
 ## 1. Bảng `roles`
 Quản lý các vai trò (quyền hạn) của người dùng trong hệ thống.
 

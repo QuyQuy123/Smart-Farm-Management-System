@@ -1,0 +1,243 @@
+import { useEffect, useRef, useState } from 'react';
+import { AlertCircle, AlertTriangle, Check, X } from 'lucide-react';
+import { createBarn, createFarmArea, deleteBarn, deleteFarmArea, updateBarn, updateFarmArea } from '../../services/farmAreaService';
+import { ANIMAL_METRICS, BARN_PURPOSES, BARN_STATUSES, ENVIRONMENT_METRICS, LIVESTOCK_TYPES, MEALS_PER_DAY, apiErrorMessage, validateBarn } from './farmAreaOptions';
+import styles from './AreasView.module.css';
+
+// Validation (400) and duplicate-name (409) responses carry { field: message } in data.
+const apiFieldErrors = error => {
+  const data = error.response?.data?.data;
+  return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+};
+
+function Dialog({ title, labelId, busy, onClose, wide, children }) {
+  const dialog = useRef(null);
+  useEffect(() => {
+    const element = dialog.current;
+    const overflow = document.body.style.overflow;
+    element.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => { element.close(); document.body.style.overflow = overflow; };
+  }, []);
+  return <dialog ref={dialog} className={styles.dialog} aria-labelledby={labelId}
+    onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    <section className={`${styles.modal} ${wide ? styles.modalWide : ''}`}>
+      <header className={styles.modalHeader}>
+        <h2 id={labelId}>{title}</h2>
+        <button type="button" className={styles.iconButton} onClick={onClose} disabled={busy} aria-label="Đóng"><X size={20} /></button>
+      </header>
+      {children}
+    </section>
+  </dialog>;
+}
+
+const FieldError = ({ id, message }) => message ? <p id={id} className={styles.fieldError}>{message}</p> : null;
+
+function MetricPicker({ legend, options, value, onChange, disabled }) {
+  const toggle = code => onChange(value.includes(code) ? value.filter(item => item !== code) : [...value, code]);
+  return <fieldset className={styles.metricGroup} disabled={disabled}>
+    <legend>{legend}</legend>
+    <div className={styles.chips}>
+      {options.map(option => {
+        const selected = value.includes(option.value);
+        return <button key={option.value} type="button" className={`${styles.chip} ${selected ? styles.chipSelected : ''}`}
+          aria-pressed={selected} onClick={() => toggle(option.value)}>
+          {selected && <Check size={13} />}{option.label}
+        </button>;
+      })}
+    </div>
+  </fieldset>;
+}
+
+export function AreaDialog({ area, onClose, onSaved }) {
+  const editing = Boolean(area);
+  const [form, setForm] = useState(() => ({
+    name: area?.name || '',
+    livestockType: area?.livestockType || 'POULTRY',
+    mealsPerDay: area?.mealsPerDay ?? 3,
+    environmentMetrics: area?.environmentMetrics || ['HUMIDITY', 'TEMPERATURE'],
+    animalMetrics: area?.animalMetrics || ['WEIGHT', 'LOSS'],
+    description: area?.description || '',
+  }));
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const set = (key, value) => { setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+
+  const submit = async event => {
+    event.preventDefault();
+    if (saving) return;
+    const name = form.name.trim();
+    if (!name) { setErrors({ name: 'Vui lòng nhập tên khu nuôi.' }); return; }
+    setSaving(true);
+    setError('');
+    const payload = { ...form, name, mealsPerDay: Number(form.mealsPerDay), description: form.description.trim() };
+    try {
+      if (editing) await updateFarmArea(area.id, payload);
+      else await createFarmArea(payload);
+      onSaved(editing ? `Đã cập nhật khu nuôi ${name}.` : `Đã thêm khu nuôi ${name}.`);
+    } catch (requestError) {
+      const fields = apiFieldErrors(requestError);
+      setErrors(fields);
+      if (!Object.keys(fields).length) setError(apiErrorMessage(requestError));
+      setSaving(false);
+    }
+  };
+
+  return <Dialog title={editing ? 'Chỉnh sửa khu nuôi' : 'Thêm mới khu nuôi'} labelId="farm-area-dialog-title" busy={saving} onClose={onClose} wide>
+    <form onSubmit={submit} noValidate>
+      <div className={styles.modalBody}>
+        {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
+        <label htmlFor="farm-area-name">Tên khu nuôi <span className={styles.required}>*</span></label>
+        <input id="farm-area-name" className={`farmshift-form-control ${errors.name ? styles.invalid : ''}`} value={form.name} maxLength={150}
+          placeholder="Ví dụ: Khu Mía Thịt" onChange={event => set('name', event.target.value)} disabled={saving}
+          aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'farm-area-name-error' : undefined} autoFocus />
+        <FieldError id="farm-area-name-error" message={errors.name} />
+        <div className={styles.formGrid}>
+          <div>
+            <label htmlFor="farm-area-type">Loại vật nuôi <span className={styles.required}>*</span></label>
+            <select id="farm-area-type" className="farmshift-form-control" value={form.livestockType} onChange={event => set('livestockType', event.target.value)} disabled={saving}>
+              {LIVESTOCK_TYPES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <FieldError message={errors.livestockType} />
+          </div>
+          <div>
+            <label htmlFor="farm-area-meals">Số bữa ăn trong ngày</label>
+            <select id="farm-area-meals" className="farmshift-form-control" value={form.mealsPerDay} onChange={event => set('mealsPerDay', event.target.value)} disabled={saving}>
+              {MEALS_PER_DAY.map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+            <FieldError message={errors.mealsPerDay} />
+          </div>
+        </div>
+        <MetricPicker legend="Theo dõi môi trường" options={ENVIRONMENT_METRICS} value={form.environmentMetrics} onChange={value => set('environmentMetrics', value)} disabled={saving} />
+        <MetricPicker legend="Theo dõi vật nuôi" options={ANIMAL_METRICS} value={form.animalMetrics} onChange={value => set('animalMetrics', value)} disabled={saving} />
+        <label htmlFor="farm-area-description">Ghi chú</label>
+        <textarea id="farm-area-description" className="farmshift-form-control" rows={3} maxLength={1000} value={form.description}
+          placeholder="Mô tả hạ tầng, diện tích, hệ thống làm mát..." onChange={event => set('description', event.target.value)} disabled={saving} />
+        <FieldError message={errors.description} />
+      </div>
+      <footer className={styles.footer}>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose} disabled={saving}>Bỏ qua</button>
+        <button type="submit" className="farmshift-btn farmshift-btn-mint" disabled={saving} aria-busy={saving}>{saving ? 'Đang lưu...' : 'Lưu và đóng lại'}</button>
+      </footer>
+    </form>
+  </Dialog>;
+}
+
+export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
+  const editing = Boolean(barn);
+  const [form, setForm] = useState(() => ({
+    areaId: String(barn?.areaId || defaultAreaId || areas[0]?.id || ''),
+    name: barn?.name || '',
+    purpose: barn?.purpose || 'FARMING',
+    status: barn?.status || 'INACTIVE',
+    capacity: String(barn?.capacity ?? ''),
+    currentQuantity: String(barn?.currentQuantity ?? 0),
+    targetWeight: barn?.targetWeight == null ? '' : String(barn.targetWeight),
+    description: barn?.description || '',
+  }));
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const set = (key, value) => { setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+
+  const submit = async event => {
+    event.preventDefault();
+    if (saving) return;
+    const found = validateBarn(form);
+    setErrors(found);
+    if (Object.keys(found).length) return;
+    setSaving(true);
+    setError('');
+    const payload = {
+      areaId: Number(form.areaId), name: form.name.trim(), purpose: form.purpose, status: form.status,
+      capacity: Number(form.capacity), currentQuantity: Number(form.currentQuantity),
+      targetWeight: form.targetWeight === '' ? null : Number(form.targetWeight), description: form.description.trim(),
+    };
+    try {
+      if (editing) await updateBarn(barn.id, payload);
+      else await createBarn(payload);
+      onSaved(editing ? `Đã cập nhật chuồng ${payload.name}.` : `Đã thêm chuồng ${payload.name}.`);
+    } catch (requestError) {
+      const fields = apiFieldErrors(requestError);
+      setErrors(fields);
+      if (!Object.keys(fields).length) setError(apiErrorMessage(requestError));
+      setSaving(false);
+    }
+  };
+
+  const field = (key, label, input, required) => <div>
+    <label htmlFor={`barn-${key}`}>{label} {required && <span className={styles.required}>*</span>}</label>
+    {input}
+    <FieldError id={`barn-${key}-error`} message={errors[key]} />
+  </div>;
+  const inputProps = key => ({
+    id: `barn-${key}`, className: `farmshift-form-control ${errors[key] ? styles.invalid : ''}`, value: form[key], disabled: saving,
+    onChange: event => set(key, event.target.value), 'aria-invalid': Boolean(errors[key]), 'aria-describedby': errors[key] ? `barn-${key}-error` : undefined,
+  });
+
+  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} onClose={onClose} wide>
+    <form onSubmit={submit} noValidate>
+      <div className={styles.modalBody}>
+        {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
+        <div className={styles.formGrid}>
+          {field('areaId', 'Khu nuôi', <select {...inputProps('areaId')}>
+            {areas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
+          </select>, true)}
+          {field('name', 'Tên chuồng', <input {...inputProps('name')} maxLength={100} placeholder="Ví dụ: Nhà A1" autoFocus />, true)}
+          {field('purpose', 'Mục đích sử dụng', <select {...inputProps('purpose')}>
+            {BARN_PURPOSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>, true)}
+          {field('status', 'Trạng thái hoạt động', <select {...inputProps('status')}>
+            {BARN_STATUSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>, true)}
+          {field('capacity', 'Sức chứa tối đa (con)', <input {...inputProps('capacity')} type="number" min="1" step="1" inputMode="numeric" placeholder="Ví dụ: 50000" />, true)}
+          {field('currentQuantity', 'Số con hiện có', <input {...inputProps('currentQuantity')} type="number" min="0" step="1" inputMode="numeric" />, true)}
+          {field('targetWeight', 'Mục tiêu cân nặng xuất chuồng (kg/con)', <input {...inputProps('targetWeight')} type="number" min="0" max="999" step="0.01" inputMode="decimal" placeholder="Ví dụ: 2.3" />)}
+        </div>
+        <label htmlFor="barn-description">Ghi chú</label>
+        <textarea id="barn-description" className="farmshift-form-control" rows={3} maxLength={1000} value={form.description}
+          onChange={event => set('description', event.target.value)} disabled={saving} />
+        <FieldError message={errors.description} />
+      </div>
+      <footer className={styles.footer}>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose} disabled={saving}>Bỏ qua</button>
+        <button type="submit" className="farmshift-btn farmshift-btn-mint" disabled={saving} aria-busy={saving}>{saving ? 'Đang lưu...' : 'Lưu và đóng lại'}</button>
+      </footer>
+    </form>
+  </Dialog>;
+}
+
+export function DeleteDialog({ kind, item, onClose, onDeleted }) {
+  const isArea = kind === 'area';
+  // Business rules: an area with barns, or a barn holding animals, cannot be deleted.
+  const blocker = isArea
+    ? item.barnCount > 0 && `Khu nuôi đang có ${item.barnCount} chuồng. Hãy xóa hoặc chuyển các chuồng sang khu khác trước khi xóa khu nuôi.`
+    : item.currentQuantity > 0 && `Chuồng đang nuôi ${item.currentQuantity.toLocaleString('vi-VN')} con. Hãy xuất bán hoặc chuyển hết vật nuôi trước khi xóa chuồng.`;
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const label = isArea ? 'khu nuôi' : 'chuồng';
+
+  const confirm = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      if (isArea) await deleteFarmArea(item.id);
+      else await deleteBarn(item.id);
+      onDeleted(`Đã xóa ${label} ${item.name}.`);
+    } catch (requestError) { setError(apiErrorMessage(requestError)); setBusy(false); }
+  };
+
+  return <Dialog title={`Xóa ${label}`} labelId="farm-delete-title" busy={busy} onClose={onClose}>
+    <div className={styles.modalBody}>
+      {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
+      {blocker ? <p className={styles.warning}><AlertTriangle size={16} />{blocker}</p>
+        : <p>Bạn chắc chắn muốn xóa {label} <strong>{item.name}</strong>? Thao tác này không thể hoàn tác.</p>}
+    </div>
+    <footer className={styles.footer}>
+      <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose} disabled={busy}>{blocker ? 'Đóng' : 'Hủy bỏ'}</button>
+      {!blocker && <button type="button" className={`farmshift-btn ${styles.deleteButton}`} onClick={confirm} disabled={busy} aria-busy={busy}>{busy ? 'Đang xóa...' : `Xóa ${label}`}</button>}
+    </footer>
+  </Dialog>;
+}
