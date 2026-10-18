@@ -6,9 +6,10 @@ import {
   Users, Building, CheckCircle, Package, Scale, X, Phone, MapPin
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
+import { WarehouseCategoriesView } from './WarehouseCategoriesView';
 
 export const CatalogSettingsView = () => {
-  const [activeTab, setActiveTab] = useState('categories');
+  const [activeTab, setActiveTab] = useState('warehouses');
   // 'categories' | 'brands' | 'units' | 'specs' | 'warehouses' | 'suppliers' | 'customers'
 
   const categories = [
@@ -37,12 +38,6 @@ export const CatalogSettingsView = () => {
     { id: 6, name: 'Khay (30 quả)', type: 'Quy cách trứng', note: 'Khay đựng trứng thương phẩm' },
   ];
 
-  const warehouses = [
-    { id: 1, name: 'Kho Cám & Thức ăn', location: 'Khu trung tâm trại', capacity: '50 tấn', manager: 'Nguyễn Thị Thu Hà' },
-    { id: 2, name: 'Kho Thuốc thú y & Vắc-xin', location: 'Phòng kỹ thuật thú y', capacity: 'Tủ lạnh 2-8°C', manager: 'Trần Văn Mạnh' },
-    { id: 3, name: 'Kho Hóa chất & Khử trùng', location: 'Khu cách ly cổng chính', capacity: '10 tấn', manager: 'Lê Văn Tùng' },
-    { id: 4, name: 'Kho Con giống & Thành phẩm', location: 'Khu Nhà B (Úm)', capacity: '10,000 con', manager: 'Nguyễn Văn Hải' },
-  ];
 
   const specs = [
     { id: 1, name: 'Thùng 102 con giống', unit: 'Thùng', items: '102 con', note: 'Có 2 con sơ cua bù trừ vận chuyển' },
@@ -76,6 +71,12 @@ export const CatalogSettingsView = () => {
       {/* ── Tabs Navigation (All 7 Master Data Views) ─────── */}
       <div className="farmshift-tabs">
         <button
+          className={`farmshift-tab-btn ${activeTab === 'warehouses' ? 'active' : ''}`}
+          onClick={() => setActiveTab('warehouses')}
+        >
+          Danh mục kho
+        </button>
+        <button
           className={`farmshift-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
           onClick={() => setActiveTab('categories')}
         >
@@ -98,12 +99,6 @@ export const CatalogSettingsView = () => {
           onClick={() => setActiveTab('specs')}
         >
           Đơn vị quy cách
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'warehouses' ? 'active' : ''}`}
-          onClick={() => setActiveTab('warehouses')}
-        >
-          Danh mục kho
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'suppliers' ? 'active' : ''}`}
@@ -254,38 +249,7 @@ export const CatalogSettingsView = () => {
       )}
 
       {/* ── Tab 5: Danh mục kho hàng ────────────────────── */}
-      {activeTab === 'warehouses' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Hệ thống kho hàng vật lý tại trang trại</h3>
-            <button className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
-              + Thêm kho mới
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tên kho</th>
-                  <th>Vị trí vật lý</th>
-                  <th>Sức chứa thiết kế</th>
-                  <th>Nhân sự phụ trách</th>
-                </tr>
-              </thead>
-              <tbody>
-                {warehouses.map(w => (
-                  <tr key={w.id}>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{w.name}</strong></td>
-                    <td>{w.location}</td>
-                    <td>{w.capacity}</td>
-                    <td>{w.manager}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'warehouses' && <WarehouseCategoriesView />}
 
       {/* ── Tab 6: Thiết lập Nhà cung cấp (Thiết lập - Nhà cung cấp.html) ── */}
       {activeTab === 'suppliers' && (
