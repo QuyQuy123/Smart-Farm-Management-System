@@ -1,0 +1,24 @@
+.form input::placeholder {
+  color: #94a3b0;
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 1;
+}
+.passwordHint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+  color: #71818a;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.passwordHint code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #edf7f4;
+  color: #007968;
+  font-size: 11.5px;
+  font-weight: 500;
+}
