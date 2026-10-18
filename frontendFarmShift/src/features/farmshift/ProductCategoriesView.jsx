@@ -66,7 +66,7 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="product-category-title"
     onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
     onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-    <section className={styles.modal}>
+    <section className={`${styles.modal} ${styles.modalWide}`}>
       <header className={styles.modalHeader}>
         <h2 id="product-category-title">{title}</h2>
         <button type="button" className={styles.iconButton} onClick={onClose} disabled={saving} aria-label="Đóng"><X size={20} /></button>
@@ -74,27 +74,46 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
       <form onSubmit={submit}>
         <div className={styles.modalBody}>
           {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
-          {deleting ? <p>Bạn muốn xóa tên hàng hóa <strong>{category.name}</strong>? Thao tác này không thể hoàn tác.</p> : <>
-            <label htmlFor="product-category-warehouse">Kho lưu trữ {!readOnly && <span className={styles.required}>*</span>}</label>
-            {readOnly ? <input id="product-category-warehouse" className="farmshift-form-control" value={category?.warehouseName || 'Chưa chọn kho'} readOnly /> : <>
-              <select id="product-category-warehouse" className="farmshift-form-control" style={{ marginBottom: '20px' }} value={warehouseId} onChange={event => setWarehouseId(event.target.value)} required disabled={saving || loadingWarehouses || !!warehouseError}>
-                <option value="">{loadingWarehouses ? 'Đang tải danh sách kho...' : 'Chọn kho lưu trữ'}</option>
-                {warehouses.map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name} ({warehouse.code})</option>)}
-              </select>
-              {warehouseError && <p role="alert" className={styles.error}>{warehouseError} <button type="button" onClick={() => setWarehouseRevision(value => value + 1)}>Thử lại</button></p>}
-              {!loadingWarehouses && !warehouseError && !warehouses.length && <p className={styles.error}>Chưa có kho. Vui lòng thêm kho trong tab Danh mục kho trước.</p>}
-            </>}
-            <label htmlFor="product-category-name">Tên hàng hóa {!readOnly && <span className={styles.required}>*</span>}</label>
-            <input id="product-category-name" className="farmshift-form-control" placeholder="Ví dụ: Cám gà thịt, Thuốc thú y Hanvet..." value={name} onChange={event => setName(event.target.value)} required maxLength={150} readOnly={readOnly} disabled={saving} />
-            <label htmlFor="product-category-specification">Quy cách</label>
-            <input id="product-category-specification" className="farmshift-form-control" placeholder="Ví dụ: Bao 25kg, Chai 1L..." value={specification} onChange={event => setSpecification(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
-            <label htmlFor="product-category-brand">Nhãn hiệu</label>
-            <input id="product-category-brand" className="farmshift-form-control" placeholder="Ví dụ: C.P., Dabaco, Hanvet..." value={brand} onChange={event => setBrand(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
-            <label htmlFor="product-category-product-type">Loại hàng hóa</label>
-            <input id="product-category-product-type" className="farmshift-form-control" placeholder="Ví dụ: Thức ăn, Thuốc thú y, Vắc-xin..." value={productType} onChange={event => setProductType(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
-            <label htmlFor="product-category-description">Mô tả</label>
-            <textarea id="product-category-description" className="farmshift-form-control" rows={3} placeholder="Nhập mô tả tên hàng hóa" value={description} onChange={event => setDescription(event.target.value)} maxLength={1000} readOnly={readOnly} disabled={saving} />
-          </>}
+          {deleting ? <p>Bạn muốn xóa tên hàng hóa <strong>{category.name}</strong>? Thao tác này không thể hoàn tác.</p> : (
+            <div className={styles.formGrid}>
+              <div className={styles.formField}>
+                <label htmlFor="product-category-warehouse">Kho lưu trữ {!readOnly && <span className={styles.required}>*</span>}</label>
+                {readOnly ? <input id="product-category-warehouse" className="farmshift-form-control" value={category?.warehouseName || 'Chưa chọn kho'} readOnly /> : <>
+                  <select id="product-category-warehouse" className="farmshift-form-control" value={warehouseId} onChange={event => setWarehouseId(event.target.value)} required disabled={saving || loadingWarehouses || !!warehouseError}>
+                    <option value="">{loadingWarehouses ? 'Đang tải danh sách kho...' : 'Chọn kho lưu trữ'}</option>
+                    {warehouses.map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name} ({warehouse.code})</option>)}
+                  </select>
+                  {warehouseError && <p role="alert" className={styles.error} style={{ marginTop: '6px' }}>{warehouseError} <button type="button" onClick={() => setWarehouseRevision(value => value + 1)}>Thử lại</button></p>}
+                  {!loadingWarehouses && !warehouseError && !warehouses.length && <p className={styles.error} style={{ marginTop: '6px' }}>Chưa có kho. Vui lòng thêm kho trong tab Danh mục kho trước.</p>}
+                </>}
+              </div>
+
+              <div className={styles.formField}>
+                <label htmlFor="product-category-name">Tên hàng hóa {!readOnly && <span className={styles.required}>*</span>}</label>
+                <input id="product-category-name" className="farmshift-form-control" placeholder="Ví dụ: Cám gà thịt, Thuốc thú y Hanvet..." value={name} onChange={event => setName(event.target.value)} required maxLength={150} readOnly={readOnly} disabled={saving} />
+              </div>
+
+              <div className={styles.formField}>
+                <label htmlFor="product-category-specification">Quy cách</label>
+                <input id="product-category-specification" className="farmshift-form-control" placeholder="Ví dụ: Bao 25kg, Chai 1L..." value={specification} onChange={event => setSpecification(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
+              </div>
+
+              <div className={styles.formField}>
+                <label htmlFor="product-category-brand">Nhãn hiệu</label>
+                <input id="product-category-brand" className="farmshift-form-control" placeholder="Ví dụ: C.P., Dabaco, Hanvet..." value={brand} onChange={event => setBrand(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
+              </div>
+
+              <div className={`${styles.formField} ${styles.fullWidth}`}>
+                <label htmlFor="product-category-product-type">Loại hàng hóa</label>
+                <input id="product-category-product-type" className="farmshift-form-control" placeholder="Ví dụ: Thức ăn, Thuốc thú y, Vắc-xin..." value={productType} onChange={event => setProductType(event.target.value)} maxLength={150} readOnly={readOnly} disabled={saving} />
+              </div>
+
+              <div className={`${styles.formField} ${styles.fullWidth}`}>
+                <label htmlFor="product-category-description">Mô tả</label>
+                <textarea id="product-category-description" className="farmshift-form-control" rows={2} placeholder="Nhập mô tả tên hàng hóa" value={description} onChange={event => setDescription(event.target.value)} maxLength={1000} readOnly={readOnly} disabled={saving} />
+              </div>
+            </div>
+          )}
         </div>
         <footer className={styles.footer}>
           <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose} disabled={saving}>{readOnly ? 'Đóng' : 'Hủy bỏ'}</button>

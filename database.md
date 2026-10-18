@@ -57,6 +57,23 @@ Entity `Brand` lưu thương hiệu / nhãn hiệu đối tác tại **Thiết l
 
 API `GET /api/brands` và `GET /api/brands/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Danh sách sắp xếp theo `created_at`, rồi ID tăng dần. UI hỗ trợ tìm kiếm, xem, thêm, sửa, xác nhận xóa và hiển thị: Tên nhãn hiệu, Loại hàng hóa, Số lượng, Ghi chú, Thao tác (ẩn mã nhãn hiệu). Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tự động tạo bảng `brands`.
 
+## Bảng `product_types` — Loại hàng hóa
+
+Entity `ProductType` lưu danh mục tại **Thiết lập danh mục → Loại hàng hóa**.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(50) | Mã loại hàng hóa (sinh theo định dạng `LH` + số thứ tự, ví dụ `LH000001`). Lưu trong database và trả về qua API, ẩn trên UI. |
+| `name` | VARCHAR(150) | NOT NULL. Tên loại hàng, bắt buộc nhập. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa Unicode NFC, bỏ khoảng trắng đầu/cuối và chuyển chữ thường để ngăn trùng tên. |
+| `description` | VARCHAR(1000) | Mô tả chi tiết loại hàng, có thể để trống. |
+| `quantity` | INTEGER | NOT NULL, DEFAULT 0. Số lượng mặt hàng / sản phẩm thuộc loại hàng; không được nhỏ hơn 0. |
+| `created_at` | TIMESTAMP | Thời điểm tạo; hiển thị trên UI dạng `dd/mm/yyyy`. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
+
+API `GET /api/product-types` và `GET /api/product-types/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Danh sách sắp xếp theo `created_at`, rồi ID tăng dần. UI hỗ trợ tìm kiếm, xem, thêm, sửa, xác nhận xóa và hiển thị các cột: Tên loại hàng, Mô tả, Số lượng, Ngày tạo, Thao tác (ẩn mã loại hàng hóa). Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tự động tạo bảng `product_types`.
+
 ## Lưu ảnh đại diện khi chạy local
 
 Không bổ sung bảng mới: đường dẫn ảnh dùng các cột `accounts.avatar_url` và `customers.avatar_url` hiện có. `POST /api/user/avatar` nhận ảnh multipart, lưu file và cập nhật đường dẫn cho tài khoản đăng nhập (cùng hồ sơ customer nếu có) ngay khi upload thành công.
