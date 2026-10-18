@@ -1,6 +1,7 @@
 // src/features/farmshift/InventoryView.jsx
 // Quản lý Kho hàng hóa & Vật tư chăn nuôi chuẩn FarmShift & DESIGN.md
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Package, Plus, Search, FileSpreadsheet, AlertTriangle,
   Layers, Tag, DollarSign, Filter, RefreshCw, X, CheckCircle,
@@ -8,6 +9,8 @@ import {
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
+import { listWarehouseCategories, WAREHOUSE_CATEGORIES_CHANGED } from '../../services/warehouseCategoryService';
+import { sortWarehouseCategories } from '../../utils/warehouseCategoryOrder';
 
 export const InventoryView = () => {
   const [items, setItems] = useState([
@@ -40,8 +43,46 @@ export const InventoryView = () => {
     }
   ]);
 
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [selectedWarehouse, setSelectedWarehouse] = useState('ALL');
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [categoryError, setCategoryError] = useState('');
+  const [categoryRevision, setCategoryRevision] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let requestId = 0;
+    const load = async () => {
+      const currentRequest = ++requestId;
+      setLoadingCategories(true);
+      setCategoryError('');
+      try {
+        const data = await listWarehouseCategories();
+        if (cancelled || currentRequest !== requestId) return;
+        const ordered = sortWarehouseCategories(data);
+        setCategories(ordered);
+        setSelectedCategory(current => ordered.some(category => category.id === current) ? current : ordered[0]?.id ?? null);
+      } catch {
+        if (!cancelled && currentRequest === requestId) setCategoryError('Không tải được danh mục kho. Vui lòng thử lại.');
+      } finally {
+        if (!cancelled && currentRequest === requestId) setLoadingCategories(false);
+      }
+    };
+    const onStorage = event => { if (event.key === WAREHOUSE_CATEGORIES_CHANGED) load(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    load();
+    window.addEventListener(WAREHOUSE_CATEGORIES_CHANGED, load);
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', load);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(WAREHOUSE_CATEGORIES_CHANGED, load);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', load);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [categoryRevision]);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modals
@@ -61,7 +102,7 @@ export const InventoryView = () => {
     price: '',
     stock: '',
     minThreshold: '20',
-    warehouse: 'Kho Cám & Thức ăn'
+    warehouseCategoryId: ''
   });
 
   // Adjust Form State
@@ -72,19 +113,10 @@ export const InventoryView = () => {
     note: ''
   });
 
-  const categories = [
-    { key: 'ALL', label: 'Tất cả hàng hóa' },
-    { key: 'Con giống', label: 'Con giống' },
-    { key: 'Nguyên liệu sản xuất', label: 'Nguyên liệu / Cám' },
-    { key: 'Kho thuốc', label: 'Thuốc thú y' },
-    { key: 'Kho vaxin', label: 'Vắc-xin' },
-    { key: 'Kho hóa chất', label: 'Hóa chất sát trùng' },
-    { key: 'Hàng thu hoạch', label: 'Hàng thu hoạch' },
-    { key: 'THRESHOLD', label: 'Hàng chạm ngưỡng' }
-  ];
-
   const handleCreateItem = (e) => {
     e.preventDefault();
+    const category = categories.find(category => category.id === Number(newItem.warehouseCategoryId));
+    if (!category) return;
     const created = {
       id: `inv-${Date.now()}`,
       code: newItem.code || `SP0000${items.length + 10}`,
@@ -96,9 +128,11 @@ export const InventoryView = () => {
       price: Number(newItem.price) || 0,
       stock: Number(newItem.stock) || 0,
       minThreshold: Number(newItem.minThreshold) || 10,
-      warehouse: newItem.warehouse
+      warehouse: category.name,
+      warehouseCategoryId: category.id
     };
     setItems([created, ...items]);
+    setSelectedCategory(category.id);
     setShowAddModal(false);
     setNewItem({
       code: '',
@@ -110,7 +144,7 @@ export const InventoryView = () => {
       price: '',
       stock: '',
       minThreshold: '20',
-      warehouse: 'Kho Cám & Thức ăn'
+      warehouseCategoryId: ''
     });
   };
 
@@ -140,13 +174,7 @@ export const InventoryView = () => {
       item.brand.toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchSearch) return false;
 
-    if (selectedWarehouse !== 'ALL' && item.warehouse !== selectedWarehouse) {
-      return false;
-    }
-
-    if (selectedCategory === 'ALL') return true;
-    if (selectedCategory === 'THRESHOLD') return item.stock <= item.minThreshold;
-    return item.category === selectedCategory;
+    return item.warehouseCategoryId === selectedCategory;
   });
 
   return (
@@ -159,16 +187,12 @@ export const InventoryView = () => {
             <FileSpreadsheet size={15} /> Xuất Excel
           </button>
           <button
-            className="farmshift-btn farmshift-btn-secondary"
+            className="farmshift-btn farmshift-btn-mint"
+            disabled={loadingCategories || !!categoryError || !categories.length}
             onClick={() => {
-              if (items.length > 0) openAdjustModal(items[0]);
+              setNewItem(current => ({ ...current, warehouseCategoryId: String(selectedCategory || '') }));
+              setShowAddModal(true);
             }}
-          >
-            <RefreshCw size={15} /> Điều chỉnh tồn kho
-          </button>
-          <button
-            className="farmshift-btn farmshift-btn-primary"
-            onClick={() => setShowAddModal(true)}
           >
             <Plus size={16} /> Tạo hàng hóa
           </button>
@@ -176,14 +200,17 @@ export const InventoryView = () => {
       }
     >
       {/* ── Category Filter Tabs ─────────────────────────── */}
+      {loadingCategories && <p role="status">Đang tải danh mục kho...</p>}
+      {categoryError && <div role="alert" style={{ padding: '16px', color: '#c63030' }}>{categoryError} <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setCategoryRevision(value => value + 1)}>Thử lại</button></div>}
+      {!loadingCategories && !categoryError && !categories.length && <div className="farmshift-card" style={{ padding: '24px', marginBottom: '20px', color: 'var(--color-muted)' }}>Chưa có danh mục kho. <Link to="/catalog-settings">Thêm danh mục kho trong Thiết lập danh mục</Link> để bắt đầu.</div>}
       <div className="farmshift-tabs">
         {categories.map(cat => (
           <button
-            key={cat.key}
-            className={`farmshift-tab-btn ${selectedCategory === cat.key ? 'active' : ''}`}
-            onClick={() => setSelectedCategory(cat.key)}
+            key={cat.id}
+            className={`farmshift-tab-btn ${selectedCategory === cat.id ? 'active' : ''}`}
+            onClick={() => setSelectedCategory(cat.id)}
           >
-            {cat.label}
+            {cat.name}
           </button>
         ))}
       </div>
@@ -200,20 +227,6 @@ export const InventoryView = () => {
           />
         </div>
 
-        <div className="farmshift-filter-group">
-          <select
-            className="farmshift-select"
-            value={selectedWarehouse}
-            onChange={(e) => setSelectedWarehouse(e.target.value)}
-          >
-            <option value="ALL">Tất cả kho lưu trữ</option>
-            <option value="Kho Cám & Thức ăn">Kho Cám & Thức ăn</option>
-            <option value="Kho Thuốc thú y">Kho Thuốc thú y</option>
-            <option value="Kho Vắc-xin">Kho Vắc-xin</option>
-            <option value="Kho Hóa chất">Kho Hóa chất</option>
-            <option value="Kho Con giống & Thành phẩm">Kho Con giống & Thành phẩm</option>
-          </select>
-        </div>
       </div>
 
       {/* ── Inventory Data Table ─────────────────────────── */}
@@ -234,6 +247,7 @@ export const InventoryView = () => {
               </tr>
             </thead>
             <tbody>
+              {!loadingCategories && !categoryError && filteredItems.length === 0 && <tr><td colSpan={9} style={{ padding: '36px', textAlign: 'center', color: 'var(--color-muted)' }}>{searchTerm ? 'Không tìm thấy hàng hóa phù hợp.' : 'Chưa có hàng hóa thuộc danh mục kho này.'}</td></tr>}
               {filteredItems.map(item => (
                 <tr key={item.id}>
                   <td>
@@ -249,7 +263,7 @@ export const InventoryView = () => {
                       {item.category}
                     </div>
                   </td>
-                  <td>{item.warehouse}</td>
+                  <td>{categories.find(category => category.id === item.warehouseCategoryId)?.name || item.warehouse}</td>
                   <td>
                     <span className="farmshift-badge farmshift-badge-neutral">{item.brand}</span>
                   </td>
@@ -366,14 +380,12 @@ export const InventoryView = () => {
                     <label className="farmshift-form-label">Kho lưu trữ</label>
                     <select
                       className="farmshift-form-control"
-                      value={newItem.warehouse}
-                      onChange={(e) => setNewItem({ ...newItem, warehouse: e.target.value })}
+                      required
+                      value={newItem.warehouseCategoryId}
+                      onChange={(e) => setNewItem({ ...newItem, warehouseCategoryId: e.target.value })}
                     >
-                      <option value="Kho Cám & Thức ăn">Kho Cám & Thức ăn</option>
-                      <option value="Kho Thuốc thú y">Kho Thuốc thú y</option>
-                      <option value="Kho Vắc-xin">Kho Vắc-xin</option>
-                      <option value="Kho Hóa chất">Kho Hóa chất</option>
-                      <option value="Kho Con giống & Thành phẩm">Kho Con giống & Thành phẩm</option>
+                      <option value="">Chọn danh mục kho</option>
+                      {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                     </select>
                   </div>
                 </div>

@@ -12,7 +12,7 @@ Entity `WarehouseCategory` lưu danh mục tại **Thiết lập danh mục → 
 | `name` | VARCHAR(150) | NOT NULL. Tên danh mục, bắt buộc nhập. |
 | `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa Unicode NFC, bỏ khoảng trắng đầu/cuối và chuyển chữ thường để kiểm tra trùng. |
 | `description` | VARCHAR(1000) | Mô tả danh mục, có thể để trống. |
-| `created_at` | TIMESTAMP | Hibernate tự ghi ngày tạo. |
+| `created_at` | TIMESTAMP | Hibernate tự ghi đầy đủ ngày và giờ tạo, gồm giờ/phút/giây và phần thập phân. Không thay đổi khi sửa danh mục. API trả đầy đủ thời điểm; UI cột Ngày tạo chỉ định dạng `dd/mm/yyyy`. Tab Kho hàng hóa sắp xếp theo thời điểm tăng dần (cũ trước, mới sau), nếu trùng thời điểm thì theo ID tăng dần. |
 | `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
 
 API: `GET /api/warehouse-categories` và `GET /api/warehouse-categories/{id}` cho người dùng đăng nhập. `POST`, `PUT /{id}` và `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Xóa bản ghi sau khi người dùng xác nhận. Chưa có entity hàng hóa nên `itemCount` hiện trả `0`, không phải trường nhập hoặc cột lưu số đếm thủ công. Khi bổ sung hàng hóa, cần liên kết khóa ngoại tới danh mục, đếm bản ghi liên quan và chặn xóa danh mục đang có hàng hóa.

@@ -22,7 +22,7 @@ public class WarehouseCategoryService {
     private final WarehouseCategoryRepository repository;
 
     public List<WarehouseCategoryResponse> list() {
-        return repository.findAll(Sort.by(Sort.Direction.DESC, "id")).stream().map(this::response).toList();
+        return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
     }
 
     public WarehouseCategoryResponse get(Long id) { return response(find(id)); }

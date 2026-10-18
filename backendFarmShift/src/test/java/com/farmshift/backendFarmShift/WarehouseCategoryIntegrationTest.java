@@ -28,6 +28,7 @@ class WarehouseCategoryIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired WarehouseCategoryRepository repository;
+    @Autowired jakarta.persistence.EntityManager entityManager;
 
     @BeforeEach
     void reset() { repository.deleteAll(); }
@@ -65,6 +66,32 @@ class WarehouseCategoryIntegrationTest {
             .andExpect(status().isOk());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\" KHO CÁM \"}"))
             .andExpect(status().isConflict());
+    }
+
+    @Test
+    void persistsTimeToSecondsAndOrdersByCreationTimeInsteadOfId() throws Exception {
+        long[] ids = new long[2];
+        String[] names = {"Kho tạo sau", "Kho tạo trước"};
+        for (int i = 0; i < 2; i++) {
+            var result = mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(java.util.Map.of("name", names[i]))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.createdAt", org.hamcrest.Matchers.matchesPattern(".*T\\d{2}:\\d{2}:\\d{2}.*")))
+                .andReturn();
+            ids[i] = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+            entityManager.createNativeQuery("update warehouse_categories set created_at = :time where id = :id")
+                .setParameter("time", java.sql.Timestamp.valueOf(i == 0 ? "2026-10-18 09:30:25" : "2026-10-18 09:30:05"))
+                .setParameter("id", ids[i]).executeUpdate();
+        }
+        entityManager.clear();
+        mvc.perform(get(API)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].name").value("Kho tạo trước"))
+            .andExpect(jsonPath("$.data[1].name").value("Kho tạo sau"));
+        var original = repository.findById(ids[1]).orElseThrow().getCreatedAt();
+        mvc.perform(put(API + "/" + ids[1]).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Kho đổi tên\"}"))
+            .andExpect(status().isOk());
+        entityManager.clear();
+        assertEquals(original, repository.findById(ids[1]).orElseThrow().getCreatedAt());
     }
 
     @Test
