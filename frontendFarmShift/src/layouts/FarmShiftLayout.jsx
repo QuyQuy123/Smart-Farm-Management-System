@@ -204,6 +204,10 @@ export const FarmShiftLayout = ({
         };
     }, [inAreaPages, user?.email]);
 
+    // "Trang trại Miền Bình" -> "MB": the last two words of the farm name, shown beside the wordmark.
+    const farmInitials = (farmInfo?.name || '').trim().split(/\s+/).slice(-2)
+        .map(word => word.charAt(0).toLocaleUpperCase('vi')).join('');
+
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(() => { });
@@ -215,22 +219,22 @@ export const FarmShiftLayout = ({
     };
 
     const navMenuItems = [
-        { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard },
-        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse },
-        { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList },
-        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package },
-        { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight },
-        { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText },
-        { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart },
-        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign },
-        { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users },
-        { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3 },
+        { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard, color: '#58938a' },
+        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse, color: '#7f98aa' },
+        { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList, color: '#936d86' },
+        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package, color: '#424f80' },
+        { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight, color: '#829ba9' },
+        { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, color: '#b4a15b' },
+        { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, color: '#ef725b' },
+        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign, color: '#69a58b' },
+        { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users, color: '#91b250' },
+        { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3, color: '#e49a60' },
     ];
 
     const settingsMenuItems = [
-        { id: 'catalog-settings', label: 'Thiết lập danh mục', path: '/catalog-settings', icon: Layers },
-        { id: 'breeding-settings', label: 'Thiết lập chăn nuôi', path: '/breeding-settings', icon: Settings },
-        { id: 'general-settings', label: 'Thiết lập chung', path: '/general-settings', icon: Sliders },
+        { id: 'catalog-settings', label: 'Thiết lập danh mục', path: '/catalog-settings', icon: Layers, color: '#747e76' },
+        { id: 'breeding-settings', label: 'Thiết lập chăn nuôi', path: '/breeding-settings', icon: Settings, color: '#90989b' },
+        { id: 'general-settings', label: 'Thiết lập chung', path: '/general-settings', icon: Sliders, color: '#869693' },
     ];
 
     return (
@@ -492,20 +496,8 @@ export const FarmShiftLayout = ({
             >
                 <div className="farmshift-sidebar-header">
                     {!collapsed ? (
-                        <Link to="/dashboard" className="farmshift-brand-box" style={{ textDecoration: 'none' }}>
-                            <img
-                                src={farmLogo}
-                                alt="FarmShift"
-                                style={{
-                                    width: '36px',
-                                    height: '36px',
-                                    objectFit: 'contain',
-                                    flexShrink: 0
-                                }}
-                            />
-                            <span className="farmshift-brand-title" style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.02em' }}>
-                                FarmShift
-                            </span>
+                        <Link to="/dashboard" className="farmshift-wordmark" aria-label="FarmShift - Bảng tin">
+                            farm<span>Shift</span>{farmInitials && <small>{farmInitials}</small>}
                         </Link>
                     ) : (
                         <Link
@@ -549,8 +541,8 @@ export const FarmShiftLayout = ({
                                         if (window.innerWidth <= 768) setMobileOpen(false);
                                     }}
                                 >
-                                    <span className="farmshift-menu-icon">
-                                        <Icon size={19} />
+                                    <span className="farmshift-menu-icon" style={{ '--nav-color': item.color }}>
+                                        <Icon size={16} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (
@@ -594,8 +586,8 @@ export const FarmShiftLayout = ({
                                         if (window.innerWidth <= 768) setMobileOpen(false);
                                     }}
                                 >
-                                    <span className="farmshift-menu-icon">
-                                        <Icon size={19} />
+                                    <span className="farmshift-menu-icon" style={{ '--nav-color': item.color }}>
+                                        <Icon size={16} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (
