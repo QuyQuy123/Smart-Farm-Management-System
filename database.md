@@ -2,6 +2,8 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
+Quy ước: mỗi thay đổi về bảng hoặc cột phải được ghi lại trong tài liệu này, còn dữ liệu mẫu tương ứng được thêm vào `insert_data.txt`. File `insert_data.txt` dùng `ON CONFLICT DO NOTHING` nên chạy lại nhiều lần vẫn an toàn; chạy file sau khi backend đã khởi động ít nhất một lần để Hibernate tạo bảng.
+
 ## Bảng `warehouse_categories` — Danh mục kho
 
 Entity `WarehouseCategory` lưu danh mục tại **Thiết lập danh mục → Danh mục kho**. Đây là danh mục nhóm hàng lưu trữ (Kho cám, Kho thuốc...), chưa phải danh sách kho vật lý với vị trí và sức chứa.
@@ -66,6 +68,8 @@ API trả thêm các số liệu tính từ bảng `barns`, không lưu cột ri
 
 API: `GET /api/farm-areas`, `GET /api/farm-areas/{id}` cho mọi tài khoản đã đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Không xóa được khu nuôi còn chuồng (409 `FARM_AREA_HAS_BARNS`); trùng tên trả 409 `FARM_AREA_DUPLICATE`.
 
+Dữ liệu mẫu: mục 4 trong `insert_data.txt` thêm 4 khu gia cầm `Khu Mía Thịt`, `Khu J Thịt`, `Khu đông tảo`, `Khu A`. Khi thêm bằng SQL phải tự điền `name_key` (tên viết thường).
+
 ## Bảng `barns` — Chuồng nuôi
 
 Entity: `Barn`. Lưu chuồng thuộc một khu nuôi, xem tại **Khu nuôi → Tất cả** (`/barns`) hoặc trang chuồng của từng khu (`/areas/{id}`).
@@ -88,6 +92,8 @@ Entity: `Barn`. Lưu chuồng thuộc một khu nuôi, xem tại **Khu nuôi →
 Quy tắc nghiệp vụ (kiểm tra ở cả backend và form): số con không vượt sức chứa (`BARN_OVER_CAPACITY`); chuồng xử lý hóa sinh không chứa vật nuôi (`BARN_TREATMENT_NOT_EMPTY`); chỉ chuồng đang hoạt động mới có vật nuôi (`BARN_INACTIVE_NOT_EMPTY`); không xóa chuồng còn vật nuôi (409 `BARN_NOT_EMPTY`); trùng tên trong cùng khu trả 409 `BARN_DUPLICATE`.
 
 API: `GET /api/barns` (lọc theo khu bằng `?areaId=`), `GET /api/barns/{id}` cho mọi tài khoản đã đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Giao diện ẩn nút thêm/sửa/xóa và hiện thông báo chế độ chỉ đọc với kế toán và công nhân.
+
+Dữ liệu mẫu: mục 5 trong `insert_data.txt` thêm `Nhà A1`–`Nhà A3` (sức chứa 50.000, đang nuôi 50.000 / 40.000 / 30.000) vào `Khu Mía Thịt` và `Nhà B1`, `Nhà B2` (sức chứa 80.000, đang nuôi 50.000) vào `Khu J Thịt`. Chuồng được gắn vào khu theo `name_key` của khu nên không phụ thuộc ID tự tăng.
 
 ## 1. Bảng `roles`
 Quản lý các vai trò (quyền hạn) của người dùng trong hệ thống.

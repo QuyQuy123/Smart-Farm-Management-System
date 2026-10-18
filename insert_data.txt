@@ -34,3 +34,31 @@ VALUES (1, 'Admin', '0989149421', '001000000000', 'Hà Nội'),
        (3, 'Trần Kế Toán', '0977222333', '001204000002', 'Vĩnh Phúc'),
        (4, 'Lê Công Nhân', '0966333444', '001204000003', 'Vĩnh Phúc')
 ON CONFLICT (account_id) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 4. Chèn dữ liệu Khu nuôi (Farm Areas)
+-- Mã chỉ số theo dõi: môi trường HUMIDITY, TEMPERATURE;
+-- vật nuôi WEIGHT, LOSS, MANURE, ANIMAL_PHOTO, DEAD_PHOTO, NOTE.
+-- ---------------------------------------------------------------------
+INSERT INTO farm_areas (name, name_key, livestock_type, meals_per_day, environment_metrics, animal_metrics, description, created_at, updated_at)
+VALUES ('Khu Mía Thịt', 'khu mía thịt', 'POULTRY', 3, 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', 'Khu nuôi gà Mía thương phẩm', '2026-10-01 08:00:00', '2026-10-01 08:00:00'),
+       ('Khu J Thịt', 'khu j thịt', 'POULTRY', 3, 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', 'Khu nuôi gà J-Dabaco thịt', '2026-10-01 08:30:00', '2026-10-01 08:30:00'),
+       ('Khu đông tảo', 'khu đông tảo', 'POULTRY', 3, 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', '', '2026-10-06 08:00:00', '2026-10-06 08:00:00'),
+       ('Khu A', 'khu a', 'POULTRY', 3, 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', '', '2026-10-07 08:00:00', '2026-10-07 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 5. Chèn dữ liệu Chuồng (Barns) - gắn vào khu nuôi theo tên khu
+-- purpose: FARMING (Thả nuôi) | BIO_TREATMENT (Xử lý hóa sinh)
+-- status : INACTIVE (Chưa hoạt động) | ACTIVE (Đang hoạt động) | CLOSED (Đã đóng)
+-- ---------------------------------------------------------------------
+INSERT INTO barns (area_id, name, name_key, purpose, status, capacity, current_quantity, target_weight, description, created_at, updated_at)
+SELECT a.id, b.name, b.name_key, b.purpose, b.status, b.capacity, b.current_quantity, NULL, '', b.created_at, b.created_at
+FROM (VALUES ('khu mía thịt', 'Nhà A1', 'nhà a1', 'FARMING', 'ACTIVE', 50000, 50000, TIMESTAMP '2026-10-01 09:00:00'),
+             ('khu mía thịt', 'Nhà A2', 'nhà a2', 'FARMING', 'ACTIVE', 50000, 40000, TIMESTAMP '2026-10-01 09:10:00'),
+             ('khu mía thịt', 'Nhà A3', 'nhà a3', 'FARMING', 'ACTIVE', 50000, 30000, TIMESTAMP '2026-10-01 09:20:00'),
+             ('khu j thịt', 'Nhà B1', 'nhà b1', 'FARMING', 'ACTIVE', 80000, 50000, TIMESTAMP '2026-10-01 09:30:00'),
+             ('khu j thịt', 'Nhà B2', 'nhà b2', 'FARMING', 'ACTIVE', 80000, 50000, TIMESTAMP '2026-10-01 09:40:00'))
+     AS b(area_key, name, name_key, purpose, status, capacity, current_quantity, created_at)
+JOIN farm_areas a ON a.name_key = b.area_key
+ON CONFLICT ON CONSTRAINT uk_barns_area_name DO NOTHING;
