@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Users, Plus, Search, ShieldCheck, UserCheck,
-  Building2, Crown, KeyRound, Edit2, X, CheckCircle, Camera,
+  KeyRound, Edit2, X, CheckCircle, Camera,
   Eye, RefreshCw, AlertCircle, Shield
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
@@ -22,20 +22,21 @@ import { getSystemMessage } from '../../utils/systemMessages';
 import { AvatarCropperModal } from '../profile/AvatarCropperModal';
 import { AvatarPreviewModal } from '../profile/AvatarPreviewModal';
 import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
+import { PasswordInput } from '../../components/PasswordInput/PasswordInput';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
-    label: 'Chủ trang trại (Owner)',
+    label: 'Chủ trang trại',
     badgeClass: 'farmshift-badge-neutral',
     barn: 'Toàn bộ trang trại'
   },
   ROLE_ACCOUNTANT: {
-    label: 'Kế toán (Accountant)',
+    label: 'Kế toán',
     badgeClass: 'farmshift-badge-info',
     barn: 'Sổ quỹ & Kho hàng'
   },
   ROLE_FARM_WORKER: {
-    label: 'Công nhân trại (Worker)',
+    label: 'Công nhân trại',
     badgeClass: 'farmshift-badge-success',
     barn: 'Khu chuồng chăn nuôi'
   }
@@ -158,7 +159,7 @@ export const validatePasswordField = (field, value, allValues = {}) => {
     case 'confirmPassword':
       if (!val) return 'Vui lòng xác nhận mật khẩu mới.';
       if (allValues.newPassword && val !== allValues.newPassword) {
-        return 'Mật khẩu xác nhận không khớp với mật khẩu mới (MSG18).';
+        return 'Mật khẩu xác nhận không khớp với mật khẩu mới';
       }
       return '';
 
@@ -182,7 +183,7 @@ export const AccountView = () => {
   const { showToast } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const activeTab = ['staff', 'profile', 'security', 'branches', 'plan'].includes(requestedTab)
+  const activeTab = ['staff', 'profile', 'security'].includes(requestedTab)
     ? requestedTab
     : 'staff';
   const setActiveTab = (tab) => {
@@ -487,6 +488,8 @@ export const AccountView = () => {
 
   // ── 3. Update Employee ─────────────────────────────────────────────────────
   const handleOpenEdit = (employee) => {
+    setEditAvatarFile(null);
+    setEditAvatarCrop(null);
     setEditStaff({
       id: employee.id,
       fullName: employee.fullName || '',
@@ -500,6 +503,25 @@ export const AccountView = () => {
     setShowEditModal(true);
   };
 
+  const [editAvatarFile, setEditAvatarFile] = useState(null);
+  const [editAvatarCrop, setEditAvatarCrop] = useState(null);
+  const editAvatarSource = useRef(null);
+
+  const handleEditAvatarFile = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+      setFormError('Vui lòng chọn ảnh có dung lượng không quá 5MB.');
+      return;
+    }
+    editAvatarSource.current = file;
+    const reader = new FileReader();
+    reader.onload = () => setEditAvatarCrop(reader.result.toString());
+    reader.onerror = () => setFormError('Không đọc được ảnh. Vui lòng chọn lại.');
+    reader.readAsDataURL(file);
+  };
+
   const handleUpdateStaff = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -511,13 +533,20 @@ export const AccountView = () => {
 
     setIsSubmitting(true);
     try {
+      let avatarUrl = editStaff.avatarUrl || null;
+      if (editAvatarFile) {
+        avatarUrl = await fileService.uploadFile(editAvatarFile, 'avatars');
+        if (typeof avatarUrl !== 'string' || !avatarUrl) throw new Error('Không nhận được đường dẫn ảnh đã tải lên.');
+        setEditStaff(current => ({ ...current, avatarUrl }));
+        setEditAvatarFile(null);
+      }
       await updateEmployee(editStaff.id, {
         fullName: editStaff.fullName.trim(),
         email: editStaff.email.trim(),
         phone: editStaff.phone.trim() || null,
         roleName: editStaff.roleName,
         isActive: editStaff.isActive,
-        avatarUrl: editStaff.avatarUrl || null
+        avatarUrl
       });
 
       showToast('MSG03', 'success');
@@ -820,7 +849,7 @@ export const AccountView = () => {
 
   return (
     <FarmShiftLayout
-      pageTitle="Tài khoản & Phân quyền"
+      pageTitle="Tài khoản & Nhân sự"
       breadcrumbs={[{ label: 'Tài khoản' }]}
       actions={
         activeTab === 'staff' && (
@@ -856,38 +885,11 @@ export const AccountView = () => {
           <KeyRound size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
           Bảo mật
         </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'branches' ? 'active' : ''}`}
-          onClick={() => setActiveTab('branches')}
-        >
-          <Building2 size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Danh sách cơ sở
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'plan' ? 'active' : ''}`}
-          onClick={() => setActiveTab('plan')}
-        >
-          <Crown size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Gói dịch vụ
-        </button>
       </div>
 
       {/* ── TAB 1: DANH SÁCH NHÂN SỰ ────────────────────────────────────────── */}
       {activeTab === 'staff' && (
         <div className="farmshift-card">
-          <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 className="farmshift-card-title">Quản lý tài khoản nhân viên & phân quyền</h3>
-            <button
-              className="farmshift-btn farmshift-btn-secondary"
-              onClick={fetchStaffList}
-              disabled={isLoadingStaff}
-              title="Làm mới danh sách"
-              style={{ padding: '6px 12px', fontSize: '13px' }}
-            >
-              <RefreshCw size={14} className={isLoadingStaff ? 'farmshift-spin' : ''} />
-              Làm mới
-            </button>
-          </div>
 
           {/* Toolbar: Search keyword & Filters */}
           <div className="farmshift-toolbar" style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-hairline)', margin: 0 }}>
@@ -989,6 +991,8 @@ export const AccountView = () => {
                             <div style={{
                               width: '34px',
                               height: '34px',
+                              flexShrink: 0,
+                              aspectRatio: '1 / 1',
                               borderRadius: '50%',
                               backgroundColor: 'var(--color-surface-soft)',
                               border: '1px solid var(--color-hairline)',
@@ -1010,11 +1014,6 @@ export const AccountView = () => {
                               <strong style={{ color: 'var(--color-ink)', fontSize: '13.5px', display: 'block' }}>
                                 {st.fullName || 'Chưa đặt tên'}
                               </strong>
-                              {isOwner && (
-                                <span style={{ fontSize: '11px', color: 'var(--color-signature-coral)', fontWeight: 600 }}>
-                                  Chủ tài khoản chính
-                                </span>
-                              )}
                             </div>
                           </div>
                         </td>
@@ -1359,7 +1358,7 @@ export const AccountView = () => {
               <div className="farmshift-form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <label className="farmshift-form-label" htmlFor="security-currentPassword" style={{ margin: 0 }}>
-                    Mật khẩu hiện tại *
+                    Mật khẩu hiện tại <span style={{ color: '#dc2626' }}>*</span>
                   </label>
                   {passwordTouched.currentPassword && !passwordErrors.currentPassword && passwordForm.currentPassword && (
                     <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -1367,10 +1366,11 @@ export const AccountView = () => {
                     </span>
                   )}
                 </div>
-                <input
+                <PasswordInput
                   id="security-currentPassword"
                   name="currentPassword"
-                  type="password"
+                  visibilityLabel="mật khẩu hiện tại"
+                  autoComplete="current-password"
                   required
                   placeholder="Nhập mật khẩu đang dùng"
                   className={`farmshift-form-control ${
@@ -1395,7 +1395,7 @@ export const AccountView = () => {
               <div className="farmshift-form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <label className="farmshift-form-label" htmlFor="security-newPassword" style={{ margin: 0 }}>
-                    Mật khẩu mới *
+                    Mật khẩu mới <span style={{ color: '#dc2626' }}>*</span>
                   </label>
                   {passwordForm.newPassword && (
                     <span style={{
@@ -1407,10 +1407,11 @@ export const AccountView = () => {
                     </span>
                   )}
                 </div>
-                <input
+                <PasswordInput
                   id="security-newPassword"
                   name="newPassword"
-                  type="password"
+                  visibilityLabel="mật khẩu mới"
+                  autoComplete="new-password"
                   required
                   minLength={8}
                   placeholder="Tối thiểu 8 ký tự"
@@ -1436,7 +1437,7 @@ export const AccountView = () => {
               <div className="farmshift-form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <label className="farmshift-form-label" htmlFor="security-confirmPassword" style={{ margin: 0 }}>
-                    Xác nhận mật khẩu mới *
+                    Xác nhận mật khẩu mới <span style={{ color: '#dc2626' }}>*</span>
                   </label>
                   {passwordTouched.confirmPassword && !passwordErrors.confirmPassword && passwordForm.confirmPassword && (
                     <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -1444,10 +1445,11 @@ export const AccountView = () => {
                     </span>
                   )}
                 </div>
-                <input
+                <PasswordInput
                   id="security-confirmPassword"
                   name="confirmPassword"
-                  type="password"
+                  visibilityLabel="xác nhận mật khẩu mới"
+                  autoComplete="new-password"
                   required
                   minLength={8}
                   placeholder="Nhập lại mật khẩu mới"
@@ -1463,7 +1465,7 @@ export const AccountView = () => {
                   onBlur={() => handlePasswordFieldBlur('confirmPassword')}
                 />
                 {passwordTouched.confirmPassword && passwordErrors.confirmPassword && (
-                  <div className="farmshift-field-error-msg" role="alert">
+                  <div className="farmshift-field-error-msg" role="alert" style={{ color: '#dc2626' }}>
                     <AlertCircle size={13} />
                     <span>{passwordErrors.confirmPassword}</span>
                   </div>
@@ -1477,7 +1479,7 @@ export const AccountView = () => {
                   disabled={isChangingPassword}
                   aria-busy={isChangingPassword}
                   id="btn-change-password"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', backgroundColor: '#e0f5ef', borderColor: '#a7dfcf', color: '#007968' }}
                 >
                   {isChangingPassword ? (
                     <>
@@ -1494,69 +1496,11 @@ export const AccountView = () => {
         </div>
       )}
 
-      {/* ── TAB 4: CƠ SỞ ───────────────────────────────────────────────────── */}
-      {activeTab === 'branches' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Cơ sở trang trại đang quản lý</h3>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tên cơ sở</th>
-                  <th>Chủ hộ / Đại diện</th>
-                  <th>Địa chỉ</th>
-                  <th>Quy mô tổng</th>
-                  <th>Số khu trại</th>
-                  <th>Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong style={{ color: 'var(--color-ink)' }}>Trang trại gà đẻ Miến Bình</strong></td>
-                  <td>Miến Bình</td>
-                  <td>Vĩnh Phúc</td>
-                  <td>15,000 con gà thịt</td>
-                  <td>4 khu nuôi (10 chuồng)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Đang hoạt động</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── TAB 5: GÓI DỊCH VỤ ─────────────────────────────────────────────── */}
-      {activeTab === 'plan' && (
-        <div className="farmshift-card" style={{ maxWidth: '650px' }}>
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-primary)' }}>
-              <Crown size={18} /> Gói dịch vụ FarmShift Enterprise
-            </h3>
-          </div>
-          <div className="farmshift-card-body">
-            <div style={{ backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)', padding: '16px', borderRadius: 'var(--rounded-md)', marginBottom: '16px' }}>
-              <strong style={{ color: 'var(--color-ink)', fontSize: '16px' }}>FarmShift Chuyên Biệt Gia Cầm — Bản Quyền Vĩnh Viễn</strong>
-              <div style={{ fontSize: '13px', color: 'var(--color-muted)', marginTop: '4px' }}>
-                Hạn sử dụng: <strong>Không giới hạn (Đã kích hoạt cho Trang trại Miến Bình)</strong>
-              </div>
-            </div>
-            <ul style={{ fontSize: '13.5px', color: 'var(--color-body)', lineHeight: 1.8 }}>
-              <li>✓ Quản lý không giới hạn số lượng đàn và chuồng nuôi</li>
-              <li>✓ Tích hợp cảm biến IoT nhiệt độ, độ ẩm cảnh báo Real-time</li>
-              <li>✓ Tích hợp AI OCR bóc tách phiếu kê bán và hóa đơn A4 tự động</li>
-              <li>✓ Trợ lý AI hỏi đáp thú y và nhận dạng bệnh qua triệu chứng</li>
-              <li>✓ Phân quyền đa vai trò bảo mật: Chủ trại, Kế toán, Công nhân</li>
-              <li>✓ Đồng bộ sao lưu đám mây an toàn</li>
-            </ul>
-          </div>
-        </div>
-      )}
-
       {/* ── MODAL 1: CREATE EMPLOYEE ──────────────────────────────────────── */}
       {showAddModal && (
-        <div className="farmshift-modal-backdrop">
+        <div className="farmshift-modal-backdrop" onClick={event => {
+          if (event.target === event.currentTarget && !isSubmitting) setShowAddModal(false);
+        }}>
           <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">Thêm mới nhân viên</h3>
@@ -1655,8 +1599,8 @@ export const AccountView = () => {
                       value={newStaff.roleName}
                       onChange={e => setNewStaff({ ...newStaff, roleName: e.target.value })}
                     >
-                      <option value="ROLE_FARM_WORKER">Công nhân trại (Worker)</option>
-                      <option value="ROLE_ACCOUNTANT">Kế toán (Accountant)</option>
+                      <option value="ROLE_FARM_WORKER">Công nhân trại</option>
+                      <option value="ROLE_ACCOUNTANT">Kế toán</option>
                     </select>
                   </div>
                   <div className="farmshift-form-group">
@@ -1727,7 +1671,9 @@ export const AccountView = () => {
 
       {/* ── MODAL 2: VIEW EMPLOYEE DETAILS ─────────────────────────────────── */}
       {showDetailModal && selectedEmployee && (
-        <div className="farmshift-modal-backdrop">
+        <div className="farmshift-modal-backdrop" onClick={event => {
+          if (event.target === event.currentTarget) setShowDetailModal(false);
+        }}>
           <div className="farmshift-modal" style={{ maxWidth: '580px' }}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">Thông tin chi tiết nhân sự</h3>
@@ -1831,6 +1777,7 @@ export const AccountView = () => {
                   setShowDetailModal(false);
                   handleOpenEdit(selectedEmployee);
                 }}
+                style={{ backgroundColor: '#e0f5ef', borderColor: '#a7dfcf', color: '#007968' }}
               >
                 <Edit2 size={14} /> Chỉnh sửa thông tin
               </button>
@@ -1841,7 +1788,9 @@ export const AccountView = () => {
 
       {/* ── MODAL 3: UPDATE EMPLOYEE & ROLE ───────────────────────────────── */}
       {showEditModal && (
-        <div className="farmshift-modal-backdrop">
+        <div className="farmshift-modal-backdrop" onClick={event => {
+          if (event.target === event.currentTarget && !isSubmitting) setShowEditModal(false);
+        }}>
           <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">Chỉnh sửa & Phân quyền nhân viên</h3>
@@ -1854,6 +1803,18 @@ export const AccountView = () => {
             </div>
             <form onSubmit={handleUpdateStaff}>
               <div className="farmshift-modal-body">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                  <div style={{ width: '72px', height: '72px', flexShrink: 0, borderRadius: '50%', overflow: 'hidden', background: '#edf7f4', display: 'grid', placeItems: 'center', border: '1px solid #dce9e5' }}>
+                    {editStaff.avatarUrl ? <img src={editStaff.avatarUrl} alt="Ảnh đại diện nhân viên" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserCheck size={30} color="#008577" />}
+                  </div>
+                  <div>
+                    <label htmlFor="edit-employee-avatar" className="farmshift-btn farmshift-btn-secondary" style={{ display: 'inline-flex', width: 'fit-content', minHeight: 'auto', padding: '6px 10px', gap: '6px', fontSize: '12px', lineHeight: 1.4, borderRadius: '8px', background: '#e0f5ef', color: '#007968', borderColor: '#a7dfcf', cursor: isSubmitting ? 'wait' : 'pointer' }}>
+                      <Camera size={15} /> Thay đổi ảnh nhân viên
+                    </label>
+                    <input id="edit-employee-avatar" type="file" accept="image/*" disabled={isSubmitting} onChange={handleEditAvatarFile} style={{ display: 'none' }} />
+                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--color-muted)' }}>Ảnh tối đa 5MB. Bấm Lưu thay đổi để cập nhật.</p>
+                  </div>
+                </div>
                 {formError && (
                   <div style={{
                     padding: '10px 14px',
@@ -1932,11 +1893,11 @@ export const AccountView = () => {
                       style={editStaff.roleName === 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' } : {}}
                     >
                       {editStaff.roleName === 'ROLE_FARM_OWNER' ? (
-                        <option value="ROLE_FARM_OWNER">Chủ trang trại (Owner)</option>
+                        <option value="ROLE_FARM_OWNER">Chủ trang trại</option>
                       ) : (
                         <>
-                          <option value="ROLE_FARM_WORKER">Công nhân trại (Worker)</option>
-                          <option value="ROLE_ACCOUNTANT">Kế toán (Accountant)</option>
+                          <option value="ROLE_FARM_WORKER">Công nhân trại</option>
+                          <option value="ROLE_ACCOUNTANT">Kế toán</option>
                         </>
                       )}
                     </select>
@@ -1970,7 +1931,7 @@ export const AccountView = () => {
                   className={`farmshift-btn farmshift-btn-primary ${isSubmitting ? 'is-loading' : ''}`}
                   disabled={isSubmitting}
                   aria-busy={isSubmitting}
-                  style={{ gap: '8px' }}
+                  style={{ gap: '8px', backgroundColor: '#e0f5ef', borderColor: '#a7dfcf', color: '#007968' }}
                 >
                   {isSubmitting ? (
                     <>
@@ -1987,6 +1948,16 @@ export const AccountView = () => {
         </div>
       )}
 
+      {showEditModal && editAvatarCrop && (
+        <AvatarCropperModal imageSrc={editAvatarCrop}
+          onClose={() => setEditAvatarCrop(null)}
+          onCropComplete={(preview, file) => {
+            setEditStaff(current => ({ ...current, avatarUrl: preview }));
+            setEditAvatarFile(file || editAvatarSource.current);
+            setEditAvatarCrop(null);
+            setFormError('');
+          }} />
+      )}
       {showAvatarPreview && profileForm.avatarUrl && (
         <AvatarPreviewModal src={profileForm.avatarUrl} onClose={() => setShowAvatarPreview(false)} />
       )}
