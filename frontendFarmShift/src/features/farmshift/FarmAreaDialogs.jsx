@@ -10,7 +10,7 @@ const apiFieldErrors = error => {
   return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
 };
 
-export function Dialog({ title, labelId, busy, onClose, wide, children }) {
+export function Dialog({ title, labelId, busy, onClose, wide, className = '', children }) {
   const dialog = useRef(null);
   useEffect(() => {
     const element = dialog.current;
@@ -22,7 +22,7 @@ export function Dialog({ title, labelId, busy, onClose, wide, children }) {
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby={labelId}
     onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}
     onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <section className={`${styles.modal} ${wide ? styles.modalWide : ''}`}>
+    <section className={`${styles.modal} ${wide ? styles.modalWide : ''} ${className}`}>
       <header className={styles.modalHeader}>
         <h2 id={labelId}>{title}</h2>
         <button type="button" className={styles.iconButton} onClick={onClose} disabled={busy} aria-label="Đóng"><X size={20} /></button>

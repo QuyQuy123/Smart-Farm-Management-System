@@ -33,6 +33,10 @@ public class Flock {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_flock_id")
     private Flock sourceFlock;
+    /** Chương trình nuôi (giống) của đàn: quyết định cám, vắc-xin, thuốc, nhiệt độ theo ngày tuổi. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "program_id")
+    private FarmingProgram program;
     @Column(name = "import_date", nullable = false)
     private LocalDate importDate;
     /** Ngày tuổi của đàn tại ngày nhập. */

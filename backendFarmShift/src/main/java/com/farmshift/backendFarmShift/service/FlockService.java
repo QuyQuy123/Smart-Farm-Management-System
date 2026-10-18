@@ -31,6 +31,7 @@ public class FlockService {
     private final WeightSampleRepository weightRepository;
     private final CycleService cycleService;
     private final BarnService barnService;
+    private final FarmingProgramService programService;
 
     /** Nhập đàn con giống vào lứa đang nuôi. */
     @Transactional
@@ -45,6 +46,7 @@ public class FlockService {
         Flock flock = new Flock();
         flock.setCycle(cycle);
         flock.setName(FarmAreaService.normalizeName(request.name()));
+        flock.setProgram(programService.find(request.programId()));
         flock.setGender(request.gender());
         flock.setSourceType(FlockSource.PURCHASE);
         flock.setSourceNote(request.sourceNote() == null || request.sourceNote().isBlank() ? "Khác" : request.sourceNote().strip());
@@ -89,6 +91,8 @@ public class FlockService {
         moved.setCycle(targetCycle);
         moved.setName(request.name() == null || request.name().isBlank() ? source.getName() : FarmAreaService.normalizeName(request.name()));
         moved.setGender(source.getGender());
+        // The moved birds keep their breed program and therefore their feeding / vaccination schedule.
+        moved.setProgram(source.getProgram());
         moved.setSourceType(FlockSource.TRANSFER);
         moved.setSourceNote("Chuyển từ " + sourceBarn.getName() + " (" + flockCode(source) + ")");
         moved.setSourceFlock(source);

@@ -9,13 +9,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
 import {
-  addExpense, addFeedRecord, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample, detachProgram,
+  addExpense, addFeedRecord, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample,
   getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
 } from '../../services/cycleService';
 import { BarnDialog } from './FarmAreaDialogs';
-import { FormDialog, ProgramDialog } from './CycleDialogs';
+import { listPrograms } from '../../services/farmingProgramService';
+import { FormDialog } from './CycleDialogs';
 import {
-  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, PROGRAM_TYPES, STEP_STATES,
+  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
 } from './farmAreaOptions';
 import styles from './BarnDetailView.module.css';
@@ -84,10 +85,10 @@ export const BarnDetailView = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [barn, cycles, barns, areas] = await Promise.all([getBarn(id), listCycles(id), listBarns(), listFarmAreas()]);
+        const [barn, cycles, barns, areas, programs] = await Promise.all([getBarn(id), listCycles(id), listBarns(), listFarmAreas(), listPrograms()]);
         const cycleId = requestedCycle || barn.activeCycleId;
         const detail = cycleId ? await getCycle(cycleId) : null;
-        if (!cancelled) setState({ key: requestKey, barn, cycles, barns, areas, detail, error: '' });
+        if (!cancelled) setState({ key: requestKey, barn, cycles, barns, areas, programs: Array.isArray(programs) ? programs : [], detail, error: '' });
       } catch (requestError) {
         if (!cancelled) setState({ key: requestKey, error: requestError.response?.status === 404 ? 'Không tìm thấy chuồng hoặc lứa nuôi.' : apiErrorMessage(requestError) });
       }
@@ -96,7 +97,7 @@ export const BarnDetailView = () => {
   }, [id, requestedCycle, requestKey]);
 
   const loading = state.key !== requestKey;
-  const { barn, cycles = [], barns = [], areas = [], detail, error } = state;
+  const { barn, cycles = [], barns = [], areas = [], programs = [], detail, error } = state;
   const cycle = detail?.cycle;
   const metrics = detail?.metrics;
   const active = cycle?.status === 'ACTIVE';
@@ -153,8 +154,13 @@ export const BarnDetailView = () => {
       title: 'Nhập đàn vào lứa',
       intro: `${first ? `Đàn đầu tiên nhập ngày ${formatDay(first)}: các đàn tiếp theo phải nhập trong khoảng ${formatDay([addDaysIso(first, -MAX_IMPORT_SPREAD_DAYS), cycle.startDate].sort()[1])} – ${formatDay(windowEnd < today ? windowEnd : today)}. `
         : `Các đàn của lứa phải nhập cách nhau không quá ${MAX_IMPORT_SPREAD_DAYS} ngày. `}Chuồng còn chỗ cho ${num(room)} con (sức chứa ${num(barn.capacity)}).`,
-      initial: { name: '', gender: 'MALE', importDate: windowEnd && windowEnd < today ? windowEnd : today, ageAtImport: '1', quantity: '', avgWeight: '0.04', unitPrice: '', sourceNote: '', note: '' },
+      warning: programs.length ? null : 'Chưa có chương trình nuôi. Vào Thiết lập chăn nuôi → Chương trình nuôi để tạo chương trình cho giống gà trước khi nhập đàn.',
+      initial: { programId: programs[0] ? String(programs[0].id) : '', name: '', gender: 'MALE', importDate: windowEnd && windowEnd < today ? windowEnd : today, ageAtImport: '1', quantity: '', avgWeight: '0.04', unitPrice: '', sourceNote: '', note: '' },
       fields: [
+        { key: 'programId', label: 'Chương trình nuôi (giống)', type: 'select', required: true, full: true,
+          hint: 'Cám định mức, lịch vắc-xin, thuốc và nhiệt độ của đàn sẽ theo chương trình này.',
+          options: programs.length ? programs.map(program => ({ value: String(program.id), label: `${program.name} · ${program.breed} · ${program.durationDays} ngày` }))
+            : [{ value: '', label: 'Chưa có chương trình nuôi' }] },
         { key: 'name', label: 'Tên đàn', required: true, placeholder: 'Ví dụ: MÍA-DABACO TRỐNG' },
         { key: 'gender', label: 'Giới tính', type: 'select', required: true, options: FLOCK_GENDERS },
         { key: 'importDate', label: 'Ngày nhập', type: 'date', required: true, max: today },
@@ -182,7 +188,7 @@ export const BarnDetailView = () => {
         return found;
       },
       onSubmit: async values => {
-        await importFlock(cycle.id, { ...values, name: values.name.trim(), ageAtImport: Number(values.ageAtImport), quantity: Number(values.quantity),
+        await importFlock(cycle.id, { ...values, programId: Number(values.programId), name: values.name.trim(), ageAtImport: Number(values.ageAtImport), quantity: Number(values.quantity),
           avgWeight: Number(values.avgWeight), unitPrice: Number(values.unitPrice), sourceNote: values.sourceNote.trim(), note: values.note.trim() });
         return `Đã nhập đàn ${values.name.trim()} (${num(values.quantity)} con).`;
       },
@@ -321,12 +327,6 @@ export const BarnDetailView = () => {
     initial: {}, fields: [], onSubmit: async () => { await action(); return `Đã xóa ${label}.`; },
   });
 
-  const removeProgram = program => setModal({
-    title: 'Bỏ chương trình nuôi', submitLabel: 'Bỏ khỏi lứa', danger: true,
-    intro: `Bỏ chương trình ${program.name} khỏi lứa nuôi này? Chương trình mẫu vẫn được giữ lại.`, initial: {}, fields: [],
-    onSubmit: async () => { await detachProgram(cycle.id, program.id); return `Đã bỏ chương trình ${program.name}.`; },
-  });
-
   // ---------------------------------------------------------------- render helpers
 
   const header = barn && <div className={styles.titleBar}>
@@ -402,7 +402,6 @@ export const BarnDetailView = () => {
     const losses = detail.movements.filter(item => item.type === 'DEATH' || item.type === 'CULL' || item.type === 'TRANSFER_OUT' || item.type === 'TRANSFER_IN');
     const harvests = detail.movements.filter(item => item.type === 'HARVEST');
     const expenses = (detail.expenses || []).filter(item => item.category === expenseTab);
-    const attachedIds = detail.programs.map(program => program.id);
 
     return <div className={styles.columns}>
       <div className={styles.left}>
@@ -459,9 +458,9 @@ export const BarnDetailView = () => {
           ]} />
           {flocks.length === 0 ? <Empty>{flockTab === 'ACTIVE' ? (active ? 'Lứa chưa có đàn. Bấm "Nhập đàn" để nhập con giống.' : 'Không còn đàn đang nuôi.') : 'Chưa có đàn lưu trữ.'}</Empty> :
             <div className={styles.tableWrap}><table className={styles.table}>
-              <thead><tr><th>Mã đàn</th><th>T/Tuổi</th><th>N/Tuổi</th><th>Tên</th><th colSpan={2}>Số lượng nhập</th><th>Giới tính</th><th>Tồn</th><th>Nguồn nhập</th><th>Ngày nhập</th><th /></tr></thead>
+              <thead><tr><th>Mã đàn</th><th>Ngày tuổi</th><th>Tên</th><th colSpan={2}>Số lượng nhập</th><th>Giới tính</th><th>Tồn</th><th>Nguồn nhập</th><th>Ngày nhập</th><th /></tr></thead>
               <tbody>{flocks.map(flock => <tr key={flock.id}>
-                <td>{flock.code}</td><td>{flock.currentAgeWeeks}</td><td>{flock.currentAgeDays}</td><td className={styles.upper}>{flock.name}</td>
+                <td>{flock.code}</td><td>{flock.currentAgeDays}</td><td className={styles.upper}>{flock.name}{flock.programName && <small className={styles.programTag}>{flock.programName}</small>}</td>
                 <td>{num(flock.importQuantity)} con</td><td>{num(flock.importWeightKg, 1)} kg</td><td>{labelOf(FLOCK_GENDERS, flock.gender).split(' ')[0]}</td>
                 <td><strong>{num(flock.quantity)} con</strong></td><td>{flock.sourceNote}</td><td>{formatDay(flock.importDate)}</td>
                 <td className={styles.rowActions}>{active && flock.status === 'ACTIVE' && <>
@@ -473,22 +472,45 @@ export const BarnDetailView = () => {
             </table></div>}
         </Card>
 
-        <Card title="Chương trình nuôi" icon={ClipboardList}
-          actions={isOwner && active && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setModal({ type: 'program', attachedIds })}><PlusCircle size={15} />Chọn thêm</button>}>
-          {detail.programs.length === 0 ? <Empty>Chưa có chương trình nuôi được chọn.</Empty> : detail.programs.map(program => <div key={program.id} className={styles.program}>
+        {active && <Card title={`Kế hoạch hôm nay · ${formatDay(today)}`} icon={CalendarDays}>
+          {detail.todayPlan.length === 0 ? <Empty>Chưa có đàn đang nuôi theo chương trình nuôi.</Empty> : detail.todayPlan.map(plan => <div key={plan.flockId} className={styles.program}>
             <div className={styles.programHead}>
-              <strong>{program.name}</strong><span className={`${styles.badge} ${styles.badge_warning}`}>{labelOf(PROGRAM_TYPES, program.type)}</span>
-              {isOwner && active && <button type="button" className={styles.iconButton} aria-label={`Bỏ chương trình ${program.name}`} onClick={() => removeProgram(program)}><Trash2 size={14} /></button>}
+              <strong>{plan.flockCode} · {plan.flockName}</strong>
+              <span className={`${styles.badge} ${styles.badge_info}`}>Ngày tuổi {plan.ageDays}</span>
+              <span className={styles.muted}>{num(plan.quantity)} con · {plan.programName}</span>
             </div>
-            <ul className={styles.steps}>{program.steps.map(step => {
+            {plan.items.length === 0 ? <p className={styles.planEmpty}>Chương trình không có nội dung cho ngày tuổi này.</p> : <ul className={styles.planList}>
+              {plan.items.map((item, index) => <li key={index}>
+                <span className={`${styles.badge} ${styles[`plan_${item.category}`]}`}>{STEP_CATEGORIES.find(category => category.value === item.category)?.label}</span>
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{item.category === 'FEED'
+                    ? `${num(item.quantity, 1)} g/con × ${num(plan.quantity)} con = ${num(item.totalFeedKg, 1)} kg/ngày · ${item.mealsPerDay} cữ × ${num(item.feedKgPerMeal, 1)} kg`
+                    : item.category === 'TEMPERATURE' ? `Giữ nhiệt độ chuồng ${describeStep(item)}` : describeStep(item)}</small>
+                  {item.note && <small className={styles.muted}>{item.note}</small>}
+                </div>
+              </li>)}
+            </ul>}
+          </div>)}
+        </Card>}
+
+        <Card title="Chương trình nuôi" icon={ClipboardList}>
+          {detail.programs.length === 0 ? <Empty>Các đàn của lứa chưa gắn chương trình nuôi.</Empty> : detail.programs.map(program => <div key={program.id} className={styles.program}>
+            <div className={styles.programHead}>
+              <strong>{program.name}</strong><span className={`${styles.badge} ${styles.badge_warning}`}>{program.breed}</span>
+              <span className={styles.muted}>Ngày tuổi {program.currentDay}/{program.durationDays}</span>
+            </div>
+            <ul className={styles.steps}>{program.steps.filter(step => step.state !== 'DONE').slice(0, 8).map(step => {
               const stepState = STEP_STATES[step.state] || STEP_STATES.UPCOMING;
               return <li key={step.id} className={step.state === 'IN_PROGRESS' ? styles.stepNow : ''}>
                 <span>Ngày {step.dayFrom}{step.dayTo !== step.dayFrom ? `–${step.dayTo}` : ''}</span>
-                <strong>{step.name}</strong>
-                <small>{step.quantity != null ? `${num(step.quantity, 2)} ${step.unit || ''}` : ''}</small>
+                <strong>{STEP_CATEGORIES.find(category => category.value === step.category)?.label}: {step.name}</strong>
+                <small>{describeStep(step)}</small>
                 <span className={`${styles.badge} ${styles[`badge_${stepState.tone}`]}`}>{stepState.label}</span>
               </li>;
             })}</ul>
+            {program.steps.filter(step => step.state === 'DONE').length > 0 && <p className={styles.planEmpty}>
+              Đã qua {program.steps.filter(step => step.state === 'DONE').length} nội dung. Xem đầy đủ tại Thiết lập chăn nuôi → Chương trình nuôi.</p>}
           </div>)}
         </Card>
 
@@ -548,7 +570,6 @@ export const BarnDetailView = () => {
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate('/barns')}>Về danh sách chuồng</button></div>
         : <>{header}{detail ? renderCycle() : renderNoCycle()}</>}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}
-    {modal?.type === 'program' && <ProgramDialog cycleId={cycle.id} attachedIds={modal.attachedIds} onClose={() => setModal(null)} onDone={done} />}
     {modal && !modal.type && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </FarmShiftLayout>;
 };

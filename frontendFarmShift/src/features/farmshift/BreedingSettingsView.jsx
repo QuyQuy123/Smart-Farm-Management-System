@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
+import { FarmingProgramsPanel } from './FarmingProgramsPanel';
 
 export const BreedingSettingsView = () => {
   const { showToast } = useNotification();
@@ -22,7 +23,6 @@ export const BreedingSettingsView = () => {
   };
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
-  const [showAddProgModal, setShowAddProgModal] = useState(false);
   const [showAddGrowthModal, setShowAddGrowthModal] = useState(false);
   const [showAddHarvestModal, setShowAddHarvestModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -127,14 +127,6 @@ export const BreedingSettingsView = () => {
           <button className="farmshift-btn farmshift-btn-excel">
             <FileSpreadsheet size={15} /> Xuất Excel
           </button>
-          {activeTab === 'program' && (
-            <button
-              className="farmshift-btn farmshift-btn-primary"
-              onClick={() => setShowAddProgModal(true)}
-            >
-              <Plus size={16} /> Tạo chương trình
-            </button>
-          )}
           {activeTab === 'growth_targets' && (
             <button
               className="farmshift-btn farmshift-btn-primary"
@@ -168,7 +160,7 @@ export const BreedingSettingsView = () => {
           className={`farmshift-tab-btn ${activeTab === 'program' ? 'active' : ''}`}
           onClick={() => setActiveTab('program')}
         >
-          Chương trình & Lịch nuôi chuẩn
+          Chương trình nuôi
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'growth_targets' ? 'active' : ''}`}
@@ -202,45 +194,8 @@ export const BreedingSettingsView = () => {
         </button>
       </div>
 
-      {/* ── Tab 1: Chương trình nuôi ───────────────────────── */}
-      {activeTab === 'program' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Quy trình chăm sóc gà thịt thương phẩm (75 ngày)</h3>
-            <span className="farmshift-badge farmshift-badge-neutral">Áp dụng toàn trại</span>
-          </div>
-          <div className="farmshift-card-body">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ borderLeft: '4px solid var(--color-primary)', paddingLeft: '14px' }}>
-                <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Giai đoạn 1: Úm gà con (Ngày 1 - 21)</strong>
-                <div style={{ fontSize: '13px', color: 'var(--color-body)', marginTop: '4px', lineHeight: 1.6 }}>
-                  • Thức ăn: Cám Higro 01 (Hàm lượng đạm &gt; 21%)<br />
-                  • Phòng bệnh: Vắc-xin Newcastle Lasota lần 1 (ngày 3-5), Gumboro lần 1 (ngày 7-10)<br />
-                  • Nhiệt độ úm: 32°C - 34°C tuần 1, giảm dần 2°C mỗi tuần.
-                </div>
-              </div>
-
-              <div style={{ borderLeft: '4px solid var(--color-link)', paddingLeft: '14px' }}>
-                <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Giai đoạn 2: Nuôi lớn sinh trưởng (Ngày 22 - 50)</strong>
-                <div style={{ fontSize: '13px', color: 'var(--color-body)', marginTop: '4px', lineHeight: 1.6 }}>
-                  • Thức ăn: Cám Higro 02<br />
-                  • Phòng bệnh: Newcastle Lasota lần 2 (ngày 25), phòng cầu trùng và hen CRD<br />
-                  • Thả sân chơi: Cho gà vận động tắm nắng tăng cơ bắp và chất lượng thịt.
-                </div>
-              </div>
-
-              <div style={{ borderLeft: '4px solid var(--color-signature-coral)', paddingLeft: '14px' }}>
-                <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Giai đoạn 3: Vỗ béo & Xuất chuồng (Ngày 51 - 75)</strong>
-                <div style={{ fontSize: '13px', color: 'var(--color-body)', marginTop: '4px', lineHeight: 1.6 }}>
-                  • Thức ăn: Cám Higro 03 kết hợp ngô mảnh<br />
-                  • Ngừng kháng sinh trước xuất bán tối thiểu 14 ngày đảm bảo an toàn sinh học<br />
-                  • Trọng lượng mục tiêu: 2.1kg - 2.4kg / con.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Tab 1: Chương trình nuôi theo giống (dữ liệu thật từ API) ── */}
+      {activeTab === 'program' && <FarmingProgramsPanel />}
 
       {/* ── Tab 2: Mục tiêu tăng trưởng & Định mức cám ─────── */}
       {activeTab === 'growth_targets' && (
@@ -529,66 +484,6 @@ export const BreedingSettingsView = () => {
                   • Cảnh báo ẩm ướt: <strong>&gt; 78%</strong> (Yêu cầu tăng thông gió, rải thêm đệm lót trấu)
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal: Tạo chương trình nuôi mới ──────────────── */}
-      {showAddProgModal && (
-        <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal">
-            <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Tạo chương trình chăn nuôi mới</h3>
-              <button
-                onClick={() => setShowAddProgModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="farmshift-modal-body">
-              <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Tên chương trình *</label>
-                <input
-                  type="text"
-                  placeholder="VD: Nuôi gà thả vườn 90 ngày, Úm gà thịt siêu tốc..."
-                  className="farmshift-form-control"
-                />
-              </div>
-              <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Giống vật nuôi áp dụng</label>
-                <input
-                  type="text"
-                  placeholder="Gà J-Dabaco, Gà Mía, Vịt Grimaud..."
-                  className="farmshift-form-control"
-                />
-              </div>
-              <div className="farmshift-form-group">
-                <label className="farmshift-form-label">Số ngày dự kiến xuất chuồng</label>
-                <input
-                  type="number"
-                  placeholder="75"
-                  className="farmshift-form-control"
-                />
-              </div>
-            </div>
-            <div className="farmshift-modal-footer">
-              <button
-                className="farmshift-btn farmshift-btn-secondary"
-                onClick={() => setShowAddProgModal(false)}
-              >
-                Hủy bỏ
-              </button>
-              <button
-                className="farmshift-btn farmshift-btn-primary"
-                onClick={() => {
-                  showToast('MSG03');
-                  setShowAddProgModal(false);
-                }}
-              >
-                Lưu chương trình
-              </button>
             </div>
           </div>
         </div>

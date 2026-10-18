@@ -31,7 +31,3 @@ export const deleteWeightSample = (cycleId, id) => data(api.delete(`/cycles/${cy
 export const addExpense = (cycleId, body) => data(api.post(`/cycles/${cycleId}/expenses`, body));
 export const deleteExpense = (cycleId, id) => data(api.delete(`/cycles/${cycleId}/expenses/${id}`));
 
-export const listPrograms = () => data(api.get('/farming-programs'));
-export const createProgram = body => data(api.post('/farming-programs', body));
-export const attachProgram = (cycleId, programId) => data(api.post(`/cycles/${cycleId}/programs`, { programId }));
-export const detachProgram = (cycleId, programId) => data(api.delete(`/cycles/${cycleId}/programs/${programId}`));
