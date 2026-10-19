@@ -359,6 +359,11 @@ WHERE LOWER(pii.product_name) = LOWER(pc.name) AND pii.product_category_id IS NU
 -- ---------------------------------------------------------------------
 -- 19. Khởi tạo Tồn kho ban đầu (Inventory Items) theo từng kho
 -- ---------------------------------------------------------------------
+ALTER TABLE inventory_items DROP COLUMN IF EXISTS product_name;
+ALTER TABLE inventory_items DROP COLUMN IF EXISTS product_name_key;
+ALTER TABLE inventory_items DROP COLUMN IF EXISTS cost_price;
+ALTER TABLE inventory_items DROP COLUMN IF EXISTS unit;
+
 INSERT INTO inventory_items (code, warehouse_id, product_id, brand_id, unit_id, price, stock, created_at, updated_at)
 SELECT 'SP' || UPPER(SUBSTRING(MD5(pc.name_key) FROM 1 FOR 12)),
        pc.warehouse_id,
@@ -391,3 +396,57 @@ WHERE pc.name_key IN (
   'vắc-xin newcastle lasota', 'kháng sinh doxycycline 50%', 'hạ sốt paracetamol c'
 )
 ON CONFLICT (warehouse_id, product_id) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 20. Chèn dữ liệu Nhật ký cám mẫu (Feed Records) cho lứa đang nuôi
+-- ---------------------------------------------------------------------
+INSERT INTO feed_records (cycle_id, record_date, feed_name, quantity_kg, unit_price, note, created_by, created_at)
+SELECT c.id, v.record_date, v.feed_name, v.quantity_kg, v.unit_price, v.note, 'admin', v.created_at
+FROM (VALUES
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-02', 'Higro 01', 500.000, 13800.00, 'Cấp cám úm ngày 2', TIMESTAMP '2026-10-02 08:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-05', 'Higro 01', 850.000, 13800.00, 'Cấp cám úm ngày 5', TIMESTAMP '2026-10-05 08:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-10', 'Higro 01', 1200.000, 13800.00, 'Cấp cám úm ngày 10', TIMESTAMP '2026-10-10 08:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-16', 'Higro 02', 2000.000, 13400.00, 'Chuyển cám gà thịt Higro 02', TIMESTAMP '2026-10-16 08:00:00')
+) AS v(area_key, barn_key, record_date, feed_name, quantity_kg, unit_price, note, created_at)
+JOIN farm_areas a ON a.name_key = v.area_key
+JOIN barns b ON b.area_id = a.id AND b.name_key = v.barn_key
+JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM feed_records fr 
+  WHERE fr.cycle_id = c.id AND fr.record_date = v.record_date AND fr.feed_name = v.feed_name
+);
+
+-- ---------------------------------------------------------------------
+-- 21. Chèn dữ liệu Thông số cân mẫu (Weight Samples) cho lứa đang nuôi
+-- ---------------------------------------------------------------------
+INSERT INTO weight_samples (cycle_id, sample_date, avg_weight_kg, sample_size, note, created_by, created_at)
+SELECT c.id, v.sample_date, v.avg_weight_kg, v.sample_size, v.note, 'admin', v.created_at
+FROM (VALUES
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-07', 0.160, 50, 'Cân mẫu tuần 1 (7 ngày tuổi)', TIMESTAMP '2026-10-07 09:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-14', 0.380, 50, 'Cân mẫu tuần 2 (14 ngày tuổi)', TIMESTAMP '2026-10-14 09:00:00')
+) AS v(area_key, barn_key, sample_date, avg_weight_kg, sample_size, note, created_at)
+JOIN farm_areas a ON a.name_key = v.area_key
+JOIN barns b ON b.area_id = a.id AND b.name_key = v.barn_key
+JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM weight_samples ws
+  WHERE ws.cycle_id = c.id AND ws.sample_date = v.sample_date
+);
+
+-- ---------------------------------------------------------------------
+-- 22. Chèn dữ liệu Khoản chi bổ sung (Cycle Expenses) cho lứa đang nuôi
+-- ---------------------------------------------------------------------
+INSERT INTO cycle_expenses (cycle_id, expense_date, category, amount, note, created_by, created_at)
+SELECT c.id, v.expense_date, v.category, v.amount, v.note, 'admin', v.created_at
+FROM (VALUES
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-05', 'ELECTRICITY', 1500000.00, 'Tiền điện thắp sáng và sưởi úm đợt 1', TIMESTAMP '2026-10-05 10:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-08', 'MEDICINE', 850000.00, 'Thuốc bổ và men tiêu hóa phòng ngừa stress', TIMESTAMP '2026-10-08 10:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-15', 'WATER', 420000.00, 'Chi phí nước uống và vệ sinh sát trùng', TIMESTAMP '2026-10-15 10:00:00')
+) AS v(area_key, barn_key, expense_date, category, amount, note, created_at)
+JOIN farm_areas a ON a.name_key = v.area_key
+JOIN barns b ON b.area_id = a.id AND b.name_key = v.barn_key
+JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM cycle_expenses ce
+  WHERE ce.cycle_id = c.id AND ce.expense_date = v.expense_date AND ce.category = v.category
+);

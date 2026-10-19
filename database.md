@@ -56,7 +56,7 @@ Entity: `Role`. Quản lý các vai trò / phân quyền truy cập trong toàn 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
-| `name` | VARCHAR(20) | NOT NULL, UNIQUE. Tên định danh vai trò: `ROLE_FARM_OWNER` (Chủ trại), `ROLE_ACCOUNTANT` (Kế toán), `ROLE_FARM_WORKER` (Công nhân). |
+| `name` | VARCHAR(30) | NOT NULL, UNIQUE. Tên định danh vai trò: `ROLE_FARM_OWNER` (Chủ trại), `ROLE_ACCOUNTANT` (Kế toán), `ROLE_FARM_WORKER` (Công nhân). |
 | `description` | VARCHAR(200) | Mô tả chi tiết quyền hạn của vai trò. |
 
 ### 1.2 Bảng `accounts` — Tài khoản người dùng
@@ -493,7 +493,8 @@ Entity: `FeedRecord`. Nhật ký ghi nhận lượng cám cho ăn hằng ngày c
 | `quantity_kg` | NUMERIC(14,3) | NOT NULL. Khối lượng cám cho ăn (kg). |
 | `unit_price` | NUMERIC(14,2) | Đơn giá cám (VNĐ/kg) để tính chi phí hạch toán. |
 | `note` | VARCHAR(1000) | Ghi chú. |
-| `created_by`, `created_at` | TIMESTAMP | Người ghi và thời điểm ghi nhận. |
+| `created_by` | VARCHAR(150) | Tài khoản / Email người ghi nhận. |
+| `created_at` | TIMESTAMP | Thời điểm tạo bản ghi hệ thống. |
 
 ### 6.7 Bảng `weight_samples` — Thông số cân mẫu vật nuôi
 
@@ -507,7 +508,8 @@ Entity: `WeightSample`. Lưu trữ kết quả cân mẫu định kỳ để the
 | `avg_weight_kg` | NUMERIC(8,3) | NOT NULL. Trọng lượng trung bình mẫu cân (kg/con). |
 | `sample_size` | INT | Số lượng con lấy mẫu cân (VD: 50 con, 100 con). |
 | `note` | VARCHAR(1000) | Ghi chú thể trạng, đồng đều. |
-| `created_by`, `created_at` | TIMESTAMP | Người ghi và thời điểm lưu. |
+| `created_by` | VARCHAR(150) | Tài khoản / Email người ghi nhận cân mẫu. |
+| `created_at` | TIMESTAMP | Thời điểm tạo bản ghi hệ thống. |
 
 ### 6.8 Bảng `cycle_expenses` — Khoản chi bổ sung lứa nuôi
 
@@ -521,7 +523,8 @@ Entity: `CycleExpense`. Lưu trữ các khoản chi trực tiếp phát sinh tro
 | `category` | VARCHAR(20) | NOT NULL. `ELECTRICITY` (điện), `WATER` (nước), `LABOR` (nhân công), `MEDICINE` (thuốc), `OTHER` (chi phí khác). |
 | `amount` | NUMERIC(16,2) | NOT NULL. Số tiền chi trả (VNĐ). |
 | `note` | VARCHAR(1000) | Diễn giải nội dung khoản chi. |
-| `created_by`, `created_at` | TIMESTAMP | Người tạo và thời điểm tạo. |
+| `created_by` | VARCHAR(150) | Tài khoản / Email người hạch toán chi phí. |
+| `created_at` | TIMESTAMP | Thời điểm tạo bản ghi hệ thống. |
 
 ### 6.9 Bảng `farming_programs` & `farming_program_steps` — Chương trình nuôi theo giống
 
