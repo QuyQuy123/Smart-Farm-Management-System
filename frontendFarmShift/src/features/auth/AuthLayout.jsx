@@ -72,7 +72,7 @@ export const AuthLayout = ({ children }) => {
 
         <div style={{ display: 'flex', gap: '32px', fontSize: '13px', color: '#94a3b8' }}>
           <div>✓ Chuẩn hóa quy trình 75 ngày</div>
-          <div>✓ Quét hóa đơn AI OCR</div>
+          <div>✓ Bóc tách hóa đơn OCR</div>
           <div>✓ Bảo mật dữ liệu đám mây</div>
         </div>
       </div>

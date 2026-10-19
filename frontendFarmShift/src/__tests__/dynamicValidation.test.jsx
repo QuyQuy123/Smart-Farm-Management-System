@@ -190,12 +190,16 @@ describe('Interactive Dynamic Validation in AccountView Component', () => {
       const justNow = formatNotificationTime(now - 15 * 1000);
       expect(justNow).toMatch(/^Vừa xong \(\d{2}:\d{2}\)$/);
 
-      // 1 to 59 minutes (e.g., 5 mins ago)
+      // 1 to 59 minutes (handles midnight boundary if run right after 00:00)
+      const dNow = new Date();
       const fiveMins = formatNotificationTime(now - 5 * 60 * 1000);
-      expect(fiveMins).toMatch(/^5 phút trước \(\d{2}:\d{2}\)$/);
+      if (dNow.getHours() === 0 && dNow.getMinutes() < 6) {
+        expect(fiveMins).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
+      } else {
+        expect(fiveMins).toMatch(/^5 phút trước \(\d{2}:\d{2}\)$/);
+      }
 
       // 1 to 24 hours (e.g., 3 hours ago on same day)
-      const dNow = new Date();
       if (dNow.getHours() >= 4) {
         const threeHours = formatNotificationTime(now - 3 * 3600 * 1000);
         expect(threeHours).toMatch(/^3 giờ trước \(\d{2}:\d{2}\)$/);
