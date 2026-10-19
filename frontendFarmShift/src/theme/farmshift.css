@@ -73,6 +73,33 @@
 html {
   overflow-y: scroll;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #beddd4 #f7faf8;
+}
+
+html::-webkit-scrollbar {
+  width: 8px;
+}
+
+html::-webkit-scrollbar-track {
+  background: #f7faf8;
+  border-radius: 999px;
+}
+
+html::-webkit-scrollbar-thumb {
+  background: #beddd4;
+  border: 2px solid #f7faf8;
+  border-radius: 999px;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: #91c5b6;
+}
+
+html::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 *,
@@ -281,6 +308,43 @@ h6 {
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Slim green scrollbar scoped to the navigation sidebar. */
+.farmshift-sidebar,
+.farmgo-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: #beddd4 #f7faf8;
+}
+
+.farmshift-sidebar::-webkit-scrollbar,
+.farmgo-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.farmshift-sidebar::-webkit-scrollbar-track,
+.farmgo-sidebar::-webkit-scrollbar-track {
+  background: #f7faf8;
+  border-radius: 999px;
+}
+
+.farmshift-sidebar::-webkit-scrollbar-thumb,
+.farmgo-sidebar::-webkit-scrollbar-thumb {
+  background: #beddd4;
+  border: 2px solid #f7faf8;
+  border-radius: 999px;
+}
+
+.farmshift-sidebar::-webkit-scrollbar-thumb:hover,
+.farmgo-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #91c5b6;
+}
+
+.farmshift-sidebar::-webkit-scrollbar-button,
+.farmgo-sidebar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .farmshift-sidebar.collapsed,

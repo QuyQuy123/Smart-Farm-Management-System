@@ -10,7 +10,7 @@ import { useNotification } from '../../context/NotificationContext';
 
 export const TransfersView = () => {
   const { showToast } = useNotification();
-  const [activeTab, setActiveTab] = useState('slips'); // 'slips' | 'categories'
+  const [activeTab, setActiveTab] = useState('create'); // 'create' | 'slips' | 'categories'
 
   // Slips List (Xuất nhập nội bộ.html)
   const [slips, setSlips] = useState([
@@ -83,7 +83,6 @@ export const TransfersView = () => {
   const [filterCategory, setFilterCategory] = useState('ALL');
 
   // Modals
-  const [showCreateSlipModal, setShowCreateSlipModal] = useState(false);
   const [showCreateCatModal, setShowCreateCatModal] = useState(false);
   const [selectedSlipDetail, setSelectedSlipDetail] = useState(null);
 
@@ -142,7 +141,7 @@ export const TransfersView = () => {
       note: newSlip.note || 'Phiếu lập tự động'
     };
     setSlips([created, ...slips]);
-    setShowCreateSlipModal(false);
+    setActiveTab('slips');
     showToast('MSG03');
   };
 
@@ -184,39 +183,36 @@ export const TransfersView = () => {
           <button className="farmshift-btn farmshift-btn-excel">
             <FileSpreadsheet size={15} /> Xuất Excel
           </button>
-          {activeTab === 'slips' ? (
-            <button
-              className="farmshift-btn farmshift-btn-primary"
-              onClick={() => setShowCreateSlipModal(true)}
-            >
-              <Plus size={16} /> Tạo phiếu
-            </button>
-          ) : (
-            <button
-              className="farmshift-btn farmshift-btn-primary"
-              onClick={() => setShowCreateCatModal(true)}
-            >
+          {activeTab === 'categories' && (
+            <button className="farmshift-btn farmshift-btn-mint" onClick={() => setShowCreateCatModal(true)}>
               <Plus size={16} /> Thêm danh mục
             </button>
           )}
         </div>
       }
     >
-      {/* ── Tabs Navigation: Phiếu xuất nhập vs Danh mục phiếu ── */}
+      {/* Tạo phiếu, danh sách phiếu và danh mục */}
       <div className="farmshift-tabs">
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'create' ? 'active' : ''}`}
+          onClick={() => setActiveTab('create')}
+        >
+          <Plus size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+          Tạo phiếu
+        </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'slips' ? 'active' : ''}`}
           onClick={() => setActiveTab('slips')}
         >
           <ArrowLeftRight size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Phiếu xuất nhập nội bộ
+          Danh sách phiếu
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
           onClick={() => setActiveTab('categories')}
         >
           <FileText size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Danh mục phiếu
+          Danh mục
         </button>
       </div>
 
@@ -372,19 +368,9 @@ export const TransfersView = () => {
         </div>
       )}
 
-      {/* ── Modal: Tạo phiếu xuất nhập nội bộ (Tạo phiếu xuất nhập nội bộ.html) ── */}
-      {showCreateSlipModal && (
-        <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal" style={{ maxWidth: '780px' }}>
-            <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Tạo phiếu xuất nhập nội bộ</h3>
-              <button
-                onClick={() => setShowCreateSlipModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
+      {/* Form tạo phiếu hiển thị trực tiếp trong tab */}
+      {activeTab === 'create' && (
+        <div className="farmshift-card">
             <form onSubmit={handleCreateSlip}>
               <div className="farmshift-modal-body">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '14px' }}>
@@ -581,7 +567,6 @@ export const TransfersView = () => {
                 </button>
               </div>
             </form>
-          </div>
         </div>
       )}
 
