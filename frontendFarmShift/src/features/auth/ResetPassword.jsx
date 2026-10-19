@@ -111,7 +111,7 @@ export const ResetPassword = () => {
       setTimer(60);
       setSuccess(getSystemMessage('MSG15'));
       setTimeout(() => setSuccess(''), 4000);
-    } catch (err) {
+    } catch (_err) {
       setError('Lỗi khi gửi lại mã. Vui lòng thử lại.');
     } finally {
       setLoading(false);

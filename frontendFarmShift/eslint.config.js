@@ -24,6 +24,7 @@ export default defineConfig([
         caughtErrorsIgnorePattern: '^_'
       }],
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react-hooks/set-state-in-effect': 'warn',
       'no-empty': 'warn',
     },
   },

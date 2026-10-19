@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.util.*;
@@ -27,6 +28,8 @@ public class PurchaseService {
     private final InventoryItemRepository inventoryRepository;
     private final PurchaseTagRepository tagRepository;
     private final ProductTypeRepository productTypeRepository;
+    private final WarehouseCategoryRepository warehouseCategoryRepository;
+    private final MeasurementUnitRepository measurementUnitRepository;
 
     public List<PurchaseInvoiceResponse> list(String search, String paymentStatus) {
         return invoiceRepository.searchInvoices(search, paymentStatus).stream().map(this::toResponse).toList();
@@ -179,28 +182,73 @@ public class PurchaseService {
             String name = Normalizer.normalize(item.getProductName().strip(), Normalizer.Form.NFC);
             String nameKey = name.toLowerCase(Locale.ROOT);
 
-            InventoryItem inventoryItem = null;
-            if (item.getProductCategory() != null) {
-                inventoryItem = inventoryRepository.findByProductCategory(item.getProductCategory()).orElse(null);
+            ProductCategory product = item.getProductCategory();
+            if (product == null) {
+                product = productCategoryRepository.findByNameKey(nameKey).orElse(null);
             }
-            if (inventoryItem == null) {
-                inventoryItem = inventoryRepository.findByProductNameKey(nameKey).orElse(null);
+
+            WarehouseCategory warehouse = null;
+            if (product != null && product.getWarehouse() != null) {
+                warehouse = product.getWarehouse();
+            } else {
+                warehouse = warehouseCategoryRepository.findAll().stream().findFirst().orElseGet(() -> {
+                    WarehouseCategory defaultWh = new WarehouseCategory();
+                    defaultWh.setName("Kho tổng");
+                    defaultWh.setNameKey("kho tổng");
+                    return warehouseCategoryRepository.saveAndFlush(defaultWh);
+                });
             }
+
+            if (product == null) {
+                product = new ProductCategory();
+                product.setName(name);
+                product.setNameKey(nameKey);
+                product.setWarehouse(warehouse);
+                product = productCategoryRepository.saveAndFlush(product);
+            }
+
+            MeasurementUnit unit = null;
+            if (item.getUnit() != null && !item.getUnit().isBlank()) {
+                String unitName = Normalizer.normalize(item.getUnit().strip(), Normalizer.Form.NFC);
+                String unitKey = unitName.toLowerCase(Locale.ROOT);
+                unit = measurementUnitRepository.findByNameKey(unitKey)
+                        .or(() -> measurementUnitRepository.findByCodeKey(unitKey))
+                        .orElseGet(() -> {
+                            MeasurementUnit mu = new MeasurementUnit();
+                            String code = unitName.length() > 20 ? unitName.substring(0, 20).toUpperCase(Locale.ROOT) : unitName.toUpperCase(Locale.ROOT);
+                            String codeKey = code.toLowerCase(Locale.ROOT);
+                            if (measurementUnitRepository.existsByCodeKeyAndIdNot(codeKey, -1L)) {
+                                code = code + "_" + (System.currentTimeMillis() % 1000);
+                                codeKey = code.toLowerCase(Locale.ROOT);
+                            }
+                            mu.setCode(code);
+                            mu.setCodeKey(codeKey);
+                            mu.setName(unitName);
+                            mu.setNameKey(unitKey);
+                            return measurementUnitRepository.saveAndFlush(mu);
+                        });
+            }
+
+            InventoryItem inventoryItem = inventoryRepository.findByWarehouse_IdAndProduct_Id(warehouse.getId(), product.getId()).orElse(null);
+            BigDecimal quantityToAdd = BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 0.0);
+            BigDecimal price = BigDecimal.valueOf(item.getUnitPrice() != null ? item.getUnitPrice() : 0L);
 
             if (inventoryItem == null) {
                 inventoryItem = new InventoryItem();
-                inventoryItem.setProductCategory(item.getProductCategory());
-                inventoryItem.setProductName(name);
-                inventoryItem.setProductNameKey(nameKey);
-                inventoryItem.setUnit(item.getUnit());
-                inventoryItem.setStock(item.getQuantity());
-                inventoryItem.setCostPrice(item.getUnitPrice());
-                if (item.getProductCategory() != null) {
-                    inventoryItem.setWarehouse(item.getProductCategory().getWarehouse());
-                }
+                inventoryItem.setWarehouse(warehouse);
+                inventoryItem.setProduct(product);
+                inventoryItem.setUnit(unit);
+                inventoryItem.setStock(quantityToAdd);
+                inventoryItem.setPrice(price);
             } else {
-                inventoryItem.setStock(inventoryItem.getStock() + item.getQuantity());
-                inventoryItem.setCostPrice(item.getUnitPrice());
+                BigDecimal currentStock = inventoryItem.getStock() != null ? inventoryItem.getStock() : BigDecimal.ZERO;
+                inventoryItem.setStock(currentStock.add(quantityToAdd));
+                if (price.compareTo(BigDecimal.ZERO) > 0) {
+                    inventoryItem.setPrice(price);
+                }
+                if (inventoryItem.getUnit() == null && unit != null) {
+                    inventoryItem.setUnit(unit);
+                }
             }
 
             inventoryRepository.save(inventoryItem);

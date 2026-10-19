@@ -7,6 +7,9 @@ import java.util.List;
 
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, Long> {
     List<InventoryItem> findByWarehouse_Id(Long warehouseId, Sort sort);
+    java.util.Optional<InventoryItem> findByWarehouse_IdAndProduct_Id(Long warehouseId, Long productId);
+    java.util.List<InventoryItem> findByProduct_Id(Long productId);
+    java.util.List<InventoryItem> findByProduct_NameContainingIgnoreCase(String name);
     long countByWarehouse_Id(Long warehouseId);
     long countByProduct_Id(Long productId);
     boolean existsByWarehouse_Id(Long warehouseId);

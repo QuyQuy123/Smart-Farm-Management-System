@@ -148,10 +148,10 @@ class PurchaseIntegrationTest {
         long invId = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
 
         // Verify inventory increased
-        var stockItem = inventoryRepository.findByProductNameContainingIgnoreCase("Higro 02");
+        var stockItem = inventoryRepository.findByProduct_NameContainingIgnoreCase("Higro 02");
         assertFalse(stockItem.isEmpty());
-        assertEquals(50.0, stockItem.get(0).getStock());
-        assertEquals(335000L, stockItem.get(0).getCostPrice());
+        assertEquals(50.0, stockItem.get(0).getStock().doubleValue());
+        assertEquals(335000L, stockItem.get(0).getPrice().longValue());
 
         // Get by ID
         mvc.perform(get("/api/purchases/" + invId))

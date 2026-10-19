@@ -1,6 +1,6 @@
 // src/features/profile/ProfilePage.jsx
 // Hồ sơ cá nhân / Đổi mật khẩu / Cài đặt thông báo — Exact FarmShift.html UI/UX Clone
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Trash2, Camera } from 'lucide-react';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
@@ -122,7 +122,7 @@ export const ProfilePage = ({ initialTab = 'info' }) => {
       updateUser({ name, avatarUrl, phone });
       setFeedbackMsg('Đã lưu thông tin hồ sơ thành công.');
       setFeedbackType('success');
-    } catch (err) {
+    } catch (_err) {
       updateUser({ name, avatarUrl, phone });
       setFeedbackMsg('Đã lưu thông tin hồ sơ thành công (chế độ demo).');
       setFeedbackType('success');
@@ -153,7 +153,7 @@ export const ProfilePage = ({ initialTab = 'info' }) => {
       setFeedbackType('success');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (err) {
+    } catch (_err) {
       setFeedbackMsg('Form hợp lệ. Bản demo chỉ kiểm tra form; không thay đổi mật khẩu của hệ thống thật.');
       setFeedbackType('success');
       setNewPassword('');

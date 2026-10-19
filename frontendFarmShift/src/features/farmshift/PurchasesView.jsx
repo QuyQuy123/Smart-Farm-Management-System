@@ -2,10 +2,11 @@
 // Quản lý Hóa đơn nhập hàng, Nhà cung cấp & Tags chuẩn FarmShift & DESIGN.md
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Plus, Search, FileSpreadsheet, Eye, Sparkles, ScanText,
-  DollarSign, Upload, Tag, Printer, Download,
+  Plus, Search, FileSpreadsheet, Eye, ScanText,
+  DollarSign, Upload, Tag, Printer,
   Trash2, Pencil, AlertTriangle, PackageCheck, Loader2,
-  ZoomIn, ZoomOut, RotateCcw, RotateCw, ExternalLink, FileText
+  ZoomIn, ZoomOut, RotateCw, ExternalLink, FileText,
+  Camera, RefreshCw, Smartphone
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -60,6 +61,13 @@ export const PurchasesView = () => {
   const [ocrRotation, setOcrRotation] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const [ocrTab, setOcrTab] = useState('upload'); // 'upload' | 'camera'
+  const [cameraStream, setCameraStream] = useState(null);
+  const [facingMode, setFacingMode] = useState('environment'); // 'environment' | 'user'
+  const [cameraError, setCameraError] = useState('');
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
@@ -132,6 +140,86 @@ export const PurchasesView = () => {
     return () => { cancelled = true; };
   }, [searchTerm, filterPayment, revision]);
 
+  const stopCamera = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, [cameraStream]);
+
+  const startCamera = async (facing = facingMode) => {
+    setCameraError('');
+    setIsCameraStarting(true);
+    try {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Thiết bị không hỗ trợ camera trực tiếp');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Camera error:', err);
+      setCameraError('Không thể mở camera (thiết bị không hỗ trợ hoặc chưa cấp quyền). Bạn có thể bấm "App máy ảnh" hoặc tải ảnh từ thiết bị.');
+    } finally {
+      setIsCameraStarting(false);
+    }
+  };
+
+  const handleSwitchFacing = () => {
+    const nextFacing = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextFacing);
+    startCamera(nextFacing);
+  };
+
+  const handleCapturePhoto = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    stopCamera();
+
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], `hoa-don-camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        handleTriggerOcr(file);
+      }
+    }, 'image/jpeg', 0.95);
+  };
+
+  const handleCloseOcrModal = useCallback(() => {
+    if (ocrLoading) return;
+    stopCamera();
+    setShowOcrModal(false);
+    setOcrTab('upload');
+    setCameraError('');
+  }, [ocrLoading, stopCamera]);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
   // Escape key closes open modals
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -140,7 +228,7 @@ export const PurchasesView = () => {
           setShowPaymentModal(false);
           setPaymentError('');
         } else if (showOcrModal) {
-          if (!ocrLoading) setShowOcrModal(false);
+          if (!ocrLoading) handleCloseOcrModal();
         } else if (showAddModal) {
           setShowAddModal(false);
           setPoErrors({});
@@ -159,7 +247,7 @@ export const PurchasesView = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showPaymentModal, showOcrModal, showAddModal, supplierModal, tagModal, selectedOrder]);
+  }, [showPaymentModal, showOcrModal, showAddModal, supplierModal, tagModal, selectedOrder, ocrLoading, handleCloseOcrModal]);
 
   // Helper to clear PO item error for a specific row and field
   const clearItemError = (idx, field) => {
@@ -561,18 +649,6 @@ export const PurchasesView = () => {
       showToast(errMsg, 'error');
     } finally {
       setOcrLoading(false);
-    }
-  };
-
-  const handleTriggerSample = async (url, filename) => {
-    try {
-      setOcrLoading(true);
-      const resp = await fetch(url);
-      const blob = await resp.blob();
-      const file = new File([blob], filename, { type: 'image/png' });
-      await handleTriggerOcr(file);
-    } catch {
-      await handleTriggerOcr(null);
     }
   };
 
@@ -2225,17 +2301,17 @@ export const PurchasesView = () => {
         <div
           className="farmshift-modal-backdrop"
           onClick={(e) => {
-            if (e.target === e.currentTarget && !ocrLoading) setShowOcrModal(false);
+            if (e.target === e.currentTarget && !ocrLoading) handleCloseOcrModal();
           }}
         >
-          <div className="farmshift-modal" style={{ maxWidth: '650px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="farmshift-modal" style={{ maxWidth: '680px' }} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-primary)' }}>
-                <ScanText size={18} /> Bóc tách phiếu nhập / Hóa đơn A4 (AI OpenAI & RapidOCR)
+                <ScanText size={18} /> Bóc tách phiếu nhập / Hóa đơn A4 (AI Vision)
               </h3>
               <button
                 disabled={ocrLoading}
-                onClick={() => setShowOcrModal(false)}
+                onClick={handleCloseOcrModal}
                 style={{ background: 'none', border: 'none', cursor: ocrLoading ? 'not-allowed' : 'pointer', color: 'var(--color-muted)' }}
               >
                 ✕
@@ -2250,57 +2326,326 @@ export const PurchasesView = () => {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
+                    stopCamera();
+                    handleTriggerOcr(file);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <input
+                type="file"
+                ref={cameraInputRef}
+                accept="image/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    stopCamera();
                     handleTriggerOcr(file);
                     e.target.value = '';
                   }
                 }}
               />
 
-              <div
-                style={{
-                  border: dragOver ? '2px dashed var(--color-primary)' : '2px dashed var(--color-border-strong)',
-                  borderRadius: 'var(--rounded-lg)',
-                  padding: '30px',
-                  textAlign: 'center',
-                  backgroundColor: dragOver ? 'rgba(1, 151, 136, 0.05)' : 'var(--color-surface-soft)',
-                  cursor: ocrLoading ? 'wait' : 'pointer',
-                  marginBottom: '16px',
-                  transition: 'all 0.2s ease'
-                }}
-                onClick={() => {
-                  if (!ocrLoading && fileInputRef.current) {
-                    fileInputRef.current.click();
-                  }
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (!ocrLoading) setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  if (ocrLoading) return;
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) handleTriggerOcr(file);
-                }}
-              >
-                {ocrLoading ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '10px 0' }}>
-                    <Loader2 size={36} color="var(--color-primary)" className="farmshift-spinner" />
-                    <div style={{ fontWeight: 600, color: 'var(--color-primary)' }}>Đang bóc tách chứng từ bằng AI Vision (gpt-5.6-sol)...</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Mô hình OpenAI gpt-5.6-sol phân tích đa phương thức với độ chính xác cao, tự động dự phòng RapidOCR offline.</div>
-                  </div>
-                ) : (
-                  <>
-                    <Upload size={36} color="var(--color-primary)" style={{ margin: '0 auto 8px auto' }} />
-                    <div style={{ fontWeight: 500, color: 'var(--color-ink)' }}>Kéo thả hoặc bấm để tải ảnh Hóa đơn / Phiếu xuất kho</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '4px' }}>Hỗ trợ định dạng JPG, PNG, WEBP, PDF (khổ A4 hoặc hóa đơn đỏ VAT, tối đa 10MB)</div>
-                  </>
-                )}
-              </div>
+              {/* Mode switch tabs: Tải file & Chụp ảnh */}
+              {!ocrLoading && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '8px',
+                    padding: '4px',
+                    backgroundColor: 'var(--color-surface-soft)',
+                    borderRadius: 'var(--rounded-lg)',
+                    marginBottom: '16px'
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopCamera();
+                      setOcrTab('upload');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '10px 16px',
+                      borderRadius: 'var(--rounded-md)',
+                      border: 'none',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      backgroundColor: ocrTab === 'upload' ? 'var(--color-surface)' : 'transparent',
+                      color: ocrTab === 'upload' ? 'var(--color-primary)' : 'var(--color-muted)',
+                      boxShadow: ocrTab === 'upload' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    <Upload size={16} /> Tải file / Kéo thả
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOcrTab('camera');
+                      startCamera();
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '10px 16px',
+                      borderRadius: 'var(--rounded-md)',
+                      border: 'none',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      backgroundColor: ocrTab === 'camera' ? 'var(--color-surface)' : 'transparent',
+                      color: ocrTab === 'camera' ? 'var(--color-primary)' : 'var(--color-muted)',
+                      boxShadow: ocrTab === 'camera' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    <Camera size={16} /> Chụp ảnh trực tiếp
+                  </button>
+                </div>
+              )}
 
-              <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)', fontSize: '13px' }}>
+              {/* Loading State */}
+              {ocrLoading && (
+                <div
+                  style={{
+                    border: '1px solid var(--color-hairline)',
+                    borderRadius: 'var(--rounded-lg)',
+                    padding: '36px 20px',
+                    textAlign: 'center',
+                    backgroundColor: 'var(--color-surface-soft)',
+                    marginBottom: '16px'
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <Loader2 size={38} color="var(--color-primary)" className="farmshift-spinner" />
+                    <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--color-primary)' }}>
+                      Đang bóc tách chứng từ bằng AI Vision...
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-muted)', maxWidth: '440px' }}>
+                      Mô hình OpenAI gpt-5.6-sol & RapidOCR đang đọc danh sách mặt hàng, số lượng bao/kg, đơn giá và đối chiếu tồn kho.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 1: Upload / Dropzone */}
+              {!ocrLoading && ocrTab === 'upload' && (
+                <div
+                  style={{
+                    border: dragOver ? '2px dashed var(--color-primary)' : '2px dashed var(--color-border-strong)',
+                    borderRadius: 'var(--rounded-lg)',
+                    padding: '34px 20px',
+                    textAlign: 'center',
+                    backgroundColor: dragOver ? 'rgba(1, 151, 136, 0.05)' : 'var(--color-surface-soft)',
+                    cursor: 'pointer',
+                    marginBottom: '16px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => {
+                    if (fileInputRef.current) fileInputRef.current.click();
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleTriggerOcr(file);
+                  }}
+                >
+                  <div style={{ display: 'inline-flex', padding: '12px', borderRadius: '50%', backgroundColor: 'rgba(1, 151, 136, 0.1)', color: 'var(--color-primary)', marginBottom: '10px' }}>
+                    <Upload size={32} />
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--color-ink)' }}>
+                    Kéo thả hoặc bấm vào đây để chọn Hóa đơn / Phiếu xuất kho
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '6px' }}>
+                    Hỗ trợ định dạng JPG, PNG, WEBP, PDF (khổ A4 hoặc hóa đơn đỏ VAT, tối đa 10MB)
+                  </div>
+                  <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                    <span className="farmshift-btn farmshift-btn-secondary" style={{ pointerEvents: 'none', fontSize: '12px', padding: '5px 12px' }}>
+                      📁 Duyệt tệp từ thiết bị
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Camera Stream / Capture */}
+              {!ocrLoading && ocrTab === 'camera' && (
+                <div style={{ marginBottom: '16px' }}>
+                  {cameraError ? (
+                    <div
+                      style={{
+                        padding: '24px',
+                        textAlign: 'center',
+                        backgroundColor: 'var(--color-surface-soft)',
+                        borderRadius: 'var(--rounded-lg)',
+                        border: '1px solid var(--color-hairline)'
+                      }}
+                    >
+                      <AlertTriangle size={36} color="var(--color-warning)" style={{ margin: '0 auto 10px auto' }} />
+                      <div style={{ fontWeight: 600, color: 'var(--color-ink)', marginBottom: '6px' }}>
+                        Không thể kết nối trực tiếp đến Camera
+                      </div>
+                      <div style={{ fontSize: '13px', color: 'var(--color-muted)', marginBottom: '16px' }}>
+                        {cameraError}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="farmshift-btn farmshift-btn-primary"
+                          onClick={() => {
+                            if (cameraInputRef.current) cameraInputRef.current.click();
+                          }}
+                        >
+                          <Smartphone size={15} /> Mở ứng dụng Máy ảnh trên máy
+                        </button>
+                        <button
+                          type="button"
+                          className="farmshift-btn farmshift-btn-secondary"
+                          onClick={() => startCamera()}
+                        >
+                          <RefreshCw size={14} /> Thử lại
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Video Viewfinder Container */}
+                      <div
+                        style={{
+                          position: 'relative',
+                          width: '100%',
+                          height: '320px',
+                          backgroundColor: '#000',
+                          borderRadius: 'var(--rounded-lg)',
+                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain'
+                          }}
+                        />
+
+                        {/* Viewfinder frame overlay for A4 alignment */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '16px',
+                            bottom: '16px',
+                            left: '24px',
+                            right: '24px',
+                            border: '2px dashed rgba(255, 255, 255, 0.7)',
+                            borderRadius: '8px',
+                            pointerEvents: 'none',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'center',
+                            paddingTop: '8px'
+                          }}
+                        >
+                          <span
+                            style={{
+                              backgroundColor: 'rgba(0,0,0,0.65)',
+                              color: '#fff',
+                              fontSize: '12px',
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              fontWeight: 500
+                            }}
+                          >
+                            Căn chỉnh hóa đơn A4 vào giữa khung hình
+                          </span>
+                        </div>
+
+                        {isCameraStarting && (
+                          <div style={{ position: 'absolute', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Loader2 size={24} className="farmshift-spinner" /> Đang khởi động camera...
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Camera Action Toolbar */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginTop: '10px',
+                          padding: '8px 12px',
+                          backgroundColor: 'var(--color-surface-soft)',
+                          borderRadius: 'var(--rounded-md)'
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="farmshift-btn farmshift-btn-ghost"
+                          onClick={() => {
+                            if (cameraInputRef.current) cameraInputRef.current.click();
+                          }}
+                          title="Chụp bằng ứng dụng máy ảnh trên điện thoại / tablet"
+                          style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <Smartphone size={15} /> App máy ảnh
+                        </button>
+
+                        <button
+                          type="button"
+                          className="farmshift-btn farmshift-btn-primary"
+                          onClick={handleCapturePhoto}
+                          disabled={isCameraStarting}
+                          style={{
+                            padding: '9px 20px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            boxShadow: '0 2px 8px rgba(1, 151, 136, 0.3)'
+                          }}
+                        >
+                          <Camera size={16} /> Chụp & Bóc tách ngay
+                        </button>
+
+                        <button
+                          type="button"
+                          className="farmshift-btn farmshift-btn-ghost"
+                          onClick={handleSwitchFacing}
+                          title="Đổi camera trước / sau"
+                          style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <RefreshCw size={15} /> Đổi camera
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+                            <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)', fontSize: '13px' }}>
                 <strong style={{ color: 'var(--color-ink)' }}>Hệ thống AI Vision (OpenAI gpt-5.6-sol & RapidOCR) sẽ tự động:</strong>
                 <ul style={{ margin: '6px 0 0 18px', padding: 0, color: 'var(--color-body)' }}>
                   <li>Nhận diện tên Nhà cung cấp, ngày lập đơn và số hóa đơn</li>
@@ -2315,19 +2660,9 @@ export const PurchasesView = () => {
                 type="button"
                 className="farmshift-btn farmshift-btn-secondary"
                 disabled={ocrLoading}
-                onClick={() => setShowOcrModal(false)}
+                onClick={handleCloseOcrModal}
               >
                 Đóng
-              </button>
-              <button
-                type="button"
-                className="farmshift-btn farmshift-btn-primary"
-                disabled={ocrLoading}
-                onClick={() => {
-                  if (fileInputRef.current) fileInputRef.current.click();
-                }}
-              >
-                <Upload size={14} /> Chọn ảnh từ thiết bị
               </button>
             </div>
           </div>
