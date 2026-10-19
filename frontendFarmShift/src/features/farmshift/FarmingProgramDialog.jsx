@@ -1,0 +1,163 @@
+import { Fragment, useState } from 'react';
+import { AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { createProgram, updateProgram } from '../../services/farmingProgramService';
+import { Dialog, FieldError } from './FarmAreaDialogs';
+import { MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS, apiErrorMessage, validateProgram } from './farmAreaOptions';
+import styles from './FarmingPrograms.module.css';
+
+const text = value => (value == null ? '' : String(value));
+const toDraftStep = step => ({
+  category: step.category, name: step.name || '', dayFrom: text(step.dayFrom), dayTo: text(step.dayTo), quantity: text(step.quantity),
+  unit: step.category === 'FEED' ? '' : step.unit || '', mealsPerDay: text(step.mealsPerDay), method: step.method || '',
+  tempMin: text(step.tempMin), tempMax: text(step.tempMax), note: step.note || '',
+});
+const emptyStep = (category, dayFrom) => ({
+  category, name: '', dayFrom: text(dayFrom), dayTo: text(dayFrom), quantity: '', unit: category === 'MEDICINE' ? MEDICINE_UNITS[0] : category === 'VACCINE' ? 'liều/con' : '',
+  mealsPerDay: category === 'FEED' ? '3' : '', method: category === 'VACCINE' ? 'EYE_NOSE' : category === 'MEDICINE' ? 'MIX_FEED' : '',
+  tempMin: '', tempMax: '', note: '',
+});
+const numberOrNull = value => (value === '' ? null : Number(value));
+
+// Columns per category: [key, header, kind, extra]. Day columns are shared by every category.
+const COLUMNS = {
+  FEED: [['name', 'Loại cám', 'text', 'Ví dụ: Cám gà con 511'], ['quantity', 'g/con/ngày', 'number', '0.1'], ['mealsPerDay', 'Số cữ/ngày', 'number', '1']],
+  VACCINE: [['name', 'Tên vắc-xin', 'text', 'Ví dụ: Gumboro lần 1'], ['method', 'Cách dùng', 'select', VACCINE_METHODS], ['quantity', 'Liều', 'number', '0.01'],
+    ['unit', 'Đơn vị', 'text', 'liều/con']],
+  MEDICINE: [['name', 'Tên thuốc', 'text', 'Ví dụ: Men tiêu hóa'], ['method', 'Cách dùng', 'select', MEDICINE_METHODS], ['quantity', 'Liều lượng', 'number', '0.01'],
+    ['unit', 'Đơn vị', 'unit', MEDICINE_UNITS]],
+  TEMPERATURE: [['name', 'Giai đoạn', 'text', 'Ví dụ: Úm tuần 1'], ['tempMin', 'Thấp nhất °C', 'number', '0.1'], ['tempMax', 'Cao nhất °C', 'number', '0.1']],
+  WORK: [['name', 'Công việc', 'text', 'Ví dụ: Vệ sinh máng ăn']],
+};
+
+export function FarmingProgramDialog({ program, onClose, onSaved }) {
+  const editing = Boolean(program);
+  const [draft, setDraft] = useState(() => ({
+    name: program?.name || '', breed: program?.breed || '', durationDays: text(program?.durationDays ?? ''),
+    targetWeightMin: text(program?.targetWeightMin), targetWeightMax: text(program?.targetWeightMax), description: program?.description || '',
+    steps: program ? program.steps.map(toDraftStep) : [emptyStep('FEED', 1)],
+  }));
+  const [tab, setTab] = useState('FEED');
+  const [errors, setErrors] = useState({ fields: {}, steps: {} });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const setField = (key, value) => { setDraft(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, fields: { ...current.fields, [key]: undefined } })); };
+  const setStep = (index, key, value) => {
+    setDraft(current => ({ ...current, steps: current.steps.map((step, i) => (i === index ? { ...step, [key]: value } : step)) }));
+    setErrors(current => ({ ...current, steps: { ...current.steps, [index]: undefined } }));
+  };
+  const addStep = () => setDraft(current => {
+    const last = current.steps.filter(step => step.category === tab).reduce((max, step) => Math.max(max, Number(step.dayTo) || 0), 0);
+    return { ...current, steps: [...current.steps, emptyStep(tab, last + 1)] };
+  });
+  const removeStep = index => {
+    setDraft(current => ({ ...current, steps: current.steps.filter((_, i) => i !== index) }));
+    setErrors(current => ({ ...current, steps: {} }));
+  };
+
+  const submit = async event => {
+    event.preventDefault();
+    if (saving) return;
+    const found = validateProgram(draft);
+    setErrors(found);
+    const firstBad = Object.keys(found.steps).map(Number).sort((a, b) => a - b)[0];
+    if (firstBad !== undefined) setTab(draft.steps[firstBad].category);
+    if (Object.keys(found.fields).length || firstBad !== undefined) return;
+    setSaving(true);
+    setError('');
+    const payload = {
+      name: draft.name.trim(), breed: draft.breed.trim(), durationDays: Number(draft.durationDays),
+      targetWeightMin: numberOrNull(draft.targetWeightMin), targetWeightMax: numberOrNull(draft.targetWeightMax), description: draft.description.trim(),
+      steps: draft.steps.map(step => ({
+        category: step.category, name: step.name.trim(), dayFrom: Number(step.dayFrom), dayTo: Number(step.dayTo), quantity: numberOrNull(step.quantity),
+        unit: step.unit.trim(), mealsPerDay: numberOrNull(step.mealsPerDay), method: step.method || null, tempMin: numberOrNull(step.tempMin),
+        tempMax: numberOrNull(step.tempMax), note: step.note.trim(),
+      })),
+    };
+    try {
+      if (editing) await updateProgram(program.id, payload);
+      else await createProgram(payload);
+      onSaved(editing ? `Đã cập nhật chương trình ${payload.name}.` : `Đã tạo chương trình ${payload.name}.`);
+    } catch (requestError) {
+      const data = requestError.response?.data?.data;
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.name) setErrors({ fields: { name: data.name }, steps: {} });
+      else setError(apiErrorMessage(requestError));
+      setSaving(false);
+    }
+  };
+
+  const header = (key, label, input, required) => <div className={key === 'description' ? styles.fullRow : undefined}>
+    <label htmlFor={`program-${key}`}>{label} {required && <span className={styles.required}>*</span>}</label>
+    {input}
+    <FieldError message={errors.fields[key]} />
+  </div>;
+  const headerInput = (key, props = {}) => <input id={`program-${key}`} className={`farmshift-form-control ${errors.fields[key] ? styles.invalid : ''}`}
+    value={draft[key]} onChange={event => setField(key, event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields[key])} {...props} />;
+
+  const rows = draft.steps.map((step, index) => ({ step, index })).filter(row => row.step.category === tab);
+  const category = STEP_CATEGORIES.find(item => item.value === tab);
+  const cell = (row, [key, label, kind, extra]) => {
+    const common = { 'aria-label': `${label} dòng ${row.index + 1}`, value: row.step[key], disabled: saving, className: 'farmshift-form-control',
+      onChange: event => setStep(row.index, key, event.target.value) };
+    if (kind === 'select') return <select {...common}>{extra.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
+    if (kind === 'unit') return <><input {...common} list="program-medicine-units" /></>;
+    if (kind === 'number') return <input {...common} type="number" min="0" step={extra} inputMode="decimal" />;
+    return <input {...common} placeholder={extra} maxLength={200} />;
+  };
+
+  return <Dialog title={editing ? 'Chỉnh sửa chương trình nuôi' : 'Tạo chương trình nuôi'} labelId="farming-program-title" busy={saving} onClose={onClose} wide className={styles.editor}>
+    <form onSubmit={submit} noValidate>
+      <div className={styles.editorBody}>
+        {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
+        <div className={styles.headerGrid}>
+          {header('name', 'Tên chương trình', headerInput('name', { maxLength: 150, placeholder: 'Ví dụ: Gà ta thả vườn', autoFocus: true }), true)}
+          {header('breed', 'Giống gà', headerInput('breed', { maxLength: 100, placeholder: 'Ví dụ: Gà ta' }), true)}
+          {header('durationDays', 'Thời gian nuôi (ngày)', headerInput('durationDays', { type: 'number', min: 1, max: 365, placeholder: 'Ví dụ: 105' }), true)}
+          {header('targetWeightMin', 'Cân xuất chuồng từ (kg)', headerInput('targetWeightMin', { type: 'number', min: 0, step: 0.01, placeholder: '1.5' }))}
+          {header('targetWeightMax', 'Đến (kg)', headerInput('targetWeightMax', { type: 'number', min: 0, step: 0.01, placeholder: '2.2' }))}
+          {header('description', 'Mô tả', <textarea id="program-description" className="farmshift-form-control" rows={2} maxLength={1000} value={draft.description}
+            onChange={event => setField('description', event.target.value)} disabled={saving} placeholder="Ví dụ: Nuôi thả vườn khoảng 5 tháng" />)}
+        </div>
+
+        <div className={styles.sectionTabs} role="tablist">
+          {STEP_CATEGORIES.map(item => {
+            const count = draft.steps.filter(step => step.category === item.value).length;
+            const hasError = draft.steps.some((step, index) => step.category === item.value && errors.steps[index]);
+            return <button key={item.value} type="button" role="tab" aria-selected={tab === item.value}
+              className={`${tab === item.value ? styles.sectionActive : ''} ${hasError ? styles.sectionError : ''}`} onClick={() => setTab(item.value)}>
+              {item.label} <span>{count}</span>
+            </button>;
+          })}
+        </div>
+        <FieldError message={errors.fields.steps} />
+
+        <div className={styles.stepTableWrap}>
+          <table className={styles.stepTable}>
+            <thead><tr><th>Từ ngày</th><th>Đến ngày</th>{COLUMNS[tab].map(column => <th key={column[0]}>{column[1]}</th>)}<th>Ghi chú</th><th /></tr></thead>
+            <tbody>
+              {rows.length === 0 ? <tr><td colSpan={COLUMNS[tab].length + 4} className={styles.emptyRow}>Chưa có {category.item}. Bấm "Thêm dòng" để thêm.</td></tr>
+                : rows.map(row => <Fragment key={row.index}><tr className={errors.steps[row.index] ? styles.rowError : ''}>
+                  <td><input aria-label={`Từ ngày dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="1" value={row.step.dayFrom}
+                    onChange={event => setStep(row.index, 'dayFrom', event.target.value)} disabled={saving} /></td>
+                  <td><input aria-label={`Đến ngày dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="1" value={row.step.dayTo}
+                    onChange={event => setStep(row.index, 'dayTo', event.target.value)} disabled={saving} /></td>
+                  {COLUMNS[tab].map(column => <td key={column[0]}>{cell(row, column)}</td>)}
+                  <td><input aria-label={`Ghi chú dòng ${row.index + 1}`} className="farmshift-form-control" value={row.step.note} maxLength={1000}
+                    onChange={event => setStep(row.index, 'note', event.target.value)} disabled={saving} /></td>
+                  <td><button type="button" className={styles.iconButton} aria-label={`Xóa dòng ${row.index + 1}`} onClick={() => removeStep(row.index)} disabled={saving}><Trash2 size={15} /></button></td>
+                </tr>
+                {errors.steps[row.index] && <tr className={styles.rowMessageRow}><td colSpan={COLUMNS[tab].length + 4} role="alert">{errors.steps[row.index]}</td></tr>}
+                </Fragment>)}
+            </tbody>
+          </table>
+          <datalist id="program-medicine-units">{MEDICINE_UNITS.map(unit => <option key={unit} value={unit} />)}</datalist>
+        </div>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={addStep} disabled={saving}><Plus size={15} />Thêm dòng</button>
+      </div>
+      <footer className={styles.footer}>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose} disabled={saving}>Bỏ qua</button>
+        <button type="submit" className="farmshift-btn farmshift-btn-mint" disabled={saving} aria-busy={saving}>{saving ? 'Đang lưu...' : 'Lưu chương trình'}</button>
+      </footer>
+    </form>
+  </Dialog>;
+}

@@ -1,0 +1,74 @@
+/* Panel: Thiết lập chăn nuôi → Chương trình nuôi */
+.panel { background: #fff; border: 1px solid #e3ebe8; border-radius: 12px; overflow: hidden; }
+.panelHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid #edf1f0; flex-wrap: wrap; }
+.panelHeader h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 600; color: #182b31; }
+.panelHeader h2 svg { color: #008577; }
+.panelHeader p { margin: 6px 0 0; max-width: 720px; font-size: 13px; color: #607781; line-height: 1.5; }
+.empty { margin: 0; padding: 40px 24px; text-align: center; font-size: 13px; color: #71818a; }
+.empty p { margin: 0 0 14px; }
+.muted { margin: 0; font-size: 13px; color: #9aa7ae; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; padding: 18px 22px; }
+.programCard { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border: 1px solid #e3ebe8; border-radius: 12px; background: #fff; text-align: left; font: inherit; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+.programCard:hover { border-color: #8fcdb8; }
+.programCardActive { border-color: #19a37f; box-shadow: 0 0 0 3px #e0f5ef; }
+.programCard strong { font-size: 15px; color: #182b31; }
+.breed { align-self: flex-start; padding: 2px 9px; border-radius: 999px; background: #e3f6ec; color: #16794a; font-size: 12px; font-weight: 600; }
+.meta { font-size: 13px; color: #42545c; }
+.counts { font-size: 12px; color: #71818a; }
+.usage { font-size: 12px; color: #1b61c9; }
+
+.detail { border-top: 1px solid #edf1f0; padding: 18px 22px 22px; }
+.detailHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.detailHeader h3 { margin: 0; font-size: 16px; color: #182b31; }
+.detailHeader h3 small { margin-left: 6px; font-size: 12px; font-weight: 500; color: #007968; }
+.detailHeader p { margin: 4px 0 0; font-size: 13px; color: #607781; }
+.detailActions { display: flex; gap: 8px; }
+.deleteButton { background: #fff0f0; color: #c63030; border: 1px solid #f2bcbc; }
+.deleteButton:hover:not(:disabled) { background: #ffe1e1; }
+
+.lookup { display: flex; align-items: center; gap: 10px; margin: 16px 0; padding: 12px 14px; border-radius: 10px; background: #f6f9f8; flex-wrap: wrap; }
+.lookup label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #182b31; }
+.lookup input { width: 90px; }
+.lookupResult { flex: 1; min-width: 240px; font-size: 13px; color: #42545c; }
+
+.sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.section { border: 1px solid #e3ebe8; border-radius: 10px; padding: 12px 14px; }
+.section h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 14px; color: #182b31; }
+.section h4 span { padding: 1px 8px; border-radius: 999px; background: #f0f4f6; color: #536b76; font-size: 12px; }
+.section ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.section li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+.section li strong { display: block; color: #182b31; font-weight: 500; }
+.section li small { display: block; color: #607781; }
+.section li .note { color: #9aa7ae; }
+.dayChip { flex-shrink: 0; min-width: 84px; padding: 2px 8px; border-radius: 6px; background: #eef6ff; color: #254fad; font-size: 12px; font-weight: 600; text-align: center; }
+
+/* Editor dialog */
+.editor { width: min(100%, 1040px); }
+.editorBody { padding: 20px 24px; }
+.editorBody label { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 500; color: #182b31; }
+.headerGrid { display: grid; grid-template-columns: 2fr 1.4fr 1fr 1fr 1fr; gap: 6px 12px; margin-bottom: 14px; }
+.fullRow { grid-column: 1 / -1; }
+.required { color: #dc2626; }
+.invalid { border-color: #e11d48 !important; }
+.error { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; margin: 0 0 14px; border-radius: 8px; background: #fff1f0; color: #c63030; font-size: 13px; }
+.sectionTabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.sectionTabs button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid #dce5e2; border-radius: 999px; background: #fff; color: #42545c; font: inherit; font-size: 13px; cursor: pointer; }
+.sectionTabs button span { padding: 0 7px; border-radius: 999px; background: #f0f4f6; font-size: 12px; }
+.sectionTabs .sectionActive { border-color: #19a37f; background: #e8f6f1; color: #00695c; font-weight: 600; }
+.sectionTabs .sectionError { border-color: #e11d48; color: #c63030; }
+.stepTableWrap { overflow-x: auto; margin-bottom: 12px; border: 1px solid #e3ebe8; border-radius: 10px; }
+.stepTable { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 13px; }
+.stepTable th { padding: 8px; text-align: left; font-weight: 600; color: #42545c; background: #f6f9f8; white-space: nowrap; }
+.stepTable td { padding: 6px; border-top: 1px solid #edf1f0; vertical-align: middle; }
+.stepTable td input, .stepTable td select { min-width: 70px; padding: 7px 8px; font-size: 13px; }
+.stepTable td:first-child input, .stepTable td:nth-child(2) input { width: 74px; }
+.rowError td { background: #fff7f7; }
+.rowMessageRow td { padding: 2px 10px 8px; border-top: 0; background: #fff7f7; color: #e11d48; font-size: 12px; }
+.emptyRow { padding: 20px !important; text-align: center; color: #9aa7ae; }
+.iconButton { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid #e2eae7; border-radius: 8px; background: #fff; color: #607781; cursor: pointer; }
+.iconButton:hover:not(:disabled) { color: #c63030; border-color: #f2bcbc; background: #fff0f0; }
+.footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #f8fbfa; border-top: 1px solid #edf1f0; }
+
+@media (max-width: 900px) { .headerGrid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .headerGrid { grid-template-columns: 1fr; } .cards, .detail, .panelHeader { padding-left: 16px; padding-right: 16px; } }

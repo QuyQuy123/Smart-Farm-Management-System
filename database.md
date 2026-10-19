@@ -2,28 +2,7 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
-## Bảng `inventory_items` — Hàng hóa thực tế trong kho
-
-Bổ sung `unit_id` (FK → `measurement_units.id`): đơn vị được chọn từ tab Đơn vị tính khi tạo/sửa hàng hóa. API yêu cầu `unitId`; dữ liệu cũ có thể để NULL cho đến khi chỉnh sửa. Không xóa đơn vị đang được hàng hóa sử dụng hoặc đổi đơn vị của hàng có tồn kho khác 0.
-
-Entity `InventoryItem` phục vụ CRUD tại **Kho hàng hóa**. Liên kết danh mục kho, Tên hàng hóa và Nhãn hiệu trong database, thay thế dữ liệu mẫu và trạng thái tạm trong frontend.
-
-| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
-| :--- | :--- | :--- |
-| `id` | BIGINT | PRIMARY KEY, tự tăng. |
-| `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã tự sinh `SP` + UUID, không đổi khi sửa. Không trả về DTO hoặc hiện trên UI. |
-| `image_url` | TEXT | Đường dẫn ảnh local `/img/products/...` hoặc URL R2, không lưu Base64. Có thể để trống. |
-| `warehouse_id` | BIGINT | NOT NULL, FOREIGN KEY → `warehouse_categories.id`. |
-| `product_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_categories.id` (Tên hàng hóa). Hàng được chọn phải thuộc đúng kho. |
-| `brand_id` | BIGINT | FOREIGN KEY → `brands.id`, cho phép bỏ trống. |
-| `price` | NUMERIC(19,2) | NOT NULL, giá tiền không âm, tối đa 2 chữ số thập phân. |
-| `stock` | NUMERIC(19,3) | NOT NULL. Backend luôn gán `0` khi tạo mới. Không có trong request CRUD và không được sửa bằng form/API CRUD; update giữ nguyên tồn kho. |
-| `created_at` | TIMESTAMP | Thời điểm tạo, không đổi khi sửa. |
-| `updated_at` | TIMESTAMP | Hibernate cập nhật khi sửa. |
-
-UNIQUE (`warehouse_id`, `product_id`): một tên hàng hóa chỉ tạo một lần trong cùng kho. UI chỉ hiển thị ảnh, tên hàng hóa, giá tiền, tồn kho, nhãn hiệu và thao tác; tab kho lấy từ database theo thứ tự tạo cũ trước/mới sau. Tên hàng hóa trong popup lọc theo kho đang chọn. Ảnh dùng `POST /api/files/upload` với folder `products`, tối đa 5MB (JPEG/PNG/GIF), lưu file trước và đường dẫn khi lưu hàng hóa.
-
-API `GET /api/inventory-items?warehouseId=...`, `GET /api/inventory-items/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Không xóa hàng hóa có tồn kho khác 0; không đổi tên/kho của hàng đang có tồn kho. Chặn xóa kho, tên hàng hóa, nhãn hiệu đang được sử dụng. Số lượng tại Danh mục kho và Tên hàng hóa được tính từ số bản ghi `inventory_items` liên quan, không phải tổng tồn kho. Không tự thêm hàng mẫu. Khởi động lại backend với `ddl-auto=update` để tạo bảng.
+Quy ước: mỗi thay đổi về bảng hoặc cột phải được ghi lại trong tài liệu này, còn dữ liệu mẫu tương ứng được thêm vào `insert_data.txt`. File `insert_data.txt` dùng `ON CONFLICT DO NOTHING` nên chạy lại nhiều lần vẫn an toàn; chạy file sau khi backend đã khởi động ít nhất một lần để Hibernate tạo bảng.
 
 ## Bảng `customer_contacts` — Danh bạ khách hàng
 
@@ -98,7 +77,7 @@ Entity `ProductCategory` lưu danh mục tại **Thiết lập danh mục → T�
 
 API `GET /api/product-categories` và `GET /api/product-categories/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Danh sách sắp xếp theo `created_at`, rồi ID tăng dần. UI ẩn cột mã hàng hóa (`code`) và ngày tạo (`createdAt`), hiển thị: Tên hàng hóa, Quy cách, Nhãn hiệu, Loại hàng hóa, Kho lưu trữ, Mô tả.
 
-`itemCount` được tính từ số bản ghi `inventory_items` có `product_id` tương ứng; không lưu số đếm giả hoặc nhập thủ công. Chặn xóa tên hàng hóa hoặc chuyển sang kho khác khi đã được hàng hóa thực tế sử dụng. Không tự thêm dữ liệu mẫu. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo hoặc cập nhật bảng.
+Chưa có entity chi tiết tồn kho từng đợt nhập nên `itemCount` hiện là `0`, không lưu số lượng giả hoặc nhập thủ công. Khi có entity chi tiết hàng hóa, cần liên kết khóa ngoại, đếm mặt hàng và chặn xóa khi đang được sử dụng. Không tự thêm dữ liệu mẫu. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo hoặc cập nhật bảng.
 
 ## Bảng `warehouse_categories` — Danh mục kho
 
@@ -113,7 +92,7 @@ Entity `WarehouseCategory` lưu danh mục tại **Thiết lập danh mục → 
 | `created_at` | TIMESTAMP | Hibernate tự ghi đầy đủ ngày và giờ tạo, gồm giờ/phút/giây và phần thập phân. Không thay đổi khi sửa danh mục. API trả đầy đủ thời điểm; UI cột Ngày tạo chỉ định dạng `dd/mm/yyyy`. Tab Kho hàng hóa sắp xếp theo thời điểm tăng dần (cũ trước, mới sau), nếu trùng thời điểm thì theo ID tăng dần. |
 | `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
 
-API: `GET /api/warehouse-categories` và `GET /api/warehouse-categories/{id}` cho người dùng đăng nhập. `POST`, `PUT /{id}` và `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Xóa bản ghi sau khi người dùng xác nhận. `itemCount` đếm số bản ghi `inventory_items` thuộc kho, không phải tổng tồn kho và không nhập tay. Kho có Tên hàng hóa hoặc hàng hóa thực tế liên quan không được xóa.
+API: `GET /api/warehouse-categories` và `GET /api/warehouse-categories/{id}` cho người dùng đăng nhập. `POST`, `PUT /{id}` và `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Xóa bản ghi sau khi người dùng xác nhận. Chưa có entity hàng hóa nên `itemCount` hiện trả `0`, không phải trường nhập hoặc cột lưu số đếm thủ công. Khi bổ sung hàng hóa, cần liên kết khóa ngoại tới danh mục, đếm bản ghi liên quan và chặn xóa danh mục đang có hàng hóa.
 
 Với `spring.jpa.hibernate.ddl-auto=update`, Hibernate tạo bảng khi khởi động lại backend. Không tự thêm các bản ghi mẫu hoặc số lượng mẫu trong ảnh.
 
@@ -194,6 +173,179 @@ API: `GET /api/farm` dành cho tài khoản đã đăng nhập; `PUT /api/farm` 
 
 Với cấu hình `spring.jpa.hibernate.ddl-auto=update`, Hibernate tạo bảng khi khởi động backend. Lần bấm **Cập nhật thông tin** đầu tiên tạo bản ghi; các lần sau cập nhật cùng bản ghi. Khi chưa lưu lần nào, GET trả thành công nhưng chưa có `data`. Dữ liệu mẫu hoặc dữ liệu cũ trong trình duyệt chỉ là giá trị điền sẵn, không tự ghi vào database. Thông tin này dùng chung cho mọi tài khoản, chưa triển khai quan hệ tài khoản với nhiều trang trại.
 
+## Bảng `farm_areas` — Khu nuôi
+
+Entity: `FarmArea`. Lưu các khu nuôi tại **Khu nuôi** (`/areas`). Mỗi khu chứa nhiều chuồng (bảng `barns`).
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. API sinh mã hiển thị `KN000001` từ ID. |
+| `name` | VARCHAR(150) | NOT NULL. Tên khu nuôi; khoảng trắng thừa được gộp lại khi lưu. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC, chữ thường để chặn trùng tên không phân biệt hoa thường. |
+| `environment_metrics` | VARCHAR(200) | Chỉ số môi trường cần theo dõi, các mã ngăn cách bởi dấu phẩy: `HUMIDITY`, `TEMPERATURE`. |
+| `animal_metrics` | VARCHAR(200) | Chỉ số vật nuôi cần theo dõi: `WEIGHT`, `LOSS`, `MANURE`, `ANIMAL_PHOTO`, `DEAD_PHOTO`, `NOTE`. |
+| `description` | VARCHAR(1000) | Ghi chú / mô tả khu nuôi. |
+| `created_at` | TIMESTAMP | Hibernate tự ghi thời điểm tạo. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
+
+API trả thêm các số liệu tính từ bảng `barns`, không lưu cột riêng: `barnCount` (số chuồng), `activeBarnCount` (chuồng đang hoạt động), `animalCount` (tổng số con), `totalCapacity` (tổng sức chứa).
+
+API: `GET /api/farm-areas`, `GET /api/farm-areas/{id}` cho mọi tài khoản đã đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Không xóa được khu nuôi còn chuồng (409 `FARM_AREA_HAS_BARNS`); trùng tên trả 409 `FARM_AREA_DUPLICATE`.
+
+Hệ thống chỉ quản lý gà thịt nên khu nuôi **không có** cột loại vật nuôi; số cữ ăn trong ngày cũng không khai báo ở khu nuôi vì phụ thuộc chương trình nuôi theo giống của từng đàn trong chuồng (xem `farming_programs`). Hai cột cũ `livestock_type` và `meals_per_day` đã bị bỏ: `insert_data.txt` (mục 4) chạy `ALTER TABLE farm_areas DROP COLUMN IF EXISTS ...` để xóa chúng khỏi database đã tạo trước đây, vì `ddl-auto=update` không tự xóa cột.
+
+Dữ liệu mẫu: mục 4 trong `insert_data.txt` thêm 4 khu nuôi gà thịt `Khu Mía Thịt`, `Khu J Thịt`, `Khu đông tảo`, `Khu A`. Khi thêm bằng SQL phải tự điền `name_key` (tên viết thường).
+
+## Bảng `barns` — Chuồng nuôi
+
+Entity: `Barn`. Lưu chuồng thuộc một khu nuôi, xem tại **Khu nuôi → Tất cả** (`/barns`) hoặc trang chuồng của từng khu (`/areas/{id}`).
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. API sinh mã hiển thị `CH000001` từ ID. |
+| `area_id` | BIGINT | NOT NULL, FOREIGN KEY → `farm_areas(id)`. Đổi được khi chuyển chuồng sang khu khác. |
+| `name` | VARCHAR(100) | NOT NULL. Tên chuồng, ví dụ `Nhà A1`. |
+| `name_key` | VARCHAR(100) | NOT NULL. Tên chuẩn hóa; UNIQUE cùng `area_id` (`uk_barns_area_name`): hai khu khác nhau được trùng tên chuồng. |
+| `status` | VARCHAR(20) | NOT NULL. `INACTIVE` (Chưa hoạt động) hoặc `ACTIVE` (Đang hoạt động). Hệ thống tự quản, không có trong form: chuồng mới là `INACTIVE`, khai báo lứa nuôi chuyển sang `ACTIVE`, kết thúc lứa chuyển về `INACTIVE`. |
+| `capacity` | INT | NOT NULL, từ 1 đến 10.000.000. Sức chứa tối đa (con). |
+| `current_quantity` | INT | NOT NULL, ≥ 0 và ≤ `capacity`. Tổng tồn các đàn của lứa đang nuôi; không nhập tay, chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt, loại thải, xuất bán. |
+| `area_m2` | NUMERIC(10,2) | Diện tích chuồng (m²), > 0, có thể để trống. Dùng để tính mật độ nuôi (con/m²). |
+| `target_weight` | NUMERIC(5,2) | Mục tiêu cân nặng xuất chuồng (kg/con), 0–999, có thể để trống. |
+| `description` | VARCHAR(1000) | Ghi chú chuồng. |
+| `created_at` | TIMESTAMP | Hibernate tự ghi thời điểm tạo. |
+| `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
+
+Quy tắc nghiệp vụ (kiểm tra ở cả backend và form): khi tạo chuồng phải khai báo sức chứa tối đa; form gợi ý sức chứa = diện tích × 8 con/m² (mật độ khuyến nghị cho gà thịt) và cảnh báo khi mật độ vượt mức này, người dùng vẫn được nhập số khác; sức chứa không nhỏ hơn số con đang nuôi (`BARN_CAPACITY_BELOW_STOCK`); chuồng đang có lứa nuôi không chuyển khu (`BARN_ACTIVE_CYCLE_MOVE`); sửa chuồng không đổi trạng thái; không xóa chuồng còn vật nuôi (409 `BARN_NOT_EMPTY`) hoặc đã có lịch sử lứa nuôi (409 `BARN_HAS_CYCLES`, để giữ số liệu các lứa đã nuôi); trùng tên trong cùng khu trả 409 `BARN_DUPLICATE`. API trả thêm `activeCycleId` (lứa đang nuôi, null nếu chưa có). Mọi chuồng đều dùng để nuôi gà thịt nên không có cột mục đích sử dụng; cột cũ `purpose` được `insert_data.txt` (mục 5) xóa bằng `ALTER TABLE barns DROP COLUMN IF EXISTS purpose`.
+
+API: `GET /api/barns` (lọc theo khu bằng `?areaId=`), `GET /api/barns/{id}` cho mọi tài khoản đã đăng nhập; `POST`, `PUT /{id}`, `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Giao diện ẩn nút thêm/sửa/xóa và hiện thông báo chế độ chỉ đọc với kế toán và công nhân.
+
+Dữ liệu mẫu: mục 5 trong `insert_data.txt` thêm `Nhà A1`–`Nhà A3` (sức chứa 50.000, đang nuôi 50.000 / 40.000 / 30.000) vào `Khu Mía Thịt` và `Nhà B1`, `Nhà B2` (sức chứa 80.000, đang nuôi 50.000) vào `Khu J Thịt`. Chuồng được gắn vào khu theo `name_key` của khu nên không phụ thuộc ID tự tăng. Mục 6 điền diện tích (1.000 m² cho Nhà A1–A3, 1.600 m² cho Nhà B1, B2); số con của chuồng được tính lại từ các đàn ở mục 8.
+
+## Bảng `farming_cycles` — Lứa nuôi
+
+Entity: `FarmingCycle`. Một đợt nuôi trong một chuồng, từ lúc khai báo đến khi xuất hết đàn. Xem tại trang chi tiết chuồng (`/barns/{id}`).
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. API sinh mã `L000001`. |
+| `barn_id` | BIGINT | NOT NULL, FOREIGN KEY → `barns(id)`. |
+| `cycle_number` | INT | NOT NULL. Lứa thứ mấy của chuồng (1, 2, 3...); UNIQUE cùng `barn_id` (`uk_cycles_barn_number`). |
+| `start_date` | DATE | NOT NULL. Ngày bắt đầu lứa, không sau hôm nay. |
+| `hatch_date` | DATE | Ngày nở (ngày tuổi 1), không sau ngày bắt đầu. Để trống thì tính ngày tuổi theo đàn nhập đầu tiên. |
+| `end_date` | DATE | Ngày kết thúc lứa. |
+| `status` | VARCHAR(20) | NOT NULL. `ACTIVE` (đang nuôi) hoặc `CLOSED` (đã kết thúc). |
+| `note` | VARCHAR(1000) | Ghi chú. |
+| `created_at`, `updated_at` | TIMESTAMP | Hibernate tự ghi. |
+
+Quy tắc: chỉ khai báo lứa cho chuồng chưa có lứa đang nuôi (409 `CYCLE_ALREADY_ACTIVE`); khai báo lứa chuyển chuồng sang Đang hoạt động. Chỉ kết thúc lứa khi tồn đàn bằng 0 (409 `CYCLE_HAS_ANIMALS`); ngày kết thúc từ ngày bắt đầu đến hôm nay và không trước ghi nhận cuối cùng (`CYCLE_END_DATE`); kết thúc lứa chuyển chuồng về Chưa hoạt động. Lứa đã kết thúc chỉ xem được (409 `CYCLE_CLOSED`). Mọi ngày ghi nhận phải trong khoảng từ ngày bắt đầu lứa đến hôm nay (`CYCLE_DATE_OUT_OF_RANGE`).
+
+API: `GET /api/barns/{barnId}/cycles` (lịch sử lứa), `POST /api/barns/{barnId}/cycles` (chủ trại), `GET /api/cycles/{id}` (toàn bộ dữ liệu trang chi tiết kèm chỉ số kỹ thuật), `POST /api/cycles/{id}/close` (chủ trại).
+
+Chỉ số kỹ thuật (tính khi đọc, không lưu cột): ngày nuôi; ngày tuổi; tổng nhập; tổng đàn; số chết, loại thải, xuất bán và tỷ lệ % trên tổng nhập; cân nặng TB (lần cân mẫu gần nhất, nếu chưa cân thì lấy trọng lượng lúc nhập); sản lượng ước tính = tổng đàn × cân nặng TB; mật độ = tổng đàn / diện tích chuồng; khối lượng tăng = sản lượng ước tính + khối lượng đã ra khỏi chuồng (xuất bán, loại thải, chuyển đi) − khối lượng lúc vào; **FCR = tổng cám (kg) / khối lượng tăng**.
+
+Hạch toán (chỉ chủ trại và kế toán): chi phí con giống (theo giá vốn từng đàn, chuyển đi/đến theo tỷ lệ số con) + cám + khoản chi bổ sung; chi phí/kg = tổng chi phí / (sản lượng ước tính + khối lượng đã xuất bán); chi phí/con = tổng chi phí / tổng đàn; doanh thu = Σ khối lượng xuất bán × đơn giá; lợi nhuận = doanh thu − chi phí.
+
+## Bảng `flocks` — Đàn
+
+Entity: `Flock`. Một lô vật nuôi nhập (hoặc tách/chuyển) vào lứa. API sinh mã `H0001`.
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles(id)`. |
+| `name` | VARCHAR(150) | NOT NULL. Tên đàn / giống, ví dụ `MÍA-DABACO TRỐNG`. |
+| `gender` | VARCHAR(20) | NOT NULL. `MALE` (Trống), `FEMALE` (Mái), `MIXED` (Xô - trống mái lẫn). |
+| `source_type` | VARCHAR(20) | NOT NULL. `PURCHASE` (nhập con giống) hoặc `TRANSFER` (tách/chuyển từ chuồng khác). |
+| `source_note` | VARCHAR(200) | Nguồn nhập (mặc định `Khác`) hoặc `Chuyển từ <chuồng> (<mã đàn>)`. |
+| `source_flock_id` | BIGINT | FOREIGN KEY → `flocks(id)`. Đàn nguồn khi chuyển đàn. |
+| `program_id` | BIGINT | FOREIGN KEY → `farming_programs(id)`. Chương trình nuôi (giống) chọn khi nhập đàn (bắt buộc khi nhập mới); đàn chuyển đến giữ chương trình của đàn nguồn. |
+| `import_date` | DATE | NOT NULL. Ngày nhập / ngày chuyển đến. |
+| `age_at_import` | INT | NOT NULL, 1–365. Ngày tuổi lúc nhập; ngày tuổi hiện tại = `age_at_import` + số ngày từ `import_date`. Đàn chuyển đến giữ nguyên ngày tuổi của đàn nguồn. |
+| `import_quantity` | INT | NOT NULL, ≥ 1. Số con nhập. |
+| `import_avg_weight` | NUMERIC(8,3) | NOT NULL. Trọng lượng TB lúc nhập (kg/con). |
+| `unit_price` | NUMERIC(14,2) | NOT NULL, ≥ 0. Giá vốn con giống (đ/con). Đàn chuyển đến mang theo giá vốn của đàn nguồn. Ẩn với công nhân. |
+| `quantity` | INT | NOT NULL. Tồn hiện tại. |
+| `status` | VARCHAR(20) | NOT NULL. `ACTIVE` hoặc `ARCHIVED` (tự chuyển khi tồn bằng 0, hiện ở tab Lưu trữ). |
+| `note` | VARCHAR(1000) | Ghi chú. |
+| `created_at`, `updated_at` | TIMESTAMP | Hibernate tự ghi. |
+
+Quy tắc nhập đàn (`POST /api/cycles/{id}/flocks`, chủ trại): lứa đang nuôi; bắt buộc chọn giới tính trống / mái / xô; **các đàn nhập của một lứa cách nhau không quá 3 ngày** tính từ đàn nhập đầu tiên (`FLOCK_IMPORT_WINDOW`, nếu quá phải khai báo lứa mới); tổng tồn sau khi nhập không vượt sức chứa chuồng (`FLOCK_OVER_CAPACITY`).
+
+Quy tắc chuyển đàn (`POST /api/flocks/{id}/transfer`, chủ trại): chuồng đích khác chuồng nguồn (`TRANSFER_SAME_BARN`), đang có lứa nuôi (`TRANSFER_TARGET_NO_CYCLE`), cùng loại vật nuôi (`TRANSFER_LIVESTOCK_MISMATCH`) và còn đủ chỗ (`FLOCK_OVER_CAPACITY`); số con không vượt tồn (`FLOCK_INSUFFICIENT`); tạo đàn mới `TRANSFER` ở lứa đích. Đàn chuyển đến không tính vào cửa sổ 3 ngày nhập đàn. Không ghi biến động trước ngày nhập đàn (`FLOCK_DATE_BEFORE_IMPORT`) hoặc lên đàn đã lưu trữ (`FLOCK_ARCHIVED`).
+
+## Bảng `flock_movements` — Biến động đàn
+
+Entity: `FlockMovement`. Nhật ký mọi thay đổi số con, không sửa/xóa để giữ dấu vết.
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `flock_id` | BIGINT | NOT NULL, FOREIGN KEY → `flocks(id)`. |
+| `type` | VARCHAR(20) | NOT NULL. `IMPORT`, `TRANSFER_IN`, `TRANSFER_OUT`, `DEATH` (hao hụt), `CULL` (loại thải), `HARVEST` (xuất bán). |
+| `movement_date` | DATE | NOT NULL. |
+| `quantity` | INT | NOT NULL, ≥ 1. |
+| `weight_kg` | NUMERIC(14,3) | Tổng khối lượng (kg). Bắt buộc với xuất bán; nhập và chuyển đàn tự tính = số con × trọng lượng TB. |
+| `unit_price` | NUMERIC(14,2) | Đơn giá bán (đ/kg), chỉ với xuất bán. |
+| `related_flock_id` | BIGINT | FOREIGN KEY → `flocks(id)`. Đàn đối ứng khi chuyển đàn. |
+| `note` | VARCHAR(1000) | Ghi chú / nguyên nhân. |
+| `created_by` | VARCHAR(150) | Email người ghi. |
+| `created_at` | TIMESTAMP | Hibernate tự ghi. |
+
+API: `POST /api/flocks/{id}/losses` ghi chết / loại thải (chủ trại, công nhân; `type` chỉ nhận `DEATH`, `CULL`, khác trả `FLOCK_LOSS_TYPE`); `POST /api/flocks/{id}/harvests` ghi xuất bán (chủ trại, kế toán).
+
+## Bảng `feed_records` — Nhật ký cám
+
+Entity: `FeedRecord`. Các cột: `id`, `cycle_id` (FK → `farming_cycles`), `record_date` (DATE, NOT NULL), `feed_name` (VARCHAR(150), NOT NULL), `quantity_kg` (NUMERIC(14,3), > 0), `unit_price` (NUMERIC(14,2), ≥ 0, đ/kg), `note`, `created_by`, `created_at`. Dùng để tính FCR và chi phí cám. API: `POST /api/cycles/{id}/feed-records` (chủ trại, công nhân), `DELETE /api/cycles/{id}/feed-records/{recordId}` (chủ trại).
+
+## Bảng `weight_samples` — Thông số vật nuôi (cân mẫu)
+
+Entity: `WeightSample`. Các cột: `id`, `cycle_id` (FK), `sample_date` (DATE, NOT NULL), `avg_weight_kg` (NUMERIC(8,3), > 0), `sample_size` (INT, số con cân, có thể trống), `note`, `created_by`, `created_at`. Lần cân gần nhất là cân nặng TB của lứa. API: `POST /api/cycles/{id}/weight-samples` (chủ trại, công nhân), `DELETE /api/cycles/{id}/weight-samples/{sampleId}` (chủ trại).
+
+## Bảng `cycle_expenses` — Khoản chi bổ sung
+
+Entity: `CycleExpense`. Các cột: `id`, `cycle_id` (FK), `expense_date` (DATE, NOT NULL), `category` (VARCHAR(20): `ELECTRICITY` tiền điện, `WATER` tiền nước, `LABOR` công nhân, `MEDICINE` thuốc & vắc-xin, `OTHER` chi phí khác), `amount` (NUMERIC(16,2), > 0), `note`, `created_by`, `created_at`. API: `POST` / `DELETE /api/cycles/{id}/expenses[/{expenseId}]` (chủ trại, kế toán). Công nhân không xem được khoản chi.
+
+## Bảng `farming_programs`, `farming_program_steps` — Chương trình nuôi theo giống
+
+Xem / tạo / sửa tại **Thiết lập chăn nuôi → Chương trình nuôi**. Mỗi chương trình dành cho một giống gà (ví dụ Gà ta thả vườn 105 ngày, xuất chuồng 1,5–2,2 kg) và quy định theo ngày tuổi: cám định mức, lịch vắc-xin, thuốc trộn, nhiệt độ chuồng, công việc chăm sóc. Khi nhập đàn, chủ trại chọn chương trình cho đàn; trang chi tiết chuồng dùng chương trình và ngày tuổi của từng đàn để lập **Kế hoạch hôm nay** (cơ sở để công nhân đánh dấu hoàn thành công việc hằng ngày ở bước sau).
+
+`farming_programs` (entity `FarmingProgram`, mã `CT0001`):
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `name` | VARCHAR(150) | NOT NULL. Tên chương trình. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa chữ thường, chặn trùng tên (409 `PROGRAM_DUPLICATE`). |
+| `breed` | VARCHAR(100) | NOT NULL. Giống gà, ví dụ `Gà ta`, `Gà Mía`, `Gà J-Dabaco`. |
+| `duration_days` | INT | NOT NULL, 1–365. Thời gian nuôi (ngày tuổi xuất chuồng). Mọi nội dung phải nằm trong khoảng này (`PROGRAM_STEP_OUT_OF_DURATION`). |
+| `target_weight_min`, `target_weight_max` | NUMERIC(5,2) | Cân xuất chuồng mục tiêu (kg/con), có thể trống; min ≤ max (`PROGRAM_WEIGHT_RANGE`). |
+| `description` | VARCHAR(1000) | Mô tả. |
+| `created_at`, `updated_at` | TIMESTAMP | Hibernate tự ghi. |
+
+`farming_program_steps` (entity `FarmingProgramStep`): mỗi dòng là một nội dung áp dụng từ ngày tuổi `day_from` đến `day_to`.
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `program_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_programs(id)`; xóa chương trình xóa luôn các dòng. |
+| `category` | VARCHAR(20) | NOT NULL. `FEED` cám định mức, `VACCINE` vắc-xin, `MEDICINE` thuốc trộn, `TEMPERATURE` nhiệt độ, `WORK` công việc. |
+| `name` | VARCHAR(200) | NOT NULL. Loại cám / tên vắc-xin / tên thuốc / giai đoạn nhiệt độ / tên công việc. |
+| `day_from`, `day_to` | INT | NOT NULL, 1–365, `day_from` ≤ `day_to` (`PROGRAM_STEP_RANGE`). |
+| `quantity` | NUMERIC(14,3) | FEED: g/con/ngày (bắt buộc > 0); VACCINE: liều (tùy chọn); MEDICINE: liều lượng (bắt buộc > 0). |
+| `unit` | VARCHAR(50) | FEED luôn là `g/con/ngày`; VACCINE ví dụ `liều/con`, `giọt/con`; MEDICINE bắt buộc, ví dụ `g/kg cám`, `ml/lít nước`. |
+| `meals_per_day` | INT | FEED: số cữ ăn trong ngày, 1–8 (bắt buộc). |
+| `method` | VARCHAR(20) | VACCINE: `EYE_NOSE` nhỏ mắt mũi, `MOUTH` nhỏ miệng, `DRINKING_WATER` pha nước uống, `INJECTION` tiêm, `WING_WEB` chủng màng cánh. MEDICINE: `MIX_FEED` trộn cám, `MIX_WATER` pha nước uống. Sai nhóm hoặc thiếu trả `PROGRAM_METHOD_REQUIRED`. |
+| `temp_min`, `temp_max` | NUMERIC(4,1) | TEMPERATURE: nhiệt độ chuồng °C (10–45), `temp_min` < `temp_max` (`PROGRAM_TEMPERATURE_RANGE`). |
+| `note` | VARCHAR(1000) | Ghi chú cách làm. |
+
+Quy tắc: chương trình phải có ít nhất một mức cám (`PROGRAM_FEED_REQUIRED`); các mức cám không chồng ngày nhau (`PROGRAM_FEED_OVERLAP`), các mức nhiệt độ không chồng ngày nhau (`PROGRAM_TEMPERATURE_OVERLAP`) — mỗi ngày tuổi chỉ có một khẩu phần và một khoảng nhiệt; FEED thiếu định mức hoặc số cữ trả `PROGRAM_FEED_INCOMPLETE`, MEDICINE thiếu liều hoặc đơn vị trả `PROGRAM_MEDICINE_DOSE`. Cột không thuộc nhóm của dòng được bỏ trống khi lưu. Kế hoạch hôm nay: cám = `quantity` × số con của đàn ÷ 1000 (kg/ngày), chia cho `meals_per_day` ra kg mỗi cữ.
+
+API: `GET /api/farming-programs`, `GET /api/farming-programs/{id}` (mọi tài khoản, trả thêm `activeFlockCount` số đàn đang nuôi theo chương trình); `POST`, `PUT /{id}` (thay toàn bộ nội dung), `DELETE /{id}` (chủ trại; không xóa chương trình đã dùng cho đàn - 409 `PROGRAM_IN_USE`). `GET /api/cycles/{id}` trả `programs` (các chương trình của đàn trong lứa, mỗi nội dung có `state` `DONE` / `IN_PROGRESS` / `UPCOMING` theo ngày tuổi) và `todayPlan` (kế hoạch hôm nay của từng đàn đang nuôi).
+
+Mô hình cũ (chương trình theo loại `type` gắn vào lứa qua bảng `cycle_programs`) đã bỏ; `insert_data.txt` (mục 9) chạy `DROP TABLE IF EXISTS cycle_programs` và `ALTER TABLE farming_programs DROP COLUMN IF EXISTS type`.
+
+Dữ liệu mẫu: mục 7 trong `insert_data.txt` khai báo lứa thứ 1 (bắt đầu 01/10/2026) cho Nhà A1–A3, B1, B2; mục 8 nhập các đàn (Nhà A3: `MÍA-DABACO TRỐNG` 20.000 con × 11.000đ và `MÍA-DABACO MÁI` 10.000 con × 11.500đ = 335.000.000đ) kèm biến động `IMPORT`, rồi tính lại `barns.current_quantity`; mục 9 thêm 3 chương trình theo giống (`Gà ta thả vườn` 105 ngày đầy đủ cám 7 giai đoạn, 8 mũi vắc-xin, 5 đợt thuốc, 5 mức nhiệt, 3 công việc; `Gà Mía thương phẩm` 90 ngày; `Gà J-Dabaco thương phẩm` 75 ngày) và gắn chương trình cho các đàn mẫu theo tên giống.
+
 ## 1. Bảng `roles`
 Quản lý các vai trò (quyền hạn) của người dùng trong hệ thống.
 
@@ -231,5 +383,3 @@ Quản lý thông tin hồ sơ chi tiết của khách hàng hoặc người dù
 | 7 | `avatar_url` | TEXT | | | Đường dẫn (URL) ảnh đại diện của cá nhân. |
 | 8 | `date_of_birth` | DATE | | | Ngày tháng năm sinh. |
 | 9 | `created_at` | TIMESTAMP | | CURRENT_TIMESTAMP | Thời gian tạo hồ sơ thông tin này. |
-
-Tên hàng hóa trong form Kho hàng hóa được nhập trực tiếp (tối đa 150 ký tự). API nhận `name` thay cho `productId`, dùng lại tên đã có trong cùng kho hoặc lưu tên mới vào `product_categories` và liên kết `inventory_items.product_id`. Không bổ sung bảng mới.
