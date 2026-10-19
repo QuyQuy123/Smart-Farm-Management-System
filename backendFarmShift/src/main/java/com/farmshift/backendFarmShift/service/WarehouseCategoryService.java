@@ -20,6 +20,7 @@ import java.util.Locale;
 @Transactional(readOnly = true)
 public class WarehouseCategoryService {
     private final WarehouseCategoryRepository repository;
+    private final com.farmshift.backendFarmShift.repository.ProductCategoryRepository productCategoryRepository;
 
     public List<WarehouseCategoryResponse> list() {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
@@ -38,7 +39,13 @@ public class WarehouseCategoryService {
     }
 
     @Transactional
-    public void delete(Long id) { repository.delete(find(id)); }
+    public void delete(Long id) {
+        var warehouse = find(id);
+        if (productCategoryRepository.existsByWarehouse_Id(id)) {
+            throw new ConflictException("Không thể xóa kho đang chứa hàng hóa. Hãy chuyển hoặc xóa các hàng hóa liên quan trước.", "WAREHOUSE_IN_USE", null);
+        }
+        repository.delete(warehouse);
+    }
 
     private WarehouseCategory find(Long id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục kho."));
