@@ -383,3 +383,15 @@ Quản lý thông tin hồ sơ chi tiết của khách hàng hoặc người dù
 | 7 | `avatar_url` | TEXT | | | Đường dẫn (URL) ảnh đại diện của cá nhân. |
 | 8 | `date_of_birth` | DATE | | | Ngày tháng năm sinh. |
 | 9 | `created_at` | TIMESTAMP | | CURRENT_TIMESTAMP | Thời gian tạo hồ sơ thông tin này. |
+
+## Bảng `transfer_categories` — Danh mục phiếu xuất nhập nội bộ
+
+- `id`: khóa chính tự tăng; `code`: mã tự sinh DM + UUID, duy nhất, không đổi, chỉ lưu trong DB, không hiển thị hoặc nhập trên UI.
+- `slip_type`: chuỗi nhập tay, bắt buộc, tối đa 150 ký tự. Không giới hạn enum. Khi nâng cấp PostgreSQL, TransferCategorySchemaUpgrade tự gỡ CHECK enum cũ; Hibernate ddl-auto=update mở rộng cột. Giá trị enum đã lưu vẫn được hiển thị bằng nhãn tiếng Việt trên UI.
+- `name` (150 ký tự), `name_key`: tên chuẩn hóa NFC, không phân biệt hoa thường. Ràng buộc duy nhất theo cặp loại phiếu/tên.
+- `description`: mô tả tối đa 1000 ký tự.
+- `created_at`, `updated_at`: timestamp; ngày tạo do server quản lý, UI hiển thị ngày/tháng/năm.
+
+API `/api/transfer-categories`: GET danh sách, GET /{id} chi tiết; POST, PUT /{id}, DELETE /{id} chỉ cho ROLE_FARM_OWNER. Không thêm dữ liệu mẫu. Khởi động lại backend với ddl-auto=update để tạo bảng.
+
+`slipCount` là trường chỉ đọc, hiện trả 0: phiếu xuất nhập hiện mới nằm ở state frontend, chưa có bảng phiếu để đếm quan hệ. Khi triển khai lưu phiếu cần thêm khóa ngoại đến bảng này, đếm số phiếu thực tế và chặn xóa danh mục đã được sử dụng. CRUD danh mục đã lưu thật trong database; không dùng số đếm từ dữ liệu mẫu.
