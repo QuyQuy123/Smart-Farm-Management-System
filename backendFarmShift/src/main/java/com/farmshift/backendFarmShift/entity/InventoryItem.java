@@ -2,56 +2,30 @@ package com.farmshift.backendFarmShift.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
-import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
-@Table(name = "inventory_items")
+@Table(name = "inventory_items", uniqueConstraints = @UniqueConstraint(name = "uq_inventory_warehouse_product", columnNames = {"warehouse_id", "product_id"}))
 @Data
-@NoArgsConstructor
 public class InventoryItem {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
+    @Column(nullable = false, unique = true, length = 40, updatable = false) private String code;
+    @Column(name = "image_url", columnDefinition = "TEXT") private String imageUrl;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "warehouse_id", nullable = false) private WarehouseCategory warehouse;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_id", nullable = false) private ProductCategory product;
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_category_id", foreignKey = @ForeignKey(name = "fk_inventory_product_category"))
-    private ProductCategory productCategory;
-
-    @Column(name = "product_name", nullable = false, length = 200)
-    private String productName;
-
-    @Column(name = "product_name_key", nullable = false, length = 200)
-    private String productNameKey;
-
-    @Column(nullable = false, length = 50)
-    private String unit;
-
-    @Column(nullable = false)
-    private Double stock = 0.0;
-
-    @Column(name = "cost_price")
-    private Long costPrice = 0L;
-
+    @JoinColumn(name = "brand_id") private Brand brand;
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "warehouse_id", foreignKey = @ForeignKey(name = "fk_inventory_warehouse"))
-    private WarehouseCategory warehouse;
-
-    @Column(name = "lot_code", length = 100)
-    private String lotCode;
-
-    @Column(name = "expiry_date")
-    private LocalDate expiryDate;
-
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    @JoinColumn(name = "unit_id", foreignKey = @ForeignKey(name = "fk_inventory_unit")) private MeasurementUnit unit;
+    @Column(nullable = false, precision = 19, scale = 2) private BigDecimal price;
+    @Column(nullable = false, precision = 19, scale = 3) private BigDecimal stock = BigDecimal.ZERO;
+    @CreationTimestamp @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
+    @UpdateTimestamp @Column(name = "updated_at") private LocalDateTime updatedAt;
+    @PrePersist void assignCode() { code = "SP" + UUID.randomUUID().toString().replace("-", "").toUpperCase(java.util.Locale.ROOT); }
 }

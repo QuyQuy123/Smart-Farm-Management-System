@@ -21,6 +21,7 @@ import java.util.Locale;
 @Transactional(readOnly = true)
 public class BrandService {
     private final BrandRepository repository;
+    private final com.farmshift.backendFarmShift.repository.InventoryItemRepository inventory;
 
     public List<BrandResponse> list() {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
@@ -42,7 +43,9 @@ public class BrandService {
 
     @Transactional
     public void delete(Long id) {
-        repository.delete(find(id));
+        var brand = find(id);
+        if (inventory.existsByBrand_Id(id)) throw new ConflictException("Không thể xóa nhãn hiệu đang được hàng hóa sử dụng.", "BRAND_IN_USE", null);
+        repository.delete(brand);
     }
 
     private Brand find(Long id) {

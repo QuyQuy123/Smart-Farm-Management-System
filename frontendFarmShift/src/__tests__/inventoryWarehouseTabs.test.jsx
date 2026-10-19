@@ -6,6 +6,9 @@ import { InventoryView } from '../features/farmshift/InventoryView';
 import { listWarehouseCategories, WAREHOUSE_CATEGORIES_CHANGED } from '../services/warehouseCategoryService';
 
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children, actions }) => <div>{actions}{children}</div> }));
+vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: 'ROLE_FARM_OWNER' } }) }));
+vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: vi.fn() }) }));
+vi.mock('../services/inventoryItemService', () => ({ listInventoryItems: async () => [], createInventoryItem: vi.fn(), updateInventoryItem: vi.fn(), deleteInventoryItem: vi.fn() }));
 vi.mock('../services/warehouseCategoryService', () => ({ listWarehouseCategories: vi.fn(), WAREHOUSE_CATEGORIES_CHANGED: 'warehouse-categories-changed' }));
 const category = { id: 5, name: 'Kho mới từ database' };
 const renderView = () => render(<MemoryRouter><InventoryView /></MemoryRouter>);

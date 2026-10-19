@@ -1,14 +1,17 @@
 package com.farmshift.backendFarmShift.repository;
 
 import com.farmshift.backendFarmShift.entity.InventoryItem;
-import com.farmshift.backendFarmShift.entity.ProductCategory;
 import org.springframework.data.jpa.repository.JpaRepository;
-
+import org.springframework.data.domain.Sort;
 import java.util.List;
-import java.util.Optional;
 
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, Long> {
-    Optional<InventoryItem> findByProductCategory(ProductCategory productCategory);
-    Optional<InventoryItem> findByProductNameKey(String productNameKey);
-    List<InventoryItem> findByProductNameContainingIgnoreCase(String name);
+    List<InventoryItem> findByWarehouse_Id(Long warehouseId, Sort sort);
+    long countByWarehouse_Id(Long warehouseId);
+    long countByProduct_Id(Long productId);
+    boolean existsByWarehouse_Id(Long warehouseId);
+    boolean existsByProduct_Id(Long productId);
+    boolean existsByBrand_Id(Long brandId);
+    boolean existsByUnit_Id(Long unitId);
+    boolean existsByWarehouse_IdAndProduct_IdAndIdNot(Long warehouseId, Long productId, Long id);
 }

@@ -20,6 +20,7 @@ import java.util.Locale;
 @Transactional(readOnly = true)
 public class WarehouseCategoryService {
     private final WarehouseCategoryRepository repository;
+    private final com.farmshift.backendFarmShift.repository.InventoryItemRepository inventory;
     private final com.farmshift.backendFarmShift.repository.ProductCategoryRepository productCategoryRepository;
 
     public List<WarehouseCategoryResponse> list() {
@@ -41,7 +42,7 @@ public class WarehouseCategoryService {
     @Transactional
     public void delete(Long id) {
         var warehouse = find(id);
-        if (productCategoryRepository.existsByWarehouse_Id(id)) {
+        if (productCategoryRepository.existsByWarehouse_Id(id) || inventory.existsByWarehouse_Id(id)) {
             throw new ConflictException("Không thể xóa kho đang chứa hàng hóa. Hãy chuyển hoặc xóa các hàng hóa liên quan trước.", "WAREHOUSE_IN_USE", null);
         }
         repository.delete(warehouse);
@@ -72,8 +73,7 @@ public class WarehouseCategoryService {
     }
 
     private WarehouseCategoryResponse response(WarehouseCategory category) {
-        // No inventory-item entity exists yet; derive the count from that relationship when it is added.
         return new WarehouseCategoryResponse(category.getId(), String.format(Locale.ROOT, "DM%06d", category.getId()),
-                category.getName(), category.getDescription(), 0L, category.getCreatedAt());
+                category.getName(), category.getDescription(), inventory.countByWarehouse_Id(category.getId()), category.getCreatedAt());
     }
 }
