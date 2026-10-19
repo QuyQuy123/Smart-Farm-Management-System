@@ -39,6 +39,11 @@ public class FileUploadServiceImpl implements FileUploadService {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("File is empty");
         }
+        // Global multipart limit is 10MB (for OCR invoices); keep uploaded images at 5MB max.
+        if (file.getSize() > 5L * 1024 * 1024) {
+            throw new com.farmshift.backendFarmShift.exception.BadRequestException(
+                    "Ảnh phải có dung lượng lớn hơn 0 và không quá 5MB.");
+        }
 
         try {
             // Generate a unique filename to prevent overwrites

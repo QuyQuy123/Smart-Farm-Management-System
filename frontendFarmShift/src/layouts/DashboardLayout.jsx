@@ -39,7 +39,7 @@ const ACCOUNTANT_NAV = [
   { label: 'Kho & Vật tư', path: '/view/inventory', icon: Package, group: 'inventory' },
   { label: 'Thu chi & Công nợ', path: '/view/finance', icon: BarChart3, group: 'finance' },
   { label: 'Chi phí lứa', path: '/view/costs', icon: FileText, group: 'costs' },
-  { label: 'Chứng từ AI OCR', path: '/view/ocr', icon: Sparkles, group: 'ocr' },
+  { label: 'Chứng từ OCR', path: '/view/ocr', icon: Sparkles, group: 'ocr' },
   { label: 'Lứa nuôi · Chỉ xem', path: '/view/batches', icon: Beef, group: 'batches' },
   { label: 'Nhật ký · Chỉ xem', path: '/view/journal', icon: FileText, group: 'journal' },
   { label: 'Báo cáo', path: '/view/reports', icon: BarChart3, group: 'reports' },

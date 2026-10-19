@@ -185,7 +185,7 @@ describe('Interactive Dynamic Validation in AccountView Component', () => {
   describe('formatNotificationTime & renderNotificationContent helpers', () => {
     it('formats relative times properly according to duration rules', () => {
       const now = Date.now();
-      
+
       // Under 60 seconds
       const justNow = formatNotificationTime(now - 15 * 1000);
       expect(justNow).toMatch(/^Vừa xong \(\d{2}:\d{2}\)$/);
