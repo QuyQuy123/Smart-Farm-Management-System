@@ -12,6 +12,7 @@ public interface ProductCategoryRepository extends JpaRepository<ProductCategory
     int renameUnitSpecifications(@org.springframework.data.repository.query.Param("oldName") String oldName,
                                 @org.springframework.data.repository.query.Param("newName") String newName);
     boolean existsByWarehouse_Id(Long warehouseId);
+    java.util.Optional<ProductCategory> findByNameKey(String nameKey);
     boolean existsByNameKey(String nameKey);
     boolean existsByNameKeyAndIdNot(String nameKey, Long id);
 }

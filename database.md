@@ -2,6 +2,29 @@
 
 Tài liệu này mô tả cấu trúc các bảng trong cơ sở dữ liệu của dự án FarmShift, bao gồm kiểu dữ liệu, ràng buộc và ý nghĩa của từng trường được suy luận tự động.
 
+## Bảng `inventory_items` — Hàng hóa thực tế trong kho
+
+Bổ sung `unit_id` (FK → `measurement_units.id`): đơn vị được chọn từ tab Đơn vị tính khi tạo/sửa hàng hóa. API yêu cầu `unitId`; dữ liệu cũ có thể để NULL cho đến khi chỉnh sửa. Không xóa đơn vị đang được hàng hóa sử dụng hoặc đổi đơn vị của hàng có tồn kho khác 0.
+
+Entity `InventoryItem` phục vụ CRUD tại **Kho hàng hóa**. Liên kết danh mục kho, Tên hàng hóa và Nhãn hiệu trong database, thay thế dữ liệu mẫu và trạng thái tạm trong frontend.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã tự sinh `SP` + UUID, không đổi khi sửa. Không trả về DTO hoặc hiện trên UI. |
+| `image_url` | TEXT | Đường dẫn ảnh local `/img/products/...` hoặc URL R2, không lưu Base64. Có thể để trống. |
+| `warehouse_id` | BIGINT | NOT NULL, FOREIGN KEY → `warehouse_categories.id`. |
+| `product_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_categories.id` (Tên hàng hóa). Hàng được chọn phải thuộc đúng kho. |
+| `brand_id` | BIGINT | FOREIGN KEY → `brands.id`, cho phép bỏ trống. |
+| `price` | NUMERIC(19,2) | NOT NULL, giá tiền không âm, tối đa 2 chữ số thập phân. |
+| `stock` | NUMERIC(19,3) | NOT NULL. Backend luôn gán `0` khi tạo mới. Không có trong request CRUD và không được sửa bằng form/API CRUD; update giữ nguyên tồn kho. |
+| `created_at` | TIMESTAMP | Thời điểm tạo, không đổi khi sửa. |
+| `updated_at` | TIMESTAMP | Hibernate cập nhật khi sửa. |
+
+UNIQUE (`warehouse_id`, `product_id`): một tên hàng hóa chỉ tạo một lần trong cùng kho. UI chỉ hiển thị ảnh, tên hàng hóa, giá tiền, tồn kho, nhãn hiệu và thao tác; tab kho lấy từ database theo thứ tự tạo cũ trước/mới sau. Tên hàng hóa trong popup lọc theo kho đang chọn. Ảnh dùng `POST /api/files/upload` với folder `products`, tối đa 5MB (JPEG/PNG/GIF), lưu file trước và đường dẫn khi lưu hàng hóa.
+
+API `GET /api/inventory-items?warehouseId=...`, `GET /api/inventory-items/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Không xóa hàng hóa có tồn kho khác 0; không đổi tên/kho của hàng đang có tồn kho. Chặn xóa kho, tên hàng hóa, nhãn hiệu đang được sử dụng. Số lượng tại Danh mục kho và Tên hàng hóa được tính từ số bản ghi `inventory_items` liên quan, không phải tổng tồn kho. Không tự thêm hàng mẫu. Khởi động lại backend với `ddl-auto=update` để tạo bảng.
+
 ## Bảng `customer_contacts` — Danh bạ khách hàng
 
 Entity `CustomerContact` phục vụ CRUD tại **Thiết lập danh mục → Khách hàng**. Bảng này riêng biệt với `customers` hiện dùng cho hồ sơ tài khoản/nhân sự; không dùng chung dữ liệu.
@@ -75,7 +98,7 @@ Entity `ProductCategory` lưu danh mục tại **Thiết lập danh mục → T�
 
 API `GET /api/product-categories` và `GET /api/product-categories/{id}` dành cho tài khoản đăng nhập. `POST`, `PUT /{id}`, `DELETE /{id}` chỉ dành cho `ROLE_FARM_OWNER`. Danh sách sắp xếp theo `created_at`, rồi ID tăng dần. UI ẩn cột mã hàng hóa (`code`) và ngày tạo (`createdAt`), hiển thị: Tên hàng hóa, Quy cách, Nhãn hiệu, Loại hàng hóa, Kho lưu trữ, Mô tả.
 
-Chưa có entity chi tiết tồn kho từng đợt nhập nên `itemCount` hiện là `0`, không lưu số lượng giả hoặc nhập thủ công. Khi có entity chi tiết hàng hóa, cần liên kết khóa ngoại, đếm mặt hàng và chặn xóa khi đang được sử dụng. Không tự thêm dữ liệu mẫu. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo hoặc cập nhật bảng.
+`itemCount` được tính từ số bản ghi `inventory_items` có `product_id` tương ứng; không lưu số đếm giả hoặc nhập thủ công. Chặn xóa tên hàng hóa hoặc chuyển sang kho khác khi đã được hàng hóa thực tế sử dụng. Không tự thêm dữ liệu mẫu. Khởi động backend với `spring.jpa.hibernate.ddl-auto=update` để tạo hoặc cập nhật bảng.
 
 ## Bảng `warehouse_categories` — Danh mục kho
 
@@ -90,7 +113,7 @@ Entity `WarehouseCategory` lưu danh mục tại **Thiết lập danh mục → 
 | `created_at` | TIMESTAMP | Hibernate tự ghi đầy đủ ngày và giờ tạo, gồm giờ/phút/giây và phần thập phân. Không thay đổi khi sửa danh mục. API trả đầy đủ thời điểm; UI cột Ngày tạo chỉ định dạng `dd/mm/yyyy`. Tab Kho hàng hóa sắp xếp theo thời điểm tăng dần (cũ trước, mới sau), nếu trùng thời điểm thì theo ID tăng dần. |
 | `updated_at` | TIMESTAMP | Hibernate tự ghi thời điểm cập nhật. |
 
-API: `GET /api/warehouse-categories` và `GET /api/warehouse-categories/{id}` cho người dùng đăng nhập. `POST`, `PUT /{id}` và `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Xóa bản ghi sau khi người dùng xác nhận. Chưa có entity hàng hóa nên `itemCount` hiện trả `0`, không phải trường nhập hoặc cột lưu số đếm thủ công. Khi bổ sung hàng hóa, cần liên kết khóa ngoại tới danh mục, đếm bản ghi liên quan và chặn xóa danh mục đang có hàng hóa.
+API: `GET /api/warehouse-categories` và `GET /api/warehouse-categories/{id}` cho người dùng đăng nhập. `POST`, `PUT /{id}` và `DELETE /{id}` chỉ cho `ROLE_FARM_OWNER`. Xóa bản ghi sau khi người dùng xác nhận. `itemCount` đếm số bản ghi `inventory_items` thuộc kho, không phải tổng tồn kho và không nhập tay. Kho có Tên hàng hóa hoặc hàng hóa thực tế liên quan không được xóa.
 
 Với `spring.jpa.hibernate.ddl-auto=update`, Hibernate tạo bảng khi khởi động lại backend. Không tự thêm các bản ghi mẫu hoặc số lượng mẫu trong ảnh.
 
@@ -208,3 +231,5 @@ Quản lý thông tin hồ sơ chi tiết của khách hàng hoặc người dù
 | 7 | `avatar_url` | TEXT | | | Đường dẫn (URL) ảnh đại diện của cá nhân. |
 | 8 | `date_of_birth` | DATE | | | Ngày tháng năm sinh. |
 | 9 | `created_at` | TIMESTAMP | | CURRENT_TIMESTAMP | Thời gian tạo hồ sơ thông tin này. |
+
+Tên hàng hóa trong form Kho hàng hóa được nhập trực tiếp (tối đa 150 ký tự). API nhận `name` thay cho `productId`, dùng lại tên đã có trong cùng kho hoặc lưu tên mới vào `product_categories` và liên kết `inventory_items.product_id`. Không bổ sung bảng mới.

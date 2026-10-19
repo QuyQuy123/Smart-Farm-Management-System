@@ -22,6 +22,7 @@ import java.util.Locale;
 public class MeasurementUnitService {
     private final MeasurementUnitRepository repository;
     private final ProductCategoryRepository products;
+    private final com.farmshift.backendFarmShift.repository.InventoryItemRepository inventory;
 
     public List<MeasurementUnitResponse> list() {
         return repository.findAll(Sort.by("createdAt", "id")).stream().map(this::response).toList();
@@ -34,7 +35,7 @@ public class MeasurementUnitService {
     @Transactional
     public void delete(Long id) {
         var unit = find(id);
-        if (products.countByUnitName(unit.getName()) > 0) throw new ConflictException("Không thể xóa đơn vị đang có hàng hóa sử dụng.", "UNIT_IN_USE", null);
+        if (products.countByUnitName(unit.getName()) > 0 || inventory.existsByUnit_Id(id)) throw new ConflictException("Không thể xóa đơn vị đang có hàng hóa sử dụng.", "UNIT_IN_USE", null);
         repository.delete(unit);
     }
     private MeasurementUnit find(Long id) {
