@@ -529,7 +529,7 @@ export const PurchasesView = () => {
         supplierTaxCode: data.supplierTaxCode || '',
         date: data.invoiceDate || new Date().toISOString().split('T')[0],
         referenceCode: data.referenceCode || '',
-        note: data.note || '',
+        note: (data.note && !data.note.toLowerCase().includes('trích xuất')) ? data.note : '',
         discountAmount: data.discountAmount || 0,
         otherCost: data.otherCost || 0,
         paymentStatus: data.paymentStatus || (data.paidAmount > 0 ? (data.paidAmount >= (data.totalAmount || 0) ? 'Thanh toán hoàn tất' : 'Thanh toán một phần') : 'Trả sau'),
@@ -2053,7 +2053,11 @@ export const PurchasesView = () => {
                     <input
                       id="po-note-input"
                       type="text"
-                      placeholder="Nhập cám bổ sung cho lứa tháng 10..."
+                      placeholder={
+                        ocrPreviewName
+                          ? `Gợi ý: Nhập kho theo chứng từ ${ocrPreviewName}${newPo.referenceCode ? ` (Số ${newPo.referenceCode})` : ''}...`
+                          : 'Nhập ghi chú cho đơn nhập hàng (tùy chọn)...'
+                      }
                       className="farmshift-form-control"
                       value={newPo.note}
                       onChange={(e) => setNewPo({ ...newPo, note: e.target.value })}
@@ -2176,12 +2180,9 @@ export const PurchasesView = () => {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '16px', padding: '12px 16px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                    <div style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
-                      Thành tiền hàng: <strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>{newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0).toLocaleString('vi-VN')} đ</strong>
-                    </div>
+                  <div style={{ marginTop: '16px', padding: '12px 16px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-ink)' }}>Tổng thanh toán:</span>
+                      <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-ink)' }}>Tổng tiền:</span>
                       <strong style={{ fontSize: '18px', color: 'var(--color-primary)' }}>
                         {Math.max(
                           0,
