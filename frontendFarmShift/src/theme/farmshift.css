@@ -2128,3 +2128,102 @@ h6 {
   background-color: #f1f5f9;
   color: #0f172a;
 }
+
+/* ── Sidebar brand & menu: white background, one green tone ── */
+.farmshift-sidebar .farmshift-sidebar-header {
+  justify-content: center;
+  min-height: 72px;
+  padding: 10px 16px;
+}
+
+.farmshift-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -1.6px;
+  line-height: 1;
+  color: #028f82;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.farmshift-wordmark span {
+  color: #8aaa34;
+}
+
+.farmshift-wordmark small {
+  margin-left: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: #64728a;
+}
+
+.farmshift-wordmark:hover {
+  text-decoration: none;
+  opacity: 0.9;
+}
+
+.farmshift-sidebar .farmshift-menu {
+  padding: 8px 0;
+  gap: 0;
+}
+
+.farmshift-sidebar .farmshift-menu-item {
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 18px 8px 20px;
+  border-radius: 0;
+  border-right: 3px solid transparent;
+  color: #62738a;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.farmshift-sidebar .farmshift-menu-item:hover {
+  background-color: #f5f9fa;
+  color: #009b8b;
+}
+
+.farmshift-sidebar .farmshift-menu-item.active {
+  background-color: #e0f1ec;
+  border-right-color: #009b8b;
+  color: #17272c;
+  font-weight: 700;
+}
+
+.farmshift-sidebar .farmshift-menu-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #e8f4f1;
+  color: #2f7d72;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.farmshift-sidebar .farmshift-menu-item:hover .farmshift-menu-icon,
+.farmshift-sidebar .farmshift-menu-item.active .farmshift-menu-icon {
+  background-color: #58938a;
+  color: #ffffff;
+}
+
+.farmshift-sidebar .farmshift-menu-divider {
+  margin: 8px 0;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item,
+.farmshift-sidebar.collapsed .farmshift-menu-item.active {
+  width: 100%;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item.active {
+  background-color: #e0f1ec;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item.active::before {
+  display: none;
+}

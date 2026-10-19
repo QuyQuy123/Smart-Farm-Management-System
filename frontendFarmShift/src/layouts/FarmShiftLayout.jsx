@@ -183,6 +183,13 @@ export const FarmShiftLayout = ({
         return () => window.removeEventListener('farmshift_info_updated', handleFarmUpdate);
     }, [user]);
 
+    // Area and barn pages keep the "Khu nuôi" item highlighted; their sub-navigation is a tab bar on the page.
+    const inAreaPages = location.pathname.startsWith('/areas') || location.pathname.startsWith('/barns');
+
+    // "Trang trại Miền Bình" -> "MB": the last two words of the farm name, shown beside the wordmark.
+    const farmInitials = (farmInfo?.name || '').trim().split(/\s+/).slice(-2)
+        .map(word => word.charAt(0).toLocaleUpperCase('vi')).join('');
+
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(() => { });
@@ -195,7 +202,7 @@ export const FarmShiftLayout = ({
 
     const navMenuItems = [
         { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard },
-        { id: 'areas', label: 'Khu nuôi & Chuồng', path: '/areas', icon: Warehouse },
+        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse },
         { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList },
         { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package },
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight },
@@ -471,20 +478,8 @@ export const FarmShiftLayout = ({
             >
                 <div className="farmshift-sidebar-header">
                     {!collapsed ? (
-                        <Link to="/dashboard" className="farmshift-brand-box" style={{ textDecoration: 'none' }}>
-                            <img
-                                src={farmLogo}
-                                alt="FarmShift"
-                                style={{
-                                    width: '36px',
-                                    height: '36px',
-                                    objectFit: 'contain',
-                                    flexShrink: 0
-                                }}
-                            />
-                            <span className="farmshift-brand-title" style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.02em' }}>
-                                FarmShift
-                            </span>
+                        <Link to="/dashboard" className="farmshift-wordmark" aria-label="FarmShift - Bảng tin">
+                            farm<span>Shift</span>{farmInitials && <small>{farmInitials}</small>}
                         </Link>
                     ) : (
                         <Link
@@ -517,7 +512,8 @@ export const FarmShiftLayout = ({
                 <ul className="farmshift-menu">
                     {navMenuItems.map(item => {
                         const Icon = item.icon;
-                        const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/');
+                        const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/')
+                            || (item.id === 'areas' && inAreaPages);
                         return (
                             <li key={item.id}>
                                 <NavLink
@@ -528,7 +524,7 @@ export const FarmShiftLayout = ({
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
-                                        <Icon size={19} />
+                                        <Icon size={16} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (
@@ -556,7 +552,7 @@ export const FarmShiftLayout = ({
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
-                                        <Icon size={19} />
+                                        <Icon size={16} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (
