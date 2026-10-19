@@ -15,6 +15,7 @@ import {
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
+import { AreaTabs } from './AreaTabs';
 import {
   EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
@@ -568,7 +569,7 @@ export const BarnDetailView = () => {
     {loading ? <p className={styles.loading} role="status">Đang tải chi tiết chuồng...</p>
       : error ? <div role="alert" className={`${styles.card} ${styles.emptyCycle}`}><p>{error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate('/barns')}>Về danh sách chuồng</button></div>
-        : <>{header}{detail ? renderCycle() : renderNoCycle()}</>}
+        : <><AreaTabs areas={areas} active={barn.areaId} />{header}{detail ? renderCycle() : renderNoCycle()}</>}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}
     {modal && !modal.type && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </FarmShiftLayout>;

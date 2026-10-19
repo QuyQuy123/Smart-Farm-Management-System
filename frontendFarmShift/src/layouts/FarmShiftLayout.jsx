@@ -16,7 +16,6 @@ import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { GlobalSearch } from '../components/GlobalSearch/GlobalSearch';
 import { getFarmInfo, saveFarmInfo } from '../data/farmshiftMockData';
 import { getFarm } from '../services/farmService';
-import { FARM_AREAS_CHANGED, listFarmAreas } from '../services/farmAreaService';
 import farmLogo from '../assets/logo_Farm.png';
 import '../theme/farmshift.css';
 
@@ -184,25 +183,8 @@ export const FarmShiftLayout = ({
         return () => window.removeEventListener('farmshift_info_updated', handleFarmUpdate);
     }, [user]);
 
-    // Khu nuôi submenu (Tất cả + từng khu), loaded only while browsing the area pages.
+    // Area and barn pages keep the "Khu nuôi" item highlighted; their sub-navigation is a tab bar on the page.
     const inAreaPages = location.pathname.startsWith('/areas') || location.pathname.startsWith('/barns');
-    const [areaLinks, setAreaLinks] = useState([]);
-    useEffect(() => {
-        if (!inAreaPages || !user?.email) return undefined;
-        let cancelled = false;
-        const load = () => listFarmAreas()
-            .then(list => { if (!cancelled && Array.isArray(list)) setAreaLinks(list); })
-            .catch(() => { /* The submenu is optional; the page itself reports API errors. */ });
-        const onStorage = event => { if (event.key === FARM_AREAS_CHANGED) load(); };
-        load();
-        window.addEventListener(FARM_AREAS_CHANGED, load);
-        window.addEventListener('storage', onStorage);
-        return () => {
-            cancelled = true;
-            window.removeEventListener(FARM_AREAS_CHANGED, load);
-            window.removeEventListener('storage', onStorage);
-        };
-    }, [inAreaPages, user?.email]);
 
     // "Trang trại Miền Bình" -> "MB": the last two words of the farm name, shown beside the wordmark.
     const farmInitials = (farmInfo?.name || '').trim().split(/\s+/).slice(-2)
@@ -219,22 +201,22 @@ export const FarmShiftLayout = ({
     };
 
     const navMenuItems = [
-        { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard, color: '#58938a' },
-        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse, color: '#7f98aa' },
-        { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList, color: '#936d86' },
-        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package, color: '#424f80' },
-        { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight, color: '#829ba9' },
-        { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, color: '#b4a15b' },
-        { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, color: '#ef725b' },
-        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign, color: '#69a58b' },
-        { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users, color: '#91b250' },
-        { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3, color: '#e49a60' },
+        { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard },
+        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse },
+        { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList },
+        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package },
+        { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight },
+        { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText },
+        { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart },
+        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign },
+        { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users },
+        { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3 },
     ];
 
     const settingsMenuItems = [
-        { id: 'catalog-settings', label: 'Thiết lập danh mục', path: '/catalog-settings', icon: Layers, color: '#747e76' },
-        { id: 'breeding-settings', label: 'Thiết lập chăn nuôi', path: '/breeding-settings', icon: Settings, color: '#90989b' },
-        { id: 'general-settings', label: 'Thiết lập chung', path: '/general-settings', icon: Sliders, color: '#869693' },
+        { id: 'catalog-settings', label: 'Thiết lập danh mục', path: '/catalog-settings', icon: Layers },
+        { id: 'breeding-settings', label: 'Thiết lập chăn nuôi', path: '/breeding-settings', icon: Settings },
+        { id: 'general-settings', label: 'Thiết lập chung', path: '/general-settings', icon: Sliders },
     ];
 
     return (
@@ -541,7 +523,7 @@ export const FarmShiftLayout = ({
                                         if (window.innerWidth <= 768) setMobileOpen(false);
                                     }}
                                 >
-                                    <span className="farmshift-menu-icon" style={{ '--nav-color': item.color }}>
+                                    <span className="farmshift-menu-icon">
                                         <Icon size={16} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
@@ -551,23 +533,6 @@ export const FarmShiftLayout = ({
                                         </span>
                                     )}
                                 </NavLink>
-                                {item.id === 'areas' && inAreaPages && !collapsed && (
-                                    <ul className="farmshift-submenu">
-                                        <li>
-                                            <NavLink to="/barns" className={`farmshift-submenu-item ${location.pathname === '/barns' ? 'active' : ''}`}>Tất cả</NavLink>
-                                        </li>
-                                        {areaLinks.map(area => {
-                                            const areaPath = `/areas/${area.id}`;
-                                            return (
-                                                <li key={area.id}>
-                                                    <NavLink to={areaPath} className={`farmshift-submenu-item ${location.pathname === areaPath ? 'active' : ''}`}>
-                                                        {area.name}({area.barnCount})
-                                                    </NavLink>
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
-                                )}
                             </li>
                         );
                     })}
@@ -586,7 +551,7 @@ export const FarmShiftLayout = ({
                                         if (window.innerWidth <= 768) setMobileOpen(false);
                                     }}
                                 >
-                                    <span className="farmshift-menu-icon" style={{ '--nav-color': item.color }}>
+                                    <span className="farmshift-menu-icon">
                                         <Icon size={16} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
