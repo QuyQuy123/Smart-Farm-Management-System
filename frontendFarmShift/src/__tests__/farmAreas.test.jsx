@@ -66,6 +66,11 @@ describe('Farm area management', () => {
     const row = (await screen.findByRole('link', { name: 'Khu Mía Thịt' })).closest('tr');
     expect(within(row).getByText('(2 đang nuôi)')).toBeInTheDocument();
     expect(screen.getByText('1-2/2 khu nuôi')).toBeInTheDocument();
+    // Area navigation is a horizontal tab bar on the page, so it works with the sidebar collapsed.
+    const tabs = within(screen.getByRole('navigation', { name: 'Điều hướng khu nuôi' }));
+    expect(tabs.getByRole('link', { name: 'Danh sách khu nuôi' })).toHaveAttribute('aria-current', 'page');
+    expect(tabs.getByRole('link', { name: 'Tất cả chuồng' })).toHaveAttribute('href', '/barns');
+    expect(tabs.getByRole('link', { name: /^Khu Mía Thịt/ })).toHaveAttribute('href', '/areas/1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Tạo khu nuôi' }));
     const dialog = await screen.findByRole('dialog');
