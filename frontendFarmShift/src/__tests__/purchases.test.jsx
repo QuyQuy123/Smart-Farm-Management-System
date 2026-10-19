@@ -433,10 +433,11 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
 
       // Creation modal should now be visible with MSG30 banner and Side-by-side split view
       expect(await screen.findByText(/MSG30:/i)).toBeInTheDocument();
-      expect(screen.getByText(/RapidOCR Chia đôi đối chiếu/i)).toBeInTheDocument();
+      expect(screen.getByText(/Đối chiếu chứng từ & Tạo đơn nhập hàng/i)).toBeInTheDocument();
       expect(screen.getByAltText(/Chứng từ gốc hóa đơn A4/i)).toBeInTheDocument();
       expect(screen.getByTitle(/Phóng to/i)).toBeInTheDocument();
       expect(screen.getByTitle(/Thu nhỏ/i)).toBeInTheDocument();
+      expect(screen.getByTitle(/Xoay ảnh 90°/i)).toBeInTheDocument();
     });
 
     it('uploads a file in RapidOCR modal and extracts purchase data', async () => {
@@ -792,11 +793,10 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       const file = new File(['dummy invoice'], 'hoa-don-navetco.jpg', { type: 'image/jpeg' });
       fireEvent.change(fileInput, { target: { files: [file] } });
 
-      // Verify that the new supplier option is rendered and selected, and banner is visible
-      expect(await screen.findByText(/NCC mới:/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/Công ty Thuốc Thú Y Navetco Mới/i)[0]).toBeInTheDocument();
-      expect(screen.getByText(/MST: 0300456789/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Bổ sung chi tiết/i })).toBeInTheDocument();
+      // Verify that the new supplier option is rendered and auto-selected
+      expect(await screen.findByText(/\[Mới từ chứng từ\] Công ty Thuốc Thú Y Navetco Mới/i)).toBeInTheDocument();
+      const select = document.getElementById('po-supplier-select');
+      expect(select.value).toBe('__NEW__');
 
       // Submit PO: should succeed and send supplierName without error
       const saveBtn = screen.getByRole('button', { name: 'Lưu hóa đơn nhập' });

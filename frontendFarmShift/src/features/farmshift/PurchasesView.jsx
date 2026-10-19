@@ -5,7 +5,7 @@ import {
   Plus, Search, FileSpreadsheet, Eye, Sparkles, ScanText,
   DollarSign, Upload, Tag, Printer, Download,
   Trash2, Pencil, AlertTriangle, PackageCheck, Loader2,
-  ZoomIn, ZoomOut, RotateCcw, ExternalLink, FileText
+  ZoomIn, ZoomOut, RotateCcw, RotateCw, ExternalLink, FileText
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -57,6 +57,7 @@ export const PurchasesView = () => {
   const [ocrPreviewName, setOcrPreviewName] = useState('');
   const [ocrPreviewType, setOcrPreviewType] = useState('image/png');
   const [ocrZoom, setOcrZoom] = useState(1);
+  const [ocrRotation, setOcrRotation] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -511,6 +512,7 @@ export const PurchasesView = () => {
       setOcrPreviewName(previewName);
       setOcrPreviewType(previewType);
       setOcrZoom(1);
+      setOcrRotation(0);
 
       const data = await ocrPurchase(fileOrNull);
       const matchedSup = data.supplierId
@@ -527,7 +529,7 @@ export const PurchasesView = () => {
         supplierTaxCode: data.supplierTaxCode || '',
         date: data.invoiceDate || new Date().toISOString().split('T')[0],
         referenceCode: data.referenceCode || '',
-        note: data.note || `Trích xuất AI OCR từ chứng từ "${previewName}"`,
+        note: data.note || '',
         discountAmount: data.discountAmount || 0,
         otherCost: data.otherCost || 0,
         paymentStatus: data.paymentStatus || (data.paidAmount > 0 ? (data.paidAmount >= (data.totalAmount || 0) ? 'Thanh toán hoàn tất' : 'Thanh toán một phần') : 'Trả sau'),
@@ -1528,34 +1530,19 @@ export const PurchasesView = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div>
                 <h3 className="farmshift-modal-title">
                   {ocrPreviewUrl ? 'Đối chiếu chứng từ & Tạo đơn nhập hàng' : 'Tạo mới đơn nhập hàng'}
                 </h3>
-                {ocrPreviewUrl && (
-                  <span className="farmshift-badge farmshift-badge-info" style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <Sparkles size={12} /> OpenAI & RapidOCR Chia đôi đối chiếu
-                  </span>
-                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {ocrPreviewUrl && (
-                  <button
-                    type="button"
-                    className="farmshift-btn farmshift-btn-secondary"
-                    style={{ fontSize: '11.5px', padding: '3px 8px' }}
-                    onClick={() => setOcrPreviewUrl(null)}
-                    title="Ẩn ảnh chứng từ để chỉ xem form nhập liệu"
-                  >
-                    Ẩn ảnh gốc
-                  </button>
-                )}
+              <div>
                 <button
                   type="button"
                   onClick={() => {
                     setShowAddModal(false);
                     setOcrBanner(false);
                     setOcrPreviewUrl(null);
+                    setOcrRotation(0);
                   }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)', fontSize: '16px', lineHeight: 1 }}
                 >
@@ -1636,10 +1623,10 @@ export const PurchasesView = () => {
                           type="button"
                           className="farmshift-btn farmshift-btn-secondary"
                           style={{ padding: '3px 7px', fontSize: '11px', height: '26px' }}
-                          onClick={() => setOcrZoom(1)}
-                          title="Về kích thước chuẩn (100%)"
+                          onClick={() => setOcrRotation(r => (r + 90) % 360)}
+                          title="Xoay ảnh 90° (nhấp để xoay ảnh ngay ngắn)"
                         >
-                          <RotateCcw size={12} />
+                          <RotateCw size={13} />
                         </button>
                         <a
                           href={ocrPreviewUrl}
@@ -1674,7 +1661,10 @@ export const PurchasesView = () => {
                           alt="Chứng từ gốc hóa đơn A4"
                           className="farmshift-split-left-image"
                           style={{
-                            transform: `scale(${ocrZoom})`
+                            transform: `scale(${ocrZoom}) rotate(${ocrRotation}deg)`,
+                            transformOrigin: 'center center',
+                            transition: 'transform 0.2s ease',
+                            maxWidth: ocrRotation % 180 !== 0 ? '70%' : '100%'
                           }}
                         />
                       )}
@@ -1784,58 +1774,6 @@ export const PurchasesView = () => {
                       {poErrors.supplierId && (
                         <div className="farmshift-field-error">
                           <AlertTriangle size={12} /> {poErrors.supplierId}
-                        </div>
-                      )}
-
-                      {/* Card thông báo & thao tác nhanh khi phát hiện NCC mới từ hóa đơn */}
-                      {newPo.supplierName && !suppliers.some(s => s.name?.toLowerCase() === newPo.supplierName?.toLowerCase()) && (
-                        <div
-                          style={{
-                            marginTop: '6px',
-                            padding: '8px 10px',
-                            borderRadius: 'var(--rounded-md)',
-                            backgroundColor: 'rgba(1, 151, 136, 0.08)',
-                            border: '1px solid rgba(1, 151, 136, 0.25)',
-                            fontSize: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '8px',
-                            animation: 'fadeIn 0.2s ease-in-out'
-                          }}
-                        >
-                          <div style={{ color: 'var(--color-ink)', lineHeight: 1.35 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                              <Sparkles size={13} color="var(--color-primary)" />
-                              <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>NCC mới:</span>
-                              <strong>{newPo.supplierName}</strong>
-                              {newPo.supplierTaxCode && (
-                                <span className="farmshift-badge farmshift-badge-neutral" style={{ fontSize: '10px', padding: '1px 5px' }}>
-                                  MST: {newPo.supplierTaxCode}
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px' }}>
-                              Tự động tạo mới khi bấm <strong>"Lưu hóa đơn nhập"</strong>, hoặc:
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            className="farmshift-btn farmshift-btn-secondary"
-                            style={{
-                              fontSize: '11px',
-                              padding: '3px 8px',
-                              whiteSpace: 'nowrap',
-                              height: '26px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px'
-                            }}
-                            onClick={() => handleOpenQuickSupplier(newPo.supplierName, newPo.supplierTaxCode)}
-                            title="Mở form bổ sung thêm thông tin chi tiết NCC (SĐT, địa chỉ, người đại diện...)"
-                          >
-                            <Plus size={12} /> Bổ sung chi tiết
-                          </button>
                         </div>
                       )}
                     </div>
@@ -1971,10 +1909,19 @@ export const PurchasesView = () => {
                     </div>
                   )}
 
+                  <div style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.9fr 0.9fr 1.3fr 1.3fr 30px', gap: '8px', marginBottom: '4px', fontSize: '11.5px', fontWeight: 600, color: 'var(--color-muted)', padding: '0 2px' }}>
+                    <span>Tên hàng hóa *</span>
+                    <span>Số lượng *</span>
+                    <span>Đơn vị *</span>
+                    <span>Đơn giá (VNĐ) *</span>
+                    <span style={{ textAlign: 'right' }}>Thành tiền</span>
+                    <span></span>
+                  </div>
+
                   {newPo.items.map((row, idx) => {
                     const itemErr = poErrors.items?.[idx] || {};
                     return (
-                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.5fr 30px', gap: '8px', marginBottom: '10px', alignItems: 'flex-start' }}>
+                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.9fr 0.9fr 1.3fr 1.3fr 30px', gap: '8px', marginBottom: '10px', alignItems: 'flex-start' }}>
                         <div>
                           <input
                             type="text"
@@ -2058,6 +2005,26 @@ export const PurchasesView = () => {
                               <AlertTriangle size={12} /> {itemErr.price}
                             </div>
                           )}
+                        </div>
+                        <div>
+                          <div
+                            style={{
+                              height: '38px',
+                              padding: '0 10px',
+                              borderRadius: 'var(--rounded-md)',
+                              backgroundColor: 'var(--color-surface-soft)',
+                              border: '1px solid var(--color-hairline)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-end',
+                              fontWeight: 600,
+                              color: 'var(--color-ink)',
+                              fontSize: '13px'
+                            }}
+                            title="Thành tiền = Số lượng × Đơn giá"
+                          >
+                            {((Number(row.qty) || 0) * (Number(row.price) || 0)).toLocaleString('vi-VN')} đ
+                          </div>
                         </div>
                         <div style={{ paddingTop: '8px', textAlign: 'center' }}>
                           {newPo.items.length > 1 && (
@@ -2209,26 +2176,26 @@ export const PurchasesView = () => {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '16px', padding: '12px 16px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Ước tính tổng tiền:</span>
-                    <strong style={{ fontSize: '18px', color: 'var(--color-primary)' }}>
-                      {Math.max(
-                        0,
-                        newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0)
-                        - Number(newPo.discountAmount || 0)
-                        + Number(newPo.otherCost || 0)
-                      ).toLocaleString('vi-VN')} đ
-                    </strong>
+                  <div style={{ marginTop: '16px', padding: '12px 16px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
+                      Thành tiền hàng: <strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>{newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0).toLocaleString('vi-VN')} đ</strong>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-ink)' }}>Tổng thanh toán:</span>
+                      <strong style={{ fontSize: '18px', color: 'var(--color-primary)' }}>
+                        {Math.max(
+                          0,
+                          newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0)
+                          - Number(newPo.discountAmount || 0)
+                          + Number(newPo.otherCost || 0)
+                        ).toLocaleString('vi-VN')} đ
+                      </strong>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="farmshift-modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--color-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {ocrPreviewUrl && (
-                    <span>💡 <strong>Mẹo:</strong> Đối chiếu từng dòng hàng hóa & số tiền giữa ảnh chứng từ bên trái và form bên phải trước khi lưu.</span>
-                  )}
-                </div>
+              <div className="farmshift-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button
                     type="button"
@@ -2237,6 +2204,7 @@ export const PurchasesView = () => {
                       setShowAddModal(false);
                       setOcrBanner(false);
                       setOcrPreviewUrl(null);
+                      setOcrRotation(0);
                     }}
                   >
                     Hủy

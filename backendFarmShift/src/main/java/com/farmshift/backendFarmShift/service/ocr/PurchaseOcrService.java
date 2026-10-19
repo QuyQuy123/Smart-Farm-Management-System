@@ -105,12 +105,9 @@ public class PurchaseOcrService {
         String engine = json.hasNonNull("engine") 
                 ? json.path("engine").asText() 
                 : (visionClient instanceof PaddleVisionClient ? "RapidOCR" : "OpenAI gpt-5.6-sol");
-        StringBuilder note = new StringBuilder("Trích xuất " + engine + " từ chứng từ");
-        if (file.getOriginalFilename() != null && !file.getOriginalFilename().isBlank()) {
-            note.append(" \"").append(file.getOriginalFilename().strip()).append("\"");
-        }
+        StringBuilder note = new StringBuilder();
         if (vat > 0) {
-            note.append(String.format(Locale.ROOT, " (đã gồm thuế GTGT %,d đ trong chi phí khác)", vat).replace(',', '.'));
+            note.append(String.format(Locale.ROOT, "Đã gồm thuế GTGT %,d đ trong chi phí khác", vat).replace(',', '.'));
         }
 
         String rawPaymentStatus = text(json, "paymentStatus");
