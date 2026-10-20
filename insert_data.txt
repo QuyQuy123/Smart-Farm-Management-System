@@ -454,3 +454,57 @@ WHERE NOT EXISTS (
   SELECT 1 FROM cycle_expenses ce
   WHERE ce.cycle_id = c.id AND ce.expense_date = v.expense_date AND ce.category = v.category
 );
+
+-- ---------------------------------------------------------------------
+-- 23. Phiếu việc hằng ngày: quy cách đơn vị tồn kho & gắn hàng hóa kho vào chương trình nuôi
+--     (chạy sau khi backend đã khởi động để Hibernate tạo cột content_quantity, content_unit,
+--      inventory_item_id và bảng daily_task_logs)
+-- ---------------------------------------------------------------------
+-- Quy cách: 1 đơn vị tồn kho chứa bao nhiêu kg / lít / liều, để quy đổi định mức sang số bao, lọ, chai cần lấy
+UPDATE measurement_units u
+SET content_quantity = v.qty, content_unit = v.unit
+FROM (VALUES
+  ('bao25', 25.000, 'KG'),
+  ('kg', 1.000, 'KG'),
+  ('lo1000', 1000.000, 'DOSE'),
+  ('goi1kg', 1.000, 'KG'),
+  ('chai1l', 1.000, 'L'),
+  ('can5l', 5.000, 'L')
+) AS v(code_key, qty, unit)
+WHERE u.code_key = v.code_key AND u.content_quantity IS NULL;
+
+-- Hàng hóa khởi tạo ở mục 19 lấy đơn vị theo tên quy cách ("Bao 25kg") nên có thể chưa khớp đơn vị "Bao (25kg)": gắn lại theo mã đơn vị
+UPDATE inventory_items i
+SET unit_id = u.id
+FROM product_categories pc, measurement_units u
+WHERE i.product_id = pc.id AND i.unit_id IS NULL
+  AND u.code_key = CASE LOWER(pc.specification) WHEN 'bao 25kg' THEN 'bao25' WHEN 'gói 1kg' THEN 'goi1kg'
+                                                 WHEN 'lọ 1000 liều' THEN 'lo1000' WHEN 'chai 1l' THEN 'chai1l' END;
+
+-- Men tiêu hóa (gói 1kg) để chương trình trộn cám trừ được kho
+INSERT INTO product_categories (name, name_key, warehouse_id, brand, specification, product_type, created_at, updated_at)
+SELECT 'Men tiêu hóa Bio-Zyme', 'men tiêu hóa bio-zyme', w.id, 'Hanvet', 'Gói 1kg', 'Thuốc thú y', TIMESTAMP '2026-09-25 10:15:00', TIMESTAMP '2026-09-25 10:15:00'
+FROM warehouse_categories w WHERE w.name_key = 'kho thuốc & vắc-xin'
+ON CONFLICT (name_key) DO NOTHING;
+
+INSERT INTO inventory_items (code, warehouse_id, product_id, brand_id, unit_id, price, stock, created_at, updated_at)
+SELECT 'SP' || UPPER(SUBSTRING(MD5(pc.name_key) FROM 1 FOR 12)), pc.warehouse_id, pc.id, b.id, u.id, 120000, 20.000, pc.created_at, pc.updated_at
+FROM product_categories pc
+LEFT JOIN brands b ON b.name_key = 'hanvet'
+JOIN measurement_units u ON u.code_key = 'goi1kg'
+WHERE pc.name_key = 'men tiêu hóa bio-zyme'
+ON CONFLICT (warehouse_id, product_id) DO NOTHING;
+
+-- Gắn hàng hóa kho vào bước chương trình nuôi (chỉ những bước chưa gắn)
+UPDATE farming_program_steps s
+SET inventory_item_id = i.id
+FROM (VALUES
+  ('FEED', '%higro 01%', 'cám gà úm higro 01'),
+  ('FEED', '%higro 02%', 'cám gà thịt higro 02'),
+  ('FEED', '%higro 03%', 'cám gà vỗ béo higro 03'),
+  ('VACCINE', '%lasota%', 'vắc-xin newcastle lasota'),
+  ('MEDICINE', 'men tiêu hóa%', 'men tiêu hóa bio-zyme')
+) AS v(category, step_pattern, product_key)
+JOIN product_categories pc ON pc.name_key = v.product_key
+JOIN inventory_items i ON i.product_id = pc.id
+WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.inventory_item_id IS NULL;

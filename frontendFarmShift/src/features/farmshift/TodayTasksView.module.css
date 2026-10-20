@@ -1,0 +1,19 @@
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.dateNav { display: flex; align-items: center; gap: 8px; }
+.dateNav input { width: 170px; }
+.navButton { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #d7ecdc; border-radius: 10px; background: #fff; color: #2d6a4f; cursor: pointer; }
+.navButton:hover:not(:disabled) { background: #e9f6ec; }
+.navButton:disabled { opacity: 0.4; cursor: default; }
+.summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 14px; border-radius: 12px; background: #f3faf4; border: 1px solid #d7ecdc; color: #2d6a4f; font-size: 13.5px; }
+.summary strong { color: #1b4332; font-size: 15px; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 1px solid #d7ecdc; cursor: pointer; }
+.toggle input { accent-color: #1b4332; }
+.list { display: flex; flex-direction: column; gap: 18px; }
+.state { margin: 0; padding: 40px 20px; text-align: center; color: #607781; background: #fff; border: 1px solid #e3ebe8; border-radius: 14px; }
+.state p { margin: 0 0 12px; }
+
+@media (max-width: 640px) {
+  .dateNav { width: 100%; }
+  .dateNav input { flex: 1; width: auto; }
+  .summary { width: 100%; }
+}

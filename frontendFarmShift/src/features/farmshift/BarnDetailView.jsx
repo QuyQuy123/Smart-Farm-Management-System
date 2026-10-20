@@ -16,6 +16,9 @@ import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
 import { AreaTabs } from './AreaTabs';
+import { DailyPlanCard } from './DailyPlanCard';
+import { useDailyPlanActions } from './useDailyPlanActions';
+import { getBarnDailyPlan } from '../../services/dailyPlanService';
 import {
   EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
@@ -89,7 +92,9 @@ export const BarnDetailView = () => {
         const [barn, cycles, barns, areas, programs] = await Promise.all([getBarn(id), listCycles(id), listBarns(), listFarmAreas(), listPrograms()]);
         const cycleId = requestedCycle || barn.activeCycleId;
         const detail = cycleId ? await getCycle(cycleId) : null;
-        if (!cancelled) setState({ key: requestKey, barn, cycles, barns, areas, programs: Array.isArray(programs) ? programs : [], detail, error: '' });
+        // Phiếu việc hôm nay chỉ có với lứa đang nuôi; lỗi tải phiếu việc không làm hỏng cả trang.
+        const dayPlan = detail?.cycle.status === 'ACTIVE' ? await getBarnDailyPlan(detail.cycle.id).catch(() => null) : null;
+        if (!cancelled) setState({ key: requestKey, barn, cycles, barns, areas, programs: Array.isArray(programs) ? programs : [], detail, dayPlan, error: '' });
       } catch (requestError) {
         if (!cancelled) setState({ key: requestKey, error: requestError.response?.status === 404 ? 'Không tìm thấy chuồng hoặc lứa nuôi.' : apiErrorMessage(requestError) });
       }
@@ -98,12 +103,18 @@ export const BarnDetailView = () => {
   }, [id, requestedCycle, requestKey]);
 
   const loading = state.key !== requestKey;
-  const { barn, cycles = [], barns = [], areas = [], programs = [], detail, error } = state;
+  const { barn, cycles = [], barns = [], areas = [], programs = [], detail, dayPlan, error } = state;
   const cycle = detail?.cycle;
   const metrics = detail?.metrics;
   const active = cycle?.status === 'ACTIVE';
   const today = todayIso();
   const done = message => { setModal(null); showToast(message, 'success'); setRevision(value => value + 1); };
+  // Xác nhận việc làm đổi nhật ký cám, chi phí và tồn kho: cập nhật phiếu việc ngay rồi tải lại chi tiết lứa (không hiện màn tải).
+  const dailyActions = useDailyPlanActions(updated => {
+    setState(current => ({ ...current, dayPlan: updated }));
+    getCycle(updated.cycleId).then(fresh => setState(current => (current.detail?.cycle.id === fresh.cycle.id ? { ...current, detail: fresh } : current)))
+      .catch(() => {});
+  });
   const sameArea = useMemo(() => barns.filter(item => barn && item.areaId === barn.areaId), [barns, barn]);
 
   const dateRule = (value, label, from = cycle?.startDate) => {
@@ -517,26 +528,12 @@ export const BarnDetailView = () => {
             </table></div>}
         </Card>
 
-        {active && <Card title={`Kế hoạch hôm nay · ${formatDay(today)}`} icon={CalendarDays}>
-          {detail.todayPlan.length === 0 ? <Empty>Chưa có đàn đang nuôi theo chương trình nuôi.</Empty> : detail.todayPlan.map(plan => <div key={plan.flockId} className={styles.program}>
-            <div className={styles.programHead}>
-              <strong>{plan.flockCode} · {plan.flockName}</strong>
-              <span className={`${styles.badge} ${styles.badge_info}`}>Ngày tuổi {plan.ageDays}</span>
-              <span className={styles.muted}>{num(plan.quantity)} con · {plan.programName}</span>
-            </div>
-            {plan.items.length === 0 ? <p className={styles.planEmpty}>Chương trình không có nội dung cho ngày tuổi này.</p> : <ul className={styles.planList}>
-              {plan.items.map((item, index) => <li key={index}>
-                <span className={`${styles.badge} ${styles[`plan_${item.category}`]}`}>{STEP_CATEGORIES.find(category => category.value === item.category)?.label}</span>
-                <div>
-                  <strong>{item.name}</strong>
-                  <small>{item.category === 'FEED'
-                    ? `${num(item.quantity, 1)} g/con × ${num(plan.quantity)} con = ${num(item.totalFeedKg, 1)} kg/ngày · ${item.mealsPerDay} cữ × ${num(item.feedKgPerMeal, 1)} kg`
-                    : item.category === 'TEMPERATURE' ? `Giữ nhiệt độ chuồng ${describeStep(item)}` : describeStep(item)}</small>
-                  {item.note && <small className={styles.muted}>{item.note}</small>}
-                </div>
-              </li>)}
-            </ul>}
-          </div>)}
+        {active && <Card title={`Việc hôm nay · ${formatDay(today)}`} icon={CalendarDays}
+          actions={<Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
+          {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
+            : dayPlan.flocks.length === 0 ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
+              : <div className={styles.dayPlan}><DailyPlanCard plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
+                onConfirm={dailyActions.confirm} onUndo={dailyActions.undo} /></div>}
         </Card>}
 
         <Card title="Chương trình nuôi" icon={ClipboardList}

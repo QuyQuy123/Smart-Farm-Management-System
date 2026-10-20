@@ -260,15 +260,17 @@ class CycleIntegrationTest {
             .andExpect(jsonPath("$.data.programs[0].activeFlockCount").value(1))
             .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Lasota lần 1')].state").value("DONE"))
             .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Gumboro')].state").value("IN_PROGRESS"))
-            .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Lasota lần 2')].state").value("UPCOMING"))
-            .andExpect(jsonPath("$.data.todayPlan[0].ageDays").value(11))
-            .andExpect(jsonPath("$.data.todayPlan[0].items.length()").value(4))
-            // 20 g x 1000 birds = 20 kg a day over 5 meals = 4 kg a meal.
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'FEED')].totalFeedKg").value(20.0))
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'FEED')].feedKgPerMeal").value(4.0))
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'VACCINE')].name").value("Gumboro"))
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'MEDICINE')].unit").value("g/kg cám"))
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'TEMPERATURE')].name").value("Úm"));
+            .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Lasota lần 2')].state").value("UPCOMING"));
+        // Today's work sheet: 20 g x 1000 birds = 20 kg a day over 5 meals = 4 kg a meal; medicine 2 g per kg of that feed = 40 g.
+        mvc.perform(get("/api/cycles/" + cycle + "/daily-plan"))
+            .andExpect(jsonPath("$.data.headcount").value(1000))
+            .andExpect(jsonPath("$.data.flocks[0].ageDays").value(11))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'FEED')].meal").value(org.hamcrest.Matchers.contains(1, 2, 3, 4, 5)))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'FEED')].plannedQuantity").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is(4.0))))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'VACCINE')].name").value("Gumboro"))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'MEDICINE')].plannedQuantity").value(40.0))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'MEDICINE')].unit").value("g"))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'TEMPERATURE')].name").value("Úm"));
 
         mvc.perform(delete("/api/farming-programs/" + programId)).andExpect(status().isConflict())
             .andExpect(jsonPath("$.errorCode").value("PROGRAM_IN_USE"));

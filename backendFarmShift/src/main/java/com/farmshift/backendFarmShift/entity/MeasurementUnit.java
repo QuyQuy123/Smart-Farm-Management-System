@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -22,6 +23,12 @@ public class MeasurementUnit {
     private String nameKey;
     @Column(length = 1000)
     private String description;
+    /** Quy cách: một đơn vị này chứa bao nhiêu kg / g / lít / ml / liều (ví dụ Bao 25kg = 25 KG). Null nếu không quy đổi. */
+    @Column(name = "content_quantity", precision = 14, scale = 3)
+    private BigDecimal contentQuantity;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "content_unit", length = 10)
+    private UsageUnit contentUnit;
     @CreationTimestamp @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
     @UpdateTimestamp @Column(name = "updated_at")

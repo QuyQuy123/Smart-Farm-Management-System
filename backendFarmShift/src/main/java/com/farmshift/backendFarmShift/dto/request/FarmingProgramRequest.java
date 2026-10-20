@@ -36,6 +36,7 @@ public record FarmingProgramRequest(
             AdministrationMethod method,
             @DecimalMin(value = "10", message = "Nhiệt độ từ 10 đến 45°C.") @DecimalMax(value = "45", message = "Nhiệt độ từ 10 đến 45°C.") BigDecimal tempMin,
             @DecimalMin(value = "10", message = "Nhiệt độ từ 10 đến 45°C.") @DecimalMax(value = "45", message = "Nhiệt độ từ 10 đến 45°C.") BigDecimal tempMax,
-            @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note) {
+            @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note,
+            @Positive(message = "Hàng hóa không hợp lệ.") Long inventoryItemId) {
     }
 }

@@ -107,17 +107,8 @@
   .steps li { grid-template-columns: 1fr auto; }
 }
 
-/* Today's plan */
+/* Today's work sheet (DailyPlanCard) inside the barn page */
 .programTag { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; text-transform: none; color: #16794a; }
-.planList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.planList li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
-.planList li > span { flex-shrink: 0; min-width: 96px; text-align: center; }
-.planList strong { display: block; color: #182b31; font-weight: 600; }
-.planList small { display: block; color: #42545c; }
 .planEmpty { margin: 6px 0 0; font-size: 12px; color: #71818a; }
-.plan_FEED { background: #fff4e0; color: #a35f00; }
-.plan_VACCINE { background: #eef6ff; color: #254fad; }
-.plan_MEDICINE { background: #fbeefc; color: #8a2f93; }
-.plan_TEMPERATURE { background: #fff0f0; color: #c63030; }
-.plan_WORK { background: #f0f4f6; color: #536b76; }
+.dayPlan { padding: 12px; }
 
