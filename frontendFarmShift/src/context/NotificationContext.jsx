@@ -72,7 +72,7 @@ const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /**
  * Chuẩn hóa nội dung hiển thị để tránh lặp từ (ví dụ: "Hồ sơ cá nhân: Hồ sơ cá nhân đã...")
  */
-export const renderNotificationContent = (barn, value, isSuccess = false) => {
+export const renderNotificationContent = (barn, value, isSuccess = false, isRead = false) => {
   if (!value) return null;
   let valTrimmed = String(value).trim();
   const barnTrimmed = String(barn || '').trim();
@@ -96,11 +96,13 @@ export const renderNotificationContent = (barn, value, isSuccess = false) => {
   return (
     <>
       {barnTrimmed ? (
-        <strong style={{ color: isSuccess ? '#15803d' : 'inherit' }}>
+        <strong style={{ color: isRead ? '#64748b' : isSuccess ? '#15803d' : 'inherit' }}>
           {barnTrimmed}:{' '}
         </strong>
       ) : null}
-      {valTrimmed}
+      <span style={{ color: isRead ? '#64748b' : 'inherit' }}>
+        {valTrimmed}
+      </span>
     </>
   );
 };
@@ -110,6 +112,9 @@ export const NotificationProvider = ({ children }) => {
     try {
       const saved = localStorage.getItem('farmshift_alerts');
       const parsed = saved ? JSON.parse(saved) : INITIAL_FARMSHIFT_DATA.alerts;
+      const savedUnread = localStorage.getItem('farmshift_unread_alerts');
+      const initialUnread = savedUnread !== null ? parseInt(savedUnread, 10) : parsed.length;
+
       return parsed.map((al, idx) => {
         let createdAt = al.createdAt;
         if (!createdAt) {
@@ -145,14 +150,17 @@ export const NotificationProvider = ({ children }) => {
           }
         }
 
+        const read = al.read !== undefined ? !!al.read : idx >= initialUnread;
+
         return {
           ...al,
           createdAt,
-          value: cleanValue
+          value: cleanValue,
+          read
         };
       });
     } catch (e) {
-      return INITIAL_FARMSHIFT_DATA.alerts;
+      return INITIAL_FARMSHIFT_DATA.alerts.map((al, idx) => ({ ...al, read: idx >= INITIAL_FARMSHIFT_DATA.alerts.length }));
     }
   });
 
@@ -197,7 +205,8 @@ export const NotificationProvider = ({ children }) => {
       type,
       value,
       level,
-      status
+      status,
+      read: false
     };
 
     setAlerts(prev => [newAlert, ...prev]);
@@ -216,7 +225,13 @@ export const NotificationProvider = ({ children }) => {
   };
 
   const markAllAsRead = () => {
+    setAlerts(prev => prev.map(al => ({ ...al, read: true })));
     setUnreadCount(0);
+  };
+
+  const markAsRead = (id) => {
+    setAlerts(prev => prev.map(al => al.id === id ? { ...al, read: true } : al));
+    setUnreadCount(prev => Math.max(0, prev - 1));
   };
 
   const clearAllAlerts = () => {
@@ -272,7 +287,8 @@ export const NotificationProvider = ({ children }) => {
       value: text,
       level: toastLevel,
       status: toastLevel === 'Thành công' ? 'Đã hoàn tất & đồng bộ dữ liệu' : 'Hệ thống đã ghi nhận',
-      isSystem: true
+      isSystem: true,
+      read: false
     };
 
     // Khi bất cứ thao tác nào SUCCESS:
@@ -301,6 +317,7 @@ export const NotificationProvider = ({ children }) => {
       activeToast,
       sendNotification,
       showToast,
+      markAsRead,
       markAllAsRead,
       clearAllAlerts,
       setActiveToast

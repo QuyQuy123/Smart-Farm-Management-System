@@ -360,20 +360,31 @@ h6 {
 
 .farmshift-sidebar.collapsed .farmshift-menu,
 .farmgo-sidebar.collapsed .farmgo-menu {
-  padding: 14px 0;
-  align-items: center;
-  gap: 6px;
+  padding: 8px 0;
+  align-items: stretch;
+  gap: 0;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu > li,
+.farmgo-sidebar.collapsed .farmgo-menu > li {
+  width: 100%;
+  display: flex;
 }
 
 .farmshift-sidebar.collapsed .farmshift-menu-item,
 .farmgo-sidebar.collapsed .farmgo-menu-item {
-  width: 48px;
-  height: 44px;
+  width: 100%;
+  min-height: 46px;
+  height: 46px;
   padding: 0;
-  margin: 0 auto;
+  margin: 0;
   justify-content: center;
-  border-radius: var(--rounded-md);
+  align-items: center;
+  border-radius: 0;
+  border-right: 3px solid transparent;
+  background-color: transparent;
   position: relative;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .farmshift-sidebar.collapsed .farmshift-menu-item .farmshift-menu-icon,
@@ -382,34 +393,34 @@ h6 {
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
+.farmshift-sidebar.collapsed .farmshift-menu-item:hover,
+.farmgo-sidebar.collapsed .farmgo-menu-item:hover {
+  background-color: #f5f9fa;
+  color: #009b8b;
+}
+
 .farmshift-sidebar.collapsed .farmshift-menu-item:hover .farmshift-menu-icon,
 .farmgo-sidebar.collapsed .farmgo-menu-item:hover .farmgo-menu-icon {
-  transform: scale(1.15);
+  transform: scale(1.08);
   color: var(--color-ink);
 }
 
 .farmshift-sidebar.collapsed .farmshift-menu-item.active,
 .farmgo-sidebar.collapsed .farmgo-menu-item.active {
-  background-color: #e0f2f1;
-  color: #019788;
+  background-color: #e0f1ec;
+  border-right: 3px solid #009b8b;
+  color: #17272c;
 }
 
 .farmshift-sidebar.collapsed .farmshift-menu-item.active .farmshift-menu-icon,
 .farmgo-sidebar.collapsed .farmgo-menu-item.active .farmgo-menu-icon {
-  color: #019788;
+  background-color: #58938a;
+  color: #ffffff;
 }
 
-/* Left active indicator pill for collapsed sidebar */
 .farmshift-sidebar.collapsed .farmshift-menu-item.active::before,
 .farmgo-sidebar.collapsed .farmgo-menu-item.active::before {
-  content: '';
-  position: absolute;
-  left: -12px;
-  top: 10px;
-  bottom: 10px;
-  width: 4px;
-  background-color: #019788;
-  border-radius: 0 4px 4px 0;
+  display: none;
 }
 
 .farmshift-sidebar.collapsed .farmshift-menu-divider,
@@ -1069,6 +1080,11 @@ h6 {
   vertical-align: middle;
   flex-shrink: 0;
   animation: farmshiftSpin 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.farmshift-spinner {
+  display: inline-block;
+  animation: farmshiftSpin 0.9s linear infinite;
 }
 
 /* ── Data Tables (DESIGN.md Clean Editorial Table) ───────── */
@@ -2280,14 +2296,241 @@ h6 {
 .farmshift-sidebar.collapsed .farmshift-menu-item,
 .farmshift-sidebar.collapsed .farmshift-menu-item.active {
   width: 100%;
+  min-height: 46px;
+  height: 46px;
+  padding: 0;
+  margin: 0;
+  justify-content: center;
+  align-items: center;
   border-radius: 0;
+  border-right: 3px solid transparent;
   background-color: transparent;
+}
+
+.farmshift-sidebar.collapsed .farmshift-menu-item:hover {
+  background-color: #f5f9fa;
 }
 
 .farmshift-sidebar.collapsed .farmshift-menu-item.active {
   background-color: #e0f1ec;
+  border-right-color: #009b8b;
 }
 
 .farmshift-sidebar.collapsed .farmshift-menu-item.active::before {
   display: none;
 }
+
+/* ── In chứng từ chuyên nghiệp (A4 Official Voucher Print Styles) ───────────── */
+@media screen {
+  .farmshift-printable-voucher {
+    display: none !important;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 15mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Times New Roman', Times, serif, system-ui !important;
+    font-size: 11.5pt;
+    line-height: 1.35;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ẩn giao diện ứng dụng React (#root) và các thành phần thừa khi in phiếu chứng từ */
+  body:has(.farmshift-printable-voucher) #root,
+  body.farmshift-printing #root,
+  .farmshift-modal-backdrop,
+  .farmshift-toast,
+  .farmshift-btn,
+  header,
+  nav,
+  aside,
+  button {
+    display: none !important;
+  }
+
+  /* Hiển thị duy nhất Phiếu nhập kho chuẩn A4 đã portal ra body */
+  .farmshift-printable-voucher {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .farmshift-printable-voucher * {
+    visibility: visible !important;
+  }
+
+  .farmshift-printable-voucher table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  .farmshift-printable-voucher tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .farmshift-printable-voucher th,
+  .farmshift-printable-voucher td {
+    border-color: #000000 !important;
+  }
+}
+
+/* ── RapidOCR Split View Modal (Side-by-side) ────────────────────────── */
+.farmshift-split-modal {
+  max-width: 1420px !important;
+  width: 96vw !important;
+  max-height: 94vh !important;
+  height: 92vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.farmshift-split-body {
+  display: grid;
+  grid-template-columns: minmax(400px, 1.05fr) minmax(460px, 1.2fr);
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px 20px;
+}
+
+.farmshift-split-left-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background-color: #f8fafc;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  overflow: hidden;
+}
+
+.farmshift-split-left-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: #f1f5f9;
+  border-bottom: 1px solid var(--color-hairline);
+  font-size: 12.5px;
+  flex-shrink: 0;
+}
+
+.farmshift-split-left-canvas {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: radial-gradient(#cbd5e1 1px, transparent 1px), #f1f5f9;
+  background-size: 16px 16px;
+  cursor: grab;
+}
+
+.farmshift-split-left-canvas:active {
+  cursor: grabbing;
+}
+
+.farmshift-split-left-image {
+  background-color: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  max-width: 100%;
+  height: auto;
+  transition: transform 0.15s ease-out;
+  transform-origin: top center;
+  display: block;
+}
+
+.farmshift-split-right-pane {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.farmshift-split-right-pane::-webkit-scrollbar,
+.farmshift-split-left-canvas::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.farmshift-split-right-pane::-webkit-scrollbar-thumb,
+.farmshift-split-left-canvas::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.farmshift-split-right-pane::-webkit-scrollbar-thumb:hover,
+.farmshift-split-left-canvas::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@media (max-width: 1024px) {
+  .farmshift-split-body {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .farmshift-split-left-pane {
+    height: 380px;
+  }
+  .farmshift-split-right-pane {
+    height: auto;
+    overflow-y: visible;
+  }
+}
+
+/* ── Inline Field Validation States ────────────────────────── */
+.farmshift-field-error {
+  color: #b91c1c;
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.35;
+  animation: farmshiftFadeIn 0.15s ease-in-out;
+}
+
+.farmshift-form-control.has-error {
+  border-color: #ef4444 !important;
+  background-color: #fffbfa !important;
+}
+
+.farmshift-form-control.has-error:focus {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+@keyframes farmshiftFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
