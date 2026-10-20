@@ -63,6 +63,7 @@ export const PurchasesView = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showOcrModal, setShowOcrModal] = useState(false);
   const [ocrBanner, setOcrBanner] = useState(false);
+  const [isOcrDraft, setIsOcrDraft] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrWarnings, setOcrWarnings] = useState([]);
   const [ocrPreviewUrl, setOcrPreviewUrl] = useState(null);
@@ -100,7 +101,7 @@ export const PurchasesView = () => {
   const [poErrors, setPoErrors] = useState({});
   const poErrorMessages = Object.entries(poErrors).flatMap(([field, value]) =>
     field === 'items' ? (value || []).flatMap((row, index) => Object.values(row || {}).filter(Boolean).map(message => `Dòng ${index + 1}: ${message}`))
-      : value ? [value] : []).concat(productError ? [productError] : [], unitsError ? [unitsError] : []);
+      : value ? [value] : []).concat(!isOcrDraft && productError ? [productError] : [], !isOcrDraft && unitsError ? [unitsError] : []);
 
   const [supplierErrors, setSupplierErrors] = useState({});
   const [tagErrors, setTagErrors] = useState({});
@@ -157,24 +158,24 @@ export const PurchasesView = () => {
   }, [searchTerm, filterPayment, revision]);
 
   useEffect(() => {
-    if (!showAddModal) return;
+    if (!showAddModal || isOcrDraft) return;
     let cancelled = false;
     setProductLoading(true); setProductError('');
     listProductCategories().then(data => { if (!cancelled) setProductCategories(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancelled) { setProductCategories([]); setProductError('Không tải được hàng hóa từ database. Vui lòng thử lại.'); } })
       .finally(() => { if (!cancelled) setProductLoading(false); });
     return () => { cancelled = true; };
-  }, [showAddModal, productRevision]);
+  }, [showAddModal, productRevision, isOcrDraft]);
 
   useEffect(() => {
-    if (!showAddModal) return;
+    if (!showAddModal || isOcrDraft) return;
     let cancelled = false;
     setUnitsLoading(true); setUnitsError('');
     listMeasurementUnits().then(data => { if (!cancelled) setUnits(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancelled) { setUnits([]); setUnitsError('Không tải được đơn vị tính. Vui lòng thử lại.'); } })
       .finally(() => { if (!cancelled) setUnitsLoading(false); });
     return () => { cancelled = true; };
-  }, [showAddModal, productRevision]);
+  }, [showAddModal, productRevision, isOcrDraft]);
 
   useEffect(() => {
     if (!showAddModal) return;
@@ -276,7 +277,7 @@ export const PurchasesView = () => {
         } else if (showAddModal) {
           setShowAddModal(false);
           setPoErrors({});
-          setOcrBanner(false);
+          setOcrBanner(false); setIsOcrDraft(false);
           setOcrWarnings([]);
         } else if (supplierModal) {
           setSupplierModal(null);
@@ -314,7 +315,7 @@ export const PurchasesView = () => {
       errs.date = 'Vui lòng chọn ngày lập hóa đơn.';
     }
 
-    if (productLoading || productError || unitsLoading || unitsError) errs.itemsGeneral = 'Vui lòng tải danh sách hàng hóa trước khi lưu.';
+    if (!isOcrDraft && (productLoading || productError || unitsLoading || unitsError)) errs.itemsGeneral = 'Vui lòng tải danh sách hàng hóa trước khi lưu.';
     const itemsErrs = [];
     let hasItemErr = false;
     if (!newPo.items || newPo.items.length === 0) {
@@ -322,8 +323,8 @@ export const PurchasesView = () => {
     } else {
       newPo.items.forEach((it, idx) => {
         const itemErr = {};
-        if (!productCategories.some(product => String(product.id) === String(it.productCategoryId) && product.warehouseId)) {
-          itemErr.name = 'Vui lòng chọn hàng hóa thuộc kho trong danh sách.';
+        if (isOcrDraft ? (!it.name?.trim() || it.name.trim().length > 200) : !productCategories.some(product => String(product.id) === String(it.productCategoryId) && product.warehouseId)) {
+          itemErr.name = isOcrDraft ? 'Vui lòng nhập tên hàng hóa từ chứng từ, tối đa 200 ký tự.' : 'Vui lòng chọn hàng hóa thuộc kho trong danh sách.';
           hasItemErr = true;
         }
         const qtyNum = Number(it.qty);
@@ -331,8 +332,8 @@ export const PurchasesView = () => {
           itemErr.qty = 'Số lượng phải lớn hơn 0.';
           hasItemErr = true;
         }
-        if (!units.some(unit => unit.name === it.unit)) {
-          itemErr.unit = 'Vui lòng chọn đơn vị tính trong danh sách.';
+        if (isOcrDraft ? (!it.unit?.trim() || it.unit.trim().length > 50) : !units.some(unit => unit.name === it.unit)) {
+          itemErr.unit = isOcrDraft ? 'Vui lòng nhập đơn vị tính từ chứng từ, tối đa 50 ký tự.' : 'Vui lòng chọn đơn vị tính trong danh sách.';
           hasItemErr = true;
         }
         const priceNum = Number(it.price);
@@ -499,7 +500,7 @@ export const PurchasesView = () => {
   const handleAddItemRow = () => {
     setNewPo(prev => ({
       ...prev,
-      items: [...prev.items, { productCategoryId: '', name: '', qty: 10, unit: 'Bao (25kg)', price: 0 }]
+      items: [...prev.items, { productCategoryId: '', name: '', qty: 1, unit: '', price: 0 }]
     }));
     setPoErrors(prev => {
       if (!prev.items) return prev;
@@ -562,7 +563,7 @@ export const PurchasesView = () => {
         otherCost: otherCost,
         tagIds: newPo.tagIds,
         items: newPo.items.map(it => ({
-          productCategoryId: it.productCategoryId ? Number(it.productCategoryId) : null,
+          productCategoryId: !isOcrDraft && it.productCategoryId ? Number(it.productCategoryId) : null,
           name: it.name,
           qty: Number(it.qty),
           unit: it.unit,
@@ -574,7 +575,7 @@ export const PurchasesView = () => {
       showToast('Đã lưu các thay đổi thành công.', 'success');
       setShowAddModal(false);
       setPoErrors({});
-      setOcrBanner(false);
+      setOcrBanner(false); setIsOcrDraft(false);
       setOcrWarnings([]);
       fetchData();
       if (created) setSelectedOrder(created);
@@ -687,16 +688,16 @@ export const PurchasesView = () => {
         paidAmount: (data.paidAmount !== undefined && data.paidAmount !== null && data.paidAmount > 0) ? String(data.paidAmount) : '',
         tagIds: defaultTags,
         items: data.items && data.items.length > 0 ? data.items.map(it => ({
-          productCategoryId: it.productCategoryId ? String(it.productCategoryId) : '',
+          productCategoryId: '',
           name: it.name || '',
-          qty: it.qty || 1,
-          unit: it.unit || 'Cái',
+          qty: it.qty ?? '',
+          unit: it.unit || '',
           price: it.price || 0
-        })) : prev.items
+        })) : [{ productCategoryId: '', name: '', qty: '', unit: '', price: 0 }]
       }));
 
       setOcrWarnings(data.warnings || []);
-      setOcrBanner(true);
+      setOcrBanner(true); setIsOcrDraft(true);
       setShowOcrModal(false);
       setShowAddModal(true);
       showToast('MSG30: Dữ liệu trích xuất từ OCR chỉ là bản nháp. Vui lòng kiểm tra và xác nhận mọi trường trước khi lưu bản ghi chính thức.', 'info');
@@ -886,7 +887,7 @@ export const PurchasesView = () => {
             <button
               className="farmshift-btn farmshift-btn-mint"
               onClick={() => {
-                setOcrBanner(false);
+                setOcrBanner(false); setIsOcrDraft(false);
                 setOcrPreviewUrl(null);
                 setOcrPreviewName('');
                 setShowAddModal(true);
@@ -1126,7 +1127,7 @@ export const PurchasesView = () => {
                       <td>{sup.address || '—'}</td>
                       <td><strong>{Number(sup.totalPurchased || 0).toLocaleString('vi-VN')} đ</strong></td>
                       <td>
-                        <span className={`farmshift-badge ${Number(sup.debt || 0) > 0 ? 'farmshift-badge-warning' : 'farmshift-badge-success'}`}>
+                        <span>
                           {Number(sup.debt || 0) > 0 ? `Nợ: ${Number(sup.debt).toLocaleString('vi-VN')} đ` : 'Hết nợ'}
                         </span>
                       </td>
@@ -1609,7 +1610,7 @@ export const PurchasesView = () => {
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowAddModal(false);
-              setOcrBanner(false);
+              setOcrBanner(false); setIsOcrDraft(false);
             }
           }}
         >
@@ -1629,7 +1630,7 @@ export const PurchasesView = () => {
                   type="button"
                   onClick={() => {
                     setShowAddModal(false);
-                    setOcrBanner(false);
+                    setOcrBanner(false); setIsOcrDraft(false);
                     setOcrPreviewUrl(null);
                     setOcrRotation(0);
                   }}
@@ -1654,7 +1655,7 @@ export const PurchasesView = () => {
               {poErrorMessages.length > 0 && <div role="alert" className={styles.formErrors}>
                 <strong>Vui lòng kiểm tra thông tin:</strong>
                 <ul>{poErrorMessages.map((message, index) => <li key={index}>{message}</li>)}</ul>
-                {(productError || unitsError) && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setProductRevision(value => value + 1)}>Thử lại</button>}
+                {!isOcrDraft && (productError || unitsError) && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setProductRevision(value => value + 1)}>Thử lại</button>}
               </div>}
               <div
                 className={`farmshift-modal-body ${ocrPreviewUrl ? 'farmshift-split-body' : ''}`}
@@ -1897,8 +1898,8 @@ export const PurchasesView = () => {
                     </button>
                   </div>
 
-                  {!unitsLoading && !unitsError && !units.length && <p>Chưa có đơn vị tính. Vui lòng thêm tại Thiết lập danh mục → Đơn vị tính.</p>}
-                  {!productLoading && !productError && !productCategories.some(product => product.warehouseId) && <p>Chưa có hàng hóa thuộc kho. Vui lòng thêm hàng hóa trong Kho hàng hóa trước.</p>}
+                  {!isOcrDraft && !unitsLoading && !unitsError && !units.length && <p>Chưa có đơn vị tính. Vui lòng thêm tại Thiết lập danh mục → Đơn vị tính.</p>}
+                  {!isOcrDraft && !productLoading && !productError && !productCategories.some(product => product.warehouseId) && <p>Chưa có hàng hóa thuộc kho. Vui lòng thêm hàng hóa trong Kho hàng hóa trước.</p>}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.9fr 0.9fr 1.3fr 1.3fr 30px', gap: '8px', marginBottom: '4px', fontSize: '11.5px', fontWeight: 600, color: 'var(--color-muted)', padding: '0 2px' }}>
                     <span>Tên hàng hóa <span className={styles.requiredMark}>*</span></span>
@@ -1914,6 +1915,12 @@ export const PurchasesView = () => {
                     return (
                       <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.9fr 0.9fr 1.3fr 1.3fr 30px', gap: '8px', marginBottom: '10px', alignItems: 'flex-start' }}>
                         <div>
+                          {isOcrDraft ? <input
+                            type="text" aria-label={`Tên hàng hóa ${idx + 1}`} placeholder="Tên hàng hóa từ chứng từ" maxLength={200}
+                            className={`farmshift-form-control ${itemErr.name ? 'has-error' : ''}`} value={row.name || ''}
+                            onChange={event => { setNewPo(previous => ({ ...previous, items: previous.items.map((item, index) => index === idx ? { ...item, name: event.target.value, productCategoryId: '' } : item) })); clearItemError(idx, 'name'); }}
+                            onBlur={() => validatePoField('name', idx)} required
+                          /> : (
                           <select
                             aria-label={`Tên hàng hóa ${idx + 1}`}
                             onBlur={() => validatePoField('name', idx)}
@@ -1930,6 +1937,7 @@ export const PurchasesView = () => {
                             <option value="">{productLoading ? 'Đang tải hàng hóa...' : 'Chọn hàng hóa (Kho)'}</option>
                             {productCategories.filter(product => product.warehouseId).map(product => <option key={product.id} value={product.id}>{product.name} ({product.warehouseName})</option>)}
                           </select>
+                          )}
                         </div>
                         <div>
                           <input
@@ -1950,6 +1958,12 @@ export const PurchasesView = () => {
                           />
                         </div>
                         <div>
+                          {isOcrDraft ? <input
+                            type="text" aria-label={`Đơn vị ${idx + 1}`} placeholder="Đơn vị" maxLength={50}
+                            className={`farmshift-form-control ${itemErr.unit ? 'has-error' : ''}`} value={row.unit || ''}
+                            onChange={event => { setNewPo(previous => ({ ...previous, items: previous.items.map((item, index) => index === idx ? { ...item, unit: event.target.value } : item) })); clearItemError(idx, 'unit'); }}
+                            onBlur={() => validatePoField('unit', idx)} required
+                          /> : (
                           <select
                             aria-label={`Đơn vị ${idx + 1}`}
                             onBlur={() => validatePoField('unit', idx)}
@@ -1965,6 +1979,7 @@ export const PurchasesView = () => {
                             <option value="">{unitsLoading ? 'Đang tải...' : 'Chọn'}</option>
                             {units.map(unit => <option key={unit.id} value={unit.name}>{unit.name}</option>)}
                           </select>
+                          )}
                         </div>
                         <div>
                           <input
@@ -2260,7 +2275,7 @@ export const PurchasesView = () => {
                     className="farmshift-btn farmshift-btn-secondary"
                     onClick={() => {
                       setShowAddModal(false);
-                      setOcrBanner(false);
+                      setOcrBanner(false); setIsOcrDraft(false);
                       setOcrPreviewUrl(null);
                       setOcrRotation(0);
                     }}
@@ -2288,12 +2303,14 @@ export const PurchasesView = () => {
           <div className="farmshift-modal" style={{ maxWidth: '680px' }} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-primary)' }}>
-                <ScanText size={18} /> Bóc tách phiếu nhập / Hóa đơn A4 (AI Vision)
+                <ScanText size={18} /> Bóc tách phiếu nhập / Hóa đơn A4
               </h3>
               <button
+                type="button"
+                className={`${styles.detailCloseButton} ${styles.ocrCloseButton}`}
+                aria-label="Đóng bóc tách hóa đơn"
                 disabled={ocrLoading}
                 onClick={handleCloseOcrModal}
-                style={{ background: 'none', border: 'none', cursor: ocrLoading ? 'not-allowed' : 'pointer', color: 'var(--color-muted)' }}
               >
                 ✕
               </button>
@@ -2412,9 +2429,6 @@ export const PurchasesView = () => {
                     <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--color-primary)' }}>
                       Đang bóc tách chứng từ bằng AI Vision...
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-muted)', maxWidth: '440px' }}>
-                      Mô hình OpenAI gpt-5.6-sol & RapidOCR đang đọc danh sách mặt hàng, số lượng bao/kg, đơn giá và đối chiếu tồn kho.
-                    </div>
                   </div>
                 </div>
               )}
@@ -2425,7 +2439,7 @@ export const PurchasesView = () => {
                   style={{
                     border: dragOver ? '2px dashed var(--color-primary)' : '2px dashed var(--color-border-strong)',
                     borderRadius: 'var(--rounded-lg)',
-                    padding: '34px 20px',
+                    padding: '24px 20px',
                     textAlign: 'center',
                     backgroundColor: dragOver ? 'rgba(1, 151, 136, 0.05)' : 'var(--color-surface-soft)',
                     cursor: 'pointer',
@@ -2452,9 +2466,6 @@ export const PurchasesView = () => {
                   </div>
                   <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--color-ink)' }}>
                     Kéo thả hoặc bấm vào đây để chọn Hóa đơn / Phiếu xuất kho
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '6px' }}>
-                    Hỗ trợ định dạng JPG, PNG, WEBP, PDF (khổ A4 hoặc hóa đơn đỏ VAT, tối đa 10MB)
                   </div>
                   <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
                     <span className="farmshift-btn farmshift-btn-secondary" style={{ pointerEvents: 'none', fontSize: '12px', padding: '5px 12px' }}>
@@ -2627,8 +2638,7 @@ export const PurchasesView = () => {
               )}
 
                             <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)', fontSize: '13px' }}>
-                <strong style={{ color: 'var(--color-ink)' }}>Hệ thống AI Vision (OpenAI gpt-5.6-sol & RapidOCR) sẽ tự động:</strong>
-                <ul style={{ margin: '6px 0 0 18px', padding: 0, color: 'var(--color-body)' }}>
+                <ul style={{ margin: '0 0 0 18px', padding: 0, color: 'var(--color-body)' }}>
                   <li>Nhận diện tên Nhà cung cấp, ngày lập đơn và số hóa đơn</li>
                   <li>Bóc tách bảng danh sách mặt hàng, số lượng bao/kg và đơn giá</li>
                   <li>Nhận diện tình trạng thanh toán (Trả sau, Thanh toán một phần, Hoàn tất)</li>
@@ -2662,7 +2672,7 @@ export const PurchasesView = () => {
             }
           }}
         >
-          <div className="farmshift-modal" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+          <div className={`farmshift-modal ${styles.supplierModal}`} style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">
                 {supplierModal.mode === 'create' ? 'Thêm mới Nhà cung cấp' : supplierModal.mode === 'edit' ? 'Chỉnh sửa Nhà cung cấp' : 'Xóa Nhà cung cấp'}
@@ -2718,7 +2728,7 @@ export const PurchasesView = () => {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '10px' }}>
+                  <div className={styles.supplierFormGrid} style={{ marginTop: '10px' }}>
                     <div className="farmshift-form-group">
                       <label htmlFor="sup-rep" className="farmshift-form-label">Người đại diện *</label>
                       <input
@@ -2785,7 +2795,7 @@ export const PurchasesView = () => {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '10px' }}>
+                  <div className={styles.supplierFormGrid} style={{ marginTop: '10px' }}>
                     <div className="farmshift-form-group">
                       <label htmlFor="sup-email" className="farmshift-form-label">Email liên hệ</label>
                       <input

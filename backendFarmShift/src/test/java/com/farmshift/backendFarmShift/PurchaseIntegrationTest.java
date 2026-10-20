@@ -250,6 +250,29 @@ class PurchaseIntegrationTest {
     }
 
     @Test
+    void preservesOcrRowsAndOnlyIncreasesStockAfterExplicitConfirmation() throws Exception {
+        var rows = List.of(
+                new PurchaseInvoiceItemRequest(null, "OCR AGR bottle", 2.0, "Chai OCR", 30000L, 0.0),
+                new PurchaseInvoiceItemRequest(null, "OCR GRF bottle", 1.0, "Hộp OCR", 130000L, 0.0));
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(), rows,
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", "HD-OCR-NEW", null, null, null);
+        var result = mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.items[0].name").value("OCR AGR bottle"))
+                .andExpect(jsonPath("$.data.items[0].unit").value("Chai OCR"))
+                .andExpect(jsonPath("$.data.items[1].name").value("OCR GRF bottle"))
+                .andExpect(jsonPath("$.data.totalAmount").value(190000))
+                .andExpect(jsonPath("$.data.paidAmount").value(0)).andExpect(jsonPath("$.data.debtAmount").value(190000)).andReturn();
+        long id = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        assertTrue(inventoryRepository.findByProduct_NameContainingIgnoreCase("OCR AGR bottle").isEmpty());
+        assertFalse(productCategoryRepository.existsByNameKey("ocr agr bottle"));
+        mvc.perform(post("/api/purchases/"+id+"/import-stock")).andExpect(status().isOk());
+        assertEquals(2, inventoryRepository.findByProduct_NameContainingIgnoreCase("OCR AGR bottle").getFirst().getStock().intValue());
+        mvc.perform(post("/api/purchases/"+id+"/import-stock")).andExpect(status().isOk());
+        assertEquals(2, inventoryRepository.findByProduct_NameContainingIgnoreCase("OCR AGR bottle").getFirst().getStock().intValue());
+        mvc.perform(get("/api/purchases/"+id)).andExpect(jsonPath("$.data.items[0].name").value("OCR AGR bottle"));
+    }
+
+    @Test
     void testDeferredPaymentAndPayEndpoint() throws Exception {
         var items = List.of(
                 new PurchaseInvoiceItemRequest(null, "Cám Gà úm Higro 01", 100.0, "Bao (25kg)", 345000L, 0.0)

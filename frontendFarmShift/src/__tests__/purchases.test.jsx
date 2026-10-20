@@ -921,8 +921,8 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
 
       // Submit PO: should succeed and send supplierName without error
       const saveBtn = screen.getByRole('button', { name: 'Lưu hóa đơn nhập' });
-      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Tên hàng hóa 1' })).toBeEnabled());
-      fireEvent.change(screen.getByRole('combobox', { name: 'Tên hàng hóa 1' }), { target: { value: '1' } });
+      expect(screen.getByRole('textbox', { name: 'Tên hàng hóa 1' })).toHaveValue('Vắc-xin Newcastle');
+      expect(screen.getByRole('textbox', { name: 'Đơn vị 1' })).toHaveValue('Lọ');
       fireEvent.click(saveBtn);
 
       await waitFor(() => {
@@ -931,6 +931,52 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
           supplierName: 'Công ty Thuốc Thú Y Navetco Mới'
         }));
       });
+    });
+
+    it('saves OCR item names and units directly without catalog selection or catalog availability', async () => {
+      productCategoryService.listProductCategories.mockRejectedValue(new Error('catalog offline'));
+      purchaseService.ocrPurchase.mockResolvedValue({
+        supplierId: 1, supplierName: 'Công ty CP Chăn nuôi C.P. Việt Nam', referenceCode: 'HD-OCR-NEW',
+        items: [{ productCategoryId: 2, name: 'Thuốc AGR đọc từ ảnh', qty: 2, unit: 'Chai mới', price: 30000 }]
+      });
+      renderComponent(); await screen.findByText('NH000000');
+      fireEvent.click(screen.getByRole('button', { name: /^Bóc tách hóa đơn$/i }));
+      const fileInput = document.querySelector('input[type="file"][accept*="image"]');
+      fireEvent.change(fileInput, { target: { files: [new File(['image'], 'ocr.jpg', { type: 'image/jpeg' })] } });
+      const name = await screen.findByRole('textbox', { name: 'Tên hàng hóa 1' });
+      expect(name).toHaveValue('Thuốc AGR đọc từ ảnh');
+      expect(screen.getByRole('textbox', { name: 'Đơn vị 1' })).toHaveValue('Chai mới');
+      expect(screen.queryByRole('combobox', { name: 'Tên hàng hóa 1' })).not.toBeInTheDocument();
+      fireEvent.change(name, { target: { value: 'Thuốc AGR đã đối chiếu' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
+      await waitFor(() => expect(purchaseService.createPurchase).toHaveBeenCalled());
+      expect(purchaseService.createPurchase.mock.calls[0][0]).toEqual(expect.objectContaining({
+        supplierId: 1, stockStatus: 'Chưa nhập kho', paymentStatus: 'Trả sau',
+        items: [expect.objectContaining({ productCategoryId: null, name: 'Thuốc AGR đã đối chiếu', unit: 'Chai mới', qty: 2, price: 30000 })]
+      }));
+    });
+
+    it('does not reuse previous item rows when OCR returns no items', async () => {
+      purchaseService.ocrPurchase.mockResolvedValue({ supplierId: 1, items: [] });
+      renderComponent(); await screen.findByText('NH000000');
+      fireEvent.click(screen.getByRole('button', { name: /^Bóc tách hóa đơn$/i }));
+      fireEvent.change(document.querySelector('input[type="file"][accept*="image"]'), { target: { files: [new File(['image'], 'empty.jpg', { type: 'image/jpeg' })] } });
+      expect(await screen.findByRole('textbox', { name: 'Tên hàng hóa 1' })).toHaveValue('');
+      expect(screen.getByRole('textbox', { name: 'Đơn vị 1' })).toHaveValue('');
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
+      expect(screen.getByRole('alert')).toHaveTextContent('Vui lòng nhập tên hàng hóa từ chứng từ');
+      expect(purchaseService.createPurchase).not.toHaveBeenCalled();
+    });
+
+    it('returns to database selections after closing an OCR draft and opening manual creation', async () => {
+      renderComponent(); await screen.findByText('NH000000');
+      fireEvent.click(screen.getByRole('button', { name: /^Bóc tách hóa đơn$/i }));
+      fireEvent.change(document.querySelector('input[type="file"][accept*="image"]'), { target: { files: [new File(['image'], 'ocr.jpg', { type: 'image/jpeg' })] } });
+      await screen.findByRole('textbox', { name: 'Tên hàng hóa 1' });
+      fireEvent.click(screen.getByRole('button', { name: /^Hủy$/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Tạo đơn nhập hàng/i }));
+      expect(await screen.findByRole('combobox', { name: 'Tên hàng hóa 1' })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Đơn vị 1' })).toBeInTheDocument();
     });
 
     it('allows quick-adding a supplier from PO modal and auto-selects it', async () => {
