@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PurchaseIntegrationTest {
 
     @Autowired MockMvc mvc;
+    @Autowired jakarta.persistence.EntityManager entityManager;
     @Autowired ObjectMapper mapper;
     @Autowired PurchaseTagRepository tagRepository;
     @Autowired SupplierRepository supplierRepository;
@@ -173,7 +174,13 @@ class PurchaseIntegrationTest {
         mvc.perform(post("/api/purchases/" + id + "/import-stock")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.importedDate").value(today))
                 .andExpect(jsonPath("$.data.date").value("2020-01-02"));
+        entityManager.flush();
+        entityManager.clear();
         mvc.perform(get("/api/purchases/" + id)).andExpect(jsonPath("$.data.importedDate").value(today));
+        mvc.perform(get("/api/purchases")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].importedDate").value(today));
+        mvc.perform(post("/api/purchases/" + id + "/import-stock"))
+                .andExpect(jsonPath("$.data.importedDate").value(today));
     }
 
     @Test
@@ -219,6 +226,27 @@ class PurchaseIntegrationTest {
                 List.of(new PurchaseInvoiceItemRequest(999999L, "Unknown", 1.0, "Kg", 1000L, 0.0)),
                 0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
         mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(bad))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rejectsInvalidNumericAndTextInputs() throws Exception {
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(),
+                List.of(new PurchaseInvoiceItemRequest(null, "Validation feed", 2.0, "Kg", 1000L, 0.0)),
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", "HD-CP-0915", "Nhập 2 kg", null, null);
+        for (String field : List.of("discountAmount", "otherCost", "paidAmount")) {
+            var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(request);
+            json.put(field, -1);
+            mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(json.toString())).andExpect(status().isBadRequest());
+        }
+        for (int price : List.of(0, -10)) {
+            var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(request);
+            ((com.fasterxml.jackson.databind.node.ObjectNode) json.path("items").get(0)).put("price", price);
+            mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(json.toString())).andExpect(status().isBadRequest());
+        }
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(request);
+        json.put("note", "12345");
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(json.toString())).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request))).andExpect(status().isCreated());
     }
 
     @Test

@@ -29,6 +29,7 @@ import { listProductCategories } from '../../services/productCategoryService';
 import { listMeasurementUnits } from '../../services/measurementUnitService';
 import styles from './PurchasesView.module.css';
 import { PurchaseRowActions } from './PurchaseRowActions';
+import { ConfirmStockImport } from './ConfirmStockImport';
 import { PrintablePurchaseVoucher } from './PrintablePurchaseVoucher';
 
 export const PurchasesView = () => {
@@ -48,6 +49,7 @@ export const PurchasesView = () => {
   const [units, setUnits] = useState([]);
   const [unitsLoading, setUnitsLoading] = useState(false);
   const [unitsError, setUnitsError] = useState('');
+  const [creationTime, setCreationTime] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPayment, setFilterPayment] = useState('ALL');
@@ -78,6 +80,7 @@ export const PurchasesView = () => {
   const [cameraError, setCameraError] = useState('');
   const [isCameraStarting, setIsCameraStarting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [stockConfirmation, setStockConfirmation] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
 
@@ -95,6 +98,10 @@ export const PurchasesView = () => {
 
   // Direct Frontend Validation Error States
   const [poErrors, setPoErrors] = useState({});
+  const poErrorMessages = Object.entries(poErrors).flatMap(([field, value]) =>
+    field === 'items' ? (value || []).flatMap((row, index) => Object.values(row || {}).filter(Boolean).map(message => `Dòng ${index + 1}: ${message}`))
+      : value ? [value] : []).concat(productError ? [productError] : [], unitsError ? [unitsError] : []);
+
   const [supplierErrors, setSupplierErrors] = useState({});
   const [tagErrors, setTagErrors] = useState({});
   const [paymentError, setPaymentError] = useState('');
@@ -107,9 +114,9 @@ export const PurchasesView = () => {
     date: new Date().toISOString().split('T')[0],
     note: '',
     referenceCode: '',
-    paymentStatus: 'Thanh toán hoàn tất',
+    paymentStatus: 'Trả sau',
     paidAmount: '',
-    stockStatus: 'Đã nhập kho',
+    stockStatus: 'Chưa nhập kho',
     tagIds: [],
     items: [
       { productCategoryId: '', name: '', qty: 1, unit: '', price: 0 }
@@ -168,6 +175,14 @@ export const PurchasesView = () => {
       .finally(() => { if (!cancelled) setUnitsLoading(false); });
     return () => { cancelled = true; };
   }, [showAddModal, productRevision]);
+
+  useEffect(() => {
+    if (!showAddModal) return;
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    setCreationTime(now.toLocaleString('vi-VN', { hour12: false }));
+    setNewPo(previous => ({ ...previous, date, paymentStatus: 'Trả sau', stockStatus: 'Chưa nhập kho', paidAmount: '' }));
+  }, [showAddModal]);
 
   const stopCamera = useCallback(() => {
     if (cameraStream) {
@@ -312,7 +327,7 @@ export const PurchasesView = () => {
           hasItemErr = true;
         }
         const qtyNum = Number(it.qty);
-        if (it.qty === '' || it.qty === null || it.qty === undefined || isNaN(qtyNum) || qtyNum <= 0) {
+        if (it.qty === '' || it.qty === null || it.qty === undefined || !Number.isFinite(qtyNum) || qtyNum <= 0) {
           itemErr.qty = 'Số lượng phải lớn hơn 0.';
           hasItemErr = true;
         }
@@ -321,8 +336,8 @@ export const PurchasesView = () => {
           hasItemErr = true;
         }
         const priceNum = Number(it.price);
-        if (it.price === '' || it.price === null || it.price === undefined || isNaN(priceNum) || priceNum < 0) {
-          itemErr.price = 'Đơn giá không được âm.';
+        if (it.price === '' || it.price === null || it.price === undefined || !/^\d+$/.test(String(it.price)) || !Number.isSafeInteger(priceNum) || priceNum <= 0) {
+          itemErr.price = 'Đơn giá phải là số nguyên lớn hơn 0.';
           hasItemErr = true;
         }
         itemsErrs[idx] = itemErr;
@@ -337,16 +352,16 @@ export const PurchasesView = () => {
     const otherCost = Number(newPo.otherCost || 0);
 
     if (newPo.discountAmount !== '' && newPo.discountAmount !== null && newPo.discountAmount !== undefined) {
-      if (discount < 0) {
-        errs.discountAmount = 'Chiết khấu không được âm.';
-      } else if (discount > subtotal && subtotal > 0) {
+      if (!Number.isSafeInteger(discount) || discount < 0) {
+        errs.discountAmount = 'Chiết khấu phải là số nguyên không âm.';
+      } else if (discount > subtotal) {
         errs.discountAmount = `Chiết khấu không được vượt quá tiền hàng (${subtotal.toLocaleString('vi-VN')} đ).`;
       }
     }
 
     if (newPo.otherCost !== '' && newPo.otherCost !== null && newPo.otherCost !== undefined) {
-      if (otherCost < 0) {
-        errs.otherCost = 'Chi phí khác không được âm.';
+      if (!Number.isSafeInteger(otherCost) || otherCost < 0) {
+        errs.otherCost = 'Chi phí khác phải là số nguyên không âm.';
       }
     }
 
@@ -354,14 +369,30 @@ export const PurchasesView = () => {
 
     if (newPo.paymentStatus === 'Thanh toán một phần') {
       const paid = Number(newPo.paidAmount);
-      if (newPo.paidAmount === '' || newPo.paidAmount === null || newPo.paidAmount === undefined || isNaN(paid) || paid <= 0) {
+      if (newPo.paidAmount === '' || newPo.paidAmount === null || newPo.paidAmount === undefined || !Number.isSafeInteger(paid) || paid <= 0) {
         errs.paidAmount = 'Vui lòng nhập số tiền trả trước lớn hơn 0.';
-      } else if (paid > totalAmt && totalAmt > 0) {
+      } else if (paid > totalAmt) {
         errs.paidAmount = `Số tiền trả trước không được vượt quá tổng tiền hóa đơn (${totalAmt.toLocaleString('vi-VN')} đ).`;
       }
     }
 
+    if (newPo.referenceCode && (!/^[\p{L}\p{N}\s._/()\-]+$/u.test(newPo.referenceCode) || newPo.referenceCode.length > 100))
+      errs.referenceCode = 'Số chứng từ chỉ gồm chữ, số và ký tự . _ / ( ) -, tối đa 100 ký tự.';
+    if (newPo.note?.trim() && (!/\p{L}/u.test(newPo.note) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(newPo.note) || newPo.note.length > 1000))
+      errs.note = 'Ghi chú phải có nội dung chữ, tối đa 1000 ký tự.';
     return errs;
+  };
+
+  const validatePoField = (field, index) => {
+    const errors = validatePoForm();
+    setPoErrors(previous => {
+      if (index !== undefined) {
+        const items = [...(previous.items || [])];
+        items[index] = { ...items[index], [field]: errors.items?.[index]?.[field] || '' };
+        return { ...previous, items };
+      }
+      return { ...previous, [field]: errors[field] || '' };
+    });
   };
 
   // 2. Validator for Supplier
@@ -493,9 +524,9 @@ export const PurchasesView = () => {
     const errors = validatePoForm();
     if (Object.keys(errors).length > 0) {
       setPoErrors(errors);
-      showToast('Vui lòng kiểm tra và hoàn thiện các trường thông tin bắt buộc.', 'warning');
       return;
     }
+    setPoErrors({});
     try {
       const subtotal = newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
       const discount = Number(newPo.discountAmount || 0);
@@ -548,7 +579,7 @@ export const PurchasesView = () => {
       fetchData();
       if (created) setSelectedOrder(created);
     } catch (err) {
-      showToast(err.response?.data?.message || 'Không thể lưu thay đổi. Vui lòng thử lại.', 'error');
+      setPoErrors({ server: err.response?.data?.message || 'Không thể lưu thay đổi. Vui lòng thử lại.' });
     }
   };
 
@@ -558,8 +589,10 @@ export const PurchasesView = () => {
       showToast('Đã xác nhận nhập kho và cập nhật số dư tồn kho.', 'success');
       setSelectedOrder(updated);
       fetchData();
+      return true;
     } catch (err) {
       showToast(err.response?.data?.message || 'Lỗi xác nhận nhập kho.', 'error');
+      return false;
     }
   };
 
@@ -1034,7 +1067,7 @@ export const PurchasesView = () => {
             <h3 className="farmshift-card-title">Danh sách Nhà cung cấp vật tư & con giống</h3>
             {isOwnerOrAccountant && (
               <button
-                className="farmshift-btn farmshift-btn-primary"
+                className="farmshift-btn farmshift-btn-mint"
                 onClick={() => {
                   setSupplierForm({
                     name: '', representative: '', phone: '',
@@ -1153,7 +1186,7 @@ export const PurchasesView = () => {
             <h3 className="farmshift-card-title">Thẻ Tags phân loại hóa đơn chứng từ & nhà cung cấp</h3>
             {isOwnerOrAccountant && (
               <button
-                className="farmshift-btn farmshift-btn-primary"
+                className="farmshift-btn farmshift-btn-mint"
                 onClick={() => {
                   setTagForm({ name: '', color: '#019788', description: '' });
                   setTagModal({ mode: 'create' });
@@ -1251,12 +1284,21 @@ export const PurchasesView = () => {
             if (e.target === e.currentTarget) setSelectedOrder(null);
           }}
         >
-          <div className="farmshift-modal" style={{ maxWidth: orderViewTab === 'voucher' ? '820px' : '750px', transition: 'max-width 0.2s ease' }} onClick={(e) => e.stopPropagation()}>
-            <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div className={`farmshift-modal ${styles.detailModal}`} onClick={(e) => e.stopPropagation()}>
+            <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div className={styles.detailHeading}>
                 <h3 className="farmshift-modal-title" style={{ margin: 0 }}>
                   Chi tiết hóa đơn {selectedOrder.code}
                 </h3>
+                <div className={styles.detailTopActions}>
+                {selectedOrder.stockStatus !== 'Đã nhập kho' && selectedOrder.stockStatus !== 'Đã hủy' && (
+                  <button
+                    className="farmshift-btn farmshift-btn-mint"
+                    onClick={() => setStockConfirmation({ id: selectedOrder.id, code: selectedOrder.code })}
+                  >
+                    <PackageCheck size={15} /> Xác nhận nhập kho
+                  </button>
+                )}
                 {Number(selectedOrder.debtAmount || 0) > 0 && selectedOrder.stockStatus !== 'Đã hủy' && (
                   <button
                     className="farmshift-btn farmshift-btn-mint"
@@ -1269,7 +1311,7 @@ export const PurchasesView = () => {
                     <DollarSign size={15} /> Thanh toán nợ
                   </button>
                 )}
-                <div style={{ display: 'inline-flex', padding: '2px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
+                <div className={styles.detailViewTabs}>
                   <button
                     type="button"
                     onClick={() => setOrderViewTab('info')}
@@ -1304,6 +1346,7 @@ export const PurchasesView = () => {
                   >
                     Mẫu in A4
                   </button>
+                </div>
                 </div>
               </div>
               <button
@@ -1443,36 +1486,25 @@ export const PurchasesView = () => {
                 </>
               )}
             </div>
-            <div className="farmshift-modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                {selectedOrder.stockStatus !== 'Đã nhập kho' && selectedOrder.stockStatus !== 'Đã hủy' && (
-                  <button
-                    className="farmshift-btn farmshift-btn-secondary"
-                    style={{ color: 'var(--color-primary)' }}
-                    onClick={() => handleImportStock(selectedOrder.id)}
-                  >
-                    <PackageCheck size={15} /> Xác nhận nhập kho
-                  </button>
-                )}
+            <div className="farmshift-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div className={styles.detailBottomActions}>
+                <button
+                  type="button"
+                  className="farmshift-btn farmshift-btn-secondary"
+                  onClick={handlePrintVoucher}
+                >
+                  <Printer size={15} /> In phiếu
+                </button>
                 {selectedOrder.stockStatus !== 'Đã nhập kho' && Number(selectedOrder.paidAmount || 0) === 0 && (
                   <button
                     className="farmshift-btn farmshift-btn-secondary"
-                    style={{ marginLeft: '8px', color: 'var(--color-danger)' }}
+                    style={{ color: 'var(--color-danger)' }}
                     onClick={() => handleCancelPo(selectedOrder.id)}
                   >
                     <Trash2 size={15} /> Hủy đơn
                   </button>
                 )}
-              </div>
-              <div>
-                <button
-                  type="button"
-                  className="farmshift-btn farmshift-btn-secondary"
-                  style={{ marginRight: '8px' }}
-                  onClick={handlePrintVoucher}
-                >
-                  <Printer size={15} /> In phiếu
-                </button>
+
                 <button
                   type="button"
                   className="farmshift-btn farmshift-btn-secondary"
@@ -1488,6 +1520,8 @@ export const PurchasesView = () => {
           </div>
         </div>
       )}
+
+      {stockConfirmation && <ConfirmStockImport invoiceCode={stockConfirmation.code} onClose={() => setStockConfirmation(null)} onConfirm={() => handleImportStock(stockConfirmation.id)} />}
 
       {/* ── Modal: Thanh toán công nợ ────────────────────── */}
       {showPaymentModal && selectedOrder && (
@@ -1561,7 +1595,7 @@ export const PurchasesView = () => {
                 >
                   Hủy
                 </button>
-                <button type="submit" className="farmshift-btn farmshift-btn-primary">Xác nhận thanh toán</button>
+                <button type="submit" className="farmshift-btn farmshift-btn-mint">Xác nhận thanh toán</button>
               </div>
             </form>
           </div>
@@ -1617,6 +1651,11 @@ export const PurchasesView = () => {
                 overflow: 'hidden'
               }}
             >
+              {poErrorMessages.length > 0 && <div role="alert" className={styles.formErrors}>
+                <strong>Vui lòng kiểm tra thông tin:</strong>
+                <ul>{poErrorMessages.map((message, index) => <li key={index}>{message}</li>)}</ul>
+                {(productError || unitsError) && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setProductRevision(value => value + 1)}>Thử lại</button>}
+              </div>}
               <div
                 className={`farmshift-modal-body ${ocrPreviewUrl ? 'farmshift-split-body' : ''}`}
                 style={ocrPreviewUrl ? {} : { maxHeight: 'calc(90vh - 130px)', overflowY: 'auto' }}
@@ -1760,7 +1799,7 @@ export const PurchasesView = () => {
                     <div className="farmshift-form-group">
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                         <label htmlFor="po-supplier-select" className="farmshift-form-label" style={{ margin: 0 }}>
-                          Nhà cung cấp *
+                          Nhà cung cấp <span className={styles.requiredMark}>*</span>
                         </label>
                         <button
                           type="button"
@@ -1779,12 +1818,13 @@ export const PurchasesView = () => {
                           }}
                           title="Thêm nhanh nhà cung cấp mới vào danh mục"
                         >
-                          <Plus size={13} /> Thêm mới NCC
+                          <Plus size={13} /> Thêm mới
                         </button>
                       </div>
 
                       <select
                         id="po-supplier-select"
+                        onBlur={() => validatePoField('supplierId')}
                         className={`farmshift-form-control ${poErrors.supplierId ? 'has-error' : ''}`}
                         value={newPo.supplierId || ''}
                         onChange={(e) => {
@@ -1825,126 +1865,25 @@ export const PurchasesView = () => {
                           <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
                       </select>
-
-                      {poErrors.supplierId && (
-                        <div className="farmshift-field-error">
-                          <AlertTriangle size={12} /> {poErrors.supplierId}
-                        </div>
-                      )}
                     </div>
                     <div className="farmshift-form-group">
-                      <label htmlFor="po-date-input" className="farmshift-form-label">Ngày nhập đơn *</label>
-                      <input
-                        id="po-date-input"
-                        type="date"
-                        className={`farmshift-form-control ${poErrors.date ? 'has-error' : ''}`}
-                        value={newPo.date}
-                        onChange={(e) => {
-                          setNewPo({ ...newPo, date: e.target.value });
-                          if (poErrors.date) {
-                            setPoErrors(prev => ({ ...prev, date: '' }));
-                          }
-                        }}
-                        required
-                      />
-                      {poErrors.date && (
-                        <div className="farmshift-field-error">
-                          <AlertTriangle size={12} /> {poErrors.date}
-                        </div>
-                      )}
+                      <label htmlFor="po-date-input" className="farmshift-form-label">Ngày tạo đơn</label>
+                      <input id="po-date-input" type="text" className="farmshift-form-control" value={creationTime} readOnly />
                     </div>
                     <div className="farmshift-form-group">
                       <label htmlFor="po-ref-code" className="farmshift-form-label">Số chứng từ / Mã tham chiếu</label>
                       <input
                         id="po-ref-code"
+                        onBlur={() => validatePoField('referenceCode')}
                         type="text"
                         placeholder="HD-CP-0915"
-                        className="farmshift-form-control"
+                        className={`farmshift-form-control ${poErrors.referenceCode ? 'has-error' : ''}`}
+                        maxLength={100}
                         value={newPo.referenceCode}
                         onChange={(e) => setNewPo({ ...newPo, referenceCode: e.target.value })}
                       />
                     </div>
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                    <div className="farmshift-form-group">
-                      <label htmlFor="po-payment-status" className="farmshift-form-label">Trạng thái thanh toán *</label>
-                      <select
-                        id="po-payment-status"
-                        className="farmshift-form-control"
-                        value={newPo.paymentStatus}
-                        onChange={(e) => {
-                          const newStatus = e.target.value;
-                          const subtotal = newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
-                          const discount = Number(newPo.discountAmount || 0);
-                          const otherCost = Number(newPo.otherCost || 0);
-                          const totalAmt = Math.max(0, subtotal - discount + otherCost);
-                          setNewPo({
-                            ...newPo,
-                            paymentStatus: newStatus,
-                            paidAmount: newStatus === 'Thanh toán một phần' && !newPo.paidAmount ? String(Math.round(totalAmt / 2)) : (newStatus === 'Thanh toán một phần' ? newPo.paidAmount : '')
-                          });
-                          if (poErrors.paidAmount) {
-                            setPoErrors(prev => ({ ...prev, paidAmount: '' }));
-                          }
-                        }}
-                      >
-                        <option value="Thanh toán hoàn tất">Thanh toán hoàn tất</option>
-                        <option value="Thanh toán một phần">Thanh toán một phần</option>
-                        <option value="Trả sau">Trả sau (Công nợ)</option>
-                      </select>
-                    </div>
-                    <div className="farmshift-form-group">
-                      <label htmlFor="po-stock-status" className="farmshift-form-label">Trạng thái kho hàng *</label>
-                      <select
-                        id="po-stock-status"
-                        className="farmshift-form-control"
-                        value={newPo.stockStatus}
-                        onChange={(e) => setNewPo({ ...newPo, stockStatus: e.target.value })}
-                      >
-                        <option value="Đã nhập kho">Đã nhập kho (Tăng số lượng kho ngay)</option>
-                        <option value="Chưa nhập kho">Chưa nhập kho (Chờ xác nhận)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {newPo.paymentStatus === 'Thanh toán một phần' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px', padding: '12px 14px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
-                      <div className="farmshift-form-group">
-                        <label htmlFor="po-partial-paid" className="farmshift-form-label">Số tiền trả trước (VNĐ) *</label>
-                        <input
-                          id="po-partial-paid"
-                          type="number"
-                          placeholder="Nhập số tiền trả trước..."
-                          min="1"
-                          className={`farmshift-form-control ${poErrors.paidAmount ? 'has-error' : ''}`}
-                          value={newPo.paidAmount || ''}
-                          onChange={(e) => {
-                            setNewPo({ ...newPo, paidAmount: e.target.value });
-                            if (poErrors.paidAmount) {
-                              setPoErrors(prev => ({ ...prev, paidAmount: '' }));
-                            }
-                          }}
-                          required
-                        />
-                        {poErrors.paidAmount && (
-                          <div className="farmshift-field-error">
-                            <AlertTriangle size={12} /> {poErrors.paidAmount}
-                          </div>
-                        )}
-                      </div>
-                      <div className="farmshift-form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tính vào công nợ NCC:</span>
-                        <strong style={{ fontSize: '16px', color: '#ef4565', marginTop: '4px' }}>
-                          {Math.max(
-                            0,
-                            (newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0) - Number(newPo.discountAmount || 0) + Number(newPo.otherCost || 0))
-                            - Number(newPo.paidAmount || 0)
-                          ).toLocaleString('vi-VN')} đ
-                        </strong>
-                      </div>
-                    </div>
-                  )}
 
                   <div style={{ fontSize: '13.5px', fontWeight: 600, marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Chi tiết các mặt hàng nhập:</span>
@@ -1958,21 +1897,14 @@ export const PurchasesView = () => {
                     </button>
                   </div>
 
-                  {productError && <div role="alert" className="farmshift-field-error">{productError}<button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setProductRevision(value => value + 1)}>Thử lại</button></div>}
-                  {unitsError && <div role="alert" className="farmshift-field-error">{unitsError}<button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setProductRevision(value => value + 1)}>Thử lại</button></div>}
                   {!unitsLoading && !unitsError && !units.length && <p>Chưa có đơn vị tính. Vui lòng thêm tại Thiết lập danh mục → Đơn vị tính.</p>}
                   {!productLoading && !productError && !productCategories.some(product => product.warehouseId) && <p>Chưa có hàng hóa thuộc kho. Vui lòng thêm hàng hóa trong Kho hàng hóa trước.</p>}
-                  {poErrors.itemsGeneral && (
-                    <div className="farmshift-field-error" style={{ marginBottom: '10px' }}>
-                      <AlertTriangle size={13} /> {poErrors.itemsGeneral}
-                    </div>
-                  )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.9fr 0.9fr 1.3fr 1.3fr 30px', gap: '8px', marginBottom: '4px', fontSize: '11.5px', fontWeight: 600, color: 'var(--color-muted)', padding: '0 2px' }}>
-                    <span>Tên hàng hóa *</span>
-                    <span>Số lượng *</span>
-                    <span>Đơn vị *</span>
-                    <span>Đơn giá (VNĐ) *</span>
+                    <span>Tên hàng hóa <span className={styles.requiredMark}>*</span></span>
+                    <span>Số lượng <span className={styles.requiredMark}>*</span></span>
+                    <span>Đơn vị <span className={styles.requiredMark}>*</span></span>
+                    <span>Đơn giá (VNĐ) <span className={styles.requiredMark}>*</span></span>
                     <span style={{ textAlign: 'right' }}>Thành tiền</span>
                     <span></span>
                   </div>
@@ -1984,6 +1916,7 @@ export const PurchasesView = () => {
                         <div>
                           <select
                             aria-label={`Tên hàng hóa ${idx + 1}`}
+                            onBlur={() => validatePoField('name', idx)}
                             disabled={productLoading || !!productError}
                             className={`farmshift-form-control ${itemErr.name ? 'has-error' : ''}`}
                             value={row.productCategoryId || ''}
@@ -1997,16 +1930,12 @@ export const PurchasesView = () => {
                             <option value="">{productLoading ? 'Đang tải hàng hóa...' : 'Chọn hàng hóa (Kho)'}</option>
                             {productCategories.filter(product => product.warehouseId).map(product => <option key={product.id} value={product.id}>{product.name} ({product.warehouseName})</option>)}
                           </select>
-                          {itemErr.name && (
-                            <div className="farmshift-field-error">
-                              <AlertTriangle size={12} /> {itemErr.name}
-                            </div>
-                          )}
                         </div>
                         <div>
                           <input
                             type="number"
                             placeholder="Số lượng"
+                            onBlur={() => validatePoField('qty', idx)}
                             className={`farmshift-form-control ${itemErr.qty ? 'has-error' : ''}`}
                             value={row.qty}
                             min="0.1"
@@ -2019,15 +1948,11 @@ export const PurchasesView = () => {
                             }}
                             required
                           />
-                          {itemErr.qty && (
-                            <div className="farmshift-field-error">
-                              <AlertTriangle size={12} /> {itemErr.qty}
-                            </div>
-                          )}
                         </div>
                         <div>
                           <select
                             aria-label={`Đơn vị ${idx + 1}`}
+                            onBlur={() => validatePoField('unit', idx)}
                             className={`farmshift-form-control ${itemErr.unit ? 'has-error' : ''}`}
                             value={units.some(unit => unit.name === row.unit) ? row.unit : ''}
                             disabled={unitsLoading || !!unitsError}
@@ -2037,35 +1962,40 @@ export const PurchasesView = () => {
                             }}
                             required
                           >
-                            <option value="">{unitsLoading ? 'Đang tải...' : 'Chọn đơn vị'}</option>
+                            <option value="">{unitsLoading ? 'Đang tải...' : 'Chọn'}</option>
                             {units.map(unit => <option key={unit.id} value={unit.name}>{unit.name}</option>)}
                           </select>
-                          {itemErr.unit && (
-                            <div className="farmshift-field-error">
-                              <AlertTriangle size={12} /> {itemErr.unit}
-                            </div>
-                          )}
                         </div>
                         <div>
                           <input
-                            type="number"
-                            placeholder="Đơn giá (VNĐ)"
+                            type="text"
+                            inputMode="numeric"
+                            aria-label={`Đơn giá (VNĐ) ${idx + 1}`}
+                            onBlur={() => validatePoField('price', idx)}
+                            placeholder="0"
                             className={`farmshift-form-control ${itemErr.price ? 'has-error' : ''}`}
-                            value={row.price}
-                            min="0"
+                            value={/^\d*$/.test(String(row.price)) ? (Number(row.price) ? Number(row.price).toLocaleString('vi-VN') : '') : String(row.price ?? '')}
                             onChange={(e) => {
+                              const raw = e.target.value;
+                              const digits = /^[\d.]*$/.test(raw) ? raw.replace(/\D/g, '').replace(/^0+(?=\d)/, '') : raw;
+                              if (/^\d+$/.test(digits) && !Number.isSafeInteger(Number(digits))) return;
+                              const input = e.target;
+                              const digitOffset = input.value.slice(0, input.selectionStart ?? input.value.length).replace(/\D/g, '').length;
                               const updated = [...newPo.items];
-                              updated[idx].price = e.target.value;
+                              updated[idx].price = /^\d*$/.test(digits) ? (digits ? Number(digits) : 0) : digits;
                               setNewPo({ ...newPo, items: updated });
                               clearItemError(idx, 'price');
+                              requestAnimationFrame(() => {
+                                if (document.activeElement !== input) return;
+                                let position = 0, count = 0;
+                                while (position < input.value.length && count < digitOffset) {
+                                  if (/\d/.test(input.value[position])) count++;
+                                  position++;
+                                }
+                                input.setSelectionRange(position, position);
+                              });
                             }}
-                            required
                           />
-                          {itemErr.price && (
-                            <div className="farmshift-field-error">
-                              <AlertTriangle size={12} /> {itemErr.price}
-                            </div>
-                          )}
                         </div>
                         <div>
                           <div
@@ -2105,17 +2035,95 @@ export const PurchasesView = () => {
 
 
 
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+                    <div className="farmshift-form-group">
+                      <label htmlFor="po-payment-status" className="farmshift-form-label">Trạng thái thanh toán <span className={styles.requiredMark}>*</span></label>
+                      <select
+                        id="po-payment-status"
+                        className="farmshift-form-control"
+                        value={newPo.paymentStatus}
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          const subtotal = newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
+                          const discount = Number(newPo.discountAmount || 0);
+                          const otherCost = Number(newPo.otherCost || 0);
+                          const totalAmt = Math.max(0, subtotal - discount + otherCost);
+                          setNewPo({
+                            ...newPo,
+                            paymentStatus: newStatus,
+                            paidAmount: newStatus === 'Thanh toán một phần' && !newPo.paidAmount ? String(Math.round(totalAmt / 2)) : (newStatus === 'Thanh toán một phần' ? newPo.paidAmount : '')
+                          });
+                          if (poErrors.paidAmount) {
+                            setPoErrors(prev => ({ ...prev, paidAmount: '' }));
+                          }
+                        }}
+                      >
+                        <option value="Thanh toán hoàn tất">Thanh toán hoàn tất</option>
+                        <option value="Thanh toán một phần">Thanh toán một phần</option>
+                        <option value="Trả sau">Trả sau (Công nợ)</option>
+                      </select>
+                    </div>
+                    <div className="farmshift-form-group">
+                      <label htmlFor="po-stock-status" className="farmshift-form-label">Trạng thái kho hàng <span className={styles.requiredMark}>*</span></label>
+                      <select
+                        id="po-stock-status"
+                        className="farmshift-form-control"
+                        value={newPo.stockStatus}
+                        onChange={(e) => setNewPo({ ...newPo, stockStatus: e.target.value })}
+                      >
+                        <option value="Đã nhập kho">Đã nhập kho</option>
+                        <option value="Chưa nhập kho">Chưa nhập kho</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {newPo.paymentStatus === 'Thanh toán một phần' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px', padding: '12px 14px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
+                      <div className="farmshift-form-group">
+                        <label htmlFor="po-partial-paid" className="farmshift-form-label">Số tiền trả trước (VNĐ) <span className={styles.requiredMark}>*</span></label>
+                        <input
+                          id="po-partial-paid"
+                        onBlur={() => validatePoField('paidAmount')}
+                          type="number"
+                          placeholder="Nhập số tiền trả trước..."
+                          min="1"
+                          className={`farmshift-form-control ${poErrors.paidAmount ? 'has-error' : ''}`}
+                          value={newPo.paidAmount || ''}
+                          onChange={(e) => {
+                            setNewPo({ ...newPo, paidAmount: e.target.value });
+                            if (poErrors.paidAmount) {
+                              setPoErrors(prev => ({ ...prev, paidAmount: '' }));
+                            }
+                          }}
+                          required
+                        />
+                      </div>
+                      <div className="farmshift-form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tính vào công nợ NCC:</span>
+                        <strong style={{ fontSize: '16px', color: '#ef4565', marginTop: '4px' }}>
+                          {Math.max(
+                            0,
+                            (newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0) - Number(newPo.discountAmount || 0) + Number(newPo.otherCost || 0))
+                            - Number(newPo.paidAmount || 0)
+                          ).toLocaleString('vi-VN')} đ
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="farmshift-form-group" style={{ marginTop: '14px' }}>
                     <label htmlFor="po-note-input" className="farmshift-form-label">Ghi chú đơn nhập</label>
                     <input
                       id="po-note-input"
+                        onBlur={() => validatePoField('note')}
                       type="text"
                       placeholder={
                         ocrPreviewName
                           ? `Gợi ý: Nhập kho theo chứng từ ${ocrPreviewName}${newPo.referenceCode ? ` (Số ${newPo.referenceCode})` : ''}...`
                           : 'Nhập ghi chú cho đơn nhập hàng (tùy chọn)...'
                       }
-                      className="farmshift-form-control"
+                      className={`farmshift-form-control ${poErrors.note ? 'has-error' : ''}`}
+                        maxLength={1000}
                       value={newPo.note}
                       onChange={(e) => setNewPo({ ...newPo, note: e.target.value })}
                     />
@@ -2195,6 +2203,7 @@ export const PurchasesView = () => {
                       <label htmlFor="po-discount-amount" className="farmshift-form-label">Chiết khấu giảm giá (VNĐ)</label>
                       <input
                         id="po-discount-amount"
+                        onBlur={() => validatePoField('discountAmount')}
                         type="number"
                         placeholder="0"
                         min="0"
@@ -2207,16 +2216,12 @@ export const PurchasesView = () => {
                           }
                         }}
                       />
-                      {poErrors.discountAmount && (
-                        <div className="farmshift-field-error">
-                          <AlertTriangle size={12} /> {poErrors.discountAmount}
-                        </div>
-                      )}
                     </div>
                     <div className="farmshift-form-group">
                       <label htmlFor="po-other-cost" className="farmshift-form-label">Chi phí khác / Vận chuyển (VNĐ)</label>
                       <input
                         id="po-other-cost"
+                        onBlur={() => validatePoField('otherCost')}
                         type="number"
                         placeholder="0"
                         min="0"
@@ -2229,11 +2234,6 @@ export const PurchasesView = () => {
                           }
                         }}
                       />
-                      {poErrors.otherCost && (
-                        <div className="farmshift-field-error">
-                          <AlertTriangle size={12} /> {poErrors.otherCost}
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -2487,7 +2487,7 @@ export const PurchasesView = () => {
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <button
                           type="button"
-                          className="farmshift-btn farmshift-btn-primary"
+                          className="farmshift-btn farmshift-btn-mint"
                           onClick={() => {
                             if (cameraInputRef.current) cameraInputRef.current.click();
                           }}
@@ -2595,7 +2595,7 @@ export const PurchasesView = () => {
 
                         <button
                           type="button"
-                          className="farmshift-btn farmshift-btn-primary"
+                          className="farmshift-btn farmshift-btn-mint"
                           onClick={handleCapturePhoto}
                           disabled={isCameraStarting}
                           style={{
@@ -2893,7 +2893,7 @@ export const PurchasesView = () => {
                 </div>
                 <div className="farmshift-modal-footer">
                   <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setSupplierModal(null)}>Hủy</button>
-                  <button type="submit" className="farmshift-btn farmshift-btn-primary">Lưu thông tin</button>
+                  <button type="submit" className="farmshift-btn farmshift-btn-mint">Lưu thông tin</button>
                 </div>
               </form>
             )}
@@ -3022,7 +3022,7 @@ export const PurchasesView = () => {
                   >
                     Hủy
                   </button>
-                  <button type="submit" className="farmshift-btn farmshift-btn-primary">Lưu thẻ Tag</button>
+                  <button type="submit" className="farmshift-btn farmshift-btn-mint">Lưu thẻ Tag</button>
                 </div>
               </form>
             )}

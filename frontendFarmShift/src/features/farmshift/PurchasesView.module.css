@@ -13,6 +13,10 @@
 }
 .invoiceCode:hover { color: #006b5e; background-color: #edf7f4; }
 .invoiceCode:focus-visible { outline: 2px solid #008577; outline-offset: 3px; }
+.detailModal.detailModal { max-width: 820px; height: 90dvh; max-height: 90dvh; }
+.detailModal > :global(.farmshift-modal-header),
+.detailModal > :global(.farmshift-modal-footer) { flex-shrink: 0; }
+.detailModal > :global(.farmshift-modal-body) { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
 .detailCloseButton {
   display: grid;
   place-items: center;
@@ -71,3 +75,14 @@
 .workflowSteps { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-bottom: 16px; padding: 8px 0; }
 .workflowStep { display: flex; align-items: center; gap: 6px; color: #008a7b; font-size: 12px; font-weight: 600; }
 .workflowTick { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; color: #008a7b; }
+.requiredMark { color: #dc2626; }
+.formErrors { flex-shrink: 0; margin: 14px 24px 0; padding: 12px 16px; border: 1px solid #f0caca; border-radius: 10px; background: #fff5f5; color: #b83a3a; font-size: 13px; max-height: 130px; overflow-y: auto; }
+.formErrors ul { margin: 6px 0 0; padding-left: 20px; }
+.detailHeading { display: flex; flex-direction: column; gap: 14px; min-width: 0; flex: 1; }
+.detailTopActions { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow-x: auto; padding: 2px 0; }
+.detailTopActions > :global(.farmshift-btn), .detailBottomActions > :global(.farmshift-btn) { height: 40px; min-height: 40px; margin: 0; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; flex-shrink: 0; }
+.detailTopActions > :global(.farmshift-btn) { height: 32px; min-height: 32px; padding: 5px 10px; font-size: 12px; line-height: 1.3; gap: 6px; border-radius: 8px; }
+.detailTopActions > :global(.farmshift-btn) svg { width: 14px; height: 14px; }
+.detailViewTabs { display: inline-flex; align-items: stretch; flex-shrink: 0; height: 32px; padding: 2px; border: 1px solid var(--color-hairline); border-radius: var(--rounded-md); background: var(--color-surface-soft); box-sizing: border-box; }
+.detailViewTabs > button { white-space: nowrap; }
+.detailBottomActions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; }

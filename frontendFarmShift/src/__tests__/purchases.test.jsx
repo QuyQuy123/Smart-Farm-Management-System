@@ -1,6 +1,6 @@
 // src/__tests__/purchases.test.jsx
 import React from 'react';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { PurchasesView } from '../features/farmshift/PurchasesView';
@@ -50,6 +50,19 @@ vi.mock('../services/measurementUnitService', () => ({ listMeasurementUnits: asy
 vi.mock('../services/productCategoryService', () => ({
   listProductCategories: vi.fn()
 }));
+
+const originalShowModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
+const originalClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close');
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.setAttribute('open', ''); } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value() { this.removeAttribute('open'); } });
+});
+afterAll(() => {
+  for (const [name, descriptor] of [['showModal', originalShowModal], ['close', originalClose]]) {
+    if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, name, descriptor);
+    else delete HTMLDialogElement.prototype[name];
+  }
+});
 
 describe('PurchasesView Component - Full 3-Tab Suite', () => {
   const mockPurchases = [
@@ -297,9 +310,21 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
 
       const importBtn = await screen.findByRole('button', { name: /Xác nhận nhập kho/i });
       fireEvent.click(importBtn);
+      expect(await screen.findByRole('dialog', { name: 'Xác nhận nhập kho' })).toBeInTheDocument();
+      expect(purchaseService.importStock).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Từ chối' }));
+      expect(screen.queryByRole('dialog', { name: 'Xác nhận nhập kho' })).not.toBeInTheDocument();
+      expect(purchaseService.importStock).not.toHaveBeenCalled();
+      fireEvent.click(importBtn);
+      const confirm = screen.getByRole('button', { name: 'Đồng ý' });
+      expect(confirm).toHaveClass('farmshift-btn-mint');
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+
 
       await waitFor(() => {
         expect(purchaseService.importStock).toHaveBeenCalledWith(4);
+        expect(purchaseService.importStock).toHaveBeenCalledTimes(1);
         expect(mockToast).toHaveBeenCalledWith('Đã xác nhận nhập kho và cập nhật số dư tồn kho.', 'success');
       });
     });
@@ -356,6 +381,80 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       });
     });
 
+    it('defaults to unpaid and unreceived, shows system creation time and places statuses after items', async () => {
+      renderComponent();
+      await screen.findByText('NH000000');
+      fireEvent.click(screen.getByRole('button', { name: /Tạo đơn nhập hàng/i }));
+      const payment = screen.getByLabelText(/Trạng thái thanh toán/);
+      const stock = screen.getByLabelText(/Trạng thái kho hàng/);
+      expect(payment).toHaveValue('Trả sau');
+      expect(stock).toHaveValue('Chưa nhập kho');
+      const created = screen.getByLabelText('Ngày tạo đơn');
+      expect(created).toHaveAttribute('readonly');
+      expect(created.value).not.toBe('');
+      const item = screen.getByRole('combobox', { name: 'Tên hàng hóa 1' });
+      expect(item.compareDocumentPosition(payment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(stock.compareDocumentPosition(screen.getByLabelText('Ghi chú đơn nhập')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Đơn vị 1' })).toBeEnabled());
+      expect(screen.getByRole('combobox', { name: 'Đơn vị 1' }).options[0].text).toBe('Chọn');
+      expect([...stock.options].map(option => option.text)).toEqual(['Đã nhập kho', 'Chưa nhập kho']);
+    });
+
+    it('shows zero as a placeholder and formats unit prices while saving numeric values', async () => {
+      renderComponent();
+      await screen.findByText('NH000000');
+      fireEvent.click(screen.getByRole('button', { name: /Tạo đơn nhập hàng/i }));
+      const price = screen.getByRole('textbox', { name: 'Đơn giá (VNĐ) 1' });
+      expect(price).toHaveValue(''); expect(price).toHaveAttribute('placeholder', '0');
+      fireEvent.change(price, { target: { value: '320000' } });
+      expect(price).toHaveValue('320.000');
+      fireEvent.change(price, { target: { value: '' } }); expect(price).toHaveValue('');
+      fireEvent.change(price, { target: { value: '1.250.000' } }); expect(price).toHaveValue('1.250.000');
+      fireEvent.change(screen.getByLabelText(/Nhà cung cấp \*/i), { target: { value: '1' } });
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Tên hàng hóa 1' })).toBeEnabled());
+      fireEvent.change(screen.getByRole('combobox', { name: 'Tên hàng hóa 1' }), { target: { value: '1' } });
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Đơn vị 1' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
+      await waitFor(() => expect(purchaseService.createPurchase).toHaveBeenCalled());
+      expect(purchaseService.createPurchase.mock.calls[0][0].items[0].price).toBe(1250000);
+    });
+
+    it('shows validation only in a summary at the top of the form', async () => {
+      renderComponent(); await screen.findByText('NH000000');
+      fireEvent.click(screen.getByRole('button', { name: /Tạo đơn nhập hàng/i }));
+      const qty = screen.getByPlaceholderText('Số lượng');
+      fireEvent.change(qty, { target: { value: '-5' } }); fireEvent.blur(qty);
+      expect(screen.getByText(/Số lượng phải lớn hơn 0\.$/)).toBeInTheDocument();
+      const summary = screen.getByRole('alert');
+      expect(summary).toHaveTextContent('Dòng 1: Số lượng phải lớn hơn 0.');
+      expect(summary.compareDocumentPosition(qty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(qty.parentElement.querySelector('.farmshift-field-error')).toBeNull();
+      fireEvent.change(qty, { target: { value: '2' } }); fireEvent.blur(qty);
+      expect(screen.queryByText(/Số lượng phải lớn hơn 0\.$/)).not.toBeInTheDocument();
+      const price = screen.getByRole('textbox', { name: 'Đơn giá (VNĐ) 1' });
+      for (const value of ['0', '-500', 'abc']) {
+        fireEvent.change(price, { target: { value } }); fireEvent.blur(price);
+        expect(screen.getByText(/Đơn giá phải là số nguyên lớn hơn 0\.$/)).toBeInTheDocument();
+      }
+      fireEvent.change(price, { target: { value: '320000' } }); fireEvent.blur(price);
+      expect(price).toHaveValue('320.000');
+      expect(screen.queryByText(/Đơn giá phải là số nguyên lớn hơn 0\.$/)).not.toBeInTheDocument();
+      const cost = screen.getByLabelText('Chi phí khác / Vận chuyển (VNĐ)');
+      fireEvent.change(cost, { target: { value: '-1' } }); fireEvent.blur(cost);
+      expect(screen.getByText('Chi phí khác phải là số nguyên không âm.')).toBeInTheDocument();
+      fireEvent.change(cost, { target: { value: '0' } }); fireEvent.blur(cost);
+      expect(screen.queryByText('Chi phí khác phải là số nguyên không âm.')).not.toBeInTheDocument();
+      const note = screen.getByLabelText('Ghi chú đơn nhập');
+      fireEvent.change(note, { target: { value: '12345' } }); fireEvent.blur(note);
+      expect(screen.getByText('Ghi chú phải có nội dung chữ, tối đa 1000 ký tự.')).toBeInTheDocument();
+      fireEvent.change(note, { target: { value: 'Nhập 20 bao cám' } }); fireEvent.blur(note);
+      expect(screen.queryByText('Ghi chú phải có nội dung chữ, tối đa 1000 ký tự.')).not.toBeInTheDocument();
+      const reference = screen.getByLabelText('Số chứng từ / Mã tham chiếu');
+      fireEvent.change(reference, { target: { value: 'HD-CP-0915' } }); fireEvent.blur(reference);
+      expect(reference).not.toHaveClass('has-error');
+      expect(purchaseService.createPurchase).not.toHaveBeenCalled();
+    });
+
     it('opens create purchase invoice modal and creates an invoice', async () => {
       renderComponent();
       await screen.findByText('NH000000');
@@ -377,6 +476,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       await waitFor(() => expect(unitSelect).toBeEnabled());
       fireEvent.change(unitSelect, { target: { value: 'Kg' } });
 
+      screen.getAllByRole('textbox', { name: /Đơn giá \(VNĐ\)/ }).forEach(input => fireEvent.change(input, { target: { value: '1000' } }));
       // Submit form
       await waitFor(() => expect(screen.getAllByRole('combobox', { name: /Tên hàng hóa/ })[0]).toBeEnabled());
       screen.getAllByRole('combobox', { name: /Tên hàng hóa/ }).forEach(select => { if (!select.value) fireEvent.change(select, { target: { value: '1' } }); });
@@ -401,7 +501,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       fireEvent.change(supplierSelect, { target: { value: '1' } });
 
       fireEvent.change(screen.getByPlaceholderText('Số lượng'), { target: { value: '50' } });
-      fireEvent.change(screen.getByPlaceholderText('Đơn giá (VNĐ)'), { target: { value: '335000' } });
+      fireEvent.change(screen.getByRole('textbox', { name: 'Đơn giá (VNĐ) 1' }), { target: { value: '335000' } });
       // Change payment status to 'Thanh toán một phần'
       const paymentStatusSelect = screen.getByLabelText(/Trạng thái thanh toán \*/i);
       fireEvent.change(paymentStatusSelect, { target: { value: 'Thanh toán một phần' } });
@@ -721,7 +821,8 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
 
       expect(await screen.findByText(/Vui lòng chọn nhà cung cấp/i)).toBeInTheDocument();
-      expect(mockToast).toHaveBeenCalledWith('Vui lòng kiểm tra và hoàn thiện các trường thông tin bắt buộc.', 'warning');
+      expect(screen.getByRole('alert')).toHaveTextContent('Vui lòng chọn nhà cung cấp.');
+      expect(mockToast).not.toHaveBeenCalled();
       expect(purchaseService.createPurchase).not.toHaveBeenCalled();
     });
 
@@ -840,7 +941,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       expect(await screen.findByText(/Tạo mới đơn nhập hàng/i)).toBeInTheDocument();
 
       // Click the in-place "+ Thêm mới NCC" button
-      const quickAddBtn = screen.getByRole('button', { name: /Thêm mới NCC/i });
+      const quickAddBtn = screen.getByRole('button', { name: /^Thêm mới$/i });
       fireEvent.click(quickAddBtn);
 
       // Supplier modal opens

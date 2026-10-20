@@ -109,6 +109,7 @@ public class PurchaseService {
                 category = productCategoryRepository.findById(itemReq.productCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Hàng hóa đã chọn không tồn tại."));
                 if (category.getWarehouse() == null) throw new BadRequestException("Hàng hóa đã chọn chưa thuộc kho nào.");
             }
+            if (!Double.isFinite(itemReq.qty())) throw new BadRequestException("Số lượng không hợp lệ.");
             long lineAmount = Math.round(itemReq.qty() * itemReq.price());
             itemsTotal += lineAmount;
 
@@ -125,6 +126,7 @@ public class PurchaseService {
             invoice.addItem(item);
         }
 
+        if (invoice.getDiscountAmount() > itemsTotal) throw new BadRequestException("Chiết khấu không được vượt quá tiền hàng.");
         long totalAmount = Math.max(0L, itemsTotal - invoice.getDiscountAmount() + invoice.getOtherCost());
         invoice.setTotalAmount(totalAmount);
 
@@ -146,6 +148,8 @@ public class PurchaseService {
                 paymentStatus = "Trả sau";
             }
         }
+        if ("Thanh toán một phần".equals(request.paymentStatus()) && (request.paidAmount() == null || request.paidAmount() <= 0 || request.paidAmount() > totalAmount))
+            throw new BadRequestException("Tiền trả trước phải lớn hơn 0 và không vượt quá tổng tiền.");
         invoice.setPaidAmount(paid);
         invoice.setPaymentStatus(paymentStatus);
 
