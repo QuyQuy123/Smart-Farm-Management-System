@@ -205,6 +205,23 @@ class PurchaseIntegrationTest {
     }
 
     @Test
+    void selectedProductUsesDatabaseNameAndCorrectWarehouse() throws Exception {
+        var warehouse = new WarehouseCategory(); warehouse.setName("Selected warehouse"); warehouse.setNameKey("selected warehouse"); warehouse = warehouseCategoryRepository.saveAndFlush(warehouse);
+        var product = new ProductCategory(); product.setName("Selected feed"); product.setNameKey("selected feed"); product.setWarehouse(warehouse); product = productCategoryRepository.saveAndFlush(product);
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(),
+                List.of(new PurchaseInvoiceItemRequest(product.getId(), "Untrusted supplied name", 4.0, "Kg", 1000L, 0.0)),
+                0L, 0L, 0L, "Trả sau", "Đã nhập kho", null, null, null, null);
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.items[0].name").value("Selected feed"));
+        var stock = inventoryRepository.findByWarehouse_IdAndProduct_Id(warehouse.getId(), product.getId()).orElseThrow();
+        assertEquals(4, stock.getStock().intValue());
+        var bad = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(),
+                List.of(new PurchaseInvoiceItemRequest(999999L, "Unknown", 1.0, "Kg", 1000L, 0.0)),
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(bad))).andExpect(status().isNotFound());
+    }
+
+    @Test
     void testDeferredPaymentAndPayEndpoint() throws Exception {
         var items = List.of(
                 new PurchaseInvoiceItemRequest(null, "Cám Gà úm Higro 01", 100.0, "Bao (25kg)", 345000L, 0.0)

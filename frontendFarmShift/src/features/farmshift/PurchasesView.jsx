@@ -26,6 +26,7 @@ import {
 import { listSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../services/supplierService';
 import { listProductTypes } from '../../services/productTypeService';
 import { listProductCategories } from '../../services/productCategoryService';
+import { listMeasurementUnits } from '../../services/measurementUnitService';
 import styles from './PurchasesView.module.css';
 import { PurchaseRowActions } from './PurchaseRowActions';
 import { PrintablePurchaseVoucher } from './PrintablePurchaseVoucher';
@@ -41,6 +42,12 @@ export const PurchasesView = () => {
   const [tags, setTags] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
   const [productCategories, setProductCategories] = useState([]);
+  const [productLoading, setProductLoading] = useState(false);
+  const [productError, setProductError] = useState('');
+  const [productRevision, setProductRevision] = useState(0);
+  const [units, setUnits] = useState([]);
+  const [unitsLoading, setUnitsLoading] = useState(false);
+  const [unitsError, setUnitsError] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPayment, setFilterPayment] = useState('ALL');
@@ -105,7 +112,7 @@ export const PurchasesView = () => {
     stockStatus: 'Đã nhập kho',
     tagIds: [],
     items: [
-      { productCategoryId: '', name: 'Cám Gà thịt Higro 02', qty: 50, unit: 'Bao (25kg)', price: 335000 }
+      { productCategoryId: '', name: '', qty: 1, unit: '', price: 0 }
     ]
   });
 
@@ -141,6 +148,26 @@ export const PurchasesView = () => {
     })();
     return () => { cancelled = true; };
   }, [searchTerm, filterPayment, revision]);
+
+  useEffect(() => {
+    if (!showAddModal) return;
+    let cancelled = false;
+    setProductLoading(true); setProductError('');
+    listProductCategories().then(data => { if (!cancelled) setProductCategories(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) { setProductCategories([]); setProductError('Không tải được hàng hóa từ database. Vui lòng thử lại.'); } })
+      .finally(() => { if (!cancelled) setProductLoading(false); });
+    return () => { cancelled = true; };
+  }, [showAddModal, productRevision]);
+
+  useEffect(() => {
+    if (!showAddModal) return;
+    let cancelled = false;
+    setUnitsLoading(true); setUnitsError('');
+    listMeasurementUnits().then(data => { if (!cancelled) setUnits(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) { setUnits([]); setUnitsError('Không tải được đơn vị tính. Vui lòng thử lại.'); } })
+      .finally(() => { if (!cancelled) setUnitsLoading(false); });
+    return () => { cancelled = true; };
+  }, [showAddModal, productRevision]);
 
   const stopCamera = useCallback(() => {
     if (cameraStream) {
@@ -272,6 +299,7 @@ export const PurchasesView = () => {
       errs.date = 'Vui lòng chọn ngày lập hóa đơn.';
     }
 
+    if (productLoading || productError || unitsLoading || unitsError) errs.itemsGeneral = 'Vui lòng tải danh sách hàng hóa trước khi lưu.';
     const itemsErrs = [];
     let hasItemErr = false;
     if (!newPo.items || newPo.items.length === 0) {
@@ -279,8 +307,8 @@ export const PurchasesView = () => {
     } else {
       newPo.items.forEach((it, idx) => {
         const itemErr = {};
-        if (!it.name || !it.name.trim()) {
-          itemErr.name = 'Vui lòng nhập tên mặt hàng.';
+        if (!productCategories.some(product => String(product.id) === String(it.productCategoryId) && product.warehouseId)) {
+          itemErr.name = 'Vui lòng chọn hàng hóa thuộc kho trong danh sách.';
           hasItemErr = true;
         }
         const qtyNum = Number(it.qty);
@@ -288,8 +316,8 @@ export const PurchasesView = () => {
           itemErr.qty = 'Số lượng phải lớn hơn 0.';
           hasItemErr = true;
         }
-        if (!it.unit || !it.unit.trim()) {
-          itemErr.unit = 'Vui lòng nhập đơn vị tính.';
+        if (!units.some(unit => unit.name === it.unit)) {
+          itemErr.unit = 'Vui lòng chọn đơn vị tính trong danh sách.';
           hasItemErr = true;
         }
         const priceNum = Number(it.price);
@@ -1933,6 +1961,10 @@ export const PurchasesView = () => {
                     </button>
                   </div>
 
+                  {productError && <div role="alert" className="farmshift-field-error">{productError}<button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setProductRevision(value => value + 1)}>Thử lại</button></div>}
+                  {unitsError && <div role="alert" className="farmshift-field-error">{unitsError}<button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setProductRevision(value => value + 1)}>Thử lại</button></div>}
+                  {!unitsLoading && !unitsError && !units.length && <p>Chưa có đơn vị tính. Vui lòng thêm tại Thiết lập danh mục → Đơn vị tính.</p>}
+                  {!productLoading && !productError && !productCategories.some(product => product.warehouseId) && <p>Chưa có hàng hóa thuộc kho. Vui lòng thêm hàng hóa trong Kho hàng hóa trước.</p>}
                   {poErrors.itemsGeneral && (
                     <div className="farmshift-field-error" style={{ marginBottom: '10px' }}>
                       <AlertTriangle size={13} /> {poErrors.itemsGeneral}
@@ -1953,20 +1985,21 @@ export const PurchasesView = () => {
                     return (
                       <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.9fr 0.9fr 1.3fr 1.3fr 30px', gap: '8px', marginBottom: '10px', alignItems: 'flex-start' }}>
                         <div>
-                          <input
-                            type="text"
-                            placeholder="Tên hàng hóa"
+                          <select
+                            aria-label={`Tên hàng hóa ${idx + 1}`}
+                            disabled={productLoading || !!productError}
                             className={`farmshift-form-control ${itemErr.name ? 'has-error' : ''}`}
-                            value={row.name}
-                            onChange={(e) => {
-                              const updated = [...newPo.items];
-                              updated[idx].name = e.target.value;
-                              setNewPo({ ...newPo, items: updated });
+                            value={row.productCategoryId || ''}
+                            onChange={event => {
+                              const product = productCategories.find(product => String(product.id) === event.target.value);
+                              setNewPo(prev => ({ ...prev, items: prev.items.map((item, index) => index === idx ? { ...item, productCategoryId: product ? String(product.id) : '', name: product?.name || '', unit: product?.specification || item.unit } : item) }));
                               clearItemError(idx, 'name');
                             }}
-                            list="product-category-list"
                             required
-                          />
+                          >
+                            <option value="">{productLoading ? 'Đang tải hàng hóa...' : 'Chọn hàng hóa (Kho)'}</option>
+                            {productCategories.filter(product => product.warehouseId).map(product => <option key={product.id} value={product.id}>{product.name} ({product.warehouseName})</option>)}
+                          </select>
                           {itemErr.name && (
                             <div className="farmshift-field-error">
                               <AlertTriangle size={12} /> {itemErr.name}
@@ -1996,19 +2029,20 @@ export const PurchasesView = () => {
                           )}
                         </div>
                         <div>
-                          <input
-                            type="text"
-                            placeholder="Đơn vị"
+                          <select
+                            aria-label={`Đơn vị ${idx + 1}`}
                             className={`farmshift-form-control ${itemErr.unit ? 'has-error' : ''}`}
-                            value={row.unit}
-                            onChange={(e) => {
-                              const updated = [...newPo.items];
-                              updated[idx].unit = e.target.value;
-                              setNewPo({ ...newPo, items: updated });
+                            value={units.some(unit => unit.name === row.unit) ? row.unit : ''}
+                            disabled={unitsLoading || !!unitsError}
+                            onChange={event => {
+                              setNewPo(prev => ({ ...prev, items: prev.items.map((item, index) => index === idx ? { ...item, unit: event.target.value } : item) }));
                               clearItemError(idx, 'unit');
                             }}
                             required
-                          />
+                          >
+                            <option value="">{unitsLoading ? 'Đang tải...' : 'Chọn đơn vị'}</option>
+                            {units.map(unit => <option key={unit.id} value={unit.name}>{unit.name}</option>)}
+                          </select>
                           {itemErr.unit && (
                             <div className="farmshift-field-error">
                               <AlertTriangle size={12} /> {itemErr.unit}
@@ -2072,11 +2106,7 @@ export const PurchasesView = () => {
                     );
                   })}
 
-                  <datalist id="product-category-list">
-                    {productCategories.map(c => (
-                      <option key={c.id} value={c.name} />
-                    ))}
-                  </datalist>
+
 
                   <div className="farmshift-form-group" style={{ marginTop: '14px' }}>
                     <label htmlFor="po-note-input" className="farmshift-form-label">Ghi chú đơn nhập</label>
@@ -2240,7 +2270,7 @@ export const PurchasesView = () => {
                   >
                     Hủy
                   </button>
-                  <button type="submit" className="farmshift-btn farmshift-btn-primary">
+                  <button type="submit" className="farmshift-btn farmshift-btn-mint">
                     Lưu hóa đơn nhập
                   </button>
                 </div>

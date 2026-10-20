@@ -45,6 +45,8 @@ vi.mock('../services/productTypeService', () => ({
   listProductTypes: vi.fn()
 }));
 
+vi.mock('../services/measurementUnitService', () => ({ listMeasurementUnits: async () => [{ id: 1, code: 'BAO', name: 'Bao 25kg' }, { id: 2, code: 'KG', name: 'Kg' }] }));
+
 vi.mock('../services/productCategoryService', () => ({
   listProductCategories: vi.fn()
 }));
@@ -162,8 +164,8 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
   ];
 
   const mockProductCategories = [
-    { id: 1, name: 'Cám Giai đoạn 1 (Úm)' },
-    { id: 2, name: 'Cám Giai đoạn 2 (Vỗ béo)' },
+    { id: 1, name: 'Cám Giai đoạn 1 (Úm)', warehouseId: 1, warehouseName: 'Kho A', specification: 'Bao 25kg' },
+    { id: 2, name: 'Cám Giai đoạn 2 (Vỗ béo)', warehouseId: 2, warehouseName: 'Kho B', specification: 'Bao 25kg' },
     { id: 3, name: 'Gà giống J-Dabaco 01 ngày tuổi' }
   ];
 
@@ -368,14 +370,21 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       // Add item row and fill name
       const addRowBtn = screen.getByRole('button', { name: /\+ Thêm dòng hàng/i });
       fireEvent.click(addRowBtn);
-      const itemNames = screen.getAllByPlaceholderText('Tên hàng hóa');
-      fireEvent.change(itemNames[itemNames.length - 1], { target: { value: 'Cám Giai đoạn 2 (Vỗ béo)' } });
+      const itemNames = screen.getAllByRole('combobox', { name: /Tên hàng hóa/ });
+      fireEvent.change(itemNames[0], { target: { value: '1' } });
+      fireEvent.change(itemNames[itemNames.length - 1], { target: { value: '2' } });
+      const unitSelect = screen.getByRole('combobox', { name: 'Đơn vị 1' });
+      await waitFor(() => expect(unitSelect).toBeEnabled());
+      fireEvent.change(unitSelect, { target: { value: 'Kg' } });
 
       // Submit form
+      await waitFor(() => expect(screen.getAllByRole('combobox', { name: /Tên hàng hóa/ })[0]).toBeEnabled());
+      screen.getAllByRole('combobox', { name: /Tên hàng hóa/ }).forEach(select => { if (!select.value) fireEvent.change(select, { target: { value: '1' } }); });
       fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
 
       await waitFor(() => {
         expect(purchaseService.createPurchase).toHaveBeenCalled();
+        expect(purchaseService.createPurchase.mock.calls[0][0].items[0].unit).toBe('Kg');
         expect(mockToast).toHaveBeenCalledWith('Đã lưu các thay đổi thành công.', 'success');
       });
     });
@@ -391,6 +400,8 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       const supplierSelect = screen.getByLabelText(/Nhà cung cấp \*/i);
       fireEvent.change(supplierSelect, { target: { value: '1' } });
 
+      fireEvent.change(screen.getByPlaceholderText('Số lượng'), { target: { value: '50' } });
+      fireEvent.change(screen.getByPlaceholderText('Đơn giá (VNĐ)'), { target: { value: '335000' } });
       // Change payment status to 'Thanh toán một phần'
       const paymentStatusSelect = screen.getByLabelText(/Trạng thái thanh toán \*/i);
       fireEvent.change(paymentStatusSelect, { target: { value: 'Thanh toán một phần' } });
@@ -401,6 +412,8 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       fireEvent.change(partialInput, { target: { value: '10000000' } });
 
       // Submit form
+      await waitFor(() => expect(screen.getAllByRole('combobox', { name: /Tên hàng hóa/ })[0]).toBeEnabled());
+      screen.getAllByRole('combobox', { name: /Tên hàng hóa/ }).forEach(select => { if (!select.value) fireEvent.change(select, { target: { value: '1' } }); });
       fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
 
       await waitFor(() => {
@@ -703,6 +716,8 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       expect(await screen.findByText('Tạo mới đơn nhập hàng')).toBeInTheDocument();
 
       // Submit without selecting supplier
+      await waitFor(() => expect(screen.getAllByRole('combobox', { name: /Tên hàng hóa/ })[0]).toBeEnabled());
+      screen.getAllByRole('combobox', { name: /Tên hàng hóa/ }).forEach(select => { if (!select.value) fireEvent.change(select, { target: { value: '1' } }); });
       fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
 
       expect(await screen.findByText(/Vui lòng chọn nhà cung cấp/i)).toBeInTheDocument();
@@ -805,6 +820,8 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
 
       // Submit PO: should succeed and send supplierName without error
       const saveBtn = screen.getByRole('button', { name: 'Lưu hóa đơn nhập' });
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Tên hàng hóa 1' })).toBeEnabled());
+      fireEvent.change(screen.getByRole('combobox', { name: 'Tên hàng hóa 1' }), { target: { value: '1' } });
       fireEvent.click(saveBtn);
 
       await waitFor(() => {

@@ -106,7 +106,8 @@ public class PurchaseService {
         for (PurchaseInvoiceItemRequest itemReq : request.items()) {
             ProductCategory category = null;
             if (itemReq.productCategoryId() != null) {
-                category = productCategoryRepository.findById(itemReq.productCategoryId()).orElse(null);
+                category = productCategoryRepository.findById(itemReq.productCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Hàng hóa đã chọn không tồn tại."));
+                if (category.getWarehouse() == null) throw new BadRequestException("Hàng hóa đã chọn chưa thuộc kho nào.");
             }
             long lineAmount = Math.round(itemReq.qty() * itemReq.price());
             itemsTotal += lineAmount;
@@ -114,7 +115,7 @@ public class PurchaseService {
             PurchaseInvoiceItem item = new PurchaseInvoiceItem(
                     invoice,
                     category,
-                    itemReq.name().strip(),
+                    category == null ? itemReq.name().strip() : category.getName(),
                     itemReq.qty(),
                     itemReq.unit().strip(),
                     itemReq.price(),

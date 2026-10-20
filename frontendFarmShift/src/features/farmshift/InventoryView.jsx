@@ -44,18 +44,13 @@ export const InventoryView = () => {
       }
     };
     const onStorage = event => { if (event.key === WAREHOUSE_CATEGORIES_CHANGED) load(); };
-    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
     load();
     window.addEventListener(WAREHOUSE_CATEGORIES_CHANGED, load);
     window.addEventListener('storage', onStorage);
-    window.addEventListener('focus', load);
-    document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
       window.removeEventListener(WAREHOUSE_CATEGORIES_CHANGED, load);
       window.removeEventListener('storage', onStorage);
-      window.removeEventListener('focus', load);
-      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [categoryRevision]);
 
