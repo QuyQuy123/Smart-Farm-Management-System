@@ -86,7 +86,7 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     }
   };
 
-  const header = (key, label, input, required) => <div className={key === 'description' ? styles.fullRow : undefined}>
+  const header = (key, label, input, required, span) => <div className={styles[span]}>
     <label htmlFor={`program-${key}`}>{label} {required && <span className={styles.required}>*</span>}</label>
     {input}
     <FieldError message={errors.fields[key]} />
@@ -109,16 +109,25 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     <form onSubmit={submit} noValidate>
       <div className={styles.editorBody}>
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
+        <h3 className={styles.blockTitle}>Thông tin chung</h3>
         <div className={styles.headerGrid}>
-          {header('name', 'Tên chương trình', headerInput('name', { maxLength: 150, placeholder: 'Ví dụ: Gà ta thả vườn', autoFocus: true }), true)}
-          {header('breed', 'Giống gà', headerInput('breed', { maxLength: 100, placeholder: 'Ví dụ: Gà ta' }), true)}
-          {header('durationDays', 'Thời gian nuôi (ngày)', headerInput('durationDays', { type: 'number', min: 1, max: 365, placeholder: 'Ví dụ: 105' }), true)}
-          {header('targetWeightMin', 'Cân xuất chuồng từ (kg)', headerInput('targetWeightMin', { type: 'number', min: 0, step: 0.01, placeholder: '1.5' }))}
-          {header('targetWeightMax', 'Đến (kg)', headerInput('targetWeightMax', { type: 'number', min: 0, step: 0.01, placeholder: '2.2' }))}
+          {header('name', 'Tên chương trình', headerInput('name', { maxLength: 150, placeholder: 'Ví dụ: Gà ta thả vườn', autoFocus: true }), true, 'half')}
+          {header('breed', 'Giống gà', headerInput('breed', { maxLength: 100, placeholder: 'Ví dụ: Gà ta' }), true, 'half')}
+          {header('durationDays', 'Thời gian nuôi (ngày)', headerInput('durationDays', { type: 'number', min: 1, max: 365, placeholder: 'Ví dụ: 105' }), true, 'third')}
+          <div className={styles.twoThirds}>
+            <label htmlFor="program-targetWeightMin">Cân xuất chuồng (kg)</label>
+            <div className={styles.range}>
+              {headerInput('targetWeightMin', { type: 'number', min: 0, step: 0.01, placeholder: 'Từ, ví dụ 1.5' })}
+              <span aria-hidden="true">–</span>
+              {headerInput('targetWeightMax', { type: 'number', min: 0, step: 0.01, placeholder: 'Đến, ví dụ 2.2', 'aria-label': 'Cân xuất chuồng đến (kg)' })}
+            </div>
+            <FieldError message={errors.fields.targetWeightMin || errors.fields.targetWeightMax} />
+          </div>
           {header('description', 'Mô tả', <textarea id="program-description" className="farmshift-form-control" rows={2} maxLength={1000} value={draft.description}
-            onChange={event => setField('description', event.target.value)} disabled={saving} placeholder="Ví dụ: Nuôi thả vườn khoảng 5 tháng" />)}
+            onChange={event => setField('description', event.target.value)} disabled={saving} placeholder="Ví dụ: Nuôi thả vườn khoảng 5 tháng" />, false, 'fullRow')}
         </div>
 
+        <h3 className={styles.blockTitle}>Nội dung theo ngày tuổi</h3>
         <div className={styles.sectionTabs} role="tablist">
           {STEP_CATEGORIES.map(item => {
             const count = draft.steps.filter(step => step.category === item.value).length;
@@ -156,7 +165,7 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
       </div>
       <footer className={styles.footer}>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose} disabled={saving}>Bỏ qua</button>
-        <button type="submit" className="farmshift-btn farmshift-btn-mint" disabled={saving} aria-busy={saving}>{saving ? 'Đang lưu...' : 'Lưu chương trình'}</button>
+        <button type="submit" className={`farmshift-btn ${styles.saveButton}`} disabled={saving} aria-busy={saving}>{saving ? 'Đang lưu...' : 'Lưu chương trình'}</button>
       </footer>
     </form>
   </Dialog>;
