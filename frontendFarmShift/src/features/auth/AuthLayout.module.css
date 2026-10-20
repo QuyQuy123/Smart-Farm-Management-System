@@ -14,7 +14,7 @@
 
 /* Left: farm photo with a green → young-green veil */
 .visual {
-  flex: 1.1;
+  flex: 1 1 0;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -68,6 +68,7 @@
   font-weight: 600;
   line-height: 1.22;
   letter-spacing: -0.02em;
+  color: #ffffff !important;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
 
@@ -85,7 +86,7 @@
 
 /* Right: white card on a pale mint canvas */
 .formPanel {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -137,7 +138,15 @@
   background-size: 200% 100% !important;
 }
 
-.card h2 { color: #14532d !important; }
+.card h2 { color: #14532d !important; font-size: 26px !important; }
+.card h2 + p { font-size: 15px !important; }
+
+/* Larger, easier-to-tap fields on the auth card */
+.card :global(.farmshift-form-label) { font-size: 14.5px; margin-bottom: 8px; }
+.card :global(.farmshift-form-group) { margin-bottom: 20px; }
+.card :global(.farmshift-form-control) { height: 52px !important; font-size: 15.5px; border-radius: 10px; }
+.card :global(.farmshift-btn-primary) { height: 54px !important; font-size: 16px !important; border-radius: 10px; }
+.card form label, .card form a { font-size: 14.5px !important; }
 
 @media (max-width: 1100px) {
   .visual { padding: 44px 40px; }
