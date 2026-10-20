@@ -20,6 +20,7 @@ import java.util.Locale;
 @Transactional(readOnly = true)
 public class ProductCategoryService {
     private final ProductCategoryRepository repository;
+    private final com.farmshift.backendFarmShift.repository.InventoryItemRepository inventory;
     private final com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouseRepository;
 
     public List<ProductCategoryResponse> list() {
@@ -39,13 +40,20 @@ public class ProductCategoryService {
     }
 
     @Transactional
-    public void delete(Long id) { repository.delete(find(id)); }
+    public void delete(Long id) {
+        var product = find(id);
+        if (inventory.existsByProduct_Id(id)) throw new ConflictException("Không thể xóa tên hàng hóa đang có trong kho.", "PRODUCT_IN_USE", null);
+        repository.delete(product);
+    }
 
     private ProductCategory find(Long id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tên hàng hóa."));
     }
 
     private ProductCategoryResponse save(ProductCategory category, ProductCategoryRequest request) {
+        if (category.getId() != null && category.getWarehouse() != null && !category.getWarehouse().getId().equals(request.warehouseId()) && inventory.existsByProduct_Id(category.getId())) {
+            throw new ConflictException("Không thể chuyển tên hàng hóa đã có hàng trong kho sang kho khác.", "PRODUCT_IN_USE", "warehouseId");
+        }
         String name = Normalizer.normalize(request.name().strip(), Normalizer.Form.NFC);
         String key = name.toLowerCase(Locale.ROOT);
         boolean duplicate = category.getId() == null ? repository.existsByNameKey(key)
@@ -71,11 +79,10 @@ public class ProductCategoryService {
     }
 
     private ProductCategoryResponse response(ProductCategory category) {
-        // No inventory-item entity exists yet; derive the count from that relationship when it is added.
         return new ProductCategoryResponse(category.getId(), String.format(Locale.ROOT, "HH%06d", category.getId()),
                 category.getName(), category.getDescription(),
                 category.getSpecification(), category.getBrand(), category.getProductType(),
-                0L, category.getCreatedAt(),
+                inventory.countByProduct_Id(category.getId()), category.getCreatedAt(),
                 category.getWarehouse() == null ? null : category.getWarehouse().getId(),
                 category.getWarehouse() == null ? null : category.getWarehouse().getName());
     }

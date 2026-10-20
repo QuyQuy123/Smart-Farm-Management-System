@@ -24,10 +24,50 @@ public class Supplier {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_type_id", nullable = false, foreignKey = @ForeignKey(name = "fk_supplier_product_type"))
     private ProductType productType;
+
+    @Column(length = 100)
+    private String email;
+
+    @Column(length = 300)
+    private String address;
+
+    @Column(name = "tax_code", length = 50)
+    private String taxCode;
+
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
+
+    @Column(name = "bank_account", length = 50)
+    private String bankAccount;
+
+    @Column(name = "payment_policy", length = 50)
+    private String paymentPolicy;
+
+    @Column(name = "opening_debt")
+    private Long openingDebt = 0L;
+
+    @Column(length = 1000)
+    private String note;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "supplier_tag_mappings",
+        joinColumns = @JoinColumn(name = "supplier_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private java.util.Set<PurchaseTag> tags = new java.util.HashSet<>();
+
     @CreationTimestamp @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
     @UpdateTimestamp @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     @PrePersist
-    void assignCode() { code = "NCC" + UUID.randomUUID().toString().replace("-", "").toUpperCase(java.util.Locale.ROOT); }
+    void assignCode() { 
+        if (code == null) {
+            code = "NCC" + UUID.randomUUID().toString().replace("-", "").toUpperCase(java.util.Locale.ROOT);
+        }
+        if (openingDebt == null) {
+            openingDebt = 0L;
+        }
+    }
 }

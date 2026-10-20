@@ -10,6 +10,32 @@
 .search input { width: 100%; min-width: 0; border: 0; outline: 0; font: inherit; font-size: 13px; background: transparent; }
 .total { color: #71818a; font-size: 12px; }
 .table { min-width: 780px; }
+.inventoryImage {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  flex: 0 0 56px;
+  overflow: hidden;
+  border-radius: 50%;
+  clip-path: circle(50% at 50% 50%);
+  background: #edf7f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.inventoryImage > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  max-width: none;
+  object-fit: cover;
+  object-position: center;
+}
 .table th { font-size: 12px; font-weight: 600; color: #607781; background: #f6f9f8; }
 .table td { padding-top: 18px; padding-bottom: 18px; }
 .code { font-family: monospace; font-size: 13px; color: #007968; background: #edf7f4; padding: 5px 8px; border-radius: 6px; }

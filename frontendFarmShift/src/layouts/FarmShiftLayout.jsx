@@ -1,6 +1,6 @@
 // src/layouts/FarmShiftLayout.jsx
 // FarmShift Shell Layout aligned with DESIGN.md
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
     Menu, Maximize, Minimize, Bell, User, LogOut,
@@ -99,12 +99,13 @@ const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
 export const FarmShiftLayout = ({
     children,
     pageTitle,
+    breadcrumbTitle = pageTitle,
     breadcrumbs = [],
     showShortcuts = false,
     actions = null,
 }) => {
     const { user, logout } = useAuth();
-    const { alerts, unreadCount, markAllAsRead, clearAllAlerts, activeToast, setActiveToast } = useNotification();
+    const { alerts, unreadCount, markAsRead, markAllAsRead, clearAllAlerts, activeToast, setActiveToast } = useNotification();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -121,6 +122,49 @@ export const FarmShiftLayout = ({
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const notifRef = useRef(null);
+    const userMenuRef = useRef(null);
+
+    // Xử lý nhấp chuột ra ngoài (click outside) để tự động đóng dropdown thông báo & user menu
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (notifRef.current && !notifRef.current.contains(event.target)) {
+                setNotifOpen(false);
+            }
+            if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+                setUserMenuOpen(false);
+            }
+        };
+
+        if (notifOpen || userMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('touchstart', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+        };
+    }, [notifOpen, userMenuOpen]);
+
+    // Hỗ trợ phím Escape để đóng nhanh
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setNotifOpen(false);
+                setUserMenuOpen(false);
+            }
+        };
+
+        if (notifOpen || userMenuOpen) {
+            document.addEventListener('keydown', handleKeyDown);
+        }
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [notifOpen, userMenuOpen]);
 
     // Cập nhật thời gian tương đối ("Vừa xong", "X phút trước") động theo thời gian thực mỗi 15s
     const [, setTick] = useState(0);
@@ -148,7 +192,7 @@ export const FarmShiftLayout = ({
             const next = !prev;
             try {
                 localStorage.setItem('farmshift_sidebar_collapsed', String(next));
-            } catch { }
+            } catch { /* ignore storage error */ }
             window.dispatchEvent(new CustomEvent('farmshift_sidebar_sync', { detail: next }));
             return next;
         });
@@ -183,6 +227,13 @@ export const FarmShiftLayout = ({
         return () => window.removeEventListener('farmshift_info_updated', handleFarmUpdate);
     }, [user]);
 
+    // Area and barn pages keep the "Khu nuôi" item highlighted; their sub-navigation is a tab bar on the page.
+    const inAreaPages = location.pathname.startsWith('/areas') || location.pathname.startsWith('/barns');
+
+    // "Trang trại Miền Bình" -> "MB": the last two words of the farm name, shown beside the wordmark.
+    const farmInitials = (farmInfo?.name || '').trim().split(/\s+/).slice(-2)
+        .map(word => word.charAt(0).toLocaleUpperCase('vi')).join('');
+
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(() => { });
@@ -195,7 +246,7 @@ export const FarmShiftLayout = ({
 
     const navMenuItems = [
         { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard },
-        { id: 'areas', label: 'Khu nuôi & Chuồng', path: '/areas', icon: Warehouse },
+        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse },
         { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList },
         { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package },
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight },
@@ -253,7 +304,7 @@ export const FarmShiftLayout = ({
                     </button>
 
                     {/* Notifications Dropdown */}
-                    <div style={{ position: 'relative' }}>
+                    <div ref={notifRef} style={{ position: 'relative' }}>
                         <button
                             className="farmshift-header-icon-btn"
                             title="Thông báo hệ thống"
@@ -284,22 +335,33 @@ export const FarmShiftLayout = ({
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-hairline)', paddingBottom: '10px', marginBottom: '10px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <strong style={{ fontSize: '14px', color: 'var(--color-ink)' }}>Thông báo & Cảnh báo</strong>
-                                        {unreadCount > 0 && (
+                                        {unreadCount > 0 ? (
                                             <span style={{ fontSize: '11px', background: 'var(--color-signature-coral)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontWeight: 600 }}>
                                                 {unreadCount} mới
                                             </span>
-                                        )}
+                                        ) : alerts.length > 0 ? (
+                                            <span style={{ fontSize: '11px', background: 'var(--color-surface-soft)', color: 'var(--color-muted)', borderRadius: '10px', padding: '1px 6px', fontWeight: 500 }}>
+                                                0 mới
+                                            </span>
+                                        ) : null}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        {unreadCount > 0 && (
+                                        {unreadCount > 0 ? (
                                             <span
-                                                style={{ fontSize: '12px', color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 500 }}
+                                                style={{ fontSize: '12px', color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
                                                 onClick={markAllAsRead}
                                                 title="Đánh dấu tất cả đã đọc"
                                             >
                                                 Đã đọc
                                             </span>
-                                        )}
+                                        ) : alerts.length > 0 ? (
+                                            <span
+                                                style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 400 }}
+                                                title="Đã đọc tất cả thông báo"
+                                            >
+                                                Đã đọc tất cả
+                                            </span>
+                                        ) : null}
                                         {alerts.length > 0 && (
                                             <span
                                                 style={{ fontSize: '12px', color: 'var(--color-muted)', cursor: 'pointer', fontWeight: 500 }}
@@ -320,41 +382,71 @@ export const FarmShiftLayout = ({
                                         alerts.map(al => {
                                             const isSuccess = al.level === 'Thành công' || al.type?.includes('Thành công');
                                             const isWarning = al.level === 'Cảnh báo';
+                                            const isRead = !!al.read;
                                             const formattedTime = formatNotificationTime(al.createdAt, al.time);
 
                                             return (
                                                 <div
                                                     key={al.id}
+                                                    onClick={() => {
+                                                        if (!isRead && markAsRead) {
+                                                            markAsRead(al.id);
+                                                        }
+                                                    }}
                                                     style={{
                                                         padding: '10px 12px',
                                                         borderRadius: 'var(--rounded-md)',
-                                                        backgroundColor: isSuccess ? '#f0fdf4' : 'var(--color-surface-soft)',
+                                                        backgroundColor: isRead
+                                                            ? '#f8fafc'
+                                                            : isSuccess
+                                                            ? '#f0fdf4'
+                                                            : 'var(--color-surface-soft)',
                                                         fontSize: '13px',
-                                                        border: isSuccess ? '1px solid #bbf7d0' : '1px solid var(--color-hairline)',
+                                                        border: isRead
+                                                            ? '1px solid #e2e8f0'
+                                                            : isSuccess
+                                                            ? '1px solid #bbf7d0'
+                                                            : '1px solid var(--color-hairline)',
                                                         display: 'flex',
                                                         flexDirection: 'column',
-                                                        gap: '4px'
+                                                        gap: '4px',
+                                                        cursor: !isRead ? 'pointer' : 'default',
+                                                        opacity: isRead ? 0.72 : 1,
+                                                        transition: 'all 0.25s ease'
                                                     }}
+                                                    title={!isRead ? 'Nhấp để đánh dấu đã đọc' : undefined}
                                                 >
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
                                                         <span style={{
-                                                            color: isSuccess ? '#16a34a' : isWarning ? 'var(--color-signature-coral)' : '#d97706',
+                                                            color: isRead
+                                                                ? '#64748b'
+                                                                : isSuccess
+                                                                ? '#16a34a'
+                                                                : isWarning
+                                                                ? 'var(--color-signature-coral)'
+                                                                : '#d97706',
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             gap: '5px'
                                                         }}>
-                                                            {isSuccess ? <CheckCircle size={13} color="#16a34a" /> : isWarning ? <AlertTriangle size={13} color="var(--color-signature-coral)" /> : <AlertCircle size={13} />}
+                                                            {isSuccess ? (
+                                                                <CheckCircle size={13} color={isRead ? '#94a3b8' : '#16a34a'} />
+                                                            ) : isWarning ? (
+                                                                <AlertTriangle size={13} color={isRead ? '#94a3b8' : 'var(--color-signature-coral)'} />
+                                                            ) : (
+                                                                <AlertCircle size={13} color={isRead ? '#94a3b8' : '#d97706'} />
+                                                            )}
                                                             {al.type}
                                                         </span>
-                                                        <span style={{ fontSize: '11px', color: 'var(--color-muted)', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                                        <span style={{ fontSize: '11px', color: isRead ? '#94a3b8' : 'var(--color-muted)', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                             {formattedTime}
                                                         </span>
                                                     </div>
-                                                    <div style={{ color: 'var(--color-ink)', lineHeight: 1.4 }}>
-                                                        {renderNotificationContent(al.barn, al.value, isSuccess)}
+                                                    <div style={{ color: isRead ? '#64748b' : 'var(--color-ink)', lineHeight: 1.4 }}>
+                                                        {renderNotificationContent(al.barn, al.value, isSuccess, isRead)}
                                                     </div>
                                                     {al.status && (
-                                                        <div style={{ fontSize: '11.5px', color: isSuccess ? '#16a34a' : 'var(--color-muted)' }}>
+                                                        <div style={{ fontSize: '11.5px', color: isRead ? '#94a3b8' : isSuccess ? '#16a34a' : 'var(--color-muted)' }}>
                                                             {al.status}
                                                         </div>
                                                     )}
@@ -368,7 +460,7 @@ export const FarmShiftLayout = ({
                     </div>
 
                     {/* User Profile Menu */}
-                    <div style={{ position: 'relative' }}>
+                    <div ref={userMenuRef} style={{ position: 'relative' }}>
                         <div
                             className="farmshift-user-menu"
                             onClick={() => { setUserMenuOpen(!userMenuOpen); setNotifOpen(false); }}
@@ -471,20 +563,8 @@ export const FarmShiftLayout = ({
             >
                 <div className="farmshift-sidebar-header">
                     {!collapsed ? (
-                        <Link to="/dashboard" className="farmshift-brand-box" style={{ textDecoration: 'none' }}>
-                            <img
-                                src={farmLogo}
-                                alt="FarmShift"
-                                style={{
-                                    width: '36px',
-                                    height: '36px',
-                                    objectFit: 'contain',
-                                    flexShrink: 0
-                                }}
-                            />
-                            <span className="farmshift-brand-title" style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.02em' }}>
-                                FarmShift
-                            </span>
+                        <Link to="/dashboard" className="farmshift-wordmark" aria-label="FarmShift - Bảng tin">
+                            farm<span>Shift</span>{farmInitials && <small>{farmInitials}</small>}
                         </Link>
                     ) : (
                         <Link
@@ -517,7 +597,8 @@ export const FarmShiftLayout = ({
                 <ul className="farmshift-menu">
                     {navMenuItems.map(item => {
                         const Icon = item.icon;
-                        const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/');
+                        const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/')
+                            || (item.id === 'areas' && inAreaPages);
                         return (
                             <li key={item.id}>
                                 <NavLink
@@ -528,7 +609,7 @@ export const FarmShiftLayout = ({
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
-                                        <Icon size={19} />
+                                        <Icon size={16} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (
@@ -556,7 +637,7 @@ export const FarmShiftLayout = ({
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
-                                        <Icon size={19} />
+                                        <Icon size={16} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (
@@ -589,7 +670,7 @@ export const FarmShiftLayout = ({
                                     </Fragment>
                                 ))}
                                 <span>›</span>
-                                <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{pageTitle}</span>
+                                <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
                             </div>
                         </div>
 

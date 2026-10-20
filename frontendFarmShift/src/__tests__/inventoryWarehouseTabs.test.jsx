@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { InventoryView } from '../features/farmshift/InventoryView';
+import { listInventoryItems } from '../services/inventoryItemService';
 import { listWarehouseCategories, WAREHOUSE_CATEGORIES_CHANGED } from '../services/warehouseCategoryService';
 
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children, actions }) => <div>{actions}{children}</div> }));
+vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: 'ROLE_FARM_OWNER' } }) }));
+vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: vi.fn() }) }));
+vi.mock('../services/inventoryItemService', () => ({ listInventoryItems: vi.fn(), createInventoryItem: vi.fn(), updateInventoryItem: vi.fn(), deleteInventoryItem: vi.fn() }));
 vi.mock('../services/warehouseCategoryService', () => ({ listWarehouseCategories: vi.fn(), WAREHOUSE_CATEGORIES_CHANGED: 'warehouse-categories-changed' }));
 const category = { id: 5, name: 'Kho mới từ database' };
 const renderView = () => render(<MemoryRouter><InventoryView /></MemoryRouter>);
@@ -13,6 +17,7 @@ const renderView = () => render(<MemoryRouter><InventoryView /></MemoryRouter>);
 describe('Inventory warehouse category tabs', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    listInventoryItems.mockResolvedValue([]);
     listWarehouseCategories.mockResolvedValue([category]);
   });
 
@@ -31,6 +36,26 @@ describe('Inventory warehouse category tabs', () => {
     await act(async () => { window.dispatchEvent(new Event(WAREHOUSE_CATEGORIES_CHANGED)); });
     expect(await screen.findByRole('button', { name: 'Kho đã đổi tên' })).toHaveClass('active');
     expect(screen.queryByRole('button', { name: 'Kho vừa tạo' })).not.toBeInTheDocument();
+  });
+
+  it('keeps items and search intact when returning to the browser tab, but refreshes on real category changes', async () => {
+    listInventoryItems.mockResolvedValue([{ id: 1, name: 'Cám gà', stock: 0, price: 1000 }]);
+    renderView();
+    await screen.findByRole('button', { name: 'Xem Cám gà' });
+    const categoryCalls = listWarehouseCategories.mock.calls.length;
+    const itemCalls = listInventoryItems.mock.calls.length;
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tìm hàng hóa' }), { target: { value: 'Cám' } });
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(listWarehouseCategories).toHaveBeenCalledTimes(categoryCalls);
+    expect(listInventoryItems).toHaveBeenCalledTimes(itemCalls);
+    expect(screen.getByRole('textbox', { name: 'Tìm hàng hóa' })).toHaveValue('Cám');
+    expect(screen.getByRole('button', { name: 'Xem Cám gà' })).toBeInTheDocument();
+    await act(async () => { window.dispatchEvent(new StorageEvent('storage', { key: WAREHOUSE_CATEGORIES_CHANGED, newValue: 'changed' })); });
+    await waitFor(() => expect(listWarehouseCategories).toHaveBeenCalledTimes(categoryCalls + 1));
+    await waitFor(() => expect(listInventoryItems.mock.calls.length).toBeGreaterThan(itemCalls));
   });
 
   it('disables creating inventory when no categories exist', async () => {

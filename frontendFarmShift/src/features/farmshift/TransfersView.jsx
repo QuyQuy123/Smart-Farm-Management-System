@@ -1,6 +1,6 @@
 // src/features/farmshift/TransfersView.jsx
 // Xuất nhập nội bộ & Luân chuyển kho chuẩn FarmShift & DESIGN.md
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowLeftRight, Plus, Search, FileSpreadsheet, CheckCircle,
   Package, Warehouse, RefreshCw, X, Trash2, FileText, ExternalLink
@@ -8,9 +8,12 @@ import {
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
 
+import { TransferCategoriesView } from './TransferCategoriesView';
+import { listTransferCategories, TRANSFER_TYPES } from '../../services/transferCategoryService';
+
 export const TransfersView = () => {
   const { showToast } = useNotification();
-  const [activeTab, setActiveTab] = useState('slips'); // 'slips' | 'categories'
+  const [activeTab, setActiveTab] = useState('create'); // 'create' | 'slips' | 'categories'
 
   // Slips List (Xuất nhập nội bộ.html)
   const [slips, setSlips] = useState([
@@ -68,14 +71,17 @@ export const TransfersView = () => {
     }
   ]);
 
-  // Categories List (Danh mục phiếu.html)
-  const [categories, setCategories] = useState([
-    { code: 'IC000001', type: 'Nhập kho', name: 'Cân bằng kho nhập', desc: 'Nhập kho để cân bằng số lượng tồn thực tế.', slipCount: 1, date: '06/10/2026' },
-    { code: 'EC000000', type: 'Xuất kho', name: 'Sử dụng nội bộ', desc: 'Xuất kho phục vụ cho ăn, thuốc điều trị tại các chuồng.', slipCount: 12, date: '01/10/2026' },
-    { code: 'CK000001', type: 'Chuyển kho', name: 'Chuyển kho nội bộ', desc: 'Điều chuyển vật tư, cám giữa các kho phụ và kho đệm.', slipCount: 5, date: '01/10/2026' },
-    { code: 'EC000002', type: 'Xuất kho', name: 'Xuất hủy', desc: 'Xuất bỏ hàng hỏng, vắc-xin quá hạn, cám mốc.', slipCount: 2, date: '25/09/2026' },
-    { code: 'IC000002', type: 'Nhập kho', name: 'Nhập đầu kỳ', desc: 'Ghi nhận số lượng tồn kho ban đầu khi mở trại.', slipCount: 1, date: '01/09/2026' },
-  ]);
+  const [categories, setCategories] = useState([]);
+  const [categoryLoading, setCategoryLoading] = useState(true), [categoryError, setCategoryError] = useState('');
+  const [categoryRevision, setCategoryRevision] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setCategoryLoading(true); setCategoryError('');
+    listTransferCategories().then(data => { if (!cancelled) setCategories(data); })
+      .catch(error => { if (!cancelled) setCategoryError(error.response?.data?.message || 'Không tải được danh mục phiếu.'); })
+      .finally(() => { if (!cancelled) setCategoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [categoryRevision]);
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,14 +89,12 @@ export const TransfersView = () => {
   const [filterCategory, setFilterCategory] = useState('ALL');
 
   // Modals
-  const [showCreateSlipModal, setShowCreateSlipModal] = useState(false);
-  const [showCreateCatModal, setShowCreateCatModal] = useState(false);
   const [selectedSlipDetail, setSelectedSlipDetail] = useState(null);
 
   // New Slip Form State
   const [newSlip, setNewSlip] = useState({
     type: 'Xuất kho',
-    category: 'Sử dụng nội bộ',
+    category: '',
     from: 'Kho Cám & Thức ăn',
     to: 'Khu Mía Thịt - Nhà A1',
     date: new Date().toLocaleDateString('vi-VN'),
@@ -98,13 +102,6 @@ export const TransfersView = () => {
     items: [
       { name: 'Cám Higro 01', qty: 10, unit: 'Bao (25kg)', price: 360000 }
     ]
-  });
-
-  // New Category State
-  const [newCat, setNewCat] = useState({
-    type: 'Xuất kho',
-    name: '',
-    desc: ''
   });
 
   const handleAddItemRow = () => {
@@ -142,25 +139,7 @@ export const TransfersView = () => {
       note: newSlip.note || 'Phiếu lập tự động'
     };
     setSlips([created, ...slips]);
-    setShowCreateSlipModal(false);
-    showToast('MSG03');
-  };
-
-  const handleCreateCategory = (e) => {
-    e.preventDefault();
-    if (!newCat.name) return;
-    const prefix = newCat.type === 'Nhập kho' ? 'IC' : newCat.type === 'Chuyển kho' ? 'CK' : 'EC';
-    const created = {
-      code: `${prefix}00000${categories.length + 1}`,
-      type: newCat.type,
-      name: newCat.name,
-      desc: newCat.desc,
-      slipCount: 0,
-      date: new Date().toLocaleDateString('vi-VN')
-    };
-    setCategories([...categories, created]);
-    setShowCreateCatModal(false);
-    setNewCat({ type: 'Xuất kho', name: '', desc: '' });
+    setActiveTab('slips');
     showToast('MSG03');
   };
 
@@ -184,39 +163,32 @@ export const TransfersView = () => {
           <button className="farmshift-btn farmshift-btn-excel">
             <FileSpreadsheet size={15} /> Xuất Excel
           </button>
-          {activeTab === 'slips' ? (
-            <button
-              className="farmshift-btn farmshift-btn-primary"
-              onClick={() => setShowCreateSlipModal(true)}
-            >
-              <Plus size={16} /> Tạo phiếu
-            </button>
-          ) : (
-            <button
-              className="farmshift-btn farmshift-btn-primary"
-              onClick={() => setShowCreateCatModal(true)}
-            >
-              <Plus size={16} /> Thêm danh mục
-            </button>
-          )}
+
         </div>
       }
     >
-      {/* ── Tabs Navigation: Phiếu xuất nhập vs Danh mục phiếu ── */}
+      {/* Tạo phiếu, danh sách phiếu và danh mục */}
       <div className="farmshift-tabs">
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'create' ? 'active' : ''}`}
+          onClick={() => setActiveTab('create')}
+        >
+          <Plus size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+          Tạo phiếu
+        </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'slips' ? 'active' : ''}`}
           onClick={() => setActiveTab('slips')}
         >
           <ArrowLeftRight size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Phiếu xuất nhập nội bộ
+          Danh sách phiếu
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
           onClick={() => setActiveTab('categories')}
         >
           <FileText size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Danh mục phiếu
+          Danh mục
         </button>
       </div>
 
@@ -252,10 +224,7 @@ export const TransfersView = () => {
                 onChange={(e) => setFilterCategory(e.target.value)}
               >
                 <option value="ALL">Tất cả danh mục</option>
-                <option value="Sử dụng nội bộ">Sử dụng nội bộ</option>
-                <option value="Chuyển kho nội bộ">Chuyển kho nội bộ</option>
-                <option value="Cân bằng kho nhập">Cân bằng kho nhập</option>
-                <option value="Xuất hủy">Xuất hủy</option>
+                {[...new Set(categories.map(category => category.name))].map(name => <option key={name} value={name}>{name}</option>)}
               </select>
             </div>
           </div>
@@ -321,70 +290,11 @@ export const TransfersView = () => {
       )}
 
       {/* ── TAB 2: Danh mục phiếu (Danh mục phiếu.html) ─────── */}
-      {activeTab === 'categories' && (
-        <div className="farmshift-card">
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Mã danh mục</th>
-                  <th>Loại phiếu</th>
-                  <th>Tên danh mục</th>
-                  <th>Mô tả quy cách</th>
-                  <th>Số phiếu</th>
-                  <th>Ngày tạo</th>
-                  <th style={{ textAlign: 'right' }}>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map(cat => (
-                  <tr key={cat.code}>
-                    <td>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 500, color: 'var(--color-muted)' }}>
-                        {cat.code}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="farmshift-badge farmshift-badge-neutral">{cat.type}</span>
-                    </td>
-                    <td>
-                      <strong style={{ color: 'var(--color-ink)' }}>{cat.name}</strong>
-                    </td>
-                    <td style={{ color: 'var(--color-muted)', fontSize: '13px' }}>{cat.desc}</td>
-                    <td>
-                      <span className="farmshift-badge farmshift-badge-neutral">{cat.slipCount} phiếu</span>
-                    </td>
-                    <td>{cat.date}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        className="farmshift-btn farmshift-btn-secondary"
-                        style={{ fontSize: '12px', padding: '4px 10px' }}
-                        onClick={() => showToast(`Chỉnh sửa danh mục: ${cat.name}`, 'info')}
-                      >
-                        Sửa
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'categories' && <TransferCategoriesView categories={categories} loading={categoryLoading} error={categoryError} onReload={() => setCategoryRevision(value => value + 1)} />}
 
-      {/* ── Modal: Tạo phiếu xuất nhập nội bộ (Tạo phiếu xuất nhập nội bộ.html) ── */}
-      {showCreateSlipModal && (
-        <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal" style={{ maxWidth: '780px' }}>
-            <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Tạo phiếu xuất nhập nội bộ</h3>
-              <button
-                onClick={() => setShowCreateSlipModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
+      {/* Form tạo phiếu hiển thị trực tiếp trong tab */}
+      {activeTab === 'create' && (
+        <div className="farmshift-card">
             <form onSubmit={handleCreateSlip}>
               <div className="farmshift-modal-body">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '14px' }}>
@@ -393,22 +303,25 @@ export const TransfersView = () => {
                     <select
                       className="farmshift-form-control"
                       value={newSlip.type}
-                      onChange={(e) => setNewSlip({ ...newSlip, type: e.target.value })}
+                      onChange={(e) => setNewSlip({ ...newSlip, type: e.target.value, category: '' })}
                     >
                       <option value="Xuất kho">Xuất kho sử dụng</option>
                       <option value="Chuyển kho">Chuyển kho nội bộ</option>
                       <option value="Nhập kho">Nhập cân bằng kho</option>
+                      {[...new Set(categories.map(c => TRANSFER_TYPES[c.type] || c.type))].filter(type => !['Nhập kho', 'Xuất kho', 'Chuyển kho'].includes(type)).map(type => <option key={type} value={type}>{type}</option>)}
                     </select>
                   </div>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Danh mục lý do *</label>
                     <select
                       className="farmshift-form-control"
+                      required
                       value={newSlip.category}
                       onChange={(e) => setNewSlip({ ...newSlip, category: e.target.value })}
                     >
-                      {categories.map(c => (
-                        <option key={c.code} value={c.name}>{c.name}</option>
+                      <option value="">Chọn danh mục</option>
+                      {categories.filter(c => (TRANSFER_TYPES[c.type] || c.type) === newSlip.type).map(c => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
                       ))}
                     </select>
                   </div>
@@ -581,73 +494,6 @@ export const TransfersView = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal: Thêm mới danh mục phiếu ─────────────────── */}
-      {showCreateCatModal && (
-        <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal">
-            <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Thêm mới danh mục phiếu</h3>
-              <button
-                onClick={() => setShowCreateCatModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleCreateCategory}>
-              <div className="farmshift-modal-body">
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Loại phiếu áp dụng *</label>
-                  <select
-                    className="farmshift-form-control"
-                    value={newCat.type}
-                    onChange={(e) => setNewCat({ ...newCat, type: e.target.value })}
-                  >
-                    <option value="Xuất kho">Xuất kho</option>
-                    <option value="Chuyển kho">Chuyển kho</option>
-                    <option value="Nhập kho">Nhập kho</option>
-                  </select>
-                </div>
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Tên danh mục *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="VD: Cân bằng kho nhập, Sử dụng thử nghiệm..."
-                    className="farmshift-form-control"
-                    value={newCat.name}
-                    onChange={(e) => setNewCat({ ...newCat, name: e.target.value })}
-                  />
-                </div>
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Mô tả mục đích</label>
-                  <textarea
-                    rows="2"
-                    placeholder="Diễn giải mục đích áp dụng..."
-                    className="farmshift-form-control"
-                    value={newCat.desc}
-                    onChange={(e) => setNewCat({ ...newCat, desc: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="farmshift-modal-footer">
-                <button
-                  type="button"
-                  className="farmshift-btn farmshift-btn-secondary"
-                  onClick={() => setShowCreateCatModal(false)}
-                >
-                  Bỏ qua
-                </button>
-                <button type="submit" className="farmshift-btn farmshift-btn-primary">
-                  Lưu danh mục
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
 

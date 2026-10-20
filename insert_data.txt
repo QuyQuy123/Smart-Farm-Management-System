@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Dữ liệu mẫu (Seed Data) cho dự án FarmShift
 -- Lưu ý: Các câu lệnh INSERT dưới đây đã bao gồm xử lý chống trùng lặp
--- (ON CONFLICT DO NOTHING) để an toàn khi chạy file nhiều lần.
+-- (ON CONFLICT DO NOTHING / DO UPDATE) để an toàn tuyệt đối khi chạy file nhiều lần.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -34,3 +34,419 @@ VALUES (1, 'Admin', '0989149421', '001000000000', 'Hà Nội'),
        (3, 'Trần Kế Toán', '0977222333', '001204000002', 'Vĩnh Phúc'),
        (4, 'Lê Công Nhân', '0966333444', '001204000003', 'Vĩnh Phúc')
 ON CONFLICT (account_id) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 4. Chèn dữ liệu Thông tin cơ sở & Trang trại (Farms)
+-- ID cố định = 1 cho trang trại hiện hành
+-- ---------------------------------------------------------------------
+INSERT INTO farms (id, name, owner, phone, scale, address, type, created_at, updated_at)
+VALUES (1, 'Trang trại Gà Thịt FarmShift', 'Nguyễn Văn Chủ Trại', '0989149421', '50,000 con', 'Tam Đảo, Vĩnh Phúc', 'Nuôi gà thịt thương phẩm an toàn sinh học', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (id) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 5. Chèn dữ liệu Danh bạ Khách hàng (Customer Contacts)
+-- ---------------------------------------------------------------------
+INSERT INTO customer_contacts (code, name, phone, created_at, updated_at)
+VALUES ('KH00000000000000000000000000001', 'Nguyễn Văn Hùng (Thương lái Lái Thiêu)', '0912345678', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('KH00000000000000000000000000002', 'Trần Thị Mai (Đại lý Gia cầm Miền Bắc)', '0987654321', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('KH00000000000000000000000000003', 'Hợp tác xã Nông nghiệp Tam Đảo', '02438221122', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (code) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 6. Chèn dữ liệu Danh mục Kho (Warehouse Categories)
+-- ---------------------------------------------------------------------
+INSERT INTO warehouse_categories (name, name_key, description, created_at, updated_at)
+VALUES ('Kho cám', 'kho cám', 'Kho bảo quản cám và thức ăn hỗn hợp chăn nuôi', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Kho thuốc & Vắc-xin', 'kho thuốc & vắc-xin', 'Kho bảo quản thuốc thú y, kháng sinh và tủ lạnh bảo quản vắc-xin', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Kho vật tư & thiết bị', 'kho vật tư & thiết bị', 'Kho chứa dụng cụ chăn nuôi, máng ăn, máng uống, đèn sưởi', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 7. Chèn dữ liệu Đơn vị tính (Measurement Units)
+-- ---------------------------------------------------------------------
+INSERT INTO measurement_units (code, code_key, name, name_key, description, created_at, updated_at)
+VALUES ('BAO25', 'bao25', 'Bao (25kg)', 'bao (25kg)', 'Bao tiêu chuẩn 25kg thức ăn chăn nuôi', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('KG', 'kg', 'Kg', 'kg', 'Kilogram tiêu chuẩn đo lường', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('LO1000', 'lo1000', 'Lọ 1000 liều', 'lọ 1000 liều', 'Lọ vắc-xin 1000 liều phòng bệnh', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('GOI1KG', 'goi1kg', 'Gói 1kg', 'gói 1kg', 'Gói thuốc bột / khoáng chất / hạ sốt 1kg', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('CHAI1L', 'chai1l', 'Chai 1L', 'chai 1l', 'Chai thuốc thú y dạng lỏng hoặc sát trùng 1 lít', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('CAN5L', 'can5l', 'Can 5L', 'can 5l', 'Can dung dịch sát trùng chuồng trại 5 lít', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('CON', 'con', 'Con', 'con', 'Đơn vị đếm con giống gia cầm', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (code_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 8. Chèn dữ liệu Nhãn hiệu (Brands)
+-- ---------------------------------------------------------------------
+INSERT INTO brands (name, name_key, product_type, quantity, note, created_at, updated_at)
+VALUES ('C.P. Việt Nam', 'c.p. việt nam', 'Thức ăn chăn nuôi', 0, 'Tập đoàn C.P. Việt Nam - Cung ứng cám Higro', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Tập đoàn Dabaco', 'tập đoàn dabaco', 'Con giống', 0, 'Dabaco Việt Nam - Cung ứng giống gà Mía, J-Dabaco', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Hanvet', 'hanvet', 'Thuốc thú y', 0, 'Công ty Cổ phần Dược và Vật tư Thú y Hanvet', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('FAVET', 'favet', 'Thuốc thú y', 0, 'Công ty Hóa chất Favet - Sát trùng chuồng trại BKC', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 9. Chèn dữ liệu Đơn vị quy cách (Specifications)
+-- ---------------------------------------------------------------------
+INSERT INTO specifications (name, name_key, unit, items, note, created_at, updated_at)
+VALUES ('Bao 25kg', 'bao 25kg', 'Bao', '25 kg', 'Quy cách đóng bao 25kg tiêu chuẩn nhà máy', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Chai 1L', 'chai 1l', 'Chai', '1 lít', 'Chai nhựa tiêu chuẩn 1 lít', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Gói 1kg', 'gói 1kg', 'Gói', '1 kg', 'Gói bạc hút chân không 1kg', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Lọ 1000 liều', 'lọ 1000 liều', 'Lọ', '1000 liều', 'Lọ thủy tinh chứa vắc-xin đông khô', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Can 5 lít', 'can 5 lít', 'Can', '5 lít', 'Can nhựa chứa dung dịch sát trùng', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 10. Chèn dữ liệu Khu nuôi (Farm Areas)
+-- ---------------------------------------------------------------------
+ALTER TABLE farm_areas DROP COLUMN IF EXISTS livestock_type;
+ALTER TABLE farm_areas DROP COLUMN IF EXISTS meals_per_day;
+
+INSERT INTO farm_areas (name, name_key, environment_metrics, animal_metrics, description, created_at, updated_at)
+VALUES ('Khu Mía Thịt', 'khu mía thịt', 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', 'Khu nuôi gà Mía thương phẩm', '2026-10-01 08:00:00', '2026-10-01 08:00:00'),
+       ('Khu J Thịt', 'khu j thịt', 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', 'Khu nuôi gà J-Dabaco thịt', '2026-10-01 08:30:00', '2026-10-01 08:30:00'),
+       ('Khu đông tảo', 'khu đông tảo', 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', '', '2026-10-06 08:00:00', '2026-10-06 08:00:00'),
+       ('Khu A', 'khu a', 'HUMIDITY,TEMPERATURE', 'WEIGHT,LOSS', '', '2026-10-07 08:00:00', '2026-10-07 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 11. Chèn dữ liệu Chuồng (Barns) - gắn vào khu nuôi theo tên khu
+-- ---------------------------------------------------------------------
+ALTER TABLE barns DROP COLUMN IF EXISTS purpose;
+
+INSERT INTO barns (area_id, name, name_key, status, capacity, current_quantity, target_weight, description, created_at, updated_at)
+SELECT a.id, b.name, b.name_key, b.status, b.capacity, b.current_quantity, NULL, '', b.created_at, b.created_at
+FROM (VALUES ('khu mía thịt', 'Nhà A1', 'nhà a1', 'ACTIVE', 50000, 50000, TIMESTAMP '2026-10-01 09:00:00'),
+             ('khu mía thịt', 'Nhà A2', 'nhà a2', 'ACTIVE', 50000, 40000, TIMESTAMP '2026-10-01 09:10:00'),
+             ('khu mía thịt', 'Nhà A3', 'nhà a3', 'ACTIVE', 50000, 30000, TIMESTAMP '2026-10-01 09:20:00'),
+             ('khu j thịt', 'Nhà B1', 'nhà b1', 'ACTIVE', 80000, 50000, TIMESTAMP '2026-10-01 09:30:00'),
+             ('khu j thịt', 'Nhà B2', 'nhà b2', 'ACTIVE', 80000, 50000, TIMESTAMP '2026-10-01 09:40:00'))
+     AS b(area_key, name, name_key, status, capacity, current_quantity, created_at)
+JOIN farm_areas a ON a.name_key = b.area_key
+ON CONFLICT ON CONSTRAINT uk_barns_area_name DO NOTHING;
+
+-- Cập nhật diện tích chuồng (m²)
+UPDATE barns b SET area_m2 = v.area_m2
+FROM (VALUES ('khu mía thịt', 'nhà a1', 1000), ('khu mía thịt', 'nhà a2', 1000), ('khu mía thịt', 'nhà a3', 1000),
+             ('khu j thịt', 'nhà b1', 1600), ('khu j thịt', 'nhà b2', 1600)) AS v(area_key, barn_key, area_m2),
+     farm_areas a
+WHERE a.id = b.area_id AND a.name_key = v.area_key AND b.name_key = v.barn_key AND b.area_m2 IS NULL;
+
+-- ---------------------------------------------------------------------
+-- 12. Lứa nuôi (Farming Cycles)
+-- ---------------------------------------------------------------------
+INSERT INTO farming_cycles (barn_id, cycle_number, start_date, hatch_date, end_date, status, note, created_at, updated_at)
+SELECT b.id, 1, DATE '2026-10-01', NULL, NULL, 'ACTIVE', '', TIMESTAMP '2026-10-01 07:00:00', TIMESTAMP '2026-10-01 07:00:00'
+FROM barns b JOIN farm_areas a ON a.id = b.area_id
+WHERE (a.name_key, b.name_key) IN (('khu mía thịt', 'nhà a1'), ('khu mía thịt', 'nhà a2'), ('khu mía thịt', 'nhà a3'),
+                                   ('khu j thịt', 'nhà b1'), ('khu j thịt', 'nhà b2'))
+ON CONFLICT ON CONSTRAINT uk_cycles_barn_number DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 13. Đàn (Flocks) & Biến động đàn (Flock Movements)
+-- ---------------------------------------------------------------------
+INSERT INTO flocks (cycle_id, name, gender, source_type, source_note, source_flock_id, import_date, age_at_import, import_quantity,
+                    import_avg_weight, unit_price, quantity, status, note, created_at, updated_at)
+SELECT c.id, v.name, v.gender, 'PURCHASE', 'Khác', NULL, DATE '2026-10-01', 1, v.qty, 0.040, v.price, v.qty, 'ACTIVE', '',
+       TIMESTAMP '2026-10-01 08:00:00', TIMESTAMP '2026-10-01 08:00:00'
+FROM (VALUES ('khu mía thịt', 'nhà a1', 'MÍA-DABACO XÔ', 'MIXED', 50000, 11000),
+             ('khu mía thịt', 'nhà a2', 'MÍA-DABACO XÔ', 'MIXED', 40000, 11000),
+             ('khu mía thịt', 'nhà a3', 'MÍA-DABACO TRỐNG', 'MALE', 20000, 11000),
+             ('khu mía thịt', 'nhà a3', 'MÍA-DABACO MÁI', 'FEMALE', 10000, 11500),
+             ('khu j thịt', 'nhà b1', 'J-DABACO XÔ', 'MIXED', 50000, 10500),
+             ('khu j thịt', 'nhà b2', 'J-DABACO XÔ', 'MIXED', 50000, 10500)) AS v(area_key, barn_key, name, gender, qty, price)
+JOIN farm_areas a ON a.name_key = v.area_key
+JOIN barns b ON b.area_id = a.id AND b.name_key = v.barn_key
+JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = 1
+WHERE NOT EXISTS (SELECT 1 FROM flocks f WHERE f.cycle_id = c.id AND f.name = v.name);
+
+INSERT INTO flock_movements (flock_id, type, movement_date, quantity, weight_kg, unit_price, related_flock_id, note, created_by, created_at)
+SELECT f.id, 'IMPORT', f.import_date, f.import_quantity, f.import_quantity * f.import_avg_weight, NULL, NULL, 'Dữ liệu mẫu', 'seed', f.created_at
+FROM flocks f
+WHERE NOT EXISTS (SELECT 1 FROM flock_movements m WHERE m.flock_id = f.id AND m.type = 'IMPORT');
+
+UPDATE barns b SET current_quantity = COALESCE((SELECT SUM(f.quantity) FROM flocks f JOIN farming_cycles c ON c.id = f.cycle_id
+                                                WHERE c.barn_id = b.id AND c.status = 'ACTIVE'), 0);
+UPDATE barns b SET status = CASE WHEN EXISTS (SELECT 1 FROM farming_cycles c WHERE c.barn_id = b.id AND c.status = 'ACTIVE')
+                                 THEN 'ACTIVE' ELSE 'INACTIVE' END;
+
+-- ---------------------------------------------------------------------
+-- 14. Chương trình nuôi theo giống (Farming Programs & Steps)
+-- ---------------------------------------------------------------------
+DROP TABLE IF EXISTS cycle_programs;
+ALTER TABLE farming_programs DROP COLUMN IF EXISTS type;
+
+INSERT INTO farming_programs (name, name_key, breed, duration_days, target_weight_min, target_weight_max, description, created_at, updated_at)
+VALUES ('Gà ta thả vườn', 'gà ta thả vườn', 'Gà ta', 105, 1.50, 2.20, 'Nuôi thả vườn khoảng 5 tháng, xuất chuồng 1,5–2,2 kg/con', TIMESTAMP '2026-09-25 08:00:00', TIMESTAMP '2026-09-25 08:00:00'),
+       ('Gà Mía thương phẩm', 'gà mía thương phẩm', 'Gà Mía', 90, 2.00, 2.60, 'Gà Mía Dabaco nuôi bán chăn thả', TIMESTAMP '2026-09-25 08:10:00', TIMESTAMP '2026-09-25 08:10:00'),
+       ('Gà J-Dabaco thương phẩm', 'gà j-dabaco thương phẩm', 'Gà J-Dabaco', 75, 2.20, 2.60, 'Gà J lông màu nuôi chuồng kín', TIMESTAMP '2026-09-25 08:20:00', TIMESTAMP '2026-09-25 08:20:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+INSERT INTO farming_program_steps (program_id, category, name, day_from, day_to, quantity, unit, meals_per_day, method, temp_min, temp_max, note)
+SELECT p.id, v.category, v.name, v.day_from, v.day_to, v.quantity, v.unit, v.meals, v.method, v.temp_min, v.temp_max, v.note
+FROM (VALUES
+  -- Gà ta thả vườn (105 ngày)
+  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 1, 7, 10.0, 'g/con/ngày', 6, NULL, NULL, NULL, 'Rải cám mỏng trên khay, ăn tự do'),
+  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 8, 14, 18.0, 'g/con/ngày', 5, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 15, 21, 25.0, 'g/con/ngày', 4, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED', 'Cám gà choai (Higro 02)', 22, 35, 40.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED', 'Cám gà choai (Higro 02)', 36, 56, 55.0, 'g/con/ngày', 3, NULL, NULL, NULL, 'Bắt đầu thả vườn ban ngày'),
+  ('gà ta thả vườn', 'FEED', 'Cám gà lớn (Higro 03) + ngô', 57, 84, 70.0, 'g/con/ngày', 2, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED', 'Cám gà lớn (Higro 03) + ngô', 85, 105, 80.0, 'g/con/ngày', 2, NULL, NULL, NULL, 'Vỗ béo trước xuất chuồng'),
+  ('gà ta thả vườn', 'VACCINE', 'Marek', 1, 1, 1, 'liều/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cổ'),
+  ('gà ta thả vườn', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 3, 3, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE', 'Gumboro lần 1', 7, 7, 1, 'giọt/con', NULL, 'MOUTH', NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE', 'Đậu gà', 8, 8, 1, 'liều/con', NULL, 'WING_WEB', NULL, NULL, 'Chủng màng cánh bằng kim chủng'),
+  ('gà ta thả vườn', 'VACCINE', 'Gumboro lần 2', 14, 14, 1, 'liều/con', NULL, 'DRINKING_WATER', NULL, NULL, 'Cho uống hết trong 2 giờ'),
+  ('gà ta thả vườn', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE', 'Cúm gia cầm H5N1', 35, 35, 0.5, 'ml/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cổ'),
+  ('gà ta thả vườn', 'VACCINE', 'Newcastle hệ I (M)', 42, 42, 0.2, 'ml/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cánh'),
+  ('gà ta thả vườn', 'MEDICINE', 'Vitamin C + điện giải', 1, 7, 2, 'g/lít nước', NULL, 'MIX_WATER', NULL, NULL, 'Chống stress úm'),
+  ('gà ta thả vườn', 'MEDICINE', 'Amoxicillin phòng úm', 1, 3, 1, 'g/lít nước', NULL, 'MIX_WATER', NULL, NULL, ''),
+  ('gà ta thả vườn', 'MEDICINE', 'Toltrazuril phòng cầu trùng', 15, 17, 1, 'ml/lít nước', NULL, 'MIX_WATER', NULL, NULL, ''),
+  ('gà ta thả vườn', 'MEDICINE', 'Men tiêu hóa', 30, 34, 2, 'g/kg cám', NULL, 'MIX_FEED', NULL, NULL, 'Trộn đều với cám trước khi cho ăn'),
+  ('gà ta thả vườn', 'MEDICINE', 'Toltrazuril phòng cầu trùng lần 2', 45, 47, 1, 'ml/lít nước', NULL, 'MIX_WATER', NULL, NULL, 'Ngừng thuốc 14 ngày trước xuất bán'),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm 3 ngày đầu', 1, 3, NULL, NULL, NULL, NULL, 32, 34, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 1', 4, 7, NULL, NULL, NULL, NULL, 30, 32, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 2', 8, 14, NULL, NULL, NULL, NULL, 28, 30, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 3', 15, 21, NULL, NULL, NULL, NULL, 26, 28, 'Giảm dần đèn sưởi'),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Gà lớn', 22, 105, NULL, NULL, NULL, NULL, 22, 30, 'Mở bạt thông thoáng'),
+  ('gà ta thả vườn', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 105, NULL, NULL, NULL, NULL, NULL, NULL, 'Mỗi sáng'),
+  ('gà ta thả vườn', 'WORK', 'Kiểm tra quây úm, đèn sưởi', 1, 21, NULL, NULL, NULL, NULL, NULL, NULL, ''),
+  ('gà ta thả vườn', 'WORK', 'Thả vườn ban ngày, nhốt chuồng ban đêm', 36, 105, NULL, NULL, NULL, NULL, NULL, NULL, ''),
+  -- Gà Mía thương phẩm (90 ngày)
+  ('gà mía thương phẩm', 'FEED', 'Higro 01', 1, 14, 20.0, 'g/con/ngày', 5, NULL, NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED', 'Higro 02', 15, 35, 60.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED', 'Higro 02', 36, 60, 85.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED', 'Higro 03', 61, 90, 110.0, 'g/con/ngày', 2, NULL, NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 5, 5, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE', 'Gumboro lần 1', 10, 10, 1, 'giọt/con', NULL, 'MOUTH', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE', 'Gumboro lần 2', 17, 17, 1, 'liều/con', NULL, 'DRINKING_WATER', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'MEDICINE', 'Men tiêu hóa', 15, 19, 2, 'g/kg cám', NULL, 'MIX_FEED', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'TEMPERATURE', 'Úm', 1, 14, NULL, NULL, NULL, NULL, 29, 33, ''),
+  ('gà mía thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 90, NULL, NULL, NULL, NULL, 24, 30, ''),
+  ('gà mía thương phẩm', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 90, NULL, NULL, NULL, NULL, NULL, NULL, ''),
+  -- Gà J-Dabaco thương phẩm (75 ngày)
+  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 01', 1, 14, 22.0, 'g/con/ngày', 5, NULL, NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 02', 15, 42, 75.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 03', 43, 75, 120.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 5, 5, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE', 'Gumboro lần 1', 10, 10, 1, 'giọt/con', NULL, 'MOUTH', NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Úm', 1, 14, NULL, NULL, NULL, NULL, 29, 33, ''),
+  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 75, NULL, NULL, NULL, NULL, 22, 28, ''),
+  ('gà j-dabaco thương phẩm', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 75, NULL, NULL, NULL, NULL, NULL, NULL, ''))
+  AS v(program_key, category, name, day_from, day_to, quantity, unit, meals, method, temp_min, temp_max, note)
+JOIN farming_programs p ON p.name_key = v.program_key
+WHERE NOT EXISTS (SELECT 1 FROM farming_program_steps s WHERE s.program_id = p.id AND s.category = v.category AND s.name = v.name AND s.day_from = v.day_from);
+
+UPDATE flocks f SET program_id = p.id
+FROM farming_programs p
+WHERE f.program_id IS NULL
+  AND ((f.name LIKE 'MÍA%' AND p.name_key = 'gà mía thương phẩm') OR (f.name LIKE 'J-%' AND p.name_key = 'gà j-dabaco thương phẩm'));
+
+-- ---------------------------------------------------------------------
+-- 15. Chèn dữ liệu Thẻ Tags phân loại (Purchase Tags)
+-- ---------------------------------------------------------------------
+INSERT INTO purchase_tags (name, name_key, color, description, created_at, updated_at)
+VALUES ('Cám Giai đoạn 1 (Úm)', 'cám giai đoạn 1 (úm)', '#019788', 'Thẻ phân loại cám gà con úm', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Cám Giai đoạn 2 (Thịt)', 'cám giai đoạn 2 (thịt)', '#795548', 'Thẻ phân loại cám gà thịt tăng trưởng', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Vắc-xin phòng định kỳ', 'vắc-xin phòng định kỳ', '#0288d1', 'Thẻ phân loại vắc-xin và thuốc thú y', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Gà giống đợt tháng 9', 'gà giống đợt tháng 9', '#aa2d00', 'Thẻ phân loại nhập đàn con giống', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 16. Chèn dữ liệu Loại hàng hóa (Product Types) & Nhà cung cấp (Suppliers)
+-- ---------------------------------------------------------------------
+INSERT INTO product_types (code, name, name_key, description, quantity, created_at, updated_at)
+VALUES ('LH000001', 'Thức ăn chăn nuôi', 'thức ăn chăn nuôi', 'Cám gà các giai đoạn', 0, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('LH000002', 'Con giống', 'con giống', 'Gà giống các loại', 0, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('LH000003', 'Thuốc thú y', 'thuốc thú y', 'Vắc-xin, kháng sinh, sát trùng', 0, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('LH000004', 'Thiết bị & Dụng cụ', 'thiết bị & dụng cụ', 'Máng ăn, máng uống, chụp sưởi', 0, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+INSERT INTO suppliers (code, name, name_key, representative, phone, product_type_id, email, address, tax_code, bank_name, bank_account, payment_policy, opening_debt, note, created_at, updated_at)
+SELECT v.code, v.name, v.name_key, v.representative, v.phone, pt.id, v.email, v.address, v.tax_code, v.bank_name, v.bank_account, v.payment_policy, v.opening_debt, v.note, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'
+FROM (VALUES
+  ('NCC00000000000000000000000000001', 'Công ty CP Chăn nuôi C.P. Việt Nam', 'công ty cp chăn nuôi c.p. việt nam', 'Nguyễn Văn An', '02438220000', 'thức ăn chăn nuôi', 'contact@cp.com.vn', 'KCN Biên Hòa II, Đồng Nai', '0300645678', 'Vietcombank', '0011001234567', 'Trả sau', 0, 'Nhà cung cấp cám Higro độc quyền'),
+  ('NCC00000000000000000000000000002', 'Tập đoàn Dabaco Việt Nam', 'tập đoàn dabaco việt nam', 'Nguyễn Như So', '02223826077', 'con giống', 'info@dabaco.com.vn', 'Số 35 Lý Thái Tổ, Bắc Ninh', '2300123456', 'BIDV', '12010000987654', 'Trả theo đơn', 0, 'Cung cấp con giống gà J-Dabaco, Mía Dabaco'),
+  ('NCC00000000000000000000000000003', 'Công ty Thuốc Thú y Hanvet', 'công ty thuốc thú y hanvet', 'Nguyễn Hữu Vũ', '02438583583', 'thuốc thú y', 'support@hanvet.com.vn', 'KCN Đồng Văn, Hà Nam', '0100234567', 'Agribank', '1500205123456', 'Trả theo đơn', 0, 'Vắc-xin Lasota, Gumboro, kháng sinh'),
+  ('NCC00000000000000000000000000004', 'Công ty Hóa chất FAVET', 'công ty hóa chất favet', 'Lê Hùng', '02436811234', 'thuốc thú y', 'favet@favet.vn', 'Thường Tín, Hà Nội', '0100987654', 'Techcombank', '19020011223344', 'Trả theo đơn', 0, 'Thuốc sát trùng chuồng trại BKC')
+) AS v(code, name, name_key, representative, phone, pt_key, email, address, tax_code, bank_name, bank_account, payment_policy, opening_debt, note)
+JOIN product_types pt ON pt.name_key = v.pt_key
+ON CONFLICT (name_key) DO UPDATE SET
+  address = EXCLUDED.address,
+  note = EXCLUDED.note,
+  email = EXCLUDED.email,
+  tax_code = EXCLUDED.tax_code,
+  bank_name = EXCLUDED.bank_name,
+  bank_account = EXCLUDED.bank_account,
+  payment_policy = EXCLUDED.payment_policy;
+
+-- Gắn thẻ Tags cho nhà cung cấp
+INSERT INTO supplier_tag_mappings (supplier_id, tag_id)
+SELECT s.id, t.id
+FROM suppliers s, purchase_tags t
+WHERE (s.name_key = 'công ty cp chăn nuôi c.p. việt nam' AND t.name_key IN ('cám giai đoạn 1 (úm)', 'cám giai đoạn 2 (thịt)'))
+   OR (s.name_key = 'tập đoàn dabaco việt nam' AND t.name_key = 'gà giống đợt tháng 9')
+   OR (s.name_key = 'công ty thuốc thú y hanvet' AND t.name_key = 'vắc-xin phòng định kỳ')
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 17. Chèn dữ liệu Hóa đơn nhập hàng (Purchase Invoices)
+-- ---------------------------------------------------------------------
+INSERT INTO purchase_invoices (code, supplier_id, invoice_date, discount_amount, other_cost, total_amount, paid_amount, payment_status, stock_status, reference_code, note, created_at, updated_at)
+SELECT v.code, s.id, v.invoice_date, 0, 0, v.total_amount, v.paid_amount, v.payment_status, 'Đã nhập kho', v.ref_code, v.note, v.created_at, v.created_at
+FROM (VALUES
+  ('NH000000', 'công ty cp chăn nuôi c.p. việt nam', DATE '2026-09-15', 112500000, 112500000, 'Thanh toán hoàn tất', 'HD-CP-0915', 'Nhập cám gà giai đoạn 1 và giai đoạn 2 lứa tháng 9', TIMESTAMP '2026-09-15 08:30:00'),
+  ('NH000001', 'tập đoàn dabaco việt nam', DATE '2026-09-18', 92500000, 92500000, 'Thanh toán hoàn tất', 'HD-DBC-0918', 'Nhập 5,000 con gà giống J-Dabaco', TIMESTAMP '2026-09-18 09:00:00'),
+  ('NH000002', 'công ty thuốc thú y hanvet', DATE '2026-09-25', 8560000, 8560000, 'Thanh toán hoàn tất', 'HD-HAN-0925', 'Vắc-xin phòng Newcastle & Gumboro định kỳ', TIMESTAMP '2026-09-25 10:15:00'),
+  ('NH000003', 'công ty cp chăn nuôi c.p. việt nam', DATE '2026-10-02', 68250000, 0, 'Trả sau', 'HD-CP-1002', 'Nhập đợt bổ sung cám vỗ béo Higro 03', TIMESTAMP '2026-10-02 08:45:00')
+) AS v(code, s_key, invoice_date, total_amount, paid_amount, payment_status, ref_code, note, created_at)
+JOIN suppliers s ON s.name_key = v.s_key
+ON CONFLICT (code) DO NOTHING;
+
+-- Chi tiết mặt hàng cho từng hóa đơn nhập
+INSERT INTO purchase_invoice_items (invoice_id, product_name, quantity, unit, unit_price, vat_rate, amount)
+SELECT p.id, v.product_name, v.qty, v.unit, v.unit_price, 0, v.amount
+FROM (VALUES
+  ('NH000000', 'Cám Gà úm Higro 01', 150.0, 'Bao (25kg)', 345000, 51750000),
+  ('NH000000', 'Cám Gà thịt Higro 02', 180.0, 'Bao (25kg)', 335000, 60750000),
+  ('NH000001', 'Gà giống J-Dabaco trống', 5000.0, 'Con', 18500, 92500000),
+  ('NH000002', 'Vắc-xin Newcastle Lasota', 30.0, 'Lọ 1000 liều', 42000, 1260000),
+  ('NH000002', 'Kháng sinh Doxycycline 50%', 10.0, 'Gói 1kg', 450000, 4500000),
+  ('NH000002', 'Hạ sốt Paracetamol C', 32.0, 'Gói 1kg', 85000, 2720000),
+  ('NH000003', 'Cám Gà vỗ béo Higro 03', 210.0, 'Bao (25kg)', 325000, 68250000)
+) AS v(po_code, product_name, qty, unit, unit_price, amount)
+JOIN purchase_invoices p ON p.code = v.po_code
+WHERE NOT EXISTS (SELECT 1 FROM purchase_invoice_items it WHERE it.invoice_id = p.id AND it.product_name = v.product_name);
+
+-- Gắn thẻ Tags cho hóa đơn nhập
+INSERT INTO purchase_invoice_tag_mappings (invoice_id, tag_id)
+SELECT p.id, t.id
+FROM purchase_invoices p, purchase_tags t
+WHERE (p.code IN ('NH000000', 'NH000003') AND t.name_key IN ('cám giai đoạn 1 (úm)', 'cám giai đoạn 2 (thịt)'))
+   OR (p.code = 'NH000001' AND t.name_key = 'gà giống đợt tháng 9')
+   OR (p.code = 'NH000002' AND t.name_key = 'vắc-xin phòng định kỳ')
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 18. Chèn dữ liệu Tên hàng hóa (Product Categories) & Gắn kho
+-- ---------------------------------------------------------------------
+INSERT INTO product_categories (name, name_key, warehouse_id, brand, specification, product_type, created_at, updated_at)
+SELECT v.name, v.name_key, w.id, v.brand, v.spec, v.ptype, v.created_at, v.created_at
+FROM (VALUES
+  ('Cám Gà úm Higro 01', 'cám gà úm higro 01', 'kho cám', 'C.P. Việt Nam', 'Bao 25kg', 'Thức ăn chăn nuôi', TIMESTAMP '2026-09-15 08:30:00'),
+  ('Cám Gà thịt Higro 02', 'cám gà thịt higro 02', 'kho cám', 'C.P. Việt Nam', 'Bao 25kg', 'Thức ăn chăn nuôi', TIMESTAMP '2026-09-15 08:30:00'),
+  ('Cám Gà vỗ béo Higro 03', 'cám gà vỗ béo higro 03', 'kho cám', 'C.P. Việt Nam', 'Bao 25kg', 'Thức ăn chăn nuôi', TIMESTAMP '2026-10-02 08:45:00'),
+  ('Vắc-xin Newcastle Lasota', 'vắc-xin newcastle lasota', 'kho thuốc & vắc-xin', 'Hanvet', 'Lọ 1000 liều', 'Thuốc thú y', TIMESTAMP '2026-09-25 10:15:00'),
+  ('Kháng sinh Doxycycline 50%', 'kháng sinh doxycycline 50%', 'kho thuốc & vắc-xin', 'Hanvet', 'Gói 1kg', 'Thuốc thú y', TIMESTAMP '2026-09-25 10:15:00'),
+  ('Hạ sốt Paracetamol C', 'hạ sốt paracetamol c', 'kho thuốc & vắc-xin', 'Hanvet', 'Gói 1kg', 'Thuốc thú y', TIMESTAMP '2026-09-25 10:15:00')
+) AS v(name, name_key, wh_key, brand, spec, ptype, created_at)
+JOIN warehouse_categories w ON w.name_key = v.wh_key
+ON CONFLICT (name_key) DO UPDATE SET
+  warehouse_id = EXCLUDED.warehouse_id,
+  brand = EXCLUDED.brand,
+  specification = EXCLUDED.specification,
+  product_type = EXCLUDED.product_type;
+
+-- Đồng bộ ID tên hàng hóa vào chi tiết hóa đơn nhập (nếu chưa liên kết)
+UPDATE purchase_invoice_items pii
+SET product_category_id = pc.id
+FROM product_categories pc
+WHERE LOWER(pii.product_name) = LOWER(pc.name) AND pii.product_category_id IS NULL;
+
+-- ---------------------------------------------------------------------
+-- 19. Khởi tạo Tồn kho ban đầu (Inventory Items) theo từng kho
+-- ---------------------------------------------------------------------
+ALTER TABLE inventory_items DROP COLUMN IF EXISTS product_name;
+ALTER TABLE inventory_items DROP COLUMN IF EXISTS product_name_key;
+ALTER TABLE inventory_items DROP COLUMN IF EXISTS cost_price;
+ALTER TABLE inventory_items DROP COLUMN IF EXISTS unit;
+
+INSERT INTO inventory_items (code, warehouse_id, product_id, brand_id, unit_id, price, stock, created_at, updated_at)
+SELECT 'SP' || UPPER(SUBSTRING(MD5(pc.name_key) FROM 1 FOR 12)),
+       pc.warehouse_id,
+       pc.id,
+       b.id,
+       u.id,
+       CASE 
+         WHEN pc.name_key = 'cám gà úm higro 01' THEN 345000
+         WHEN pc.name_key = 'cám gà thịt higro 02' THEN 335000
+         WHEN pc.name_key = 'cám gà vỗ béo higro 03' THEN 325000
+         WHEN pc.name_key = 'vắc-xin newcastle lasota' THEN 42000
+         WHEN pc.name_key = 'kháng sinh doxycycline 50%' THEN 450000
+         ELSE 85000
+       END,
+       CASE 
+         WHEN pc.name_key = 'cám gà úm higro 01' THEN 150.000
+         WHEN pc.name_key = 'cám gà thịt higro 02' THEN 180.000
+         WHEN pc.name_key = 'cám gà vỗ béo higro 03' THEN 210.000
+         WHEN pc.name_key = 'vắc-xin newcastle lasota' THEN 30.000
+         WHEN pc.name_key = 'kháng sinh doxycycline 50%' THEN 10.000
+         ELSE 32.000
+       END,
+       pc.created_at,
+       pc.updated_at
+FROM product_categories pc
+LEFT JOIN brands b ON LOWER(b.name) = LOWER(pc.brand)
+LEFT JOIN measurement_units u ON LOWER(u.name) = LOWER(pc.specification) OR LOWER(u.code) = LOWER(pc.specification)
+WHERE pc.name_key IN (
+  'cám gà úm higro 01', 'cám gà thịt higro 02', 'cám gà vỗ béo higro 03',
+  'vắc-xin newcastle lasota', 'kháng sinh doxycycline 50%', 'hạ sốt paracetamol c'
+)
+ON CONFLICT (warehouse_id, product_id) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 20. Chèn dữ liệu Nhật ký cám mẫu (Feed Records) cho lứa đang nuôi
+-- ---------------------------------------------------------------------
+INSERT INTO feed_records (cycle_id, record_date, feed_name, quantity_kg, unit_price, note, created_by, created_at)
+SELECT c.id, v.record_date, v.feed_name, v.quantity_kg, v.unit_price, v.note, 'admin', v.created_at
+FROM (VALUES
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-02', 'Higro 01', 500.000, 13800.00, 'Cấp cám úm ngày 2', TIMESTAMP '2026-10-02 08:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-05', 'Higro 01', 850.000, 13800.00, 'Cấp cám úm ngày 5', TIMESTAMP '2026-10-05 08:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-10', 'Higro 01', 1200.000, 13800.00, 'Cấp cám úm ngày 10', TIMESTAMP '2026-10-10 08:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-16', 'Higro 02', 2000.000, 13400.00, 'Chuyển cám gà thịt Higro 02', TIMESTAMP '2026-10-16 08:00:00')
+) AS v(area_key, barn_key, record_date, feed_name, quantity_kg, unit_price, note, created_at)
+JOIN farm_areas a ON a.name_key = v.area_key
+JOIN barns b ON b.area_id = a.id AND b.name_key = v.barn_key
+JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM feed_records fr 
+  WHERE fr.cycle_id = c.id AND fr.record_date = v.record_date AND fr.feed_name = v.feed_name
+);
+
+-- ---------------------------------------------------------------------
+-- 21. Chèn dữ liệu Thông số cân mẫu (Weight Samples) cho lứa đang nuôi
+-- ---------------------------------------------------------------------
+INSERT INTO weight_samples (cycle_id, sample_date, avg_weight_kg, sample_size, note, created_by, created_at)
+SELECT c.id, v.sample_date, v.avg_weight_kg, v.sample_size, v.note, 'admin', v.created_at
+FROM (VALUES
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-07', 0.160, 50, 'Cân mẫu tuần 1 (7 ngày tuổi)', TIMESTAMP '2026-10-07 09:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-14', 0.380, 50, 'Cân mẫu tuần 2 (14 ngày tuổi)', TIMESTAMP '2026-10-14 09:00:00')
+) AS v(area_key, barn_key, sample_date, avg_weight_kg, sample_size, note, created_at)
+JOIN farm_areas a ON a.name_key = v.area_key
+JOIN barns b ON b.area_id = a.id AND b.name_key = v.barn_key
+JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM weight_samples ws
+  WHERE ws.cycle_id = c.id AND ws.sample_date = v.sample_date
+);
+
+-- ---------------------------------------------------------------------
+-- 22. Chèn dữ liệu Khoản chi bổ sung (Cycle Expenses) cho lứa đang nuôi
+-- ---------------------------------------------------------------------
+INSERT INTO cycle_expenses (cycle_id, expense_date, category, amount, note, created_by, created_at)
+SELECT c.id, v.expense_date, v.category, v.amount, v.note, 'admin', v.created_at
+FROM (VALUES
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-05', 'ELECTRICITY', 1500000.00, 'Tiền điện thắp sáng và sưởi úm đợt 1', TIMESTAMP '2026-10-05 10:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-08', 'MEDICINE', 850000.00, 'Thuốc bổ và men tiêu hóa phòng ngừa stress', TIMESTAMP '2026-10-08 10:00:00'),
+  ('khu mía thịt', 'nhà a1', DATE '2026-10-15', 'WATER', 420000.00, 'Chi phí nước uống và vệ sinh sát trùng', TIMESTAMP '2026-10-15 10:00:00')
+) AS v(area_key, barn_key, expense_date, category, amount, note, created_at)
+JOIN farm_areas a ON a.name_key = v.area_key
+JOIN barns b ON b.area_id = a.id AND b.name_key = v.barn_key
+JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM cycle_expenses ce
+  WHERE ce.cycle_id = c.id AND ce.expense_date = v.expense_date AND ce.category = v.category
+);
