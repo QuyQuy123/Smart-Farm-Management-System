@@ -26,6 +26,8 @@ import {
 import { listSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../services/supplierService';
 import { listProductTypes } from '../../services/productTypeService';
 import { listProductCategories } from '../../services/productCategoryService';
+import styles from './PurchasesView.module.css';
+import { PurchaseRowActions } from './PurchaseRowActions';
 import { PrintablePurchaseVoucher } from './PrintablePurchaseVoucher';
 
 export const PurchasesView = () => {
@@ -864,25 +866,25 @@ export const PurchasesView = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '16px' }}>
             <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
               <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng giá trị nhập</div>
-              <strong style={{ fontSize: '18px', color: '#008a7b', display: 'block', marginTop: '4px' }}>
+              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
                 {purchases.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
             <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
               <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tiền đã trả</div>
-              <strong style={{ fontSize: '18px', color: '#387be8', display: 'block', marginTop: '4px' }}>
+              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
                 {purchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
             <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
               <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tiền chưa trả (Công nợ)</div>
-              <strong style={{ fontSize: '18px', color: '#d88e13', display: 'block', marginTop: '4px' }}>
+              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
                 {purchases.reduce((sum, p) => sum + Number(p.debtAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
             <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
               <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng số hóa đơn</div>
-              <strong style={{ fontSize: '18px', color: 'var(--color-ink)', display: 'block', marginTop: '4px' }}>
+              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
                 {purchases.length} hóa đơn
               </strong>
             </div>
@@ -939,14 +941,14 @@ export const PurchasesView = () => {
               <table className="farmshift-table">
                 <thead>
                   <tr>
-                    <th>Mã đơn</th>
-                    <th>Ngày nhập</th>
+                    <th>Mã hóa đơn</th>
                     <th>Nhà cung cấp</th>
-                    <th>Tổng tiền</th>
                     <th>Thanh toán</th>
                     <th>Kho hàng</th>
+                    <th>Tổng tiền</th>
                     <th>Ghi chú</th>
-                    <th style={{ textAlign: 'center' }}>Thao tác</th>
+                    <th>Ngày nhập hàng</th>
+                    <th aria-label="Thao tác"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -968,74 +970,25 @@ export const PurchasesView = () => {
                       .map(p => (
                         <tr key={p.id}>
                           <td>
-                            <strong style={{ color: 'var(--color-ink)', fontSize: '14px', fontFamily: 'monospace' }}>
+                            <button type="button" className={styles.invoiceCode} onClick={() => setSelectedOrder(p)} aria-label={`Xem hóa đơn ${p.code}`}>
                               {p.code}
-                            </strong>
+                            </button>
                           </td>
-                          <td>{p.date}</td>
                           <td>
                             <strong>{p.supplier}</strong>
-                            {p.tags && p.tags.length > 0 && (
-                              <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
-                                {p.tags.map((t, i) => (
-                                  <span
-                                    key={i}
-                                    style={{
-                                      fontSize: '11px',
-                                      padding: '1px 6px',
-                                      borderRadius: '12px',
-                                      backgroundColor: '#e1f4ef',
-                                      color: '#008a7b',
-                                      fontWeight: 500
-                                    }}
-                                  >
-                                    {t}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
                           </td>
+                          <td>{p.paymentStatus}</td>
+                          <td>{p.stockStatus}</td>
                           <td>
                             <strong style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>
                               {Number(p.totalAmount || 0).toLocaleString('vi-VN')} đ
                             </strong>
                           </td>
-                          <td>
-                            <span
-                              className={`farmshift-badge ${p.paymentStatus?.includes('hoàn tất')
-                                  ? 'farmshift-badge-success'
-                                  : p.paymentStatus?.includes('phần')
-                                    ? 'farmshift-badge-warning'
-                                    : 'farmshift-badge-danger'
-                                }`}
-                            >
-                              {p.paymentStatus}
-                            </span>
-                          </td>
-                          <td>
-                            <span
-                              className={`farmshift-badge ${p.stockStatus === 'Đã nhập kho'
-                                  ? 'farmshift-badge-info'
-                                  : p.stockStatus === 'Đã hủy'
-                                    ? 'farmshift-badge-danger'
-                                    : 'farmshift-badge-warning'
-                                }`}
-                            >
-                              {p.stockStatus}
-                            </span>
-                          </td>
                           <td style={{ color: 'var(--color-muted)', fontSize: '13px', maxWidth: '220px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {p.note || '—'}
                           </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button
-                              className="farmshift-btn farmshift-btn-secondary"
-                              style={{ fontSize: '12px', padding: '4px 10px' }}
-                              onClick={() => setSelectedOrder(p)}
-                            >
-                              <Eye size={13} /> Chi tiết
-                            </button>
-                          </td>
+                          <td>{p.stockStatus === 'Đã nhập kho' && p.importedDate ? p.importedDate.split('-').reverse().join('/') : '—'}</td>
+                          <td><PurchaseRowActions invoice={p} canEdit={isOwnerOrAccountant} suppliers={suppliers} tags={tags} onView={setSelectedOrder} onReload={fetchData} /></td>
                         </tr>
                       ))
                   )}

@@ -50,6 +50,9 @@ public class PurchaseInvoice {
     @Column(name = "stock_status", nullable = false, length = 50)
     private String stockStatus = "Đã nhập kho";
 
+    @Column(name = "imported_date")
+    private java.time.LocalDate importedDate;
+
     @Column(name = "reference_code", length = 100)
     private String referenceCode;
 

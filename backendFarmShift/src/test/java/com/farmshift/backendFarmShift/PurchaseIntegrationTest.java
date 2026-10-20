@@ -143,6 +143,7 @@ class PurchaseIntegrationTest {
                 .andExpect(jsonPath("$.data.paidAmount").value(16750000))
                 .andExpect(jsonPath("$.data.paymentStatus").value("Thanh toán hoàn tất"))
                 .andExpect(jsonPath("$.data.stockStatus").value("Đã nhập kho"))
+                .andExpect(jsonPath("$.data.importedDate").value(LocalDate.now(java.time.ZoneId.of("Asia/Bangkok")).toString()))
                 .andReturn();
 
         long invId = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
@@ -158,6 +159,49 @@ class PurchaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.supplier").value("Công ty CP Chăn nuôi C.P. Việt Nam"));
+    }
+
+    @Test
+    void recordsActualImportDateAndPreservesInvoiceDate() throws Exception {
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.of(2020, 1, 2),
+                List.of(new PurchaseInvoiceItemRequest(null, "Date test product", 2.0, "Kg", 1000L, 0.0)),
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
+        var result = mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.importedDate").isEmpty()).andReturn();
+        long id = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        String today = LocalDate.now(java.time.ZoneId.of("Asia/Bangkok")).toString();
+        mvc.perform(post("/api/purchases/" + id + "/import-stock")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.importedDate").value(today))
+                .andExpect(jsonPath("$.data.date").value("2020-01-02"));
+        mvc.perform(get("/api/purchases/" + id)).andExpect(jsonPath("$.data.importedDate").value(today));
+    }
+
+    @Test
+    void editsMetadataWithoutChangingStockAndDeletesOnlyUnpostedInvoices() throws Exception {
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(),
+                List.of(new PurchaseInvoiceItemRequest(null, "Menu action product", 3.0, "Kg", 1000L, 0.0)),
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
+        var result = mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                .andExpect(status().isCreated()).andReturn();
+        long id = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        var edit = new com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceEditRequest(supplierId, LocalDate.of(2026, 1, 2), "REF-EDIT", "Updated note", List.of(tagId), List.of(new PurchaseInvoiceItemRequest(null, "Updated item", 5.0, "Kg", 1000L, 0.0)), 500L, 100L);
+        mvc.perform(put("/api/purchases/"+id).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(edit)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.note").value("Updated note"))
+                .andExpect(jsonPath("$.data.totalAmount").value(4600)).andExpect(jsonPath("$.data.stockStatus").value("Chưa nhập kho"));
+        var wrongSupplier = new com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceEditRequest(supplierId + 99999, edit.date(), edit.referenceCode(), edit.note(), edit.tagIds(), edit.items(), 0L, 0L);
+        mvc.perform(put("/api/purchases/"+id).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(wrongSupplier)))
+                .andExpect(status().isBadRequest());
+        mvc.perform(delete("/api/purchases/"+id)).andExpect(status().isOk());
+        mvc.perform(get("/api/purchases/"+id)).andExpect(status().isNotFound());
+        result = mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request))).andReturn();
+        id = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mvc.perform(post("/api/purchases/"+id+"/pay").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(new PurchasePaymentRequest(100L, "Partial payment"))))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/purchases/"+id).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(edit))).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/purchases/"+id+"/import-stock")).andExpect(status().isOk());
+        mvc.perform(delete("/api/purchases/"+id)).andExpect(status().isBadRequest());
+        mvc.perform(put("/api/purchases/"+id).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(edit)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

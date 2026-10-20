@@ -70,3 +70,6 @@ export const deletePurchaseTag = async (id) => {
   const res = await api.delete(`/purchase-tags/${id}`);
   return res.data.data;
 };
+
+export const updatePurchase = async (id, payload) => (await api.put(`/purchases/${id}`, payload)).data.data;
+export const deletePurchase = async id => api.delete(`/purchases/${id}`);

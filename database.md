@@ -569,3 +569,5 @@ Hệ thống hỗ trợ linh hoạt 2 chế độ lưu trữ qua biến môi tr�
 2. `STORAGE_PROVIDER=r2` (môi trường Production / Cloud):
    - Tệp tin tải trực tiếp lên Cloudflare R2 bucket thông qua AWS S3 SDK.
    - Cơ sở dữ liệu lưu URL đầy đủ truy cập công khai CDN (VD: `https://pub-xxxx.r2.dev/avatars/<UUID>.png`).
+
+`purchase_invoices.imported_date` (DATE, nullable): ngày nhập kho thực tế do server ghi theo Asia/Bangkok khi tạo hóa đơn ở trạng thái Đã nhập kho hoặc xác nhận nhập kho. Khác với ngày chứng từ `invoice_date`. Phiếu chưa nhập hoặc dữ liệu cũ chưa có ngày hiển thị —; không suy đoán ngày từ ngày chứng từ.

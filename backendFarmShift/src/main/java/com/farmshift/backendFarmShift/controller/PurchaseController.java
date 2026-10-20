@@ -65,11 +65,18 @@ public class PurchaseController {
         return ApiResponse.success("Đã hủy đơn nhập hàng");
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+    public ApiResponse<PurchaseInvoiceResponse> update(@PathVariable Long id,
+            @Valid @RequestBody com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceEditRequest request) {
+        return ApiResponse.success("Đã cập nhật hóa đơn nhập hàng", service.update(id, request));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        service.cancel(id);
-        return ApiResponse.success("Đã hủy đơn nhập hàng");
+        service.delete(id);
+        return ApiResponse.success("Đã xóa hóa đơn nhập hàng");
     }
 
     @PostMapping("/ocr")

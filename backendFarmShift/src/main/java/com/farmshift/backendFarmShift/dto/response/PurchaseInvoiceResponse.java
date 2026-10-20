@@ -24,6 +24,7 @@ public record PurchaseInvoiceResponse(
     List<Long> tagIds,
     List<String> tags,
     List<PurchaseInvoiceItemResponse> items,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    LocalDate importedDate
 ) {
 }

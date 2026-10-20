@@ -54,6 +54,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
     {
       id: 1,
       code: 'NH000000',
+      importedDate: '2026-10-20',
       date: '2026-09-15',
       supplier: 'Công ty CP Chăn nuôi C.P. Việt Nam',
       supplierId: 1,
@@ -224,6 +225,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
         expect(screen.getByText('NH000003')).toBeInTheDocument();
       });
 
+      expect(screen.getByText('20/10/2026')).toBeInTheDocument();
       expect(screen.getByText('Tập đoàn Dabaco Việt Nam')).toBeInTheDocument();
       expect(screen.getByText('Công ty Thuốc Thú y Hanvet')).toBeInTheDocument();
       expect(screen.getAllByText('Cám gà thịt').length).toBeGreaterThan(0);
@@ -252,7 +254,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      const detailButtons = screen.getAllByRole('button', { name: /Chi tiết/i });
+      const detailButtons = screen.getAllByRole('button', { name: /Xem hóa đơn/i });
       fireEvent.click(detailButtons[0]);
 
       expect(await screen.findByText('Chi tiết hóa đơn NH000000')).toBeInTheDocument();
@@ -288,7 +290,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       await screen.findByText('NH000003');
 
       // Click detail on 4th invoice (NH000003 - Chưa nhập kho)
-      const detailButtons = screen.getAllByRole('button', { name: /Chi tiết/i });
+      const detailButtons = screen.getAllByRole('button', { name: /Xem hóa đơn/i });
       fireEvent.click(detailButtons[3]);
 
       const importBtn = await screen.findByRole('button', { name: /Xác nhận nhập kho/i });
@@ -304,7 +306,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000003');
 
-      const detailButtons = screen.getAllByRole('button', { name: /Chi tiết/i });
+      const detailButtons = screen.getAllByRole('button', { name: /Xem hóa đơn/i });
       fireEvent.click(detailButtons[3]);
 
       const payBtn = await screen.findByRole('button', { name: /Thanh toán nợ/i });
@@ -342,7 +344,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000099');
 
-      fireEvent.click(screen.getByRole('button', { name: /Chi tiết/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Xem hóa đơn/i }));
       const cancelBtn = await screen.findByRole('button', { name: /Hủy đơn/i });
       fireEvent.click(cancelBtn);
 
@@ -507,7 +509,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      const detailButtons = screen.getAllByRole('button', { name: /Chi tiết/i });
+      const detailButtons = screen.getAllByRole('button', { name: /Xem hóa đơn/i });
       fireEvent.click(detailButtons[0]);
 
       expect(await screen.findByText('Chi tiết hóa đơn NH000000')).toBeInTheDocument();
@@ -758,7 +760,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000003');
 
-      const detailButtons = screen.getAllByRole('button', { name: /Chi tiết/i });
+      const detailButtons = screen.getAllByRole('button', { name: /Xem hóa đơn/i });
       fireEvent.click(detailButtons[3]);
 
       const payBtn = await screen.findByRole('button', { name: /Thanh toán nợ/i });

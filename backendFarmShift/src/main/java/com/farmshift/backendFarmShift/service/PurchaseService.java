@@ -40,6 +40,51 @@ public class PurchaseService {
     }
 
     @Transactional
+    public PurchaseInvoiceResponse update(Long id, com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceEditRequest request) {
+        var invoice = find(id);
+        if ("Đã hủy".equals(invoice.getStockStatus()) || "Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus())
+                || invoice.getPaidAmount() > 0 || "Thanh toán hoàn tất".equalsIgnoreCase(invoice.getPaymentStatus()))
+            throw new BadRequestException("Chỉ được sửa hóa đơn chưa thanh toán và chưa nhập kho.");
+        if (!invoice.getSupplier().getId().equals(request.supplierId()))
+            throw new BadRequestException("Không được thay đổi nhà cung cấp của hóa đơn.");
+        long itemsTotal = 0;
+        var updatedItems = new ArrayList<PurchaseInvoiceItem>();
+        for (var row : request.items()) {
+            if (!Double.isFinite(row.qty()) || row.qty() <= 0 || row.price() < 0 || row.name().strip().length() > 200 || row.unit().strip().length() > 50)
+                throw new BadRequestException("Thông tin mặt hàng không hợp lệ.");
+            long amount;
+            try {
+                amount = BigDecimal.valueOf(row.qty()).multiply(BigDecimal.valueOf(row.price())).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+                itemsTotal = Math.addExact(itemsTotal, amount);
+            } catch (ArithmeticException e) { throw new BadRequestException("Giá trị hóa đơn vượt giới hạn cho phép."); }
+            var product = row.productCategoryId() == null ? null : productCategoryRepository.findById(row.productCategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Mặt hàng không tồn tại."));
+            updatedItems.add(new PurchaseInvoiceItem(invoice, product, row.name().strip(), row.qty(), row.unit().strip(), row.price(), row.vatRate(), amount));
+        }
+        long total;
+        try { total = Math.max(0, Math.addExact(Math.subtractExact(itemsTotal, request.discountAmount()), request.otherCost())); }
+        catch (ArithmeticException e) { throw new BadRequestException("Giá trị hóa đơn vượt giới hạn cho phép."); }
+        invoice.getItems().clear();
+        updatedItems.forEach(invoice::addItem);
+        invoice.setDiscountAmount(request.discountAmount()); invoice.setOtherCost(request.otherCost()); invoice.setTotalAmount(total);
+        invoice.setInvoiceDate(request.date());
+        invoice.setReferenceCode(request.referenceCode() == null ? null : request.referenceCode().strip());
+        invoice.setNote(request.note() == null ? null : request.note().strip());
+        var tags = new HashSet<PurchaseTag>();
+        if (request.tagIds() != null) for (Long tagId : request.tagIds()) tags.add(tagRepository.findById(tagId).orElseThrow(() -> new ResourceNotFoundException("Thẻ tag không tồn tại.")));
+        invoice.setTags(tags);
+        return toResponse(invoiceRepository.saveAndFlush(invoice));
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        var invoice = find(id);
+        if ("Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus()) || invoice.getPaidAmount() > 0)
+            throw new BadRequestException("Không thể xóa hóa đơn đã nhập kho hoặc đã thanh toán.", "MSG39");
+        invoiceRepository.delete(invoice);
+    }
+
+    @Transactional
     public PurchaseInvoiceResponse create(PurchaseInvoiceRequest request) {
         Supplier supplier = resolveSupplier(request);
 
@@ -113,6 +158,7 @@ public class PurchaseService {
 
         // If stock is marked as IMPORTED on creation, update inventory immediately
         if ("Đã nhập kho".equalsIgnoreCase(stockStatus)) {
+            saved.setImportedDate(LocalDate.now(java.time.ZoneId.of("Asia/Bangkok")));
             increaseStockForInvoice(saved);
         }
 
@@ -130,6 +176,7 @@ public class PurchaseService {
         }
 
         invoice.setStockStatus("Đã nhập kho");
+        invoice.setImportedDate(LocalDate.now(java.time.ZoneId.of("Asia/Bangkok")));
         increaseStockForInvoice(invoice);
 
         return toResponse(invoiceRepository.saveAndFlush(invoice));
@@ -336,7 +383,8 @@ public class PurchaseService {
                 tagIds,
                 tagNames,
                 items,
-                invoice.getCreatedAt()
+                invoice.getCreatedAt(),
+                invoice.getImportedDate()
         );
     }
 }
