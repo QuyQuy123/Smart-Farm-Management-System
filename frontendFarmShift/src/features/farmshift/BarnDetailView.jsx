@@ -10,7 +10,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
 import {
   addExpense, addFeedRecord, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample,
-  assignFlockProgram, getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
+  assignCycleProgram, assignFlockProgram, getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
 } from '../../services/cycleService';
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
@@ -230,35 +230,46 @@ export const BarnDetailView = () => {
     });
   };
 
-  /** Gắn / đổi chương trình nuôi cho đàn đang nuôi; lịch tính theo ngày tuổi hiện tại nên chương trình phải dài hơn tuổi đàn. */
+  /**
+   * Gắn / đổi chương trình nuôi cho tất cả đàn đang nuôi (mặc định) hoặc từng đàn.
+   * Lịch tính theo ngày tuổi hiện tại nên chương trình phải dài hơn tuổi đàn.
+   */
   const openAssignProgram = () => {
     const flocks = detail.flocks.filter(flock => flock.status === 'ACTIVE');
-    const first = flocks.find(flock => !flock.programId) || flocks[0];
+    const shared = flocks.every(flock => flock.programId === flocks[0]?.programId) ? flocks[0]?.programId : null;
     const flockLabel = flock => `${flock.code} · ${flock.name} · ${flock.currentAgeDays} ngày tuổi · ${flock.programName || 'chưa có chương trình'}`;
     setModal({
       title: 'Gắn chương trình nuôi cho đàn',
       intro: 'Lịch cám, vắc-xin, thuốc và nhiệt độ của đàn sẽ chạy theo chương trình, tính từ ngày tuổi hiện tại của đàn.',
       warning: programs.length ? null : 'Chưa có chương trình nuôi. Vào Thiết lập chăn nuôi → Chương trình nuôi để tạo trước.',
-      initial: { flockId: first ? String(first.id) : '', programId: first?.programId ? String(first.programId) : programs[0] ? String(programs[0].id) : '' },
+      initial: { flockId: 'ALL', programId: shared ? String(shared) : programs[0] ? String(programs[0].id) : '' },
       fields: [
         { key: 'flockId', label: 'Đàn đang nuôi', type: 'select', required: true, full: true,
-          options: flocks.map(flock => ({ value: String(flock.id), label: flockLabel(flock) })) },
+          options: [{ value: 'ALL', label: `Tất cả đàn đang nuôi (${flocks.length} đàn)` },
+            ...flocks.map(flock => ({ value: String(flock.id), label: flockLabel(flock) }))] },
         { key: 'programId', label: 'Chương trình nuôi (giống)', type: 'select', required: true, full: true,
           options: programs.length ? programs.map(program => ({ value: String(program.id), label: `${program.name} · ${program.breed} · ${program.durationDays} ngày` }))
             : [{ value: '', label: 'Chưa có chương trình nuôi' }] },
       ],
       validate: values => {
-        const flock = flocks.find(item => String(item.id) === values.flockId);
+        const chosen = values.flockId === 'ALL' ? flocks : flocks.filter(item => String(item.id) === values.flockId);
+        const oldest = chosen.reduce((max, item) => (!max || item.currentAgeDays > max.currentAgeDays ? item : max), null);
         const program = programs.find(item => String(item.id) === values.programId);
         return {
-          flockId: flock ? undefined : 'Vui lòng chọn đàn.',
+          flockId: chosen.length ? undefined : 'Vui lòng chọn đàn.',
           programId: !program ? 'Vui lòng chọn chương trình nuôi.'
-            : flock && flock.currentAgeDays > program.durationDays ? `Đàn đã ${flock.currentAgeDays} ngày tuổi, vượt thời gian nuôi ${program.durationDays} ngày của chương trình.` : undefined,
+            : oldest && oldest.currentAgeDays > program.durationDays
+              ? `Đàn ${oldest.code} đã ${oldest.currentAgeDays} ngày tuổi, vượt thời gian nuôi ${program.durationDays} ngày của chương trình.` : undefined,
         };
       },
       onSubmit: async values => {
+        const name = programs.find(item => String(item.id) === values.programId)?.name;
+        if (values.flockId === 'ALL') {
+          await assignCycleProgram(cycle.id, Number(values.programId));
+          return `Đã gắn chương trình ${name} cho ${flocks.length} đàn đang nuôi.`;
+        }
         await assignFlockProgram(Number(values.flockId), Number(values.programId));
-        return `Đã gắn chương trình ${programs.find(item => String(item.id) === values.programId)?.name} cho đàn.`;
+        return `Đã gắn chương trình ${name} cho đàn.`;
       },
     });
   };

@@ -15,7 +15,7 @@ vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(), listFarmArea
 vi.mock('../services/farmingProgramService', () => ({ listPrograms: vi.fn() }));
 vi.mock('../services/cycleService', () => ({
   getBarn: vi.fn(), listCycles: vi.fn(), startCycle: vi.fn(), getCycle: vi.fn(), closeCycle: vi.fn(), importFlock: vi.fn(),
-  transferFlock: vi.fn(), assignFlockProgram: vi.fn(), recordLoss: vi.fn(), recordHarvest: vi.fn(), addFeedRecord: vi.fn(), deleteFeedRecord: vi.fn(),
+  transferFlock: vi.fn(), assignFlockProgram: vi.fn(), assignCycleProgram: vi.fn(), recordLoss: vi.fn(), recordHarvest: vi.fn(), addFeedRecord: vi.fn(), deleteFeedRecord: vi.fn(),
   addWeightSample: vi.fn(), deleteWeightSample: vi.fn(), addExpense: vi.fn(), deleteExpense: vi.fn(),
 }));
 
@@ -153,8 +153,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     await waitFor(() => expect(cycles.transferFlock).toHaveBeenCalledWith(4, expect.objectContaining({ targetBarnId: 3, quantity: 800 })));
   });
 
-  it('lets the owner attach a breed program to a running flock', async () => {
-    cycles.assignFlockProgram.mockResolvedValue({});
+  it('lets the owner attach a breed program to all running flocks at once', async () => {
+    cycles.assignCycleProgram.mockResolvedValue({});
     programService.listPrograms.mockResolvedValue([
       { id: 1, name: 'Gà Mía thương phẩm', breed: 'Gà Mía', durationDays: 90, steps: [] },
       { id: 3, name: 'Úm 7 ngày', breed: 'Gà Mía', durationDays: 7, steps: [] },
@@ -162,12 +162,26 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     renderAt('/barns/2');
     fireEvent.click(await screen.findByRole('button', { name: 'Gắn chương trình' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(field(dialog, /Đàn đang nuôi/)).getAllByRole('option')).toHaveLength(2);
+    // "All running flocks" is the default, followed by each flock.
+    expect(within(field(dialog, /Đàn đang nuôi/)).getAllByRole('option').map(option => option.textContent)[0]).toBe('Tất cả đàn đang nuôi (2 đàn)');
+    expect(within(field(dialog, /Đàn đang nuôi/)).getAllByRole('option')).toHaveLength(3);
     // The flocks are 18 days old, so a 7-day program is rejected before calling the API.
     fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '3' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     expect(await within(dialog).findByText(/vượt thời gian nuôi 7 ngày/)).toBeInTheDocument();
-    expect(cycles.assignFlockProgram).not.toHaveBeenCalled();
+    expect(cycles.assignCycleProgram).not.toHaveBeenCalled();
+
+    fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '1' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    await waitFor(() => expect(cycles.assignCycleProgram).toHaveBeenCalledWith(20, 1));
+    expect(mocks.showToast).toHaveBeenCalledWith('Đã gắn chương trình Gà Mía thương phẩm cho 2 đàn đang nuôi.', 'success');
+  });
+
+  it('can still attach a program to a single flock', async () => {
+    cycles.assignFlockProgram.mockResolvedValue({});
+    renderAt('/barns/2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Gắn chương trình' }));
+    const dialog = await screen.findByRole('dialog');
 
     fireEvent.change(field(dialog, /Đàn đang nuôi/), { target: { value: '5' } });
     fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '1' } });

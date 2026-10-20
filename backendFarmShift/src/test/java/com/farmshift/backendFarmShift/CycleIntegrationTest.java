@@ -296,6 +296,18 @@ class CycleIntegrationTest {
         mvc.perform(get("/api/cycles/" + cycle))
             .andExpect(jsonPath("$.data.programs[0].name").value("Gà ta thả vườn"))
             .andExpect(jsonPath("$.data.programs[0].currentDay").value(11));
+
+        // Whole cycle at once: every running flock gets the program, or none does when one is too old.
+        importFlock(cycle, "Gà Mía mái", "FEMALE", START.plusDays(1), 100);
+        String all = "/api/cycles/" + cycle + "/program";
+        mvc.perform(put(all).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + shortProgram + "}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FLOCK_PROGRAM_TOO_SHORT"));
+        mvc.perform(put(all).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + programId + "}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(2))
+            .andExpect(jsonPath("$.data[*].programName").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("Gà Mía thương phẩm"))));
+        mvc.perform(get("/api/cycles/" + cycle))
+            .andExpect(jsonPath("$.data.programs.length()").value(1))
+            .andExpect(jsonPath("$.data.programs[0].activeFlockCount").value(2));
     }
 
     @Test
