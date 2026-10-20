@@ -45,4 +45,10 @@ public class FarmingProgramStep {
     private BigDecimal tempMax;
     @Column(length = 1000)
     private String note;
+    /** Hàng hóa trong kho dùng cho nội dung này (cám, thuốc, vắc-xin) để trừ tồn kho và tính chi phí khi công nhân xác nhận. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "inventory_item_id")
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
+    private InventoryItem inventoryItem;
 }

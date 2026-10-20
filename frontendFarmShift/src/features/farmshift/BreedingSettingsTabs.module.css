@@ -1,0 +1,21 @@
+/* Thiết lập chăn nuôi: section switcher drawn as cards in one horizontally scrolling row.
+   Light-green cards with forest-green text; the selected card is filled forest green with a pastel-yellow icon as the accent. */
+.cards { display: flex; gap: 16px; margin: 0 0 20px; padding: 4px 4px 12px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: #95d5b2 transparent; }
+.cards::-webkit-scrollbar { height: 6px; }
+.cards::-webkit-scrollbar-thumb { background: #95d5b2; border-radius: 999px; }
+
+.card { flex: 0 0 270px; scroll-snap-align: start; display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px solid #d7ecdc; border-radius: 14px; background: #f3faf4; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
+.card:hover { background: #e9f6ec; border-color: #95d5b2; transform: translateY(-1px); }
+.card:focus-visible { outline: 2px solid #2d6a4f; outline-offset: 2px; }
+
+.icon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; background: #ffffff; border: 1px solid #d7ecdc; color: #2d6a4f; transition: background-color 0.15s ease, color 0.15s ease; }
+.text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.title { font-size: 15px; font-weight: 600; color: #1b4332; }
+.sub { font-size: 13px; color: #52796f; }
+
+.active, .active:hover { background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%); border-color: #1b4332; box-shadow: 0 10px 22px rgba(27, 67, 50, 0.25); transform: none; }
+.active .icon { background: #fff3bf; border-color: #fff3bf; color: #1b4332; }
+.active .title { color: #ffffff; }
+.active .sub { color: #d8f3dc; }
+
+@media (max-width: 560px) { .cards { gap: 10px; } .card { flex-basis: 240px; padding: 14px 16px; } }

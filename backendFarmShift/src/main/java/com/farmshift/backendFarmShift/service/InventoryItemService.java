@@ -22,7 +22,11 @@ public class InventoryItemService {
     private final ProductCategoryRepository products;
     private final BrandRepository brands;
     private final MeasurementUnitRepository units;
+    private final FarmingProgramStepRepository programSteps;
+    private final DailyTaskLogRepository taskLogs;
+    /** warehouseId null: mọi hàng hóa của mọi kho (dùng khi gắn hàng hóa vào chương trình nuôi). */
     public List<InventoryItemResponse> list(Long warehouseId) {
+        if (warehouseId == null) return repository.findAll(Sort.by("warehouse.name", "product.name")).stream().map(this::response).toList();
         if (!warehouses.existsById(warehouseId)) throw new ResourceNotFoundException("Kho không tồn tại.");
         return repository.findByWarehouse_Id(warehouseId, Sort.by("createdAt", "id")).stream().map(this::response).toList();
     }
@@ -34,6 +38,9 @@ public class InventoryItemService {
     @Transactional public void delete(Long id) {
         var item = find(id);
         if (item.getStock().signum() != 0) throw new ConflictException("Không thể xóa hàng hóa đang còn tồn kho.", "INVENTORY_IN_USE", null);
+        if (programSteps.existsByInventoryItemId(id) || taskLogs.existsByInventoryItemId(id)) {
+            throw new ConflictException("Hàng hóa đang được dùng trong chương trình nuôi hoặc phiếu việc nên không thể xóa.", "INVENTORY_IN_USE", null);
+        }
         repository.delete(item);
     }
     private InventoryItem find(Long id) { return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hàng hóa.")); }
@@ -67,6 +74,7 @@ public class InventoryItemService {
     private InventoryItemResponse response(InventoryItem item) {
         return new InventoryItemResponse(item.getId(), item.getWarehouse().getId(), item.getWarehouse().getName(), item.getProduct().getId(), item.getProduct().getName(),
                 item.getImageUrl(), item.getPrice(), item.getStock(), item.getBrand() == null ? null : item.getBrand().getId(), item.getBrand() == null ? "" : item.getBrand().getName(), item.getCreatedAt(),
-                item.getUnit() == null ? null : item.getUnit().getId(), item.getUnit() == null ? "" : item.getUnit().getName(), item.getUnit() == null ? "" : item.getUnit().getCode());
+                item.getUnit() == null ? null : item.getUnit().getId(), item.getUnit() == null ? "" : item.getUnit().getName(), item.getUnit() == null ? "" : item.getUnit().getCode(),
+                item.getUnit() == null ? null : item.getUnit().getContentQuantity(), item.getUnit() == null ? null : item.getUnit().getContentUnit());
     }
 }

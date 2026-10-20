@@ -127,32 +127,7 @@ public class CycleService {
                 samples.stream().map(s -> new CycleRecordResponse(s.getId(), "WEIGHT", s.getSampleDate(), "Cân mẫu", s.getAvgWeightKg(),
                         null, null, s.getSampleSize(), null, s.getNote(), s.getCreatedBy())).toList(),
                 canSeeFinance ? expenses.stream().map(e -> new CycleRecordResponse(e.getId(), "EXPENSE", e.getExpenseDate(), e.getCategory().name(),
-                        null, null, e.getAmount(), null, e.getCategory().name(), e.getNote(), e.getCreatedBy())).toList() : null,
-                cycle.getStatus() == CycleStatus.ACTIVE ? todayPlan(flocks) : List.of());
-    }
-
-    /** What each running flock needs today according to its program and age: feed ration, vaccines, medicine, temperature, work. */
-    private static List<FlockDayPlan> todayPlan(List<Flock> flocks) {
-        LocalDate today = today();
-        List<FlockDayPlan> plans = new ArrayList<>();
-        for (Flock flock : flocks) {
-            if (flock.getStatus() != FlockStatus.ACTIVE || flock.getProgram() == null) continue;
-            int age = ageOn(flock, today);
-            List<FlockDayPlan.Item> items = flock.getProgram().getSteps().stream()
-                    .filter(step -> age >= step.getDayFrom() && age <= step.getDayTo())
-                    .sorted(Comparator.comparing(FarmingProgramStep::getCategory))
-                    .map(step -> {
-                        BigDecimal total = step.getCategory() == ProgramStepCategory.FEED && step.getQuantity() != null
-                                ? FarmingProgramService.kg(step.getQuantity(), flock.getQuantity()) : null;
-                        BigDecimal perMeal = total != null && step.getMealsPerDay() != null && step.getMealsPerDay() > 0
-                                ? total.divide(BigDecimal.valueOf(step.getMealsPerDay()), 1, RoundingMode.HALF_UP) : null;
-                        return new FlockDayPlan.Item(step.getCategory(), step.getName(), step.getQuantity(), step.getUnit(), step.getMealsPerDay(),
-                                step.getMethod(), step.getTempMin(), step.getTempMax(), total, perMeal, step.getNote());
-                    }).toList();
-            plans.add(new FlockDayPlan(flock.getId(), flockCode(flock), flock.getName(), flock.getProgram().getId(), flock.getProgram().getName(),
-                    age, flock.getQuantity(), items));
-        }
-        return plans;
+                        null, null, e.getAmount(), null, e.getCategory().name(), e.getNote(), e.getCreatedBy())).toList() : null);
     }
 
     // ---------------------------------------------------------------- shared rules

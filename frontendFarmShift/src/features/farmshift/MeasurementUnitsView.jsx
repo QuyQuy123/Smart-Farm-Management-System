@@ -3,6 +3,7 @@ import { Plus, Search, Eye, Pencil, Trash2, X, Scale, AlertCircle } from 'lucide
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listMeasurementUnits, createMeasurementUnit, updateMeasurementUnit, deleteMeasurementUnit } from '../../services/measurementUnitService';
+import { USAGE_UNITS, contentText } from './farmAreaOptions';
 import styles from './WarehouseCategoriesView.module.css';
 
 const formatDate = value => value ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
@@ -13,6 +14,8 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
   const [name, setName] = useState(category?.name || '');
   const [code, setCode] = useState(category?.code || '');
   const [description, setDescription] = useState(category?.description || '');
+  const [contentQuantity, setContentQuantity] = useState(category?.contentQuantity == null ? '' : String(category.contentQuantity));
+  const [contentUnit, setContentUnit] = useState(category?.contentUnit || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const readOnly = mode === 'view';
@@ -32,12 +35,16 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
     if (saving) return;
     if (!deleting && !code.trim()) { setError('Vui lòng nhập mã đơn vị.'); return; }
     if (!deleting && !name.trim()) { setError('Vui lòng nhập tên đơn vị tính.'); return; }
+    if (!deleting && (contentQuantity === '') !== (contentUnit === '')) { setError('Quy cách cần nhập cả số lượng và đơn vị (ví dụ 25 kg).'); return; }
+    if (!deleting && contentQuantity !== '' && !(Number(contentQuantity) > 0)) { setError('Quy cách phải lớn hơn 0.'); return; }
+    const body = { code: code.trim(), name: name.trim(), description: description.trim(),
+      contentQuantity: contentQuantity === '' ? null : Number(contentQuantity), contentUnit: contentUnit || null };
     setSaving(true);
     setError('');
     try {
       if (deleting) await deleteMeasurementUnit(category.id);
-      else if (mode === 'edit') await updateMeasurementUnit(category.id, { code: code.trim(), name: name.trim(), description: description.trim() });
-      else await createMeasurementUnit({ code: code.trim(), name: name.trim(), description: description.trim() });
+      else if (mode === 'edit') await updateMeasurementUnit(category.id, body);
+      else await createMeasurementUnit(body);
       onSaved(deleting ? 'Đã xóa đơn vị tính.' : 'Đã lưu đơn vị tính thành công.');
     } catch (error) { setError(errorMessage(error)); setSaving(false); }
   };
@@ -59,6 +66,18 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
             <input id="measurement-unit-code" className="farmshift-form-control" placeholder="Ví dụ: KG" value={code} onChange={event => setCode(event.target.value)} required maxLength={30} readOnly={readOnly} disabled={saving} />
             <label htmlFor="measurement-unit-name">Tên đơn vị {!readOnly && <span className={styles.required}>*</span>}</label>
             <input id="measurement-unit-name" className="farmshift-form-control" placeholder="Ví dụ: Kilôgam" value={name} onChange={event => setName(event.target.value)} required maxLength={150} readOnly={readOnly} disabled={saving} />
+            <label htmlFor="measurement-unit-content">Quy cách: 1 {name.trim() || 'đơn vị'} chứa</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 10 }}>
+              <input id="measurement-unit-content" className="farmshift-form-control" type="number" min="0" step="0.001" inputMode="decimal"
+                placeholder="Ví dụ: 25" value={contentQuantity} onChange={event => setContentQuantity(event.target.value)} readOnly={readOnly} disabled={saving} />
+              <select aria-label="Đơn vị quy cách" className="farmshift-form-control" value={contentUnit} onChange={event => setContentUnit(event.target.value)}
+                disabled={readOnly || saving}>
+                <option value="">—</option>
+                {USAGE_UNITS.map(unit => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+              </select>
+            </div>
+            <small style={{ display: 'block', margin: '-4px 0 12px', color: '#607781', fontSize: 12 }}>
+              Dùng để quy đổi định mức chương trình nuôi sang tồn kho, ví dụ Bao 25kg = 25 kg, Lọ 1000 liều = 1000 liều.</small>
             <label htmlFor="measurement-unit-description">Mô tả</label>
             <textarea id="measurement-unit-description" className="farmshift-form-control" rows={4} placeholder="Nhập mô tả đơn vị tính" value={description} onChange={event => setDescription(event.target.value)} maxLength={1000} readOnly={readOnly} disabled={saving} />
           </>}
@@ -110,11 +129,12 @@ export const MeasurementUnitsView = () => {
     {error ? <div role="alert" className={styles.empty}><p>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div> :
       <div className="farmshift-table-container" style={{ border: 0 }}>
         <table className={`farmshift-table ${styles.table}`}>
-          <thead><tr><th>Mã đơn vị</th><th>Tên đơn vị</th><th>Mô tả</th><th>Số lượng hàng hóa</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
+          <thead><tr><th>Mã đơn vị</th><th>Tên đơn vị</th><th>Quy cách</th><th>Mô tả</th><th>Số lượng hàng hóa</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={6} className={styles.empty} role="status">Đang tải đơn vị tính...</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className={styles.empty}>{query ? 'Không tìm thấy đơn vị phù hợp.' : 'Chưa có đơn vị tính. Thêm đơn vị đầu tiên để bắt đầu.'}</td></tr> :
+            {loading ? <tr><td colSpan={7} className={styles.empty} role="status">Đang tải đơn vị tính...</td></tr> : filtered.length === 0 ? <tr><td colSpan={7} className={styles.empty}>{query ? 'Không tìm thấy đơn vị phù hợp.' : 'Chưa có đơn vị tính. Thêm đơn vị đầu tiên để bắt đầu.'}</td></tr> :
               filtered.map(category => <tr key={category.id}>
-                <td><span className={styles.code}>{category.code}</span></td><td><strong>{category.name}</strong></td><td className={styles.description}>{category.description || '—'}</td>
+                <td><span className={styles.code}>{category.code}</span></td><td><strong>{category.name}</strong></td>
+                <td>{contentText(category.contentQuantity, category.contentUnit) || '—'}</td><td className={styles.description}>{category.description || '—'}</td>
                 <td><span className={styles.count}>{category.itemCount}</span></td><td className={styles.date}>{formatDate(category.createdAt)}</td>
                 <td><div className={styles.actions}>
                   <button type="button" className={styles.iconButton} onClick={() => open('view', category)} aria-label={`Xem ${category.name}`} title="Xem chi tiết"><Eye size={16} /></button>

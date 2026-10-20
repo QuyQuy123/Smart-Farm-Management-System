@@ -1,0 +1,45 @@
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.dateNav { display: flex; align-items: center; gap: 8px; }
+.dateNav input { width: 170px; }
+.navButton { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #d7ecdc; border-radius: 10px; background: #fff; color: #2d6a4f; cursor: pointer; }
+.navButton:hover:not(:disabled) { background: #e9f6ec; }
+.navButton:disabled { opacity: 0.4; cursor: default; }
+.summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 14px; border-radius: 12px; background: #f3faf4; border: 1px solid #d7ecdc; color: #2d6a4f; font-size: 13.5px; }
+.summary strong { color: #1b4332; font-size: 15px; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 1px solid #d7ecdc; cursor: pointer; }
+.toggle input { accent-color: #1b4332; }
+.list { display: flex; flex-direction: column; gap: 18px; }
+.state { margin: 0; padding: 40px 20px; text-align: center; color: #607781; background: #fff; border: 1px solid #e3ebe8; border-radius: 14px; }
+.state p { margin: 0 0 12px; }
+
+@media (max-width: 640px) {
+  .dateNav { width: 100%; }
+  .dateNav input { flex: 1; width: auto; }
+  .summary { width: 100%; }
+}
+
+/* Danh sách chuồng: bấm vào để mở phiếu việc của chuồng */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.barn { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; border: 1px solid #d7ecdc; border-radius: 14px; background: #fff;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
+.barn:hover { border-color: #95d5b2; box-shadow: 0 8px 20px rgba(27, 67, 50, 0.08); transform: translateY(-1px); }
+.barn:focus-visible { outline: 2px solid #2d6a4f; outline-offset: 2px; }
+.barnDone { background: #f3faf4; }
+.barnHead { display: flex; align-items: center; gap: 12px; }
+.barnIcon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #e9f6ec; color: #2d6a4f; flex-shrink: 0; }
+.barnName { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.barnName strong { font-size: 16px; color: #1b4332; }
+.barnName small { font-size: 12.5px; color: #52796f; }
+.chevron { color: #95d5b2; }
+.barnMeta { font-size: 13px; color: #52796f; }
+.barnProgress { display: flex; align-items: baseline; gap: 6px; font-size: 13px; color: #52796f; }
+.barnProgress strong { font-size: 20px; color: #1b4332; }
+.barnStatus { margin-left: auto; padding: 2px 10px; border-radius: 999px; background: #e9f6ec; color: #1b4332; font-size: 12px; font-weight: 600; }
+.barnDone .barnStatus { background: #1b4332; color: #fff; }
+.bar { height: 6px; border-radius: 999px; background: #e3efe6; overflow: hidden; }
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, #2d6a4f, #74c69d); }
+.barnWarn { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 3px 10px; border-radius: 999px; background: #fff9e6; color: #8a5a00; font-size: 12px; }
+.detail { display: flex; flex-direction: column; gap: 12px; }
+.back { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 6px 12px; border: 1px solid #d7ecdc; border-radius: 10px;
+  background: #fff; color: #2d6a4f; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.back:hover { background: #e9f6ec; }

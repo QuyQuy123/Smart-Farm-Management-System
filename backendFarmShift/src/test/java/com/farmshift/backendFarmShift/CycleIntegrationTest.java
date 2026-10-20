@@ -260,18 +260,56 @@ class CycleIntegrationTest {
             .andExpect(jsonPath("$.data.programs[0].activeFlockCount").value(1))
             .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Lasota lần 1')].state").value("DONE"))
             .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Gumboro')].state").value("IN_PROGRESS"))
-            .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Lasota lần 2')].state").value("UPCOMING"))
-            .andExpect(jsonPath("$.data.todayPlan[0].ageDays").value(11))
-            .andExpect(jsonPath("$.data.todayPlan[0].items.length()").value(4))
-            // 20 g x 1000 birds = 20 kg a day over 5 meals = 4 kg a meal.
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'FEED')].totalFeedKg").value(20.0))
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'FEED')].feedKgPerMeal").value(4.0))
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'VACCINE')].name").value("Gumboro"))
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'MEDICINE')].unit").value("g/kg cám"))
-            .andExpect(jsonPath("$.data.todayPlan[0].items[?(@.category == 'TEMPERATURE')].name").value("Úm"));
+            .andExpect(jsonPath("$.data.programs[0].steps[?(@.name == 'Lasota lần 2')].state").value("UPCOMING"));
+        // Today's work sheet: 20 g x 1000 birds = 20 kg a day over 5 meals = 4 kg a meal; medicine 2 g per kg of that feed = 40 g.
+        mvc.perform(get("/api/cycles/" + cycle + "/daily-plan"))
+            .andExpect(jsonPath("$.data.headcount").value(1000))
+            .andExpect(jsonPath("$.data.flocks[0].ageDays").value(11))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'FEED')].meal").value(org.hamcrest.Matchers.contains(1, 2, 3, 4, 5)))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'FEED')].plannedQuantity").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is(4.0))))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'VACCINE')].name").value("Gumboro"))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'MEDICINE')].plannedQuantity").value(40.0))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'MEDICINE')].unit").value("g"))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'TEMPERATURE')].name").value("Úm"));
 
         mvc.perform(delete("/api/farming-programs/" + programId)).andExpect(status().isConflict())
             .andExpect(jsonPath("$.errorCode").value("PROGRAM_IN_USE"));
+    }
+
+    @Test
+    void ownerAssignsOrChangesTheProgramOfARunningFlock() throws Exception {
+        long cycle = startCycle(barnId, START);
+        long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 100);
+        long shortProgram = id(post("/api/farming-programs", Map.of("name", "Úm 7 ngày", "breed", "Gà Mía", "durationDays", 7,
+                "steps", List.of(Map.of("category", "FEED", "name", "Higro 01", "dayFrom", 1, "dayTo", 7, "quantity", 20, "mealsPerDay", 5)))));
+        long longProgram = id(post("/api/farming-programs", Map.of("name", "Gà ta thả vườn", "breed", "Gà ta", "durationDays", 105,
+                "steps", List.of(Map.of("category", "FEED", "name", "Gà ta", "dayFrom", 1, "dayTo", 105, "quantity", 60, "mealsPerDay", 3)))));
+        String url = "/api/flocks/" + flockId + "/program";
+
+        // The flock is 11 days old, so a 7-day program no longer fits.
+        mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + shortProgram + "}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FLOCK_PROGRAM_TOO_SHORT"));
+        mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest());
+        mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + longProgram + "}")
+                .with(user("worker@farm.test").authorities(() -> "ROLE_FARM_WORKER"))).andExpect(status().isForbidden());
+
+        mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + longProgram + "}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.programName").value("Gà ta thả vườn"));
+        mvc.perform(get("/api/cycles/" + cycle))
+            .andExpect(jsonPath("$.data.programs[0].name").value("Gà ta thả vườn"))
+            .andExpect(jsonPath("$.data.programs[0].currentDay").value(11));
+
+        // Whole cycle at once: every running flock gets the program, or none does when one is too old.
+        importFlock(cycle, "Gà Mía mái", "FEMALE", START.plusDays(1), 100);
+        String all = "/api/cycles/" + cycle + "/program";
+        mvc.perform(put(all).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + shortProgram + "}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FLOCK_PROGRAM_TOO_SHORT"));
+        mvc.perform(put(all).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + programId + "}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(2))
+            .andExpect(jsonPath("$.data[*].programName").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("Gà Mía thương phẩm"))));
+        mvc.perform(get("/api/cycles/" + cycle))
+            .andExpect(jsonPath("$.data.programs.length()").value(1))
+            .andExpect(jsonPath("$.data.programs[0].activeFlockCount").value(2));
     }
 
     @Test

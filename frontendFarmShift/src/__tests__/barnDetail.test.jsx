@@ -6,6 +6,7 @@ import { BarnDetailView } from '../features/farmshift/BarnDetailView';
 import * as cycles from '../services/cycleService';
 import * as areas from '../services/farmAreaService';
 import * as programService from '../services/farmingProgramService';
+import * as dailyPlan from '../services/dailyPlanService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
@@ -13,9 +14,10 @@ vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: mocks
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ pageTitle, children }) => <main><h1>{pageTitle}</h1>{children}</main> }));
 vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(), listFarmAreas: vi.fn(), FARM_AREAS_CHANGED: 'farm-areas-changed' }));
 vi.mock('../services/farmingProgramService', () => ({ listPrograms: vi.fn() }));
+vi.mock('../services/dailyPlanService', () => ({ getBarnDailyPlan: vi.fn(), confirmDailyTask: vi.fn(), undoDailyTask: vi.fn() }));
 vi.mock('../services/cycleService', () => ({
   getBarn: vi.fn(), listCycles: vi.fn(), startCycle: vi.fn(), getCycle: vi.fn(), closeCycle: vi.fn(), importFlock: vi.fn(),
-  transferFlock: vi.fn(), recordLoss: vi.fn(), recordHarvest: vi.fn(), addFeedRecord: vi.fn(), deleteFeedRecord: vi.fn(),
+  transferFlock: vi.fn(), assignFlockProgram: vi.fn(), assignCycleProgram: vi.fn(), recordLoss: vi.fn(), recordHarvest: vi.fn(), addFeedRecord: vi.fn(), deleteFeedRecord: vi.fn(),
   addWeightSample: vi.fn(), deleteWeightSample: vi.fn(), addExpense: vi.fn(), deleteExpense: vi.fn(),
 }));
 
@@ -65,11 +67,26 @@ const detail = () => ({
     { id: 2, category: 'VACCINE', name: 'Newcastle lần 2 (Lasota)', dayFrom: 21, dayTo: 21, method: 'EYE_NOSE', quantity: 1, unit: 'liều/con', state: 'UPCOMING' },
   ] }],
   movements: [], feedRecords: [], weightSamples: [], expenses: [],
-  todayPlan: [{ flockId: 4, flockCode: 'H0004', flockName: 'MÍA-DABACO TRỐNG', programId: 1, programName: 'Gà Mía thương phẩm', ageDays: 18, quantity: 20000, items: [
-    { category: 'FEED', name: 'Higro 02', quantity: 85, unit: 'g/con/ngày', mealsPerDay: 3, totalFeedKg: 1700, feedKgPerMeal: 566.7 },
-    { category: 'MEDICINE', name: 'Men tiêu hóa', quantity: 2, unit: 'g/kg cám', method: 'MIX_FEED' },
-    { category: 'TEMPERATURE', name: 'Gà lớn', tempMin: 26, tempMax: 28 },
-  ] }],
+});
+const task = (key, category, name, extra = {}) => ({
+  key, category, name, meal: null, mealsPerDay: null, method: null, doseText: null, plannedQuantity: null, unit: null, plannedStock: null, stockUnit: null,
+  inventoryItemId: null, inventoryItemName: null, stockOnHand: null, stockEnough: null, tempMin: null, tempMax: null, note: '', shares: [], done: null, ...extra,
+});
+// Today's work sheet: the per-bird program x the birds left in the barn (30.000), grouped for the whole barn.
+const dayPlan = (done = null) => ({
+  cycleId: 20, cycleCode: 'L000020', barnId: 2, barnName: 'Nhà A3', areaName: 'Khu Mía Thịt', date: iso(0), headcount: 30000,
+  flocks: [{ flockId: 4, code: 'H0004', name: 'MÍA-DABACO TRỐNG', programName: 'Gà Mía thương phẩm', ageDays: 18, quantity: 20000 },
+    { flockId: 5, code: 'H0005', name: 'MÍA-DABACO MÁI', programName: 'Gà Mía thương phẩm', ageDays: 18, quantity: 10000 }],
+  tasks: [
+    task('FEED:I7:M1', 'FEED', 'Higro 02', { meal: 1, mealsPerDay: 3, doseText: '85 g/con/ngày', plannedQuantity: 850, unit: 'kg', plannedStock: 34,
+      stockUnit: 'Bao 25kg', inventoryItemId: 7, stockOnHand: 200, stockEnough: true, done,
+      shares: [{ flockId: 4, flockCode: 'H0004', ageDays: 18, quantity: 20000, plannedQuantity: 566.667 },
+        { flockId: 5, flockCode: 'H0005', ageDays: 18, quantity: 10000, plannedQuantity: 283.333 }] }),
+    task('MEDICINE:I9', 'MEDICINE', 'Men tiêu hóa', { method: 'MIX_FEED', doseText: '2 g/kg cám', plannedQuantity: 5100, unit: 'g', plannedStock: 5.1,
+      stockUnit: 'Gói 1kg', inventoryItemId: 9, stockOnHand: 2, stockEnough: false }),
+    task('TEMPERATURE:Ngà lớn', 'TEMPERATURE', 'Gà lớn', { tempMin: 26, tempMax: 28 }),
+  ],
+  doneCount: done ? 1 : 0, doneCost: done ? 11390000 : 0, warnings: ['Kho chỉ còn 2 Gói 1kg Men tiêu hóa, các việc còn lại trong ngày cần 5,1.'],
 });
 
 const renderAt = path => render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/barns/:id" element={<BarnDetailView />} /></Routes></MemoryRouter>);
@@ -85,6 +102,7 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     cycles.getBarn.mockImplementation(async id => barns.find(item => String(item.id) === String(id)));
     cycles.listCycles.mockResolvedValue([{ id: 20, barnId: 2, cycleNumber: 1, startDate: START, status: 'ACTIVE', totalIn: 30000 }]);
     cycles.getCycle.mockResolvedValue(detail());
+    dailyPlan.getBarnDailyPlan.mockResolvedValue(dayPlan());
     cycles.importFlock.mockResolvedValue({});
     cycles.transferFlock.mockResolvedValue({});
     cycles.startCycle.mockResolvedValue({ id: 70, cycleNumber: 1 });
@@ -104,10 +122,12 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.getByText('MÍA-DABACO TRỐNG')).toBeInTheDocument();
     expect(screen.getByText('-335.000.000đ')).toBeInTheDocument();
     expect(screen.getByText('Sắp tới')).toBeInTheDocument();
-    // Today's plan follows each flock's breed program and age.
-    expect(screen.getByText('85 g/con × 20.000 con = 1.700 kg/ngày · 3 cữ × 566,7 kg')).toBeInTheDocument();
-    expect(screen.getByText('Trộn cám · 2 g/kg cám')).toBeInTheDocument();
-    expect(screen.getByText('Giữ nhiệt độ chuồng 26 – 28 °C')).toBeInTheDocument();
+    // Today's work sheet for the whole barn: amount to take from stock, stock shortage and temperature band.
+    expect(dailyPlan.getBarnDailyPlan).toHaveBeenCalledWith(20);
+    expect(screen.getByText('850 kg = 34 Bao 25kg')).toBeInTheDocument();
+    expect(screen.getByText('Kho không đủ: còn 2 Gói 1kg')).toBeInTheDocument();
+    expect(screen.getByText(/Kho chỉ còn 2 Gói 1kg Men tiêu hóa/)).toBeInTheDocument();
+    expect(screen.getByText('Giữ 26 – 28 °C')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Chọn thêm' })).not.toBeInTheDocument();
     // Animals remain, so the cycle cannot be closed yet.
     expect(screen.getByRole('button', { name: 'Kết thúc lứa nuôi' })).toBeDisabled();
@@ -151,6 +171,63 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     fireEvent.change(field(dialog, /Số con chuyển/), { target: { value: '800' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await waitFor(() => expect(cycles.transferFlock).toHaveBeenCalledWith(4, expect.objectContaining({ targetBarnId: 3, quantity: 800 })));
+  });
+
+  it('lets the owner attach a breed program to all running flocks at once', async () => {
+    cycles.assignCycleProgram.mockResolvedValue({});
+    programService.listPrograms.mockResolvedValue([
+      { id: 1, name: 'Gà Mía thương phẩm', breed: 'Gà Mía', durationDays: 90, steps: [] },
+      { id: 3, name: 'Úm 7 ngày', breed: 'Gà Mía', durationDays: 7, steps: [] },
+    ]);
+    renderAt('/barns/2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Gắn chương trình' }));
+    const dialog = await screen.findByRole('dialog');
+    // "All running flocks" is the default, followed by each flock.
+    expect(within(field(dialog, /Đàn đang nuôi/)).getAllByRole('option').map(option => option.textContent)[0]).toBe('Tất cả đàn đang nuôi (2 đàn)');
+    expect(within(field(dialog, /Đàn đang nuôi/)).getAllByRole('option')).toHaveLength(3);
+    // The flocks are 18 days old, so a 7-day program is rejected before calling the API.
+    fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '3' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    expect(await within(dialog).findByText(/vượt thời gian nuôi 7 ngày/)).toBeInTheDocument();
+    expect(cycles.assignCycleProgram).not.toHaveBeenCalled();
+
+    fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '1' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    await waitFor(() => expect(cycles.assignCycleProgram).toHaveBeenCalledWith(20, 1));
+    expect(mocks.showToast).toHaveBeenCalledWith('Đã gắn chương trình Gà Mía thương phẩm cho 2 đàn đang nuôi.', 'success');
+  });
+
+  it('can still attach a program to a single flock', async () => {
+    cycles.assignFlockProgram.mockResolvedValue({});
+    renderAt('/barns/2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Gắn chương trình' }));
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.change(field(dialog, /Đàn đang nuôi/), { target: { value: '5' } });
+    fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '1' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    await waitFor(() => expect(cycles.assignFlockProgram).toHaveBeenCalledWith(5, 1));
+  });
+
+  it('confirms a meal from the barn page and refreshes the journal and costs', async () => {
+    const done = { id: 1, actualQuantity: 850, stockQuantity: 34, unitPrice: 335000, cost: 11390000, deviated: false, note: '',
+      doneBy: 'owner@farm.test', doneAt: `${iso(0)}T06:30:00` };
+    dailyPlan.confirmDailyTask.mockResolvedValue(dayPlan(done));
+    renderAt('/barns/2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Xong Cữ 1/3 · Higro 02' }));
+    await waitFor(() => expect(dailyPlan.confirmDailyTask).toHaveBeenCalledWith(20, { date: iso(0), taskKey: 'FEED:I7:M1' }));
+    expect(await screen.findByText(/Xong lúc 06:30 · owner@farm.test/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hoàn tác Cữ 1/3 · Higro 02' })).toBeInTheDocument();
+    expect(mocks.showToast).toHaveBeenCalledWith('Đã xác nhận: Higro 02.', 'success');
+    await waitFor(() => expect(cycles.getCycle).toHaveBeenCalledTimes(2));
+
+    // Feeding a different amount asks for the actual quantity and a reason; the server's message stays under the task.
+    dailyPlan.confirmDailyTask.mockRejectedValueOnce({ response: { data: { message: 'Lượng thực tế lệch -50% so với kế hoạch (5.100 g). Vui lòng ghi lý do.' } } });
+    fireEvent.click(screen.getByRole('button', { name: 'Khác kế hoạch Men tiêu hóa' }));
+    fireEvent.change(screen.getByLabelText(/Lượng thực tế/), { target: { value: '2550' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Vui lòng ghi lý do');
+    expect(dailyPlan.confirmDailyTask).toHaveBeenLastCalledWith(20, { date: iso(0), taskKey: 'MEDICINE:I9', actualQuantity: 2550, note: undefined });
   });
 
   it('lets the owner declare a cycle on an empty barn', async () => {

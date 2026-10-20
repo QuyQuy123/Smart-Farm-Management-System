@@ -222,6 +222,8 @@ Entity: `MeasurementUnit`. Quản lý quy chuẩn đơn vị tại **Thiết l�
 | `name` | VARCHAR(150) | NOT NULL. Tên hiển thị đơn vị (VD: `Bao (25kg)`, `Kg`, `Lọ 1000 liều`). |
 | `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa chữ thường. |
 | `description` | VARCHAR(1000) | Mô tả chi tiết đơn vị. |
+| `content_quantity` | NUMERIC(14,3) | Quy cách: 1 đơn vị này chứa bao nhiêu (VD: `25` với `Bao (25kg)`). NULL nếu không quy đổi. Phải nhập cùng `content_unit`. |
+| `content_unit` | VARCHAR(10) | Đơn vị của quy cách: `KG`, `G`, `L`, `ML`, `DOSE` (liều). Dùng để đổi định mức chương trình nuôi sang số bao / lọ / chai cần trừ kho. Không đổi được khi còn hàng hóa tồn kho dùng đơn vị này. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **API:** `GET /api/measurement-units`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
@@ -556,6 +558,43 @@ Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm só
 | `method` | VARCHAR(20) | Phương pháp: `EYE_NOSE` (nhỏ mắt mũi), `MOUTH` (uống), `DRINKING_WATER` (pha nước), `INJECTION` (tiêm), `WING_WEB` (chủng cánh), `MIX_FEED` (trộn cám), `MIX_WATER` (pha nước uống). |
 | `temp_min`, `temp_max` | NUMERIC(4,1) | Nhiệt độ ngưỡng chuồng nuôi (°C) đối với `TEMPERATURE`. |
 | `note` | VARCHAR(1000) | Hướng dẫn thực hiện chi tiết cho công nhân. |
+| `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`, có thể NULL. Hàng hóa kho dùng cho bước cám / thuốc / vắc-xin để trừ kho và tính chi phí khi xác nhận phiếu việc. Hàng hóa phải có quy cách đơn vị cùng loại đại lượng với định mức (cám → khối lượng; thuốc, vắc-xin → tử số của đơn vị liều: `g/...`, `ml/...`, `liều/...`). Thuốc gắn hàng hóa phải ghi rõ liều theo `kg cám`, `lít nước` hoặc `con`. |
+
+### 6.10 Bảng `daily_task_logs` — Phiếu việc hằng ngày đã xác nhận
+
+Entity: `DailyTaskLog`. Màn **Việc hôm nay** (`/today-tasks`) và khối **Việc hôm nay** trong trang chuồng.
+
+Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định mức 1 con của chương trình × số con còn lại của từng đàn cuối ngày đó** (đã trừ hao hụt, loại thải, xuất bán, chuyển đi sau ngày đó), gộp theo chuồng và theo hàng hóa (hoặc tên khi chưa gắn hàng hóa). Cám chia thành từng cữ; thuốc trộn cám tính theo kg cám của đàn trong ngày, thuốc pha nước theo lượng nước ước tính = 2 lít/kg cám; vắc-xin theo số con, làm tròn lên cả lọ. Bảng này chỉ lưu những việc đã được xác nhận.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. |
+| `task_date` | DATE | NOT NULL. Ngày làm việc (từ ngày bắt đầu lứa đến hôm nay). |
+| `task_key` | VARCHAR(120) | NOT NULL. Mã việc ổn định: `FEED:I{hàng hóa}:M{cữ}`, `VACCINE:I{hàng hóa}`, `MEDICINE:N{tên}`, `TEMPERATURE:N{tên}`, `WORK:N{tên}`. UNIQUE (`cycle_id`, `task_date`, `task_key`). |
+| `category` | VARCHAR(20) | NOT NULL. `FEED`, `VACCINE`, `MEDICINE`, `TEMPERATURE`, `WORK`. |
+| `task_name` | VARCHAR(200) | NOT NULL. Tên việc lúc xác nhận (giữ lịch sử khi chương trình bị sửa). |
+| `meal` | INT | Cữ thứ mấy trong ngày (chỉ với cám). |
+| `planned_quantity`, `actual_quantity` | NUMERIC(14,3) | Lượng theo kế hoạch và thực tế, cùng đơn vị `usage_unit`. |
+| `usage_unit` | VARCHAR(10) | `KG` (cám), `G` / `ML` (thuốc), `DOSE` / `ML` (vắc-xin). |
+| `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Hàng hóa đã trừ kho. |
+| `stock_quantity` | NUMERIC(14,3) | Số đơn vị tồn kho đã trừ (bao, lọ, gói...). |
+| `unit_price` | NUMERIC(19,2) | Giá một đơn vị tồn kho lúc xác nhận. |
+| `cost` | NUMERIC(16,2) | Thành tiền = `stock_quantity` × `unit_price`. |
+| `feed_record_id` | BIGINT | FOREIGN KEY → `feed_records.id`. Nhật ký cám sinh ra khi xác nhận cữ cám (đơn giá đ/kg = giá bao / kg mỗi bao). |
+| `expense_id` | BIGINT | FOREIGN KEY → `cycle_expenses.id`. Khoản chi `MEDICINE` sinh ra khi xác nhận thuốc / vắc-xin có tiền. |
+| `deviated` | BOOLEAN | NOT NULL. Lệch kế hoạch quá ngưỡng: cám ±10%, thuốc và vắc-xin ±1%. Khi lệch bắt buộc có `note`. |
+| `note` | VARCHAR(1000) | Lý do / ghi chú của người làm. |
+| `done_by` | VARCHAR(150) | NOT NULL. Email người xác nhận. |
+| `done_at` | TIMESTAMP | NOT NULL. Thời điểm xác nhận. |
+
+**Quy tắc:**
+- Xác nhận cám / thuốc / vắc-xin có hàng hóa: trừ tồn kho bằng một câu `UPDATE ... WHERE stock >= lượng cần` (không thể âm kho khi hai người bấm cùng lúc); kho không đủ thì báo `STOCK_NOT_ENOUGH`.
+- Hoàn tác: hoàn lại tồn kho, xóa nhật ký cám / khoản chi đã sinh. Chủ trại hoàn tác mọi việc; công nhân chỉ hoàn tác việc của mình trong hôm nay.
+- Nhật ký cám / khoản chi sinh từ phiếu việc không xóa được ở nhật ký lứa (`RECORD_FROM_DAILY_PLAN`), phải hoàn tác ở phiếu việc.
+- Hàng hóa đang gắn vào chương trình nuôi hoặc phiếu việc không xóa được (`INVENTORY_IN_USE`).
+
+**API:** `GET /api/daily-plan?date=` (mọi chuồng đang nuôi), `GET /api/cycles/{id}/daily-plan?date=`, `POST /api/cycles/{id}/daily-plan/tasks` `{date, taskKey, actualQuantity?, note?}` và `DELETE /api/cycles/{id}/daily-plan/tasks?date=&taskKey=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Tiền chỉ trả về cho chủ trại và kế toán.
 
 ---
 

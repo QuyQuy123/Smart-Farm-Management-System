@@ -64,6 +64,12 @@ public class CycleController {
         return ApiResponse.success("Đã nhập đàn", flockService.importFlock(id, request, authentication.getName()));
     }
 
+    @PutMapping("/api/cycles/{id}/program")
+    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
+    public ApiResponse<List<FlockResponse>> assignProgram(@PathVariable Long id, @Valid @RequestBody FlockProgramRequest request) {
+        return ApiResponse.success("Đã gắn chương trình nuôi cho tất cả đàn", flockService.assignProgramToCycle(id, request));
+    }
+
     @PostMapping("/api/cycles/{id}/feed-records")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_FARM_WORKER')")

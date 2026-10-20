@@ -66,7 +66,7 @@ class EmployeeControllerIntegrationTest {
         ensureRole(RoleNames.ACCOUNTANT, "Kế toán");
         Role worker = ensureRole(RoleNames.FARM_WORKER, "Công nhân");
 
-        saveAccount(OWNER_EMAIL, "Miến Bình", owner, "0988111222");
+        saveAccount(OWNER_EMAIL, "Miền Bính", owner, "0988111222");
         workerId = saveAccount(WORKER_EMAIL, "Lê Công Nhân", worker, "0966333444").getId();
     }
 

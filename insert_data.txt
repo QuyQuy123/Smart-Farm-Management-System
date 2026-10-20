@@ -20,7 +20,7 @@ ON CONFLICT (name) DO NOTHING;
 -- ---------------------------------------------------------------------
 INSERT INTO accounts (email, password, role_id, full_name, is_active)
 VALUES ('hiepgacute1989@gmail.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Admin', TRUE),
-       ('mienbinh@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Miến Bình', TRUE),
+       ('mienbinh@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Miền Bính', TRUE),
        ('ketoan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 2, 'Trần Kế Toán', TRUE),
        ('congnhan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 3, 'Lê Công Nhân', TRUE)
 ON CONFLICT (email) DO NOTHING;
@@ -30,10 +30,14 @@ ON CONFLICT (email) DO NOTHING;
 -- ---------------------------------------------------------------------
 INSERT INTO customers (account_id, full_name, phone, citizen_id, address)
 VALUES (1, 'Admin', '0989149421', '001000000000', 'Hà Nội'),
-       (2, 'Miến Bình', '0988111222', '001204000001', 'Vĩnh Phúc'),
+       (2, 'Miền Bính', '0988111222', '001204000001', 'Vĩnh Phúc'),
        (3, 'Trần Kế Toán', '0977222333', '001204000002', 'Vĩnh Phúc'),
        (4, 'Lê Công Nhân', '0966333444', '001204000003', 'Vĩnh Phúc')
 ON CONFLICT (account_id) DO NOTHING;
+
+-- Sửa tên chủ trang trại cho các database đã seed tên cũ "Miến Bình"
+UPDATE accounts SET full_name = 'Miền Bính' WHERE email = 'mienbinh@smartfarm.com' AND full_name <> 'Miền Bính';
+UPDATE customers SET full_name = 'Miền Bính' WHERE account_id = (SELECT id FROM accounts WHERE email = 'mienbinh@smartfarm.com') AND full_name <> 'Miền Bính';
 
 -- ---------------------------------------------------------------------
 -- 4. Chèn dữ liệu Thông tin cơ sở & Trang trại (Farms)
@@ -450,3 +454,151 @@ WHERE NOT EXISTS (
   SELECT 1 FROM cycle_expenses ce
   WHERE ce.cycle_id = c.id AND ce.expense_date = v.expense_date AND ce.category = v.category
 );
+
+-- ---------------------------------------------------------------------
+-- 23. Phiếu việc hằng ngày: quy cách đơn vị tồn kho & gắn hàng hóa kho vào chương trình nuôi
+--     (chạy sau khi backend đã khởi động để Hibernate tạo cột content_quantity, content_unit,
+--      inventory_item_id và bảng daily_task_logs)
+-- ---------------------------------------------------------------------
+-- Quy cách: 1 đơn vị tồn kho chứa bao nhiêu kg / lít / liều, để quy đổi định mức sang số bao, lọ, chai cần lấy
+UPDATE measurement_units u
+SET content_quantity = v.qty, content_unit = v.unit
+FROM (VALUES
+  ('bao25', 25.000, 'KG'),
+  ('kg', 1.000, 'KG'),
+  ('lo1000', 1000.000, 'DOSE'),
+  ('goi1kg', 1.000, 'KG'),
+  ('chai1l', 1.000, 'L'),
+  ('can5l', 5.000, 'L')
+) AS v(code_key, qty, unit)
+WHERE u.code_key = v.code_key AND u.content_quantity IS NULL;
+
+-- Hàng hóa khởi tạo ở mục 19 lấy đơn vị theo tên quy cách ("Bao 25kg") nên có thể chưa khớp đơn vị "Bao (25kg)": gắn lại theo mã đơn vị
+UPDATE inventory_items i
+SET unit_id = u.id
+FROM product_categories pc, measurement_units u
+WHERE i.product_id = pc.id AND i.unit_id IS NULL
+  AND u.code_key = CASE LOWER(pc.specification) WHEN 'bao 25kg' THEN 'bao25' WHEN 'gói 1kg' THEN 'goi1kg'
+                                                 WHEN 'lọ 1000 liều' THEN 'lo1000' WHEN 'chai 1l' THEN 'chai1l' END;
+
+-- Men tiêu hóa (gói 1kg) để chương trình trộn cám trừ được kho
+INSERT INTO product_categories (name, name_key, warehouse_id, brand, specification, product_type, created_at, updated_at)
+SELECT 'Men tiêu hóa Bio-Zyme', 'men tiêu hóa bio-zyme', w.id, 'Hanvet', 'Gói 1kg', 'Thuốc thú y', TIMESTAMP '2026-09-25 10:15:00', TIMESTAMP '2026-09-25 10:15:00'
+FROM warehouse_categories w WHERE w.name_key = 'kho thuốc & vắc-xin'
+ON CONFLICT (name_key) DO NOTHING;
+
+INSERT INTO inventory_items (code, warehouse_id, product_id, brand_id, unit_id, price, stock, created_at, updated_at)
+SELECT 'SP' || UPPER(SUBSTRING(MD5(pc.name_key) FROM 1 FOR 12)), pc.warehouse_id, pc.id, b.id, u.id, 120000, 20.000, pc.created_at, pc.updated_at
+FROM product_categories pc
+LEFT JOIN brands b ON b.name_key = 'hanvet'
+JOIN measurement_units u ON u.code_key = 'goi1kg'
+WHERE pc.name_key = 'men tiêu hóa bio-zyme'
+ON CONFLICT (warehouse_id, product_id) DO NOTHING;
+
+-- Gắn hàng hóa kho vào bước chương trình nuôi (chỉ những bước chưa gắn)
+UPDATE farming_program_steps s
+SET inventory_item_id = i.id
+FROM (VALUES
+  ('FEED', '%higro 01%', 'cám gà úm higro 01'),
+  ('FEED', '%higro 02%', 'cám gà thịt higro 02'),
+  ('FEED', '%higro 03%', 'cám gà vỗ béo higro 03'),
+  ('VACCINE', '%lasota%', 'vắc-xin newcastle lasota'),
+  ('MEDICINE', 'men tiêu hóa%', 'men tiêu hóa bio-zyme')
+) AS v(category, step_pattern, product_key)
+JOIN product_categories pc ON pc.name_key = v.product_key
+JOIN inventory_items i ON i.product_id = pc.id
+WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.inventory_item_id IS NULL;
+
+-- ---------------------------------------------------------------------
+-- 24. Dữ liệu kho để test phiếu việc: cám, thuốc, vắc-xin cho gà thịt
+--     Giá tham khảo mặt bằng thị trường (đã gồm VAT), quy cách đóng gói thông dụng.
+--     Tồn kho chỉ được nâng lên mức tối thiểu (GREATEST) nên chạy lại không ghi đè số đã nhập / đã dùng thêm.
+-- ---------------------------------------------------------------------
+INSERT INTO brands (name, name_key, product_type, quantity, note, created_at, updated_at)
+VALUES ('Navetco', 'navetco', 'Thuốc thú y', 0, 'Công ty Thuốc thú y Trung ương Navetco - vắc-xin gia cầm', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('Medion', 'medion', 'Thuốc thú y', 0, 'Medion (Indonesia) - vắc-xin Gumboro, Newcastle-IB', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('De Heus', 'de heus', 'Thức ăn chăn nuôi', 0, 'De Heus Việt Nam - thức ăn hỗn hợp gà thịt', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
+
+-- Đơn vị đóng gói dạng lỏng cho vắc-xin tiêm (quy đổi theo ml)
+INSERT INTO measurement_units (code, code_key, name, name_key, description, content_quantity, content_unit, created_at, updated_at)
+VALUES ('CHAI500ML', 'chai500ml', 'Chai 500ml', 'chai 500ml', 'Chai vắc-xin vô hoạt 500ml (1.000 liều 0,5ml)', 500.000, 'ML', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('LO20ML', 'lo20ml', 'Lọ 100 liều (20ml)', 'lọ 100 liều (20ml)', 'Lọ vắc-xin nhược độc 100 liều, pha thành 20ml (0,2ml/con)', 20.000, 'ML', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (code_key) DO NOTHING;
+
+-- Tên hàng hóa: (tên, kho, nhãn hiệu, quy cách, loại)
+INSERT INTO product_categories (name, name_key, warehouse_id, brand, specification, product_type, created_at, updated_at)
+SELECT v.name, LOWER(v.name), w.id, v.brand, v.spec, v.ptype, TIMESTAMP '2026-10-01 08:00:00', TIMESTAMP '2026-10-01 08:00:00'
+FROM (VALUES
+  ('Ngô hạt nghiền', 'kho cám', 'C.P. Việt Nam', 'Kg', 'Thức ăn chăn nuôi'),
+  ('Cám gà thịt De Heus 2012', 'kho cám', 'De Heus', 'Bao 25kg', 'Thức ăn chăn nuôi'),
+  ('Vắc-xin Marek (HVT)', 'kho thuốc & vắc-xin', 'Navetco', 'Lọ 1000 liều', 'Thuốc thú y'),
+  ('Vắc-xin Gumboro (Medivac Gumboro A)', 'kho thuốc & vắc-xin', 'Medion', 'Lọ 1000 liều', 'Thuốc thú y'),
+  ('Vắc-xin Đậu gà', 'kho thuốc & vắc-xin', 'Navetco', 'Lọ 1000 liều', 'Thuốc thú y'),
+  ('Vắc-xin cúm gia cầm H5N1 (Navet-Vifluvac)', 'kho thuốc & vắc-xin', 'Navetco', 'Chai 500ml', 'Thuốc thú y'),
+  ('Vắc-xin Newcastle hệ I (M)', 'kho thuốc & vắc-xin', 'Navetco', 'Lọ 100 liều (20ml)', 'Thuốc thú y'),
+  ('Vitamin C + điện giải (Han-Electrolyte)', 'kho thuốc & vắc-xin', 'Hanvet', 'Gói 1kg', 'Thuốc thú y'),
+  ('Amoxicillin 10% (Hanmoxy)', 'kho thuốc & vắc-xin', 'Hanvet', 'Gói 1kg', 'Thuốc thú y'),
+  ('Toltrazuril 2.5% (Han-Coc)', 'kho thuốc & vắc-xin', 'Hanvet', 'Chai 1L', 'Thuốc thú y')
+) AS v(name, wh_key, brand, spec, ptype)
+JOIN warehouse_categories w ON w.name_key = v.wh_key
+ON CONFLICT (name_key) DO NOTHING;
+
+-- Hàng hóa trong kho: giá một đơn vị tồn kho (bao / lọ / chai / gói / kg)
+INSERT INTO inventory_items (code, warehouse_id, product_id, brand_id, unit_id, price, stock, created_at, updated_at)
+SELECT 'SP' || UPPER(SUBSTRING(MD5(pc.name_key) FROM 1 FOR 12)), pc.warehouse_id, pc.id, b.id, u.id, v.price, 0, pc.created_at, pc.updated_at
+FROM (VALUES
+  ('ngô hạt nghiền', 'kg', 7800),
+  ('cám gà thịt de heus 2012', 'bao25', 342000),
+  ('vắc-xin marek (hvt)', 'lo1000', 185000),
+  ('vắc-xin gumboro (medivac gumboro a)', 'lo1000', 78000),
+  ('vắc-xin đậu gà', 'lo1000', 62000),
+  ('vắc-xin cúm gia cầm h5n1 (navet-vifluvac)', 'chai500ml', 260000),
+  ('vắc-xin newcastle hệ i (m)', 'lo20ml', 32000),
+  ('vitamin c + điện giải (han-electrolyte)', 'goi1kg', 95000),
+  ('amoxicillin 10% (hanmoxy)', 'goi1kg', 165000),
+  ('toltrazuril 2.5% (han-coc)', 'chai1l', 680000)
+) AS v(product_key, unit_key, price)
+JOIN product_categories pc ON pc.name_key = v.product_key
+JOIN measurement_units u ON u.code_key = v.unit_key
+LEFT JOIN brands b ON LOWER(b.name) = LOWER(pc.brand)
+ON CONFLICT (warehouse_id, product_id) DO NOTHING;
+
+-- Tồn kho đủ chạy thử nhiều ngày cho 6 chuồng (~30.000–50.000 con/chuồng); chỉ nâng lên, không hạ xuống
+UPDATE inventory_items i
+SET stock = GREATEST(i.stock, v.min_stock)
+FROM (VALUES
+  ('cám gà úm higro 01', 1500.000),
+  ('cám gà thịt higro 02', 3000.000),
+  ('cám gà vỗ béo higro 03', 3000.000),
+  ('cám gà thịt de heus 2012', 1000.000),
+  ('ngô hạt nghiền', 20000.000),
+  ('vắc-xin newcastle lasota', 300.000),
+  ('vắc-xin marek (hvt)', 100.000),
+  ('vắc-xin gumboro (medivac gumboro a)', 300.000),
+  ('vắc-xin đậu gà', 100.000),
+  ('vắc-xin cúm gia cầm h5n1 (navet-vifluvac)', 120.000),
+  ('vắc-xin newcastle hệ i (m)', 600.000),
+  ('men tiêu hóa bio-zyme', 150.000),
+  ('vitamin c + điện giải (han-electrolyte)', 300.000),
+  ('amoxicillin 10% (hanmoxy)', 200.000),
+  ('toltrazuril 2.5% (han-coc)', 100.000)
+) AS v(product_key, min_stock), product_categories pc
+WHERE pc.name_key = v.product_key AND i.product_id = pc.id;
+
+-- Gắn hàng hóa vào các bước chương trình mẫu còn chưa gắn (cùng loại đại lượng với định mức)
+UPDATE farming_program_steps s
+SET inventory_item_id = i.id
+FROM (VALUES
+  ('VACCINE', '%marek%', 'vắc-xin marek (hvt)'),
+  ('VACCINE', '%gumboro%', 'vắc-xin gumboro (medivac gumboro a)'),
+  ('VACCINE', '%đậu gà%', 'vắc-xin đậu gà'),
+  ('VACCINE', '%h5n1%', 'vắc-xin cúm gia cầm h5n1 (navet-vifluvac)'),
+  ('VACCINE', '%hệ i%', 'vắc-xin newcastle hệ i (m)'),
+  ('MEDICINE', 'vitamin c%', 'vitamin c + điện giải (han-electrolyte)'),
+  ('MEDICINE', 'amoxicillin%', 'amoxicillin 10% (hanmoxy)'),
+  ('MEDICINE', 'toltrazuril%', 'toltrazuril 2.5% (han-coc)')
+) AS v(category, step_pattern, product_key)
+JOIN product_categories pc ON pc.name_key = v.product_key
+JOIN inventory_items i ON i.product_id = pc.id
+WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.inventory_item_id IS NULL;

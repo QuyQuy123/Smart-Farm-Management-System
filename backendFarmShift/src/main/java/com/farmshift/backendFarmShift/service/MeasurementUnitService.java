@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.service;
 import com.farmshift.backendFarmShift.dto.request.MeasurementUnitRequest;
 import com.farmshift.backendFarmShift.dto.response.MeasurementUnitResponse;
 import com.farmshift.backendFarmShift.entity.MeasurementUnit;
+import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.MeasurementUnitRepository;
@@ -12,6 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
@@ -51,12 +53,25 @@ public class MeasurementUnitService {
         String oldName = unit.getName();
         unit.setCode(code); unit.setCodeKey(codeKey); unit.setName(name); unit.setNameKey(nameKey);
         unit.setDescription(request.description() == null ? "" : request.description().strip());
+        if ((request.contentQuantity() == null) != (request.contentUnit() == null)) {
+            throw new BadRequestException("Quy cách cần nhập cả số lượng và đơn vị (ví dụ 25 kg).", "UNIT_CONTENT_INCOMPLETE");
+        }
+        boolean contentChanged = !sameAmount(unit.getContentQuantity(), request.contentQuantity()) || unit.getContentUnit() != request.contentUnit();
+        if (unit.getId() != null && contentChanged && inventory.existsByUnit_IdAndStockGreaterThan(unit.getId(), BigDecimal.ZERO)) {
+            throw new ConflictException("Không thể đổi quy cách của đơn vị đang có hàng hóa còn tồn kho.", "UNIT_CONTENT_IN_USE", "contentQuantity");
+        }
+        unit.setContentQuantity(request.contentQuantity());
+        unit.setContentUnit(request.contentUnit());
         try { unit = repository.saveAndFlush(unit); }
         catch (DataIntegrityViolationException exception) { throw new ConflictException("Mã hoặc tên đơn vị đã tồn tại.", "UNIT_DUPLICATE", null); }
         if (oldName != null && !oldName.equals(name)) products.renameUnitSpecifications(oldName, name);
         return response(unit);
     }
+    private static boolean sameAmount(BigDecimal a, BigDecimal b) {
+        return a == null ? b == null : b != null && a.compareTo(b) == 0;
+    }
     private MeasurementUnitResponse response(MeasurementUnit unit) {
-        return new MeasurementUnitResponse(unit.getId(), unit.getCode(), unit.getName(), unit.getDescription(), products.countByUnitName(unit.getName()), unit.getCreatedAt());
+        return new MeasurementUnitResponse(unit.getId(), unit.getCode(), unit.getName(), unit.getDescription(), products.countByUnitName(unit.getName()), unit.getCreatedAt(),
+                unit.getContentQuantity(), unit.getContentUnit());
     }
 }

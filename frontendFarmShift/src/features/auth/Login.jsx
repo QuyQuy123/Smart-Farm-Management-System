@@ -64,8 +64,8 @@ export const Login = () => {
 
   return (
     <AuthLayout>
-      <div style={{ marginBottom: '28px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 8px', letterSpacing: '-0.01em' }}>
+      <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 8px', letterSpacing: '-0.01em' }}>
           Đăng nhập tài khoản
         </h2>
         <p style={{ fontSize: '14px', color: 'var(--color-muted)', margin: 0 }}>

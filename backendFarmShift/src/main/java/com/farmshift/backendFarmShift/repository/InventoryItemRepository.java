@@ -16,5 +16,18 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     boolean existsByProduct_Id(Long productId);
     boolean existsByBrand_Id(Long brandId);
     boolean existsByUnit_Id(Long unitId);
+    boolean existsByUnit_IdAndStockGreaterThan(Long unitId, java.math.BigDecimal stock);
+    /**
+     * Trừ tồn kho nguyên tử, chỉ khi còn đủ: trả về 0 nếu kho không đủ. Hai người xác nhận cùng lúc không thể làm âm kho.
+     */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("update InventoryItem i set i.stock = i.stock - :quantity where i.id = :id and i.stock >= :quantity")
+    int takeStock(@org.springframework.data.repository.query.Param("id") Long id,
+                  @org.springframework.data.repository.query.Param("quantity") java.math.BigDecimal quantity);
+
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("update InventoryItem i set i.stock = i.stock + :quantity where i.id = :id")
+    int returnStock(@org.springframework.data.repository.query.Param("id") Long id,
+                    @org.springframework.data.repository.query.Param("quantity") java.math.BigDecimal quantity);
     boolean existsByWarehouse_IdAndProduct_IdAndIdNot(Long warehouseId, Long productId, Long id);
 }

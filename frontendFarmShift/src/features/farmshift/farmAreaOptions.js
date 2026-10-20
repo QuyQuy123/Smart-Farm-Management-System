@@ -106,6 +106,38 @@ export const METHODS = [...VACCINE_METHODS, ...MEDICINE_METHODS];
 
 export const MEDICINE_UNITS = ['g/kg cám', 'ml/lít nước', 'g/lít nước', 'ml/kg cám'];
 
+/** Quy cách đơn vị tồn kho (Bao 25kg = 25 kg, Lọ 1000 liều = 1000 liều) để quy đổi định mức chương trình sang tồn kho. */
+export const USAGE_UNITS = [
+  { value: 'KG', label: 'kg' },
+  { value: 'G', label: 'g' },
+  { value: 'L', label: 'lít' },
+  { value: 'ML', label: 'ml' },
+  { value: 'DOSE', label: 'liều' },
+];
+
+export const formatAmount = value => (value == null || value === '' ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 }));
+
+export const contentText = (quantity, unit) => (quantity == null || !unit ? '' : `${formatAmount(quantity)} ${labelOf(USAGE_UNITS, unit)}`);
+
+const DIMENSIONS = { KG: 'MASS', G: 'MASS', L: 'VOLUME', ML: 'VOLUME', DOSE: 'DOSE' };
+
+/** Loại đại lượng của định mức: cám theo khối lượng, thuốc / vắc-xin theo tử số đơn vị liều (g/..., ml/..., liều/...). */
+export const doseDimension = (category, unit) => {
+  if (category === 'FEED') return 'MASS';
+  const head = String(unit || '').split('/')[0].trim().toLowerCase();
+  if (['kg', 'g', 'gam', 'gram'].includes(head)) return 'MASS';
+  if (['l', 'lít', 'lit', 'ml'].includes(head)) return 'VOLUME';
+  if (['liều', 'lieu', 'giọt', 'giot', 'dose'].includes(head)) return 'DOSE';
+  return null;
+};
+
+/** Hàng hóa dùng được cho một nội dung khi có quy cách và cùng loại đại lượng với định mức. */
+export const itemFitsStep = (item, category, unit) => {
+  if (!item?.unitContentUnit) return false;
+  const dimension = doseDimension(category, unit);
+  return dimension === null || DIMENSIONS[item.unitContentUnit] === dimension;
+};
+
 const isWhole = value => value !== '' && value != null && Number.isInteger(Number(value));
 const positive = value => value !== '' && value != null && Number(value) > 0;
 

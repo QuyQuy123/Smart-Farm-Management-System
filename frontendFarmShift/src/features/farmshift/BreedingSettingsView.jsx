@@ -1,39 +1,47 @@
 // src/features/farmshift/BreedingSettingsView.jsx
 // Thiết lập chăn nuôi & Quy trình kỹ thuật chuẩn FarmShift & DESIGN.md
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Settings, Thermometer, Activity, Calendar, CheckCircle, Plus,
-  FileSpreadsheet, X, Target, Scissors, Clock, UserCheck, AlertTriangle, Edit3, Trash2
+  FileSpreadsheet, X, Target, Scissors, Clock, UserCheck, AlertTriangle, Edit3, Trash2, ClipboardList
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
 import { FarmingProgramsPanel } from './FarmingProgramsPanel';
+import tabStyles from './BreedingSettingsTabs.module.css';
+
+const SETTING_TABS = [
+  { key: 'program', label: 'Chương trình nuôi', sub: 'Cám, vắc-xin, nhiệt độ theo giống', icon: ClipboardList },
+  { key: 'growth_targets', label: 'Mục tiêu tăng trưởng & Định mức cám', sub: 'Cân nặng, FCR theo ngày tuổi', icon: Target },
+  { key: 'harvest_types', label: 'Loại thu hoạch & Biểu cân', sub: 'Phân loại và đơn giá xuất bán', icon: Scissors },
+  { key: 'tasks', label: 'Công việc & Lịch chăm sóc', sub: 'Giao việc cho công nhân', icon: Calendar },
+  { key: 'standards', label: 'Chỉ số vật nuôi theo ngày', sub: 'Chuẩn tăng trọng hằng ngày', icon: Activity },
+  { key: 'env', label: 'Chỉ số môi trường nuôi (IoT)', sub: 'Ngưỡng nhiệt độ, độ ẩm', icon: Thermometer },
+];
 
 export const BreedingSettingsView = () => {
   const { showToast } = useNotification();
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Auto-detect tab from URL path
-  const getInitialTab = () => {
-    if (location.pathname.includes('growth-targets')) return 'growth_targets';
-    if (location.pathname.includes('harvest-types')) return 'harvest_types';
-    if (location.pathname.includes('tasks')) return 'tasks';
-    return 'program';
-  };
+  // The URL is the source of truth: ?tab=… wins, the legacy /growth-targets and /harvest-types routes still map to their tab.
+  const tabParam = new URLSearchParams(location.search).get('tab');
+  const activeTab = SETTING_TABS.some(tab => tab.key === tabParam) ? tabParam
+    : location.pathname.includes('growth-targets') ? 'growth_targets'
+      : location.pathname.includes('harvest-types') ? 'harvest_types'
+        : 'program';
+  const openTab = key => navigate(`/breeding-settings?tab=${key}`);
 
-  const [activeTab, setActiveTab] = useState(getInitialTab);
+  // Keep the selected card visible in the scrolling row, e.g. when opening ?tab=env directly.
+  const cardsRef = useRef(null);
+  useEffect(() => {
+    cardsRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [activeTab]);
+
   const [showAddGrowthModal, setShowAddGrowthModal] = useState(false);
   const [showAddHarvestModal, setShowAddHarvestModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-
-  const [prevPath, setPrevPath] = useState(location.pathname);
-  if (location.pathname !== prevPath) {
-    setPrevPath(location.pathname);
-    if (location.pathname.includes('growth-targets')) setActiveTab('growth_targets');
-    else if (location.pathname.includes('harvest-types')) setActiveTab('harvest_types');
-    else if (location.pathname.includes('tasks')) setActiveTab('tasks');
-  }
 
   // Mock data for Growth Targets
   const [growthTargets, setGrowthTargets] = useState([
@@ -154,45 +162,24 @@ export const BreedingSettingsView = () => {
         </div>
       }
     >
-      {/* ── Subsystem Tabs (All 6 Husbandry Subsystems) ─────── */}
-      <div className="farmshift-tabs">
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'program' ? 'active' : ''}`}
-          onClick={() => setActiveTab('program')}
-        >
-          Chương trình nuôi
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'growth_targets' ? 'active' : ''}`}
-          onClick={() => setActiveTab('growth_targets')}
-        >
-          Mục tiêu tăng trưởng & Định mức cám
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'harvest_types' ? 'active' : ''}`}
-          onClick={() => setActiveTab('harvest_types')}
-        >
-          Loại thu hoạch & Biểu cân
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tasks')}
-        >
-          Công việc & Lịch chăm sóc
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'standards' ? 'active' : ''}`}
-          onClick={() => setActiveTab('standards')}
-        >
-          Chỉ số vật nuôi theo ngày
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'env' ? 'active' : ''}`}
-          onClick={() => setActiveTab('env')}
-        >
-          Chỉ số môi trường nuôi (IoT)
-        </button>
-      </div>
+      {/* ── Subsystem cards: each one addressable as /breeding-settings?tab=… ── */}
+      <nav ref={cardsRef} className={tabStyles.cards} aria-label="Mục thiết lập chăn nuôi">
+        {SETTING_TABS.map(({ key, label, sub, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            className={`${tabStyles.card} ${activeTab === key ? tabStyles.active : ''}`}
+            aria-current={activeTab === key ? 'page' : undefined}
+            onClick={() => openTab(key)}
+          >
+            <span className={tabStyles.icon}><Icon size={20} /></span>
+            <span className={tabStyles.text}>
+              <span className={tabStyles.title}>{label}</span>
+              <span className={tabStyles.sub}>{sub}</span>
+            </span>
+          </button>
+        ))}
+      </nav>
 
       {/* ── Tab 1: Chương trình nuôi theo giống (dữ liệu thật từ API) ── */}
       {activeTab === 'program' && <FarmingProgramsPanel />}
