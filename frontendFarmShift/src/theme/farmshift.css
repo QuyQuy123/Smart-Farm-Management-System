@@ -763,24 +763,25 @@ h6 {
   flex-shrink: 0;
 }
 
+/* Shortcut icons: one young-green style on white/mint, matching the sidebar and login */
 .farmshift-shortcut-icon.meal,
-.farmgo-shortcut-icon.meal {
-  background-color: var(--card-meal-bg);
-}
-
+.farmgo-shortcut-icon.meal,
 .farmshift-shortcut-icon.health,
-.farmgo-shortcut-icon.health {
-  background-color: var(--card-health-bg);
-}
-
+.farmgo-shortcut-icon.health,
 .farmshift-shortcut-icon.env,
-.farmgo-shortcut-icon.env {
-  background-color: var(--card-env-bg);
-}
-
+.farmgo-shortcut-icon.env,
 .farmshift-shortcut-icon.todo,
 .farmgo-shortcut-icon.todo {
-  background-color: var(--card-todo-bg);
+  background-color: #e6f6ea;
+  border: 1px solid #c9ebd3;
+  color: #1f9d6b;
+}
+
+.farmshift-shortcut-card:hover .farmshift-shortcut-icon,
+.farmgo-shortcut-card:hover .farmgo-shortcut-icon {
+  background-color: #1f9d6b;
+  border-color: #1f9d6b;
+  color: #ffffff;
 }
 
 .farmshift-shortcut-info,
