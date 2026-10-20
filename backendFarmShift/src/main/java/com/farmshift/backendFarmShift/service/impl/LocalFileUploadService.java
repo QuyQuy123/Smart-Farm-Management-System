@@ -60,6 +60,10 @@ public class LocalFileUploadService implements FileUploadService {
             if (ImageIO.read(new ByteArrayInputStream(bytes)) == null) {
                 throw new BadRequestException("Nội dung ảnh không hợp lệ.");
             }
+            if ("products".equals(folder)) {
+                var optimized = ProductImageOptimizer.optimize(bytes);
+                bytes = optimized.bytes(); extension = optimized.extension();
+            }
             Path targetDirectory = directory.resolve(folder).normalize();
             if (!targetDirectory.startsWith(directory)) throw new BadRequestException("Thư mục upload không hợp lệ.");
             Files.createDirectories(targetDirectory);

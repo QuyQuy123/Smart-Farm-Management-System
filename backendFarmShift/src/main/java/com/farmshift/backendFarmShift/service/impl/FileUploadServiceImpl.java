@@ -52,14 +52,19 @@ public class FileUploadServiceImpl implements FileUploadService {
             if (originalFilename != null && originalFilename.contains(".")) {
                 extension = originalFilename.substring(originalFilename.lastIndexOf("."));
             }
+            ProductImageOptimizer.Result optimized = "products".equals(folder) ? ProductImageOptimizer.optimize(file.getBytes()) : null;
+            if (optimized != null) extension = optimized.extension();
             String fileName = folder + "/" + UUID.randomUUID() + extension;
 
             ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setContentType(file.getContentType());
-            metadata.setContentLength(file.getSize());
+            metadata.setContentType(optimized == null ? file.getContentType() : optimized.contentType());
+            metadata.setContentLength(optimized == null ? file.getSize() : optimized.bytes().length);
+            if ("products".equals(folder)) metadata.setCacheControl("public, max-age=31536000, immutable");
 
             // Upload to R2
-            s3Client.putObject(new PutObjectRequest(bucketName, fileName, file.getInputStream(), metadata));
+            try (var input = optimized == null ? file.getInputStream() : new java.io.ByteArrayInputStream(optimized.bytes())) {
+                s3Client.putObject(new PutObjectRequest(bucketName, fileName, input, metadata));
+            }
 
             // Return public URL (Cloudflare R2 Dev URL or Custom Domain)
             String filePublicUrl = publicUrl + "/" + fileName;
