@@ -35,6 +35,10 @@ const mine = { id: 1, actualQuantity: 100, stockQuantity: 4, unitPrice: null, co
 const someoneElse = { ...mine, id: 2, doneBy: 'other@farm.test' };
 
 const renderView = () => render(<MemoryRouter><TodayTasksView /></MemoryRouter>);
+const openBarn = async name => {
+  fireEvent.click(await screen.findByRole('button', { name: `Mở việc chuồng ${name}` }));
+  return screen.findByRole('region', { name: `Phiếu việc ${name}` });
+};
 
 describe('Việc hôm nay: workers follow the plan and only tick tasks', () => {
   beforeEach(() => {
@@ -46,27 +50,36 @@ describe('Việc hôm nay: workers follow the plan and only tick tasks', () => {
     ]);
   });
 
-  it('shows every running barn with the stock to take, progress and no money for workers', async () => {
+  it('lists the barns first and opens the tasks of one barn on click', async () => {
     renderView();
-    const first = await screen.findByRole('region', { name: 'Phiếu việc Chuồng 1' });
+    const card = await screen.findByRole('button', { name: 'Mở việc chuồng Chuồng 1' });
     expect(service.getFarmDailyPlan).toHaveBeenCalledWith(today);
     expect(screen.getByText(/2\/4/)).toBeInTheDocument();
+    expect(within(card).getByText('Còn 1 việc')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mở việc chuồng Chuồng 2' })).toBeInTheDocument();
+    // No task is shown until a barn is opened.
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+
+    const first = await openBarn('Chuồng 1');
+    expect(screen.queryByRole('region', { name: 'Phiếu việc Chuồng 2' })).not.toBeInTheDocument();
     expect(within(first).getAllByText('100 kg = 4 Bao 25kg')).toHaveLength(2);
     expect(within(first).getByText(/Xong lúc 06:00 · worker@farm.test/)).toBeInTheDocument();
     expect(screen.queryByText(/Chi phí đã ghi/)).not.toBeInTheDocument();
     // A worker can undo only what they ticked themselves today.
     expect(within(first).getByRole('button', { name: 'Hoàn tác Cữ 1/2 · Higro 02' })).toBeInTheDocument();
-    const second = screen.getByRole('region', { name: 'Phiếu việc Chuồng 2' });
-    expect(within(second).queryByRole('button', { name: /Hoàn tác/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Ẩn việc đã xong'));
     expect(within(first).queryByText(/Xong lúc/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tất cả chuồng' }));
+    const second = await openBarn('Chuồng 2');
+    expect(within(second).queryByRole('button', { name: /Hoàn tác/ })).not.toBeInTheDocument();
   });
 
   it('ticks a task with one tap and replaces only that barn', async () => {
     service.confirmDailyTask.mockResolvedValue(plan(20, 'Chuồng 2', [meal(1, someoneElse), meal(2, mine)]));
     renderView();
-    const second = await screen.findByRole('region', { name: 'Phiếu việc Chuồng 2' });
+    const second = await openBarn('Chuồng 2');
     fireEvent.click(within(second).getByRole('button', { name: 'Xong Cữ 2/2 · Higro 02' }));
     await waitFor(() => expect(service.confirmDailyTask).toHaveBeenCalledWith(20, { date: today, taskKey: 'FEED:I7:M2' }));
     expect(await screen.findByText(/3\/4/)).toBeInTheDocument();
@@ -77,14 +90,14 @@ describe('Việc hôm nay: workers follow the plan and only tick tasks', () => {
   it('shows the server reason under the task when the stock is short', async () => {
     service.confirmDailyTask.mockRejectedValue({ response: { data: { message: 'Kho chỉ còn 1 Bao 25kg Higro 02, cần 4. Hãy nhập kho trước khi xác nhận.' } } });
     renderView();
-    const first = await screen.findByRole('region', { name: 'Phiếu việc Chuồng 1' });
+    const first = await openBarn('Chuồng 1');
     fireEvent.click(within(first).getByRole('button', { name: 'Xong Cữ 2/2 · Higro 02' }));
     expect(await within(first).findByRole('alert')).toHaveTextContent('Kho chỉ còn 1 Bao 25kg Higro 02');
   });
 
   it('goes back a day to catch up and cannot go into the future', async () => {
     renderView();
-    await screen.findByRole('region', { name: 'Phiếu việc Chuồng 1' });
+    await screen.findByRole('button', { name: 'Mở việc chuồng Chuồng 1' });
     expect(screen.getByRole('button', { name: 'Ngày sau' })).toBeDisabled();
     service.getFarmDailyPlan.mockResolvedValue([]);
     fireEvent.click(screen.getByRole('button', { name: 'Ngày trước' }));
