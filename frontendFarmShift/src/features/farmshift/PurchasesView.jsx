@@ -6,7 +6,7 @@ import {
   DollarSign, Upload, Tag, Printer,
   Trash2, Pencil, AlertTriangle, PackageCheck, Loader2,
   ZoomIn, ZoomOut, RotateCw, ExternalLink, FileText,
-  Camera, RefreshCw, Smartphone
+  Camera, RefreshCw, Smartphone, Check
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -1257,6 +1257,18 @@ export const PurchasesView = () => {
                 <h3 className="farmshift-modal-title" style={{ margin: 0 }}>
                   Chi tiết hóa đơn {selectedOrder.code}
                 </h3>
+                {Number(selectedOrder.debtAmount || 0) > 0 && selectedOrder.stockStatus !== 'Đã hủy' && (
+                  <button
+                    className="farmshift-btn farmshift-btn-mint"
+
+                    onClick={() => {
+                      setPaymentAmount(String(selectedOrder.debtAmount));
+                      setShowPaymentModal(true);
+                    }}
+                  >
+                    <DollarSign size={15} /> Thanh toán nợ
+                  </button>
+                )}
                 <div style={{ display: 'inline-flex', padding: '2px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
                   <button
                     type="button"
@@ -1290,16 +1302,18 @@ export const PurchasesView = () => {
                       boxShadow: orderViewTab === 'voucher' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
                     }}
                   >
-                    Mẫu in A4 (Mẫu 01-VT)
+                    Mẫu in A4
                   </button>
                 </div>
               </div>
               <button
+                type="button"
+                className={styles.detailCloseButton}
+                aria-label="Đóng chi tiết đơn nhập"
                 onClick={() => {
                   setSelectedOrder(null);
                   setOrderViewTab('info');
                 }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
               >
                 ✕
               </button>
@@ -1311,20 +1325,15 @@ export const PurchasesView = () => {
                 </div>
               ) : (
                 <>
-                  {/* Workflow Steps (Chuẩn quy trình 3 bước FarmShift_MienBinh_Full.html) */}
-                  <div style={{ display: 'flex', gap: '14px', marginBottom: '16px', padding: '10px 14px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#008a7b' }}>
-                      <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#008a7b', color: 'white', display: 'grid', placeItems: 'center', fontSize: '11px' }}>1</span>
-                      Đã lưu đơn
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: selectedOrder.stockStatus === 'Đã nhập kho' ? '#008a7b' : '#d88e13' }}>
-                      <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: selectedOrder.stockStatus === 'Đã nhập kho' ? '#008a7b' : '#f0f3f7', color: selectedOrder.stockStatus === 'Đã nhập kho' ? 'white' : '#657b91', display: 'grid', placeItems: 'center', fontSize: '11px' }}>2</span>
-                      Nhập kho {selectedOrder.stockStatus === 'Đã nhập kho' ? 'hoàn tất' : 'chưa hoàn tất'}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: Number(selectedOrder.debtAmount || 0) <= 0 ? '#008a7b' : '#ef4565' }}>
-                      <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: Number(selectedOrder.debtAmount || 0) <= 0 ? '#008a7b' : '#f0f3f7', color: Number(selectedOrder.debtAmount || 0) <= 0 ? 'white' : '#657b91', display: 'grid', placeItems: 'center', fontSize: '11px' }}>3</span>
-                      Thanh toán {Number(selectedOrder.debtAmount || 0) <= 0 ? 'hoàn tất' : 'còn nợ'}
-                    </div>
+                  <div className={styles.workflowSteps} aria-label="Tiến độ hóa đơn">
+                    {[
+                      { label: 'Đã lưu đơn', done: true },
+                      { label: `Nhập kho ${selectedOrder.stockStatus === 'Đã nhập kho' ? 'hoàn tất' : 'chưa hoàn tất'}`, done: selectedOrder.stockStatus === 'Đã nhập kho' },
+                      { label: `Thanh toán ${Number(selectedOrder.debtAmount || 0) <= 0 ? 'hoàn tất' : 'còn nợ'}`, done: Number(selectedOrder.debtAmount || 0) <= 0 },
+                    ].map(step => <div key={step.label} className={styles.workflowStep}>
+                      <span className={styles.workflowTick} aria-label={step.done ? 'Đã hoàn tất' : 'Chưa hoàn tất'}>{step.done && <Check size={17} strokeWidth={2.5} aria-hidden="true" />}</span>
+                      {step.label}
+                    </div>)}
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
@@ -1338,13 +1347,13 @@ export const PurchasesView = () => {
                     </div>
                     <div>
                       <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Trạng thái thanh toán:</div>
-                      <span className={`farmshift-badge ${selectedOrder.paymentStatus?.includes('hoàn tất') ? 'farmshift-badge-success' : 'farmshift-badge-warning'}`}>
+                      <span>
                         {selectedOrder.paymentStatus}
                       </span>
                     </div>
                     <div>
                       <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Trạng thái kho:</div>
-                      <span className="farmshift-badge farmshift-badge-info">{selectedOrder.stockStatus}</span>
+                      <span>{selectedOrder.stockStatus}</span>
                     </div>
                     <div>
                       <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Đã thanh toán:</div>
@@ -1443,18 +1452,6 @@ export const PurchasesView = () => {
                     onClick={() => handleImportStock(selectedOrder.id)}
                   >
                     <PackageCheck size={15} /> Xác nhận nhập kho
-                  </button>
-                )}
-                {Number(selectedOrder.debtAmount || 0) > 0 && selectedOrder.stockStatus !== 'Đã hủy' && (
-                  <button
-                    className="farmshift-btn farmshift-btn-secondary"
-                    style={{ marginLeft: '8px', color: 'var(--color-success)' }}
-                    onClick={() => {
-                      setPaymentAmount(String(selectedOrder.debtAmount));
-                      setShowPaymentModal(true);
-                    }}
-                  >
-                    <DollarSign size={15} /> Thanh toán nợ
                   </button>
                 )}
                 {selectedOrder.stockStatus !== 'Đã nhập kho' && Number(selectedOrder.paidAmount || 0) === 0 && (

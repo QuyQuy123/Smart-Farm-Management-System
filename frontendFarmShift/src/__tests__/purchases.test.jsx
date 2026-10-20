@@ -265,7 +265,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       expect(screen.getAllByText('64.000.000 đ').length).toBeGreaterThan(0);
 
       // Verify A4 voucher tab
-      const voucherTabBtn = screen.getByRole('button', { name: /Mẫu in A4 \(Mẫu 01-VT\)/i });
+      const voucherTabBtn = screen.getByRole('button', { name: /^Mẫu in A4$/i });
       fireEvent.click(voucherTabBtn);
       expect(screen.getAllByText(/PHIẾU NHẬP KHO/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Mẫu số 01 - VT/i).length).toBeGreaterThan(0);

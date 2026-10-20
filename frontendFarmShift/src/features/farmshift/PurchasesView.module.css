@@ -13,6 +13,23 @@
 }
 .invoiceCode:hover { color: #006b5e; background-color: #edf7f4; }
 .invoiceCode:focus-visible { outline: 2px solid #008577; outline-offset: 3px; }
+.detailCloseButton {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #f0f5f3;
+  color: #637b73;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.detailCloseButton:hover { background: #fee9e7; color: #cc3434; }
+.detailCloseButton:focus-visible { background: #fee9e7; color: #cc3434; outline: 2px solid #cc3434; outline-offset: 3px; }
 .rowMenu { position: fixed; z-index: 1200; width: 190px; padding: 6px; background: white; border: 1px solid #dce8e3; border-radius: 12px; box-shadow: 0 8px 28px #123d2826; }
 .rowMenu button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; border-radius: 7px; padding: 10px; background: transparent; text-align: left; font: inherit; cursor: pointer; color: #29463e; }
 .rowMenu button:hover, .rowMenu button:focus-visible { background: #edf7f3; outline: none; }
@@ -51,3 +68,6 @@
 .editItemRow output { display: flex; align-items: center; justify-content: flex-end; min-height: 44px; margin-top: 6px; font-weight: 600; background: #f6f9f8; border-radius: 8px; padding: 6px; overflow-wrap: anywhere; }
 .editTotal { padding: 14px; background: #edf7f4; border-radius: 10px; text-align: right; color: #357c6e; }
 @media(max-width: 700px) { .editStatuses { grid-template-columns: 1fr; } .editItemRow { grid-template-columns: 1fr 1fr; padding-bottom: 14px; border-bottom: 1px solid #edf1f0; } .editItemRow > :first-child { grid-column: 1 / -1; } }
+.workflowSteps { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-bottom: 16px; padding: 8px 0; }
+.workflowStep { display: flex; align-items: center; gap: 6px; color: #008a7b; font-size: 12px; font-weight: 600; }
+.workflowTick { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; color: #008a7b; }
