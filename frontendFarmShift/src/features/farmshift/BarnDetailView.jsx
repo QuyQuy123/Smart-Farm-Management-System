@@ -10,7 +10,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
 import {
   addExpense, addFeedRecord, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample,
-  getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
+  assignFlockProgram, getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
 } from '../../services/cycleService';
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
@@ -226,6 +226,39 @@ export const BarnDetailView = () => {
         await transferFlock(flock.id, { targetBarnId: Number(values.targetBarnId), quantity: Number(values.quantity), transferDate: values.transferDate,
           name: values.name.trim(), avgWeight: values.avgWeight === '' ? null : Number(values.avgWeight), note: values.note.trim() });
         return `Đã chuyển ${num(values.quantity)} con từ đàn ${flock.code}.`;
+      },
+    });
+  };
+
+  /** Gắn / đổi chương trình nuôi cho đàn đang nuôi; lịch tính theo ngày tuổi hiện tại nên chương trình phải dài hơn tuổi đàn. */
+  const openAssignProgram = () => {
+    const flocks = detail.flocks.filter(flock => flock.status === 'ACTIVE');
+    const first = flocks.find(flock => !flock.programId) || flocks[0];
+    const flockLabel = flock => `${flock.code} · ${flock.name} · ${flock.currentAgeDays} ngày tuổi · ${flock.programName || 'chưa có chương trình'}`;
+    setModal({
+      title: 'Gắn chương trình nuôi cho đàn',
+      intro: 'Lịch cám, vắc-xin, thuốc và nhiệt độ của đàn sẽ chạy theo chương trình, tính từ ngày tuổi hiện tại của đàn.',
+      warning: programs.length ? null : 'Chưa có chương trình nuôi. Vào Thiết lập chăn nuôi → Chương trình nuôi để tạo trước.',
+      initial: { flockId: first ? String(first.id) : '', programId: first?.programId ? String(first.programId) : programs[0] ? String(programs[0].id) : '' },
+      fields: [
+        { key: 'flockId', label: 'Đàn đang nuôi', type: 'select', required: true, full: true,
+          options: flocks.map(flock => ({ value: String(flock.id), label: flockLabel(flock) })) },
+        { key: 'programId', label: 'Chương trình nuôi (giống)', type: 'select', required: true, full: true,
+          options: programs.length ? programs.map(program => ({ value: String(program.id), label: `${program.name} · ${program.breed} · ${program.durationDays} ngày` }))
+            : [{ value: '', label: 'Chưa có chương trình nuôi' }] },
+      ],
+      validate: values => {
+        const flock = flocks.find(item => String(item.id) === values.flockId);
+        const program = programs.find(item => String(item.id) === values.programId);
+        return {
+          flockId: flock ? undefined : 'Vui lòng chọn đàn.',
+          programId: !program ? 'Vui lòng chọn chương trình nuôi.'
+            : flock && flock.currentAgeDays > program.durationDays ? `Đàn đã ${flock.currentAgeDays} ngày tuổi, vượt thời gian nuôi ${program.durationDays} ngày của chương trình.` : undefined,
+        };
+      },
+      onSubmit: async values => {
+        await assignFlockProgram(Number(values.flockId), Number(values.programId));
+        return `Đã gắn chương trình ${programs.find(item => String(item.id) === values.programId)?.name} cho đàn.`;
       },
     });
   };
@@ -495,7 +528,9 @@ export const BarnDetailView = () => {
           </div>)}
         </Card>}
 
-        <Card title="Chương trình nuôi" icon={ClipboardList}>
+        <Card title="Chương trình nuôi" icon={ClipboardList}
+          actions={isOwner && active && detail.flocks.some(flock => flock.status === 'ACTIVE')
+            && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={openAssignProgram}><PlusCircle size={15} />Gắn chương trình</button>}>
           {detail.programs.length === 0 ? <Empty>Các đàn của lứa chưa gắn chương trình nuôi.</Empty> : detail.programs.map(program => <div key={program.id} className={styles.program}>
             <div className={styles.programHead}>
               <strong>{program.name}</strong><span className={`${styles.badge} ${styles.badge_warning}`}>{program.breed}</span>

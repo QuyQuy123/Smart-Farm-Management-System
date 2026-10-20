@@ -275,6 +275,30 @@ class CycleIntegrationTest {
     }
 
     @Test
+    void ownerAssignsOrChangesTheProgramOfARunningFlock() throws Exception {
+        long cycle = startCycle(barnId, START);
+        long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 100);
+        long shortProgram = id(post("/api/farming-programs", Map.of("name", "Úm 7 ngày", "breed", "Gà Mía", "durationDays", 7,
+                "steps", List.of(Map.of("category", "FEED", "name", "Higro 01", "dayFrom", 1, "dayTo", 7, "quantity", 20, "mealsPerDay", 5)))));
+        long longProgram = id(post("/api/farming-programs", Map.of("name", "Gà ta thả vườn", "breed", "Gà ta", "durationDays", 105,
+                "steps", List.of(Map.of("category", "FEED", "name", "Gà ta", "dayFrom", 1, "dayTo", 105, "quantity", 60, "mealsPerDay", 3)))));
+        String url = "/api/flocks/" + flockId + "/program";
+
+        // The flock is 11 days old, so a 7-day program no longer fits.
+        mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + shortProgram + "}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FLOCK_PROGRAM_TOO_SHORT"));
+        mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest());
+        mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + longProgram + "}")
+                .with(user("worker@farm.test").authorities(() -> "ROLE_FARM_WORKER"))).andExpect(status().isForbidden());
+
+        mvc.perform(put(url).contentType(MediaType.APPLICATION_JSON).content("{\"programId\":" + longProgram + "}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.programName").value("Gà ta thả vườn"));
+        mvc.perform(get("/api/cycles/" + cycle))
+            .andExpect(jsonPath("$.data.programs[0].name").value("Gà ta thả vườn"))
+            .andExpect(jsonPath("$.data.programs[0].currentDay").value(11));
+    }
+
+    @Test
     void appliesRolePermissionsAndHidesFinanceFromWorkers() throws Exception {
         long cycle = startCycle(barnId, START);
         long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 100);

@@ -21,6 +21,7 @@ export const closeCycle = (id, body) => changed(api.post(`/cycles/${id}/close`, 
 
 export const importFlock = (cycleId, body) => changed(api.post(`/cycles/${cycleId}/flocks`, body));
 export const transferFlock = (flockId, body) => changed(api.post(`/flocks/${flockId}/transfer`, body));
+export const assignFlockProgram = (flockId, programId) => changed(api.put(`/flocks/${flockId}/program`, { programId }));
 export const recordLoss = (flockId, body) => changed(api.post(`/flocks/${flockId}/losses`, body));
 export const recordHarvest = (flockId, body) => changed(api.post(`/flocks/${flockId}/harvests`, body));
 

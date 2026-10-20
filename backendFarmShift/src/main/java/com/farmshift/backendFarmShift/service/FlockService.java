@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.service;
 import com.farmshift.backendFarmShift.dto.request.FlockHarvestRequest;
 import com.farmshift.backendFarmShift.dto.request.FlockImportRequest;
 import com.farmshift.backendFarmShift.dto.request.FlockLossRequest;
+import com.farmshift.backendFarmShift.dto.request.FlockProgramRequest;
 import com.farmshift.backendFarmShift.dto.request.FlockTransferRequest;
 import com.farmshift.backendFarmShift.dto.response.FlockMovementResponse;
 import com.farmshift.backendFarmShift.dto.response.FlockResponse;
@@ -113,6 +114,23 @@ public class FlockService {
         decrease(source, quantity);
         target.setCurrentQuantity(target.getCurrentQuantity() + quantity);
         return flockResponse(moved, today(), true);
+    }
+
+    /**
+     * Gắn hoặc đổi chương trình nuôi của đàn (ví dụ đàn nhập trước khi có chương trình). Lịch cám / vắc-xin tính theo ngày tuổi hiện tại,
+     * nên không cho gắn chương trình ngắn hơn tuổi của đàn.
+     */
+    @Transactional
+    public FlockResponse assignProgram(Long flockId, FlockProgramRequest request) {
+        Flock flock = requireActive(flockId);
+        FarmingProgram program = programService.find(request.programId());
+        int age = ageOn(flock, today());
+        if (age > program.getDurationDays()) {
+            throw new BadRequestException("Đàn " + flockCode(flock) + " đã " + age + " ngày tuổi, vượt thời gian nuôi " + program.getDurationDays()
+                    + " ngày của chương trình " + program.getName() + ".", "FLOCK_PROGRAM_TOO_SHORT");
+        }
+        flock.setProgram(program);
+        return flockResponse(flock, today(), true);
     }
 
     /** Ghi hao hụt (chết) hoặc loại thải. */
