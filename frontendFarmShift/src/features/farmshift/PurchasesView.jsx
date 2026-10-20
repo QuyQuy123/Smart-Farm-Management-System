@@ -801,7 +801,8 @@ export const PurchasesView = () => {
 
   return (
     <FarmShiftLayout
-      pageTitle="Hóa đơn nhập hàng & Nhà cung cấp"
+      pageTitle="Hóa đơn nhập hàng"
+      breadcrumbTitle={{ orders: 'Hóa đơn nhập hàng', suppliers: 'Nhà cung cấp', tags: 'Thẻ tag' }[activeTab]}
       breadcrumbs={[{ label: 'Hóa đơn nhập hàng' }]}
       actions={
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -810,7 +811,7 @@ export const PurchasesView = () => {
             style={{ color: 'var(--color-primary)' }}
             onClick={() => setShowOcrModal(true)}
           >
-            <ScanText size={16} /> Bóc tách hóa đơn A4 (AI OpenAI & RapidOCR)
+            <ScanText size={16} /> Bóc tách hóa đơn
           </button>
           <button
             className="farmshift-btn farmshift-btn-excel"
@@ -820,7 +821,7 @@ export const PurchasesView = () => {
           </button>
           {isOwnerOrAccountant && (
             <button
-              className="farmshift-btn farmshift-btn-primary"
+              className="farmshift-btn farmshift-btn-mint"
               onClick={() => {
                 setOcrBanner(false);
                 setOcrPreviewUrl(null);
@@ -840,19 +841,19 @@ export const PurchasesView = () => {
           className={`farmshift-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
           onClick={() => setActiveTab('orders')}
         >
-          Hóa đơn nhập hàng ({purchases.length})
+          Hóa đơn nhập hàng
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'suppliers' ? 'active' : ''}`}
           onClick={() => setActiveTab('suppliers')}
         >
-          Nhà cung cấp ({suppliers.length})
+          Nhà cung cấp
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'tags' ? 'active' : ''}`}
           onClick={() => setActiveTab('tags')}
         >
-          Thẻ Tags phân loại ({tags.length})
+          Thẻ tag
         </button>
       </div>
 
@@ -892,7 +893,7 @@ export const PurchasesView = () => {
               <Search size={16} color="var(--color-muted)" />
               <input
                 type="text"
-                placeholder="Tìm theo mã hóa đơn (NH000...), Nhà cung cấp..."
+                placeholder="Tìm kiếm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />

@@ -233,7 +233,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      const searchInput = screen.getByPlaceholderText(/Tìm theo mã hóa đơn/i);
+      const searchInput = screen.getByPlaceholderText(/^Tìm kiếm$/i);
       fireEvent.change(searchInput, { target: { value: 'Dabaco' } });
 
       await waitFor(() => {
@@ -416,7 +416,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Bóc tách hóa đơn A4/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Bóc tách hóa đơn$/i }));
       expect(await screen.findByText(/Bóc tách phiếu nhập \/ Hóa đơn A4/i)).toBeInTheDocument();
 
       const fileInput = document.querySelector('input[type="file"][accept*="image"]');
@@ -444,7 +444,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Bóc tách hóa đơn A4/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Bóc tách hóa đơn$/i }));
       expect(await screen.findByText(/Bóc tách phiếu nhập \/ Hóa đơn A4/i)).toBeInTheDocument();
 
       const fileInput = document.querySelector('input[type="file"][accept*="image"]');
@@ -529,8 +529,10 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      const supplierTab = screen.getByRole('button', { name: /Nhà cung cấp \(2\)/i });
+      const supplierTab = screen.getByRole('button', { name: /^Nhà cung cấp$/i });
       fireEvent.click(supplierTab);
+      expect(document.querySelector('.farmshift-breadcrumbs').lastElementChild).toHaveTextContent('Nhà cung cấp');
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Hóa đơn nhập hàng');
 
       expect(await screen.findByText('Danh sách Nhà cung cấp vật tư & con giống')).toBeInTheDocument();
       expect(screen.getByText('Công ty CP Chăn nuôi C.P. Việt Nam')).toBeInTheDocument();
@@ -544,7 +546,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Nhà cung cấp \(2\)/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Nhà cung cấp$/i }));
       await screen.findByText('Danh sách Nhà cung cấp vật tư & con giống');
 
       fireEvent.click(screen.getByRole('button', { name: /Thêm nhà cung cấp/i }));
@@ -581,7 +583,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Nhà cung cấp \(2\)/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Nhà cung cấp$/i }));
       await screen.findByText('Danh sách Nhà cung cấp vật tư & con giống');
 
       // Edit supplier 1
@@ -618,8 +620,9 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      const tagsTab = screen.getByRole('button', { name: /Thẻ Tags phân loại \(3\)/i });
+      const tagsTab = screen.getByRole('button', { name: /^Thẻ tag$/i });
       fireEvent.click(tagsTab);
+      expect(document.querySelector('.farmshift-breadcrumbs').lastElementChild).toHaveTextContent('Thẻ tag');
 
       expect(await screen.findByText('Thẻ Tags phân loại hóa đơn chứng từ & nhà cung cấp')).toBeInTheDocument();
       expect(screen.getByText('Cám gà thịt')).toBeInTheDocument();
@@ -632,7 +635,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Thẻ Tags phân loại \(3\)/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Thẻ tag$/i }));
       await screen.findByText('Thẻ Tags phân loại hóa đơn chứng từ & nhà cung cấp');
 
       fireEvent.click(screen.getByRole('button', { name: /Thêm thẻ Tag/i }));
@@ -657,7 +660,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Thẻ Tags phân loại \(3\)/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Thẻ tag$/i }));
       await screen.findByText('Thẻ Tags phân loại hóa đơn chứng từ & nhà cung cấp');
 
       // Edit tag
@@ -709,7 +712,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Nhà cung cấp \(2\)/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Nhà cung cấp$/i }));
       await screen.findByText('Danh sách Nhà cung cấp vật tư & con giống');
 
       fireEvent.click(screen.getByRole('button', { name: /Thêm nhà cung cấp/i }));
@@ -734,7 +737,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Thẻ Tags phân loại \(3\)/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Thẻ tag$/i }));
       await screen.findByText('Thẻ Tags phân loại hóa đơn chứng từ & nhà cung cấp');
 
       fireEvent.click(screen.getByRole('button', { name: /Thêm thẻ Tag/i }));
@@ -788,7 +791,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       renderComponent();
       await screen.findByText('NH000000');
 
-      fireEvent.click(screen.getByRole('button', { name: /Bóc tách hóa đơn A4/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Bóc tách hóa đơn$/i }));
       const fileInput = document.querySelector('input[type="file"][accept*="image"]');
       const file = new File(['dummy invoice'], 'hoa-don-navetco.jpg', { type: 'image/jpeg' });
       fireEvent.change(fileInput, { target: { files: [file] } });

@@ -99,6 +99,7 @@ const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
 export const FarmShiftLayout = ({
     children,
     pageTitle,
+    breadcrumbTitle = pageTitle,
     breadcrumbs = [],
     showShortcuts = false,
     actions = null,
@@ -669,7 +670,7 @@ export const FarmShiftLayout = ({
                                     </Fragment>
                                 ))}
                                 <span>›</span>
-                                <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{pageTitle}</span>
+                                <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
                             </div>
                         </div>
 
