@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PurchaseIntegrationTest {
 
     @Autowired MockMvc mvc;
+    @Autowired jakarta.persistence.EntityManager entityManager;
     @Autowired ObjectMapper mapper;
     @Autowired PurchaseTagRepository tagRepository;
     @Autowired SupplierRepository supplierRepository;
@@ -173,7 +174,13 @@ class PurchaseIntegrationTest {
         mvc.perform(post("/api/purchases/" + id + "/import-stock")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.importedDate").value(today))
                 .andExpect(jsonPath("$.data.date").value("2020-01-02"));
+        entityManager.flush();
+        entityManager.clear();
         mvc.perform(get("/api/purchases/" + id)).andExpect(jsonPath("$.data.importedDate").value(today));
+        mvc.perform(get("/api/purchases")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].importedDate").value(today));
+        mvc.perform(post("/api/purchases/" + id + "/import-stock"))
+                .andExpect(jsonPath("$.data.importedDate").value(today));
     }
 
     @Test
@@ -219,6 +226,50 @@ class PurchaseIntegrationTest {
                 List.of(new PurchaseInvoiceItemRequest(999999L, "Unknown", 1.0, "Kg", 1000L, 0.0)),
                 0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
         mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(bad))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rejectsInvalidNumericAndTextInputs() throws Exception {
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(),
+                List.of(new PurchaseInvoiceItemRequest(null, "Validation feed", 2.0, "Kg", 1000L, 0.0)),
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", "HD-CP-0915", "Nhập 2 kg", null, null);
+        for (String field : List.of("discountAmount", "otherCost", "paidAmount")) {
+            var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(request);
+            json.put(field, -1);
+            mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(json.toString())).andExpect(status().isBadRequest());
+        }
+        for (int price : List.of(0, -10)) {
+            var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(request);
+            ((com.fasterxml.jackson.databind.node.ObjectNode) json.path("items").get(0)).put("price", price);
+            mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(json.toString())).andExpect(status().isBadRequest());
+        }
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(request);
+        json.put("note", "12345");
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(json.toString())).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request))).andExpect(status().isCreated());
+    }
+
+    @Test
+    void preservesOcrRowsAndOnlyIncreasesStockAfterExplicitConfirmation() throws Exception {
+        var rows = List.of(
+                new PurchaseInvoiceItemRequest(null, "OCR AGR bottle", 2.0, "Chai OCR", 30000L, 0.0),
+                new PurchaseInvoiceItemRequest(null, "OCR GRF bottle", 1.0, "Hộp OCR", 130000L, 0.0));
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(), rows,
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", "HD-OCR-NEW", null, null, null);
+        var result = mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.items[0].name").value("OCR AGR bottle"))
+                .andExpect(jsonPath("$.data.items[0].unit").value("Chai OCR"))
+                .andExpect(jsonPath("$.data.items[1].name").value("OCR GRF bottle"))
+                .andExpect(jsonPath("$.data.totalAmount").value(190000))
+                .andExpect(jsonPath("$.data.paidAmount").value(0)).andExpect(jsonPath("$.data.debtAmount").value(190000)).andReturn();
+        long id = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        assertTrue(inventoryRepository.findByProduct_NameContainingIgnoreCase("OCR AGR bottle").isEmpty());
+        assertFalse(productCategoryRepository.existsByNameKey("ocr agr bottle"));
+        mvc.perform(post("/api/purchases/"+id+"/import-stock")).andExpect(status().isOk());
+        assertEquals(2, inventoryRepository.findByProduct_NameContainingIgnoreCase("OCR AGR bottle").getFirst().getStock().intValue());
+        mvc.perform(post("/api/purchases/"+id+"/import-stock")).andExpect(status().isOk());
+        assertEquals(2, inventoryRepository.findByProduct_NameContainingIgnoreCase("OCR AGR bottle").getFirst().getStock().intValue());
+        mvc.perform(get("/api/purchases/"+id)).andExpect(jsonPath("$.data.items[0].name").value("OCR AGR bottle"));
     }
 
     @Test

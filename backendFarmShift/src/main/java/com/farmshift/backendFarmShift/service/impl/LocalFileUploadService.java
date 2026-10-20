@@ -57,7 +57,10 @@ public class LocalFileUploadService implements FileUploadService {
                 case "gif" -> ".gif";
                 default -> throw new BadRequestException("Chỉ hỗ trợ ảnh PNG, JPEG hoặc GIF.");
             };
-            if (ImageIO.read(new ByteArrayInputStream(bytes)) == null) {
+            if ("products".equals(folder)) {
+                var optimized = ProductImageOptimizer.optimize(bytes);
+                bytes = optimized.bytes(); extension = optimized.extension();
+            } else if (ImageIO.read(new ByteArrayInputStream(bytes)) == null) {
                 throw new BadRequestException("Nội dung ảnh không hợp lệ.");
             }
             Path targetDirectory = directory.resolve(folder).normalize();
