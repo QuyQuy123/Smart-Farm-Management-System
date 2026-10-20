@@ -573,11 +573,11 @@ export const GeneralSettingsView = () => {
               <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '20px' }}>
                 <h4 style={{ margin: '0 0 8px', fontSize: '15px', color: 'var(--color-ink)' }}>Dữ liệu minh họa Miền Bính</h4>
                 <p style={{ fontSize: '13px', color: 'var(--color-body)', lineHeight: 1.5, margin: '0 0 16px' }}>
-                  Đặt lại toàn bộ trạng thái hệ thống về bộ dữ liệu mẫu chuẩn của Trang trại Miến Bình.
+                  Đặt lại toàn bộ trạng thái hệ thống về bộ dữ liệu mẫu chuẩn của Trang trại Miền Bính.
                 </p>
                 <button
                   className="farmshift-btn farmshift-btn-excel"
-                  onClick={() => showToast('Đã khôi phục dữ liệu mẫu Trang trại Miến Bình thành công!', 'success')}
+                  onClick={() => showToast('Đã khôi phục dữ liệu mẫu Trang trại Miền Bính thành công!', 'success')}
                 >
                   <RefreshCw size={15} /> Đặt lại dữ liệu mẫu
                 </button>

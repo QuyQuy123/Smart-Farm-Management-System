@@ -20,7 +20,7 @@ ON CONFLICT (name) DO NOTHING;
 -- ---------------------------------------------------------------------
 INSERT INTO accounts (email, password, role_id, full_name, is_active)
 VALUES ('hiepgacute1989@gmail.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Admin', TRUE),
-       ('mienbinh@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Miến Bình', TRUE),
+       ('mienbinh@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Miền Bính', TRUE),
        ('ketoan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 2, 'Trần Kế Toán', TRUE),
        ('congnhan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 3, 'Lê Công Nhân', TRUE)
 ON CONFLICT (email) DO NOTHING;
@@ -30,10 +30,14 @@ ON CONFLICT (email) DO NOTHING;
 -- ---------------------------------------------------------------------
 INSERT INTO customers (account_id, full_name, phone, citizen_id, address)
 VALUES (1, 'Admin', '0989149421', '001000000000', 'Hà Nội'),
-       (2, 'Miến Bình', '0988111222', '001204000001', 'Vĩnh Phúc'),
+       (2, 'Miền Bính', '0988111222', '001204000001', 'Vĩnh Phúc'),
        (3, 'Trần Kế Toán', '0977222333', '001204000002', 'Vĩnh Phúc'),
        (4, 'Lê Công Nhân', '0966333444', '001204000003', 'Vĩnh Phúc')
 ON CONFLICT (account_id) DO NOTHING;
+
+-- Sửa tên chủ trang trại cho các database đã seed tên cũ "Miến Bình"
+UPDATE accounts SET full_name = 'Miền Bính' WHERE email = 'mienbinh@smartfarm.com' AND full_name <> 'Miền Bính';
+UPDATE customers SET full_name = 'Miền Bính' WHERE account_id = (SELECT id FROM accounts WHERE email = 'mienbinh@smartfarm.com') AND full_name <> 'Miền Bính';
 
 -- ---------------------------------------------------------------------
 -- 4. Chèn dữ liệu Thông tin cơ sở & Trang trại (Farms)

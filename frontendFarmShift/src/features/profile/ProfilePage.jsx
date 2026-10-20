@@ -175,7 +175,7 @@ export const ProfilePage = ({ initialTab = 'info' }) => {
   return (
     <DashboardLayout
       pageTitle={currentTitle}
-      pageSub="Trang trại Miến Bình · Quản lý chăn nuôi gà"
+      pageSub="Trang trại Miền Bính · Quản lý chăn nuôi gà"
       pageActions={
         <Link to="/" className="btn">
           ← Tổng quan

@@ -229,7 +229,7 @@ export const PrintablePurchaseVoucher = ({ order, farmInfo = null, onScreenPrevi
           <div style={{ fontWeight: 700 }}>Thủ kho nhận hàng</div>
           <div style={{ fontStyle: 'italic', fontSize: '11px', color: '#555' }}>(Ký, ghi rõ họ tên)</div>
           <div style={{ height: '65px' }} />
-          <div style={{ fontWeight: 600 }}>Thủ kho Miến Bình</div>
+          <div style={{ fontWeight: 600 }}>Thủ kho Miền Bính</div>
         </div>
         <div>
           <div style={{ fontWeight: 700 }}>Kế toán trưởng / Chủ trại</div>
