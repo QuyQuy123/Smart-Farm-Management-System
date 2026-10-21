@@ -36,11 +36,21 @@ export const transcribeAudio = async (audioBlob) => {
  *   dataCard?: Object
  * }>}
  */
-export const sendAssistantMessage = async ({ message, currentRoute = window.location.pathname, autoExecute = true }) => {
+export const sendAssistantMessage = async ({
+  message,
+  currentRoute = window.location.pathname,
+  autoExecute = true,
+  history,
+  confirmAction,
+  pendingActionPayload
+}) => {
   const response = await api.post('/ai/assistant', {
     message,
     currentRoute,
     autoExecute,
+    history,
+    confirmAction,
+    pendingActionPayload
   });
 
   return response.data;

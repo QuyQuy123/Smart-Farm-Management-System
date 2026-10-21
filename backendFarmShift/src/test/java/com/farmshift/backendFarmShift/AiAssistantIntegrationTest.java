@@ -436,4 +436,208 @@ public class AiAssistantIntegrationTest {
                 .andExpect(jsonPath("$.actionType").value("COMPLETE_DAILY_TASKS"))
                 .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("đã được xác nhận hoàn thành trước đó")));
     }
+
+    @Test
+    void testAllTenUserScenarios_WithConfirmationAndExecution() throws Exception {
+        // 1. Tạo Chuồng nuôi mới: "Tạo chuồng B1 diện tích 600m2"
+        String barnRes = mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Tạo chuồng B1 diện tích 600m2",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("CREATE_BARN"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.payload.name").value("Nhà B1"))
+                .andExpect(jsonPath("$.pendingAction.payload.floorArea").value(600.0))
+                .andExpect(jsonPath("$.pendingAction.payload.capacity").value(4800))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode barnPayload = mapper.readTree(barnRes).path("pendingAction").path("payload");
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "confirmAction", true,
+                        "pendingActionPayload", mapper.convertValue(barnPayload, Map.class)
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("CREATE_BARN"));
+        assertTrue(barnRepository.findAll().stream().anyMatch(b -> b.getName().equalsIgnoreCase("Nhà B1")));
+
+        // 2. Thêm Nhà cung cấp: "Thêm nhà cung cấp cám CP 0912345678"
+        String suppRes = mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Thêm nhà cung cấp cám CP 0912345678",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("CREATE_SUPPLIER"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.payload.name").value("Cám CP"))
+                .andExpect(jsonPath("$.pendingAction.payload.phone").value("0912345678"))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode suppPayload = mapper.readTree(suppRes).path("pendingAction").path("payload");
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "confirmAction", true,
+                        "pendingActionPayload", mapper.convertValue(suppPayload, Map.class)
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+        assertTrue(supplierRepository.findAll().stream().anyMatch(s -> s.getName().equalsIgnoreCase("Cám CP")));
+
+        // 3. Thêm Khu vực nuôi: "Thêm khu vực Khu Nuôi Gà Thịt"
+        String areaRes = mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Thêm khu vực Khu Nuôi Gà Thịt",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("CREATE_AREA"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.payload.name", org.hamcrest.Matchers.containsString("Khu Nuôi Gà Thịt")))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode areaPayload = mapper.readTree(areaRes).path("pendingAction").path("payload");
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "confirmAction", true,
+                        "pendingActionPayload", mapper.convertValue(areaPayload, Map.class)
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+        assertTrue(areaRepository.findAll().stream().anyMatch(a -> a.getName().equalsIgnoreCase("Khu Nuôi Gà Thịt")));
+
+        // 4. Ghi cám chuồng: "Ghi cám Nhà A1 50kg"
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Ghi cám Nhà A1 50kg",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("LOG_FEED"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.payload.totalKg").value(50.0));
+
+        // 5. Ghi cân mẫu: "Cân mẫu Nhà A1 1.5kg"
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Cân mẫu Nhà A1 1.5kg",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("LOG_WEIGHT"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.payload.avgWeight").value(1.5));
+
+        // 6. Báo hao hụt: "Báo hao hụt 5 con chuồng A1 do dịch"
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Báo hao hụt 5 con chuồng A1 do dịch",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("LOG_MORTALITY"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.payload.quantity").value(5))
+                .andExpect(jsonPath("$.pendingAction.payload.reason", org.hamcrest.Matchers.containsString("dịch bệnh")));
+
+        // 7. Ghi chi phí: "Ghi chi phí chuồng A1 500k tiền điện"
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Ghi chi phí chuồng A1 500k tiền điện",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("LOG_EXPENSE"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.payload.category").value("ELECTRICITY"))
+                .andExpect(jsonPath("$.pendingAction.payload.amount").value(500000));
+
+        // 8. Nhập kho đơn hàng: "Nhận kho đơn NH000003"
+        ProductType pt = productTypeRepository.findAll().stream().findFirst().orElseGet(() -> {
+            ProductType newPt = new ProductType();
+            newPt.setName("Thức ăn chăn nuôi");
+            newPt.setNameKey("thức ăn chăn nuôi");
+            return productTypeRepository.saveAndFlush(newPt);
+        });
+
+        Supplier testSupplier = supplierRepository.findAll().stream().findFirst().orElseGet(() -> {
+            Supplier s = new Supplier();
+            s.setName("Công ty CP");
+            s.setNameKey("công ty cp");
+            s.setRepresentative("Nguyễn Văn A");
+            s.setPhone("0987654321");
+            s.setProductType(pt);
+            return supplierRepository.saveAndFlush(s);
+        });
+
+        PurchaseInvoice inv3 = new PurchaseInvoice();
+        inv3.setCode("NH000003");
+        inv3.setSupplier(testSupplier);
+        inv3.setInvoiceDate(LocalDate.now());
+        inv3.setStockStatus("Chưa nhập kho");
+        inv3.setPaymentStatus("Chưa thanh toán");
+        inv3.setTotalAmount(3500000L);
+        inv3.setPaidAmount(0L);
+        invoiceRepository.saveAndFlush(inv3);
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Nhận kho đơn NH000003",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("IMPORT_PURCHASE_STOCK"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.payload.invoiceCode").value("NH000003"));
+
+        // 9. Hoàn thành việc ngày: "Xong việc hôm nay"
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Xong việc hôm nay",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("COMPLETE_DAILY_TASKS"))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true));
+
+        // 10. Hỏi đáp & Tra cứu: "Gà thở khò khè" (Thú y) và "Tồn kho cám CP?" (Tồn kho)
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Gà thở khò khè",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("VET_DIAGNOSIS"))
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(false))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("CRD")));
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Tồn kho cám CP?",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("QUERY_FARM_STATUS"))
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(false))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Tồn kho thức ăn")));
+    }
 }

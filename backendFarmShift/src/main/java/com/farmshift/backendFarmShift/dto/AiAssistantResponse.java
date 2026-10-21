@@ -22,4 +22,6 @@ public class AiAssistantResponse {
     private Map<String, Object> actionSummary;
     private Map<String, Object> prefillData;
     private Map<String, Object> dataCard;
+    private boolean requiresConfirmation;
+    private Map<String, Object> pendingAction;
 }

@@ -342,4 +342,107 @@ describe('Voice Assistant & Actionable AI Chatbot Suite', () => {
       expect(screen.getByText('Xem tại màn hình đích')).toBeInTheDocument();
     });
   });
+
+  it('prompts confirmation card before executing mutating action, and executes upon clicking accept', async () => {
+    aiAssistantService.sendAssistantMessage
+      .mockResolvedValueOnce({
+        reply: 'Bạn có muốn ghi nhận cho Nhà A1 ăn 50 kg cám Higro 01 không?',
+        actionType: 'LOG_FEED',
+        executed: false,
+        requiresConfirmation: true,
+        pendingAction: {
+          actionType: 'LOG_FEED',
+          title: 'Ghi nhật ký cám: Nhà A1',
+          description: 'Cám Higro 01 • 50 kg',
+          details: { 'Chuồng nuôi': 'Nhà A1', 'Khối lượng': '50 kg' },
+          payload: { actionType: 'LOG_FEED', barnId: 1, cycleId: 1, feedName: 'Higro 01', totalKg: 50 }
+        }
+      })
+      .mockResolvedValueOnce({
+        reply: '✅ Đã ghi nhận cho Nhà A1 ăn 50 kg cám Higro 01.',
+        actionType: 'LOG_FEED',
+        executed: true,
+        uiCommand: 'REFRESH_DATA',
+        actionSummary: {
+          title: 'Đã ghi nhật ký cám',
+          barnName: 'Nhà A1',
+          detail: 'Higro 01 • 50 kg',
+          timestamp: '2026-10-21T11:40:00'
+        }
+      });
+
+    renderComponent();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    const input = screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Cho Nhà A1 ăn 50kg cám' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    // Confirmation card should appear with accept & reject buttons
+    await waitFor(() => {
+      expect(screen.getByTestId('confirmation-card')).toBeInTheDocument();
+      expect(screen.getByText('Ghi nhật ký cám: Nhà A1')).toBeInTheDocument();
+      expect(screen.getByTestId('confirm-accept-btn')).toBeInTheDocument();
+      expect(screen.getByTestId('confirm-reject-btn')).toBeInTheDocument();
+    });
+
+    // Click Accept button
+    fireEvent.click(screen.getByTestId('confirm-accept-btn'));
+
+    await waitFor(() => {
+      expect(aiAssistantService.sendAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          confirmAction: true,
+          pendingActionPayload: expect.objectContaining({
+            actionType: 'LOG_FEED',
+            feedName: 'Higro 01'
+          })
+        })
+      );
+      expect(screen.getByTestId('action-execution-card')).toBeInTheDocument();
+      expect(screen.getByText('Đã thực thi trên hệ thống')).toBeInTheDocument();
+    });
+  });
+
+  it('allows rejecting confirmation card and restoring with retry button if accidentally cancelled', async () => {
+    aiAssistantService.sendAssistantMessage.mockResolvedValueOnce({
+      reply: 'Bạn có muốn tạo chuồng nuôi mới Nhà B2 không?',
+      actionType: 'CREATE_BARN',
+      executed: false,
+      requiresConfirmation: true,
+      pendingAction: {
+        actionType: 'CREATE_BARN',
+        title: 'Tạo chuồng nuôi mới: Nhà B2',
+        description: 'Chuồng Nhà B2 • 600 m²',
+        details: { 'Tên chuồng': 'Nhà B2', 'Diện tích': '600 m²' },
+        payload: { actionType: 'CREATE_BARN', name: 'Nhà B2', floorArea: 600 }
+      }
+    });
+
+    renderComponent();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    const input = screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Tạo chuồng Nhà B2 diện tích 600m2' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('confirmation-card')).toBeInTheDocument();
+    });
+
+    // Click reject (e.g. accidentally clicked reject)
+    fireEvent.click(screen.getByTestId('confirm-reject-btn'));
+
+    // Should display cancelled notice and retry button
+    expect(screen.getByText('✕ Bạn đã hủy thao tác này.')).toBeInTheDocument();
+    const retryBtn = screen.getByTestId('confirm-retry-btn');
+    expect(retryBtn).toBeInTheDocument();
+
+    // Click retry button to restore confirmation card
+    fireEvent.click(retryBtn);
+
+    // Confirmation buttons are restored!
+    expect(screen.getByTestId('confirm-accept-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('confirm-reject-btn')).toBeInTheDocument();
+  });
 });

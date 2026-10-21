@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles, X, Send, Bot, RotateCcw,
   ChevronDown, Mic, MicOff, ShieldAlert,
-  Zap, ExternalLink, Volume2, VolumeX
+  Zap, ExternalLink, Volume2, VolumeX, Check, AlertCircle
 } from 'lucide-react';
 import { getSystemMessage } from '../../constants/systemMessages';
 import { transcribeAudio, sendAssistantMessage } from '../../services/aiAssistantService';
@@ -28,17 +28,9 @@ const INITIAL_MESSAGE = {
 };
 
 const SUGGESTIONS = [
-  // Action chips
   { label: '✅ Xong việc hôm nay', query: 'Việc hôm nay đã làm xong' },
-  { label: '⚡ Ghi cám Nhà A1 50kg', query: 'Ghi cám cho Nhà A1 50 kg cám Higro 01' },
   { label: '⚖️ Cân mẫu Nhà A1 1.5kg', query: 'Cân mẫu Nhà A1 trung bình 1.5 kg mẫu 50 con' },
-  { label: '📦 Nhập kho đơn NH000003', query: 'Xác nhận nhập kho đơn hàng NH000003' },
-  // Query chips
-  { label: '🌾 Tồn kho cám CP', query: 'Kho cám hiện tại còn bao nhiêu bao?' },
   { label: '🩺 Gà thở khò khè', query: 'Gà có triệu chứng thở khò khè, ngáp gió điều trị thế nào?' },
-  { label: '📊 Tình trạng Chuồng 2', query: 'Chuồng 2 nuôi được bao nhiêu ngày rồi?' },
-  { label: '💊 Gà đi phân sáp', query: 'Gà đi phân sáp lẫn máu là bệnh gì?' },
-  { label: '🌡️ Cảnh báo IoT', query: 'Nhiệt độ các chuồng trại hiện tại ra sao?' },
 ];
 
 /**
@@ -414,7 +406,7 @@ export const AIChatbot = () => {
         message: textToSend,
         currentRoute: location.pathname,
         history: historyPayload,
-        autoExecute: true
+        autoExecute: false
       });
 
       const botMsg = {
@@ -425,6 +417,9 @@ export const AIChatbot = () => {
         actionType: response.actionType,
         actionSummary: response.actionSummary,
         navigateTo: response.navigateTo,
+        requiresConfirmation: response.requiresConfirmation,
+        pendingAction: response.pendingAction,
+        confirmationStatus: response.requiresConfirmation ? 'pending' : null,
         time: formatCurrentTime()
       };
 
@@ -458,6 +453,58 @@ export const AIChatbot = () => {
     } finally {
       setIsTyping(false);
     }
+  };
+
+  // ── Xử lý xác nhận thực thi hành động đã yêu cầu (Human-in-the-loop Confirm) ──
+  const handleConfirmAction = async (msgId, pendingAction) => {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'confirming' } : m));
+    try {
+      const payload = pendingAction?.payload || pendingAction;
+      const response = await sendAssistantMessage({
+        message: 'Xác nhận thực hiện',
+        confirmAction: true,
+        pendingActionPayload: payload,
+        currentRoute: location.pathname
+      });
+
+      setMessages(prev => prev.map(m => {
+        if (m.id === msgId) {
+          return {
+            ...m,
+            confirmationStatus: 'confirmed',
+            executed: response.executed,
+            actionSummary: response.actionSummary || m.actionSummary,
+            navigateTo: response.navigateTo || m.navigateTo,
+            text: response.reply || m.text
+          };
+        }
+        return m;
+      }));
+
+      if (response.reply && isAutoSpeakEnabled) {
+        speakText(response.reply, msgId);
+      }
+
+      if (response.executed || response.uiCommand === 'REFRESH_DATA') {
+        window.dispatchEvent(new CustomEvent('farmshift:ai-action', { detail: response }));
+      }
+      if (response.navigateTo) {
+        navigate(response.navigateTo);
+      }
+    } catch (err) {
+      console.warn('Lỗi khi xác nhận thao tác:', err);
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m));
+    }
+  };
+
+  // Hủy bỏ thao tác nếu chưa muốn thực hiện
+  const handleCancelAction = (msgId) => {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'cancelled' } : m));
+  };
+
+  // Khôi phục lại thẻ xác nhận nếu lỡ tay bấm từ chối/hủy
+  const handleRetryAction = (msgId) => {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m));
   };
 
   // ── Trình Thu âm Thông minh (MediaRecorder + Web Speech API song song) ──
@@ -678,6 +725,75 @@ export const AIChatbot = () => {
                     <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
                   ) : (
                     <FormattedBotText text={msg.text} />
+                  )}
+
+                  {/* ── Thẻ Xác nhận Thao tác Thay đổi Dữ liệu (Confirmation Card) ── */}
+                  {msg.requiresConfirmation && msg.pendingAction && msg.confirmationStatus !== 'confirmed' && (
+                    <div className={styles.confirmCard} data-testid="confirmation-card">
+                      <div className={styles.confirmHeader}>
+                        <AlertCircle size={15} className={styles.confirmIcon} />
+                        <span className={styles.confirmTitle}>{msg.pendingAction.title || 'Xác nhận thao tác'}</span>
+                      </div>
+                      {msg.pendingAction.description && (
+                        <div className={styles.confirmDesc}>{msg.pendingAction.description}</div>
+                      )}
+                      {msg.pendingAction.details && (
+                        <div className={styles.confirmDetails}>
+                          {Object.entries(msg.pendingAction.details).map(([key, val]) => (
+                            <div key={key} className={styles.confirmDetailRow}>
+                              <span className={styles.confirmDetailKey}>{key}:</span>
+                              <span className={styles.confirmDetailVal}>{String(val)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {msg.confirmationStatus === 'pending' && (
+                        <div className={styles.confirmButtonGroup}>
+                          <button
+                            type="button"
+                            className={styles.confirmAcceptBtn}
+                            data-testid="confirm-accept-btn"
+                            onClick={() => handleConfirmAction(msg.id, msg.pendingAction)}
+                          >
+                            <Check size={14} />
+                            <span>Xác nhận thực hiện</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.confirmRejectBtn}
+                            data-testid="confirm-reject-btn"
+                            onClick={() => handleCancelAction(msg.id)}
+                          >
+                            <X size={14} />
+                            <span>Hủy bỏ</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {msg.confirmationStatus === 'confirming' && (
+                        <div className={styles.confirmStatusPending}>
+                          <div className={styles.miniSpinner} />
+                          <span>Đang áp dụng thay đổi vào hệ thống...</span>
+                        </div>
+                      )}
+
+                      {msg.confirmationStatus === 'cancelled' && (
+                        <div className={styles.confirmCancelledRow}>
+                          <span className={styles.confirmCancelledText}>✕ Bạn đã hủy thao tác này.</span>
+                          <button
+                            type="button"
+                            className={styles.confirmRetryBtn}
+                            data-testid="confirm-retry-btn"
+                            onClick={() => handleRetryAction(msg.id)}
+                            title="Khôi phục để xem xét và thực hiện lại"
+                          >
+                            <RotateCcw size={12} />
+                            <span>Khôi phục & Làm lại</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* ── Thẻ Kết quả Thao tác Hệ thống (Action Execution Card) ── */}

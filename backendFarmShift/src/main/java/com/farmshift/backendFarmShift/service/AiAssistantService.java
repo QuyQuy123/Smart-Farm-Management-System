@@ -2,7 +2,10 @@ package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.dto.AiAssistantRequest;
 import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
+import com.farmshift.backendFarmShift.dto.request.BarnRequest;
 import com.farmshift.backendFarmShift.dto.request.DailyTaskConfirmRequest;
+import com.farmshift.backendFarmShift.dto.request.FarmAreaRequest;
+import com.farmshift.backendFarmShift.dto.request.SupplierRequest;
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
@@ -45,6 +48,11 @@ public class AiAssistantService {
     private final SupplierRepository supplierRepository;
     private final PurchaseService purchaseService;
     private final DailyPlanService dailyPlanService;
+    private final BarnService barnService;
+    private final SupplierService supplierService;
+    private final FarmAreaService farmAreaService;
+    private final FarmAreaRepository areaRepository;
+    private final ProductTypeRepository productTypeRepository;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
@@ -65,6 +73,11 @@ public class AiAssistantService {
             SupplierRepository supplierRepository,
             PurchaseService purchaseService,
             DailyPlanService dailyPlanService,
+            BarnService barnService,
+            SupplierService supplierService,
+            FarmAreaService farmAreaService,
+            FarmAreaRepository areaRepository,
+            ProductTypeRepository productTypeRepository,
             ObjectMapper objectMapper,
             @Value("${app.ai.groq-api-key:}") String groqApiKey,
             @Value("${app.ai.groq-chat-url:https://api.groq.com/openai/v1/chat/completions}") String groqChatUrl,
@@ -82,6 +95,11 @@ public class AiAssistantService {
         this.supplierRepository = supplierRepository;
         this.purchaseService = purchaseService;
         this.dailyPlanService = dailyPlanService;
+        this.barnService = barnService;
+        this.supplierService = supplierService;
+        this.farmAreaService = farmAreaService;
+        this.areaRepository = areaRepository;
+        this.productTypeRepository = productTypeRepository;
         this.objectMapper = objectMapper;
         this.groqApiKey = groqApiKey != null ? groqApiKey.strip() : "";
         this.groqChatUrl = groqChatUrl != null && !groqChatUrl.isBlank() ? groqChatUrl.strip() : "https://api.groq.com/openai/v1/chat/completions";
@@ -95,6 +113,11 @@ public class AiAssistantService {
 
     @Transactional
     public AiAssistantResponse processRequest(AiAssistantRequest request, String username, Collection<? extends GrantedAuthority> authorities) {
+        // Check if this is an explicit confirmation of a pending action
+        if (Boolean.TRUE.equals(request.getConfirmAction()) && request.getPendingActionPayload() != null) {
+            return executeConfirmedPayload(request.getPendingActionPayload(), username);
+        }
+
         String rawMessage = request.getMessage() != null ? request.getMessage().trim() : "";
         if (rawMessage.isBlank()) {
             return AiAssistantResponse.builder()
@@ -108,8 +131,10 @@ public class AiAssistantService {
                 .anyMatch(a -> "ROLE_FARM_WORKER".equalsIgnoreCase(a.getAuthority()))
                 && authorities.stream().noneMatch(a -> "ROLE_FARM_OWNER".equalsIgnoreCase(a.getAuthority()) || "ROLE_ACCOUNTANT".equalsIgnoreCase(a.getAuthority()));
 
+        boolean autoExecute = request.getAutoExecute() == null || Boolean.TRUE.equals(request.getAutoExecute());
+
         // First, run our high-performance Vietnamese Rule-Based & Regex Action Engine (Layer 2)
-        AiAssistantResponse ruleResult = evaluateRuleEngine(rawMessage, request.getCurrentRoute(), username, isWorker);
+        AiAssistantResponse ruleResult = evaluateRuleEngine(rawMessage, request.getCurrentRoute(), username, isWorker, autoExecute);
         if (ruleResult != null) {
             return ruleResult;
         }
@@ -117,7 +142,7 @@ public class AiAssistantService {
         // If rule engine did not trigger a specific action and Groq key is present, invoke Groq LLM (Layer 1)
         if (!groqApiKey.isBlank()) {
             try {
-                AiAssistantResponse llmResult = evaluateLlmEngine(rawMessage, request.getCurrentRoute(), request.getHistory(), username, isWorker);
+                AiAssistantResponse llmResult = evaluateLlmEngine(rawMessage, request.getCurrentRoute(), request.getHistory(), username, isWorker, autoExecute);
                 if (llmResult != null) {
                     return llmResult;
                 }
@@ -135,10 +160,14 @@ public class AiAssistantService {
     // ─────────────────────────────────────────────────────────────────────────────
 
     private AiAssistantResponse evaluateRuleEngine(String message, String currentRoute, String username, boolean isWorker) {
+        return evaluateRuleEngine(message, currentRoute, username, isWorker, true);
+    }
+
+    private AiAssistantResponse evaluateRuleEngine(String message, String currentRoute, String username, boolean isWorker, boolean autoExecute) {
         String norm = normalizeText(message);
 
         // 1. IMPORT_PURCHASE_STOCK (Xác nhận nhập kho đơn hàng NHxxxx)
-        if (norm.contains("nhap kho") || norm.contains("xac nhan nhap kho")) {
+        if (norm.contains("nhap kho") || norm.contains("nhan kho") || norm.contains("xac nhan nhap kho") || norm.contains("xac nhan nhan kho")) {
             Matcher codeMatcher = Pattern.compile("nh\\s*[-_]?\\s*(\\d+)", Pattern.CASE_INSENSITIVE).matcher(norm);
             String invoiceCode = null;
             if (codeMatcher.find()) {
@@ -151,7 +180,7 @@ public class AiAssistantService {
             }
 
             if (invoiceCode != null) {
-                return handleImportStock(invoiceCode);
+                return handleImportStock(invoiceCode, autoExecute);
             }
         }
 
@@ -176,7 +205,46 @@ public class AiAssistantService {
             }
         }
 
-        // 5. LOG_EXPENSE (Ghi chi phí tiền điện, nước, thuốc...)
+        // 5. CREATE_BARN (Tạo chuồng nuôi mới)
+        if (norm.contains("tao chuong") || norm.contains("them chuong") || norm.contains("tao moi chuong") || norm.contains("them moi chuong")) {
+            if (isWorker) {
+                return AiAssistantResponse.builder()
+                        .reply("⚠️ Tài khoản Công nhân không có quyền tạo hoặc chỉnh sửa cơ sở chuồng nuôi.")
+                        .actionType("CREATE_BARN")
+                        .executed(false)
+                        .build();
+            }
+            AiAssistantResponse barnRes = handleCreateBarn(norm, message, autoExecute);
+            if (barnRes != null) return barnRes;
+        }
+
+        // 6. CREATE_SUPPLIER (Thêm nhà cung cấp mới)
+        if (norm.contains("tao nha cung cap") || norm.contains("them nha cung cap") || norm.contains("them ncc") || norm.contains("tao ncc") || norm.contains("them doi tac")) {
+            if (isWorker) {
+                return AiAssistantResponse.builder()
+                        .reply("⚠️ Tài khoản Công nhân không có quyền quản lý danh mục nhà cung cấp.")
+                        .actionType("CREATE_SUPPLIER")
+                        .executed(false)
+                        .build();
+            }
+            AiAssistantResponse suppRes = handleCreateSupplier(norm, message, autoExecute);
+            if (suppRes != null) return suppRes;
+        }
+
+        // 7. CREATE_AREA (Thêm khu vực nuôi mới)
+        if (norm.contains("tao khu") || norm.contains("them khu") || norm.contains("tao khu vuc") || norm.contains("them khu vuc")) {
+            if (isWorker) {
+                return AiAssistantResponse.builder()
+                        .reply("⚠️ Tài khoản Công nhân không có quyền quản lý khu vực trang trại.")
+                        .actionType("CREATE_AREA")
+                        .executed(false)
+                        .build();
+            }
+            AiAssistantResponse areaRes = handleCreateArea(norm, message, autoExecute);
+            if (areaRes != null) return areaRes;
+        }
+
+        // 8. LOG_EXPENSE (Ghi chi phí tiền điện, nước, thuốc...)
         if (norm.contains("chi phi") || norm.contains("tien dien") || norm.contains("tien nuoc") || norm.contains("tien thuoc") || norm.contains("tien cong") || norm.contains("nhan cong")) {
             if (isWorker) {
                 return AiAssistantResponse.builder()
@@ -185,47 +253,46 @@ public class AiAssistantService {
                         .executed(false)
                         .build();
             }
-            AiAssistantResponse expenseResponse = handleLogExpense(norm, message, currentRoute, username);
+            AiAssistantResponse expenseResponse = handleLogExpense(norm, message, currentRoute, username, autoExecute);
             if (expenseResponse != null) {
                 return expenseResponse;
             }
         }
 
-        // 6. LOG_FEED (Ghi cám cho chuồng)
+        // 9. LOG_FEED (Ghi cám cho chuồng)
         if (norm.contains("cam") || norm.contains("cho an") || norm.contains("do cam")) {
-            // Check if this is a query like "ton kho cam con bao nhieu"
             if (!norm.contains("ton kho") && !norm.contains("con bao nhieu") && !norm.contains("kiem tra") && (norm.contains("kg") || norm.contains("ki") || norm.contains("ky") || norm.contains("can") || norm.contains("bao") || norm.contains("cho") || norm.contains("an"))) {
-                AiAssistantResponse feedResponse = handleLogFeed(norm, message, currentRoute, username);
+                AiAssistantResponse feedResponse = handleLogFeed(norm, message, currentRoute, username, autoExecute);
                 if (feedResponse != null) {
                     return feedResponse;
                 }
             }
         }
 
-        // 7. LOG_WEIGHT (Cân mẫu chuồng...)
+        // 10. LOG_WEIGHT (Cân mẫu chuồng...)
         if (norm.contains("can mau") || norm.contains("can nang") || norm.contains("trong luong") || norm.contains("khoi luong")) {
-            AiAssistantResponse weightResponse = handleLogWeight(norm, message, currentRoute, username);
+            AiAssistantResponse weightResponse = handleLogWeight(norm, message, currentRoute, username, autoExecute);
             if (weightResponse != null) {
                 return weightResponse;
             }
         }
 
-        // 8. LOG_MORTALITY (Hao hụt, chết)
+        // 11. LOG_MORTALITY (Hao hụt, chết)
         if (norm.contains("hao hut") || norm.contains("chet") || norm.contains("loai thai")) {
-            AiAssistantResponse mortalityResponse = handleLogMortality(norm, message, currentRoute, username);
+            AiAssistantResponse mortalityResponse = handleLogMortality(norm, message, currentRoute, username, autoExecute);
             if (mortalityResponse != null) {
                 return mortalityResponse;
             }
         }
 
-        // 9. COMPLETE_DAILY_TASKS (Xác nhận hoàn thành việc hôm nay / công việc theo chương trình)
+        // 12. COMPLETE_DAILY_TASKS (Xác nhận hoàn thành việc hôm nay / công việc theo chương trình)
         if (norm.contains("viec hom nay") || norm.contains("cong viec hom nay") ||
                 norm.contains("lam xong viec") || norm.contains("hoan thanh viec") ||
                 norm.contains("xong viec") || norm.contains("tich xong") || norm.contains("tich viec") ||
                 norm.contains("xong het viec") || norm.contains("hoan thanh cong viec") ||
                 norm.matches(".*\\b(?:da\\s+)?(?:lam\\s+)?xong\\s+(?:het\\s+)?(?:cac\\s+)?viec.*") ||
                 norm.matches(".*\\bviec\\s+(?:hom\\s+nay\\s+)?(?:da\\s+)?(?:lam\\s+)?xong.*")) {
-            AiAssistantResponse tasksResponse = handleCompleteDailyTasks(norm, message, currentRoute, username);
+            AiAssistantResponse tasksResponse = handleCompleteDailyTasks(norm, message, currentRoute, username, autoExecute);
             if (tasksResponse != null) {
                 return tasksResponse;
             }
@@ -239,6 +306,10 @@ public class AiAssistantService {
     // ─────────────────────────────────────────────────────────────────────────────
 
     private AiAssistantResponse handleCompleteDailyTasks(String norm, String originalMsg, String currentRoute, String username) {
+        return handleCompleteDailyTasks(norm, originalMsg, currentRoute, username, true);
+    }
+
+    private AiAssistantResponse handleCompleteDailyTasks(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute) {
         LocalDate today = LocalDate.now();
 
         // Check if user targeted a specific barn or cycle
@@ -296,6 +367,54 @@ public class AiAssistantService {
             }
         }
 
+        long pendingTasksCount = targetPlans.stream()
+                .flatMap(p -> p.tasks().stream())
+                .filter(t -> t.done() == null)
+                .count();
+
+        if (pendingTasksCount == 0) {
+            String scope = targetBarn != null ? ("của chuồng **" + targetBarn.getName() + "**") : "trên toàn bộ các chuồng";
+            return AiAssistantResponse.builder()
+                    .reply("ℹ️ Tất cả công việc hôm nay " + scope + " đã được xác nhận hoàn thành trước đó.")
+                    .actionType("COMPLETE_DAILY_TASKS")
+                    .executed(true)
+                    .navigateTo("/today-tasks")
+                    .uiCommand("REFRESH_DATA")
+                    .build();
+        }
+
+        if (!autoExecute) {
+            String scopeName = targetBarn != null ? targetBarn.getName() : ("Toàn bộ các chuồng (" + targetPlans.size() + " chuồng)");
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Phạm vi", scopeName);
+            details.put("Số lượng việc chờ", pendingTasksCount + " công việc");
+            details.put("Tác động", "Tự động trừ kho cám/thuốc và tính chi phí lứa nuôi");
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "COMPLETE_DAILY_TASKS");
+            if (targetCycleId != null) payload.put("targetCycleId", targetCycleId);
+            if (targetBarn != null) payload.put("barnName", targetBarn.getName());
+
+            return AiAssistantResponse.builder()
+                    .reply("Tôi đã kiểm tra danh sách phiếu việc hôm nay. Bạn có chắc chắn muốn xác nhận hoàn thành **" + pendingTasksCount + " công việc** cho **" + scopeName + "** không?")
+                    .actionType("COMPLETE_DAILY_TASKS")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "COMPLETE_DAILY_TASKS",
+                            "title", "Xác nhận hoàn thành việc hôm nay",
+                            "description", "Hoàn thành " + pendingTasksCount + " việc hôm nay (" + scopeName + ")",
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
+        return commitCompleteDailyTasksExecution(targetPlans, targetBarn, username);
+    }
+
+    private AiAssistantResponse commitCompleteDailyTasksExecution(List<BarnDayPlan> targetPlans, Barn targetBarn, String username) {
+        LocalDate today = LocalDate.now();
         int confirmedCount = 0;
         int alreadyDoneCount = 0;
         List<String> confirmedDetails = new ArrayList<>();
@@ -387,6 +506,10 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleImportStock(String invoiceCode) {
+        return handleImportStock(invoiceCode, true);
+    }
+
+    private AiAssistantResponse handleImportStock(String invoiceCode, boolean autoExecute) {
         Optional<PurchaseInvoice> opt = invoiceRepository.findByCode(invoiceCode);
         if (opt.isEmpty()) {
             return AiAssistantResponse.builder()
@@ -411,9 +534,37 @@ public class AiAssistantService {
                     .build();
         }
 
+        String supplierName = invoice.getSupplier() != null ? invoice.getSupplier().getName() : "Nhà cung cấp";
+
+        if (!autoExecute) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Mã hóa đơn", invoiceCode);
+            details.put("Nhà cung cấp", supplierName);
+            details.put("Tổng tiền", NumberFormat.getInstance(new Locale("vi", "VN")).format(invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0) + " đ");
+            details.put("Hành động", "Xác nhận nhập kho & cộng số lượng vào tồn kho");
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "IMPORT_PURCHASE_STOCK");
+            payload.put("invoiceCode", invoiceCode);
+            payload.put("invoiceId", invoice.getId());
+
+            return AiAssistantResponse.builder()
+                    .reply("Bạn có muốn xác nhận nhập kho đơn hàng **" + invoiceCode + "** từ **" + supplierName + "** không?")
+                    .actionType("IMPORT_PURCHASE_STOCK")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "IMPORT_PURCHASE_STOCK",
+                            "title", "Xác nhận nhập kho đơn hàng " + invoiceCode,
+                            "description", "Nhập kho đơn hàng " + invoiceCode + " từ " + supplierName,
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
         purchaseService.importStock(invoice.getId());
 
-        String supplierName = invoice.getSupplier() != null ? invoice.getSupplier().getName() : "Nhà cung cấp";
         return AiAssistantResponse.builder()
                 .reply("✅ Đã xác nhận nhập kho thành công đơn hàng **" + invoiceCode + "** từ **" + supplierName + "**. Số lượng tồn kho các mặt hàng đã được cộng tự động vào kho.")
                 .actionType("IMPORT_PURCHASE_STOCK")
@@ -428,10 +579,14 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleLogFeed(String norm, String originalMsg, String username) {
-        return handleLogFeed(norm, originalMsg, null, username);
+        return handleLogFeed(norm, originalMsg, null, username, true);
     }
 
     private AiAssistantResponse handleLogFeed(String norm, String originalMsg, String currentRoute, String username) {
+        return handleLogFeed(norm, originalMsg, currentRoute, username, true);
+    }
+
+    private AiAssistantResponse handleLogFeed(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute) {
         Barn barn = resolveBarn(norm, originalMsg, currentRoute);
         if (barn == null) {
             if (hasBarnMention(norm, currentRoute)) {
@@ -479,6 +634,43 @@ public class AiAssistantService {
         else if (norm.contains("giai doan 2")) feedName = "Cám giai đoạn 2";
         else if (norm.contains("giai doan 1")) feedName = "Cám giai đoạn 1";
 
+        String unitDetail = isBao ? ((qty == Math.floor(qty) ? String.valueOf((long) qty) : String.valueOf(qty)) + " bao (" + totalKg + " kg)") : (totalKg + " kg");
+
+        if (!autoExecute) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Chuồng nuôi", barn.getName());
+            details.put("Thức ăn", feedName);
+            details.put("Số lượng", unitDetail);
+            details.put("Khấu trừ kho", "Tự động trừ tồn kho cám nếu có");
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "LOG_FEED");
+            payload.put("barnId", barn.getId());
+            payload.put("cycleId", cycle.getId());
+            payload.put("barnName", barn.getName());
+            payload.put("feedName", feedName);
+            payload.put("totalKg", totalKg);
+            payload.put("unitDetail", unitDetail);
+
+            return AiAssistantResponse.builder()
+                    .reply("Bạn có muốn ghi nhận cho **" + barn.getName() + "** ăn **" + unitDetail + "** thức ăn **" + feedName + "** không?")
+                    .actionType("LOG_FEED")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "LOG_FEED",
+                            "title", "Ghi nhận cám: " + barn.getName(),
+                            "description", "Ghi nhận " + unitDetail + " cám " + feedName + " cho " + barn.getName(),
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
+        return commitLogFeed(barn, cycle, feedName, totalKg, unitDetail, username);
+    }
+
+    private AiAssistantResponse commitLogFeed(Barn barn, FarmingCycle cycle, String feedName, double totalKg, String unitDetail, String username) {
         FeedRecord record = new FeedRecord();
         record.setCycle(cycle);
         record.setRecordDate(LocalDate.now());
@@ -496,7 +688,6 @@ public class AiAssistantService {
             log.warn("Could not deduct inventory stock for feed: {}", e.getMessage());
         }
 
-        String unitDetail = isBao ? ((qty == Math.floor(qty) ? String.valueOf((long) qty) : String.valueOf(qty)) + " bao (" + totalKg + " kg)") : (totalKg + " kg");
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("title", "Đã ghi nhật ký cám");
         summary.put("barnName", barn.getName());
@@ -515,10 +706,14 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleLogWeight(String norm, String originalMsg, String username) {
-        return handleLogWeight(norm, originalMsg, null, username);
+        return handleLogWeight(norm, originalMsg, null, username, true);
     }
 
     private AiAssistantResponse handleLogWeight(String norm, String originalMsg, String currentRoute, String username) {
+        return handleLogWeight(norm, originalMsg, currentRoute, username, true);
+    }
+
+    private AiAssistantResponse handleLogWeight(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute) {
         Barn barn = resolveBarn(norm, originalMsg, currentRoute);
         if (barn == null) {
             if (hasBarnMention(norm, currentRoute)) {
@@ -548,6 +743,39 @@ public class AiAssistantService {
             sampleSize = Integer.parseInt(sizeMatcher.group(1));
         }
 
+        if (!autoExecute) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Chuồng nuôi", barn.getName());
+            details.put("Trọng lượng TB", avgWeight + " kg / con");
+            details.put("Cỡ mẫu cân", sampleSize + " con");
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "LOG_WEIGHT");
+            payload.put("barnId", barn.getId());
+            payload.put("cycleId", cycle.getId());
+            payload.put("barnName", barn.getName());
+            payload.put("avgWeight", avgWeight);
+            payload.put("sampleSize", sampleSize);
+
+            return AiAssistantResponse.builder()
+                    .reply("Bạn có muốn ghi nhận kết quả cân mẫu cho **" + barn.getName() + "**: trung bình **" + avgWeight + " kg** (mẫu " + sampleSize + " con) không?")
+                    .actionType("LOG_WEIGHT")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "LOG_WEIGHT",
+                            "title", "Ghi nhận cân mẫu: " + barn.getName(),
+                            "description", "Trọng lượng TB " + avgWeight + " kg (mẫu " + sampleSize + " con)",
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
+        return commitLogWeight(barn, cycle, avgWeight, sampleSize, username);
+    }
+
+    private AiAssistantResponse commitLogWeight(Barn barn, FarmingCycle cycle, double avgWeight, int sampleSize, String username) {
         WeightSample sample = new WeightSample();
         sample.setCycle(cycle);
         sample.setSampleDate(LocalDate.now());
@@ -575,10 +803,14 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String username) {
-        return handleLogMortality(norm, originalMsg, null, username);
+        return handleLogMortality(norm, originalMsg, null, username, true);
     }
 
     private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String currentRoute, String username) {
+        return handleLogMortality(norm, originalMsg, currentRoute, username, true);
+    }
+
+    private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute) {
         Barn barn = resolveBarn(norm, originalMsg, currentRoute);
         if (barn == null) {
             if (hasBarnMention(norm, currentRoute)) {
@@ -614,9 +846,44 @@ public class AiAssistantService {
 
         String reason = "Hao hụt chăn nuôi";
         if (norm.contains("nong")) reason = "Hao hụt do nắng nóng";
+        else if (norm.contains("dich")) reason = "Hao hụt do dịch bệnh";
         else if (norm.contains("benh")) reason = "Hao hụt do bệnh";
         else if (norm.contains("loai thai")) reason = "Loại thải con còi cọc";
 
+        if (!autoExecute) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Chuồng nuôi", barn.getName());
+            details.put("Số lượng hao hụt", qty + " con");
+            details.put("Lý do", reason);
+            details.put("Đàn còn lại dự kiến", (Math.max(0, barn.getCurrentQuantity() - qty)) + " con");
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "LOG_MORTALITY");
+            payload.put("barnId", barn.getId());
+            payload.put("barnName", barn.getName());
+            if (flock != null) payload.put("flockId", flock.getId());
+            payload.put("quantity", qty);
+            payload.put("reason", reason);
+
+            return AiAssistantResponse.builder()
+                    .reply("Bạn có muốn ghi nhận hao hụt **" + qty + " con** (" + reason.toLowerCase() + ") cho chuồng **" + barn.getName() + "** không?")
+                    .actionType("LOG_MORTALITY")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "LOG_MORTALITY",
+                            "title", "Ghi nhận hao hụt: " + barn.getName(),
+                            "description", "Hao hụt " + qty + " con (" + reason + ")",
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
+        return commitLogMortality(barn, flock, qty, reason, username);
+    }
+
+    private AiAssistantResponse commitLogMortality(Barn barn, Flock flock, int qty, String reason, String username) {
         if (flock != null) {
             FlockMovement movement = new FlockMovement();
             movement.setFlock(flock);
@@ -656,10 +923,14 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleLogExpense(String norm, String originalMsg, String username) {
-        return handleLogExpense(norm, originalMsg, null, username);
+        return handleLogExpense(norm, originalMsg, null, username, true);
     }
 
     private AiAssistantResponse handleLogExpense(String norm, String originalMsg, String currentRoute, String username) {
+        return handleLogExpense(norm, originalMsg, currentRoute, username, true);
+    }
+
+    private AiAssistantResponse handleLogExpense(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute) {
         Barn barn = resolveBarn(norm, originalMsg, currentRoute);
         if (barn == null) {
             if (hasBarnMention(norm, currentRoute)) {
@@ -693,7 +964,6 @@ public class AiAssistantService {
         }
 
         long amount = 500000L;
-        // Parse "1 trieu 2", "1.2 trieu", "500 nghin", "500k"
         if (norm.contains("trieu")) {
             Matcher trieuMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*trieu(?:\\s*(\\d+))?").matcher(norm);
             if (trieuMatcher.find()) {
@@ -716,6 +986,43 @@ public class AiAssistantService {
             }
         }
 
+        String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+
+        if (!autoExecute) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Chuồng nuôi", barn.getName());
+            details.put("Hạng mục", categoryLabel);
+            details.put("Số tiền", formattedMoney);
+            details.put("Lứa nuôi", "Lứa #" + cycle.getCycleNumber());
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "LOG_EXPENSE");
+            payload.put("barnId", barn.getId());
+            payload.put("cycleId", cycle.getId());
+            payload.put("barnName", barn.getName());
+            payload.put("category", category.name());
+            payload.put("categoryLabel", categoryLabel);
+            payload.put("amount", amount);
+
+            return AiAssistantResponse.builder()
+                    .reply("Bạn có muốn ghi nhận chi phí **" + categoryLabel + "** số tiền **" + formattedMoney + "** cho **" + barn.getName() + "** không?")
+                    .actionType("LOG_EXPENSE")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "LOG_EXPENSE",
+                            "title", "Ghi nhận chi phí: " + barn.getName(),
+                            "description", categoryLabel + " • " + formattedMoney,
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
+        return commitLogExpense(barn, cycle, category, categoryLabel, amount, username);
+    }
+
+    private AiAssistantResponse commitLogExpense(Barn barn, FarmingCycle cycle, ExpenseCategory category, String categoryLabel, long amount, String username) {
         CycleExpense expense = new CycleExpense();
         expense.setCycle(cycle);
         expense.setExpenseDate(LocalDate.now());
@@ -741,6 +1048,384 @@ public class AiAssistantService {
                 .uiCommand("REFRESH_DATA")
                 .actionSummary(summary)
                 .build();
+    }
+
+    private AiAssistantResponse handleCreateBarn(String norm, String originalMsg, boolean autoExecute) {
+        double floorArea = 500.0;
+        Matcher areaMatcher = Pattern.compile("(?:dien tich|dt|rong)\\s*[:=]?\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:m2|m\\^2|met vuong|m)?").matcher(norm);
+        if (areaMatcher.find()) {
+            floorArea = Double.parseDouble(areaMatcher.group(1).replace(',', '.'));
+        }
+
+        String cleanNorm = norm.replaceAll("(?:dien tich|dt|rong)\\s*[:=]?\\s*\\d+(?:[.,]\\d+)?\\s*(?:m2|m\\^2|met vuong|m)?", "").trim();
+        Matcher nameMatcher = Pattern.compile("(?:tao|them|tao moi|them moi)?\\s*(?:chuong|nha)\\s+([a-zA-Z0-9_\\-]+)").matcher(cleanNorm);
+        String barnName = null;
+        if (nameMatcher.find()) {
+            barnName = nameMatcher.group(1).trim();
+        } else {
+            Matcher fallbackMatcher = Pattern.compile("(?:chuong|nha)\\s+([a-zA-Z0-9_\\-]+)").matcher(norm);
+            if (fallbackMatcher.find()) {
+                barnName = fallbackMatcher.group(1).trim();
+            }
+        }
+
+        if (barnName == null || barnName.isBlank()) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Vui lòng chỉ rõ tên chuồng bạn muốn tạo (ví dụ: *Tạo chuồng B1 diện tích 600m2*).")
+                    .actionType("CREATE_BARN")
+                    .executed(false)
+                    .build();
+        }
+
+        if (!barnName.toLowerCase().startsWith("nhà") && !barnName.toLowerCase().startsWith("chuồng") && !barnName.toLowerCase().startsWith("nha")) {
+            barnName = "Nhà " + barnName.toUpperCase();
+        }
+
+        final String finalBarnName = barnName;
+        boolean exists = barnRepository.findAll().stream().anyMatch(b -> b.getName().equalsIgnoreCase(finalBarnName));
+        if (exists) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Chuồng **" + barnName + "** đã tồn tại trong hệ thống. Vui lòng chọn tên khác.")
+                    .actionType("CREATE_BARN")
+                    .executed(false)
+                    .build();
+        }
+
+        List<FarmArea> areas = areaRepository.findAll();
+        FarmArea area = areas.isEmpty() ? null : areas.get(0);
+        Long areaId = area != null ? area.getId() : 1L;
+        String areaName = area != null ? area.getName() : "Khu nuôi tiêu chuẩn";
+        int capacity = (int) Math.round(floorArea * 8.0);
+
+        if (!autoExecute) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Tên chuồng", barnName);
+            details.put("Diện tích sàn", floorArea + " m²");
+            details.put("Sức chứa tiêu chuẩn", capacity + " con (8 con/m²)");
+            details.put("Khu vực thuộc về", areaName);
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "CREATE_BARN");
+            payload.put("name", barnName);
+            payload.put("floorArea", floorArea);
+            payload.put("capacity", capacity);
+            payload.put("areaId", areaId);
+
+            return AiAssistantResponse.builder()
+                    .reply("Bạn có muốn tạo chuồng nuôi mới **" + barnName + "** với diện tích sàn **" + floorArea + " m²** (sức chứa **" + capacity + " con**) thuộc **" + areaName + "** không?")
+                    .actionType("CREATE_BARN")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "CREATE_BARN",
+                            "title", "Tạo chuồng nuôi mới: " + barnName,
+                            "description", "Chuồng " + barnName + " • " + floorArea + " m² • " + capacity + " con",
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
+        return commitCreateBarn(barnName, floorArea, capacity, areaId);
+    }
+
+    private AiAssistantResponse commitCreateBarn(String name, double floorArea, int capacity, Long areaId) {
+        BarnRequest req = new BarnRequest(
+                areaId,
+                name,
+                capacity,
+                BigDecimal.valueOf(floorArea),
+                BigDecimal.ZERO,
+                "Tạo bởi AI Assistant"
+        );
+        barnService.create(req);
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("title", "Đã tạo chuồng mới");
+        summary.put("barnName", name);
+        summary.put("detail", floorArea + " m² • Sức chứa " + capacity + " con");
+        summary.put("timestamp", LocalDateTime.now().toString());
+
+        return AiAssistantResponse.builder()
+                .reply("✅ Đã tạo thành công chuồng nuôi **" + name + "** (Diện tích " + floorArea + " m², sức chứa " + capacity + " con). Bạn có thể vào màn hình **Chuồng nuôi** để xem chi tiết.")
+                .actionType("CREATE_BARN")
+                .executed(true)
+                .navigateTo("/barns")
+                .uiCommand("REFRESH_DATA")
+                .actionSummary(summary)
+                .build();
+    }
+
+    private AiAssistantResponse handleCreateSupplier(String norm, String originalMsg, boolean autoExecute) {
+        String phone = null;
+        Matcher phoneMatcher = Pattern.compile("(\\b0[0-9]{9,10}\\b)").matcher(norm);
+        if (phoneMatcher.find()) {
+            phone = phoneMatcher.group(1).trim();
+        }
+
+        String cleanOrig = phone != null ? originalMsg.replace(phone, "").trim() : originalMsg;
+        cleanOrig = cleanOrig.replaceAll("(?i)\\b(?:sdt|so dien thoai|phone|dien thoai)\\b", "").trim();
+        Matcher matcherOrig = Pattern.compile("(?i)(?:tạo|thêm|thêm mới|tạo mới|tao|them|them moi|tao moi)\\s+(?:nhà cung cấp|nha cung cap|ncc|đối tác|doi tac)\\s+(.+)").matcher(cleanOrig);
+        String name = null;
+        if (matcherOrig.find()) {
+            name = matcherOrig.group(1).trim();
+            name = Character.toUpperCase(name.charAt(0)) + (name.length() > 1 ? name.substring(1) : "");
+        } else {
+            String cleanNorm = phone != null ? norm.replace(phone, "").trim() : norm;
+            cleanNorm = cleanNorm.replaceAll("\\b(?:sdt|so dien thoai|phone|dien thoai)\\b", "").trim();
+            Matcher matcher = Pattern.compile("(?:tao|them|them moi|tao moi)\\s+(?:nha cung cap|ncc|doi tac)\\s+(.+)").matcher(cleanNorm);
+            if (matcher.find()) {
+                name = matcher.group(1).trim();
+                name = Character.toUpperCase(name.charAt(0)) + (name.length() > 1 ? name.substring(1) : "");
+            }
+        }
+        if (name == null || name.isBlank()) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Vui lòng cung cấp tên nhà cung cấp (ví dụ: *Thêm nhà cung cấp cám CP 0912345678*).")
+                    .actionType("CREATE_SUPPLIER")
+                    .executed(false)
+                    .build();
+        }
+
+        final String finalName = name;
+        boolean exists = supplierRepository.findAll().stream().anyMatch(s -> s.getName().equalsIgnoreCase(finalName));
+        if (exists) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Nhà cung cấp **" + name + "** đã có trong danh mục đối tác.")
+                    .actionType("CREATE_SUPPLIER")
+                    .executed(false)
+                    .build();
+        }
+
+        if (!autoExecute) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Tên đối tác", name);
+            details.put("Số điện thoại", phone != null ? phone : "Chưa cập nhật");
+            details.put("Danh mục", "Thức ăn chăn nuôi & Vật tư");
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "CREATE_SUPPLIER");
+            payload.put("name", name);
+            if (phone != null) payload.put("phone", phone);
+
+            return AiAssistantResponse.builder()
+                    .reply("Bạn có muốn thêm nhà cung cấp mới **" + name + "**" + (phone != null ? (" (SĐT: " + phone + ")") : "") + " vào hệ thống không?")
+                    .actionType("CREATE_SUPPLIER")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "CREATE_SUPPLIER",
+                            "title", "Thêm nhà cung cấp mới: " + name,
+                            "description", name + (phone != null ? (" • SĐT: " + phone) : ""),
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
+        return commitCreateSupplier(name, phone);
+    }
+
+    private AiAssistantResponse commitCreateSupplier(String name, String phone) {
+        String contactPhone = (phone != null && phone.matches("^(?:(?:024|028)[0-9]{8}|(?!(?:024|028))[0-9]{10})$")) ? phone : "0901234567";
+        SupplierRequest req = new SupplierRequest(name, "Đại diện đối tác", contactPhone, null);
+        supplierService.create(req);
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("title", "Đã thêm nhà cung cấp");
+        summary.put("detail", name + (phone != null ? (" • SĐT: " + phone) : ""));
+        summary.put("timestamp", LocalDateTime.now().toString());
+
+        return AiAssistantResponse.builder()
+                .reply("✅ Đã thêm thành công nhà cung cấp **" + name + "** vào danh mục đối tác.")
+                .actionType("CREATE_SUPPLIER")
+                .executed(true)
+                .navigateTo("/purchases")
+                .uiCommand("REFRESH_DATA")
+                .actionSummary(summary)
+                .build();
+    }
+
+    private AiAssistantResponse handleCreateArea(String norm, String originalMsg, boolean autoExecute) {
+        String name = null;
+        Matcher matcherOrig = Pattern.compile("(?i)(?:tạo mới|thêm mới|tao moi|them moi|tạo|thêm|tao|them)\\s+(?:khu vực|khu nuôi|khu vuc|khu nuoi|khu)\\s+(.+)").matcher(originalMsg);
+        if (matcherOrig.find()) {
+            name = matcherOrig.group(1).trim();
+        } else {
+            Matcher matcher = Pattern.compile("(?:tao moi|them moi|tao|them)\\s+(?:khu vuc|khu nuoi|khu)\\s+(.+)").matcher(norm);
+            if (matcher.find()) {
+                name = matcher.group(1).trim();
+                name = Character.toUpperCase(name.charAt(0)) + (name.length() > 1 ? name.substring(1) : "");
+            }
+        }
+        if (name == null || name.isBlank()) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Vui lòng cung cấp tên khu vực (ví dụ: *Thêm khu vực Khu Nuôi Gà Thịt*).")
+                    .actionType("CREATE_AREA")
+                    .executed(false)
+                    .build();
+        }
+
+        final String finalName = name;
+        boolean exists = areaRepository.findAll().stream().anyMatch(a -> a.getName().equalsIgnoreCase(finalName));
+        if (exists) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Khu vực **" + name + "** đã tồn tại trong trang trại.")
+                    .actionType("CREATE_AREA")
+                    .executed(false)
+                    .build();
+        }
+
+        if (!autoExecute) {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("Tên khu vực", name);
+            details.put("Theo dõi môi trường", "Nhiệt độ, Độ ẩm");
+            details.put("Theo dõi đàn", "Cân mẫu, Hao hụt");
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "CREATE_AREA");
+            payload.put("name", name);
+
+            return AiAssistantResponse.builder()
+                    .reply("Bạn có muốn tạo khu vực chăn nuôi mới **" + name + "** không?")
+                    .actionType("CREATE_AREA")
+                    .executed(false)
+                    .requiresConfirmation(true)
+                    .pendingAction(Map.of(
+                            "actionType", "CREATE_AREA",
+                            "title", "Tạo khu vực mới: " + name,
+                            "description", "Khu vực: " + name,
+                            "details", details,
+                            "payload", payload
+                    ))
+                    .build();
+        }
+
+        return commitCreateArea(name);
+    }
+
+    private AiAssistantResponse commitCreateArea(String name) {
+        FarmAreaRequest req = new FarmAreaRequest(
+                name,
+                FarmAreaService.ENVIRONMENT_METRICS,
+                FarmAreaService.ANIMAL_METRICS,
+                "Tạo bởi AI Assistant"
+        );
+        farmAreaService.create(req);
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("title", "Đã tạo khu vực mới");
+        summary.put("detail", "Khu: " + name);
+        summary.put("timestamp", LocalDateTime.now().toString());
+
+        return AiAssistantResponse.builder()
+                .reply("✅ Đã tạo thành công khu vực chăn nuôi **" + name + "** trên hệ thống.")
+                .actionType("CREATE_AREA")
+                .executed(true)
+                .navigateTo("/barns")
+                .uiCommand("REFRESH_DATA")
+                .actionSummary(summary)
+                .build();
+    }
+
+    public AiAssistantResponse executeConfirmedPayload(Map<String, Object> payload, String username) {
+        String actionType = payload.get("actionType") != null ? String.valueOf(payload.get("actionType")) : "";
+        switch (actionType) {
+            case "LOG_FEED": {
+                Long barnId = Long.valueOf(String.valueOf(payload.get("barnId")));
+                Barn barn = barnRepository.findById(barnId).orElse(null);
+                Long cycleId = Long.valueOf(String.valueOf(payload.get("cycleId")));
+                FarmingCycle cycle = cycleRepository.findById(cycleId).orElse(null);
+                if (barn == null || cycle == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy chuồng hoặc lứa nuôi tương ứng.").executed(false).build();
+                }
+                String feedName = String.valueOf(payload.getOrDefault("feedName", "Cám Higro 01"));
+                double totalKg = Double.parseDouble(String.valueOf(payload.getOrDefault("totalKg", 25.0)));
+                String unitDetail = String.valueOf(payload.getOrDefault("unitDetail", totalKg + " kg"));
+                return commitLogFeed(barn, cycle, feedName, totalKg, unitDetail, username);
+            }
+            case "LOG_WEIGHT": {
+                Long barnId = Long.valueOf(String.valueOf(payload.get("barnId")));
+                Barn barn = barnRepository.findById(barnId).orElse(null);
+                Long cycleId = Long.valueOf(String.valueOf(payload.get("cycleId")));
+                FarmingCycle cycle = cycleRepository.findById(cycleId).orElse(null);
+                if (barn == null || cycle == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy chuồng hoặc lứa nuôi tương ứng.").executed(false).build();
+                }
+                double avgWeight = Double.parseDouble(String.valueOf(payload.getOrDefault("avgWeight", 1.45)));
+                int sampleSize = Integer.parseInt(String.valueOf(payload.getOrDefault("sampleSize", 50)));
+                return commitLogWeight(barn, cycle, avgWeight, sampleSize, username);
+            }
+            case "LOG_MORTALITY": {
+                Long barnId = Long.valueOf(String.valueOf(payload.get("barnId")));
+                Barn barn = barnRepository.findById(barnId).orElse(null);
+                if (barn == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy chuồng nuôi tương ứng.").executed(false).build();
+                }
+                Flock flock = null;
+                if (payload.containsKey("flockId")) {
+                    Long flockId = Long.valueOf(String.valueOf(payload.get("flockId")));
+                    flock = flockRepository.findById(flockId).orElse(null);
+                }
+                int qty = Integer.parseInt(String.valueOf(payload.getOrDefault("quantity", 1)));
+                String reason = String.valueOf(payload.getOrDefault("reason", "Hao hụt chăn nuôi"));
+                return commitLogMortality(barn, flock, qty, reason, username);
+            }
+            case "LOG_EXPENSE": {
+                Long barnId = Long.valueOf(String.valueOf(payload.get("barnId")));
+                Barn barn = barnRepository.findById(barnId).orElse(null);
+                Long cycleId = Long.valueOf(String.valueOf(payload.get("cycleId")));
+                FarmingCycle cycle = cycleRepository.findById(cycleId).orElse(null);
+                if (barn == null || cycle == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy chuồng hoặc lứa nuôi tương ứng.").executed(false).build();
+                }
+                ExpenseCategory category = ExpenseCategory.valueOf(String.valueOf(payload.getOrDefault("category", "OTHER")));
+                String categoryLabel = String.valueOf(payload.getOrDefault("categoryLabel", "Chi phí"));
+                long amount = Long.parseLong(String.valueOf(payload.getOrDefault("amount", 500000L)));
+                return commitLogExpense(barn, cycle, category, categoryLabel, amount, username);
+            }
+            case "IMPORT_PURCHASE_STOCK": {
+                String invoiceCode = String.valueOf(payload.get("invoiceCode"));
+                return handleImportStock(invoiceCode, true);
+            }
+            case "COMPLETE_DAILY_TASKS": {
+                Long targetCycleId = payload.containsKey("targetCycleId") ? Long.valueOf(String.valueOf(payload.get("targetCycleId"))) : null;
+                Barn targetBarn = null;
+                if (payload.containsKey("barnName")) {
+                    targetBarn = barnRepository.findAll().stream()
+                            .filter(b -> b.getName().equalsIgnoreCase(String.valueOf(payload.get("barnName"))))
+                            .findFirst().orElse(null);
+                }
+                List<BarnDayPlan> plans = dailyPlanService.farm(LocalDate.now(), false);
+                List<BarnDayPlan> targetPlans = plans;
+                if (targetCycleId != null) {
+                    final Long cid = targetCycleId;
+                    targetPlans = plans.stream().filter(p -> p.cycleId().equals(cid)).toList();
+                }
+                return commitCompleteDailyTasksExecution(targetPlans, targetBarn, username);
+            }
+            case "CREATE_BARN": {
+                String name = String.valueOf(payload.get("name"));
+                double floorArea = Double.parseDouble(String.valueOf(payload.getOrDefault("floorArea", 500.0)));
+                int capacity = Integer.parseInt(String.valueOf(payload.getOrDefault("capacity", 4000)));
+                Long areaId = Long.valueOf(String.valueOf(payload.getOrDefault("areaId", 1L)));
+                return commitCreateBarn(name, floorArea, capacity, areaId);
+            }
+            case "CREATE_SUPPLIER": {
+                String name = String.valueOf(payload.get("name"));
+                String phone = payload.get("phone") != null ? String.valueOf(payload.get("phone")) : null;
+                return commitCreateSupplier(name, phone);
+            }
+            case "CREATE_AREA": {
+                String name = String.valueOf(payload.get("name"));
+                return commitCreateArea(name);
+            }
+            default:
+                return AiAssistantResponse.builder()
+                        .reply("⚠️ Thao tác " + actionType + " không được hỗ trợ thực thi.")
+                        .executed(false)
+                        .build();
+        }
     }
 
     private AiAssistantResponse handleNavigationAndPrefill(String norm, String originalMsg) {
@@ -944,6 +1629,10 @@ public class AiAssistantService {
     // ─────────────────────────────────────────────────────────────────────────────
 
     private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker) {
+        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, true);
+    }
+
+    private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker, boolean autoExecute) {
         try {
             List<Barn> barns = barnRepository.findAll();
             String barnNames = barns.stream().map(Barn::getName).collect(Collectors.joining(", "));
@@ -1020,7 +1709,7 @@ public class AiAssistantService {
                 String nav = parsed.path("navigateTo").isNull() ? null : parsed.path("navigateTo").asText(null);
 
                 // If LLM recognized an actionable CRUD command, execute it for real!
-                AiAssistantResponse executedAction = executeActionFromLlm(intent, parsed, message, currentRoute, username, isWorker);
+                AiAssistantResponse executedAction = executeActionFromLlm(intent, parsed, message, currentRoute, username, isWorker, autoExecute);
                 if (executedAction != null) {
                     return executedAction;
                 }
@@ -1039,6 +1728,10 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse executeActionFromLlm(String intent, JsonNode parsed, String message, String currentRoute, String username, boolean isWorker) {
+        return executeActionFromLlm(intent, parsed, message, currentRoute, username, isWorker, true);
+    }
+
+    private AiAssistantResponse executeActionFromLlm(String intent, JsonNode parsed, String message, String currentRoute, String username, boolean isWorker, boolean autoExecute) {
         String norm = normalizeText(message);
         String barnNameCandidate = parsed.path("barnName").asText("");
         Barn barn = null;
@@ -1068,42 +1761,36 @@ public class AiAssistantService {
                 String feedName = parsed.path("feedName").asText("");
                 if (feedName.isBlank() || "null".equalsIgnoreCase(feedName)) feedName = "Cám Higro 01";
 
-                FeedRecord record = new FeedRecord();
-                record.setCycle(cycleOpt.get());
-                record.setRecordDate(LocalDate.now());
-                record.setFeedName(feedName);
-                record.setQuantityKg(BigDecimal.valueOf(feedKg));
-                record.setUnitPrice(BigDecimal.valueOf(13500.00));
-                record.setNote("Ghi nhận qua Trợ lý AI FarmShift");
-                record.setCreatedBy(username != null && !username.isBlank() ? username : "Trợ lý AI");
-                feedRepository.save(record);
+                if (!autoExecute) {
+                    Map<String, Object> details = new LinkedHashMap<>();
+                    details.put("Chuồng nuôi", barn.getName());
+                    details.put("Loại cám", feedName);
+                    details.put("Khối lượng", feedKg + " kg");
 
-                try {
-                    deductInventoryStock(feedName, feedKg);
-                } catch (Exception e) {
-                    log.warn("Deduct inventory failed: {}", e.getMessage());
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("actionType", "LOG_FEED");
+                    payload.put("barnId", barn.getId());
+                    payload.put("cycleId", cycleOpt.get().getId());
+                    payload.put("feedName", feedName);
+                    payload.put("totalKg", feedKg);
+                    payload.put("unitDetail", feedKg + " kg");
+
+                    return AiAssistantResponse.builder()
+                            .reply("Bạn có muốn ghi nhận cho **" + barn.getName() + "** ăn **" + feedKg + " kg** cám **" + feedName + "** không?")
+                            .actionType("LOG_FEED")
+                            .executed(false)
+                            .requiresConfirmation(true)
+                            .pendingAction(Map.of(
+                                    "actionType", "LOG_FEED",
+                                    "title", "Ghi nhật ký cám: " + barn.getName(),
+                                    "description", feedName + " • " + feedKg + " kg",
+                                    "details", details,
+                                    "payload", payload
+                            ))
+                            .build();
                 }
 
-                Map<String, Object> summary = new LinkedHashMap<>();
-                summary.put("title", "Đã ghi nhật ký cám");
-                summary.put("barnName", barn.getName());
-                summary.put("detail", feedName + " • " + feedKg + " kg");
-                summary.put("kg", String.valueOf(feedKg));
-                summary.put("feedName", feedName);
-                summary.put("timestamp", LocalDateTime.now().toString());
-
-                String reply = parsed.path("reply").asText("");
-                if (reply.isBlank() || reply.length() < 10) {
-                    reply = "✅ Đã ghi nhận cho **" + barn.getName() + "** ăn **" + feedKg + " kg** cám **" + feedName + "**.";
-                }
-
-                return AiAssistantResponse.builder()
-                        .reply(reply)
-                        .actionType("LOG_FEED")
-                        .executed(true)
-                        .uiCommand("REFRESH_DATA")
-                        .actionSummary(summary)
-                        .build();
+                return commitLogFeed(barn, cycleOpt.get(), feedName, feedKg, feedKg + " kg", username);
             }
 
             case "LOG_WEIGHT": {
@@ -1116,35 +1803,36 @@ public class AiAssistantService {
                 int sampleSize = parsed.path("sampleSize").asInt(0);
                 if (sampleSize <= 0) sampleSize = 50;
 
-                WeightSample sample = new WeightSample();
-                sample.setCycle(cycleOpt.get());
-                sample.setSampleDate(LocalDate.now());
-                sample.setAvgWeightKg(BigDecimal.valueOf(avgWeight));
-                sample.setSampleSize(sampleSize);
-                sample.setNote("Cân mẫu qua Trợ lý AI FarmShift");
-                sample.setCreatedBy(username != null && !username.isBlank() ? username : "Trợ lý AI");
-                weightRepository.save(sample);
+                if (!autoExecute) {
+                    Map<String, Object> details = new LinkedHashMap<>();
+                    details.put("Chuồng nuôi", barn.getName());
+                    details.put("Trọng lượng TB", avgWeight + " kg / con");
+                    details.put("Cỡ mẫu cân", sampleSize + " con");
 
-                Map<String, Object> summary = new LinkedHashMap<>();
-                summary.put("title", "Đã ghi nhận cân mẫu");
-                summary.put("barnName", barn.getName());
-                summary.put("detail", avgWeight + " kg • Mẫu " + sampleSize + " con");
-                summary.put("avgWeight", String.valueOf(avgWeight));
-                summary.put("sampleSize", String.valueOf(sampleSize));
-                summary.put("timestamp", LocalDateTime.now().toString());
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("actionType", "LOG_WEIGHT");
+                    payload.put("barnId", barn.getId());
+                    payload.put("cycleId", cycleOpt.get().getId());
+                    payload.put("barnName", barn.getName());
+                    payload.put("avgWeight", avgWeight);
+                    payload.put("sampleSize", sampleSize);
 
-                String reply = parsed.path("reply").asText("");
-                if (reply.isBlank() || reply.length() < 10) {
-                    reply = "✅ Đã ghi nhận cân mẫu chuồng **" + barn.getName() + "**: TB **" + avgWeight + " kg** (mẫu " + sampleSize + " con).";
+                    return AiAssistantResponse.builder()
+                            .reply("Bạn có muốn ghi nhận kết quả cân mẫu cho **" + barn.getName() + "**: trung bình **" + avgWeight + " kg** (mẫu " + sampleSize + " con) không?")
+                            .actionType("LOG_WEIGHT")
+                            .executed(false)
+                            .requiresConfirmation(true)
+                            .pendingAction(Map.of(
+                                    "actionType", "LOG_WEIGHT",
+                                    "title", "Ghi nhận cân mẫu: " + barn.getName(),
+                                    "description", "Trọng lượng TB " + avgWeight + " kg (mẫu " + sampleSize + " con)",
+                                    "details", details,
+                                    "payload", payload
+                            ))
+                            .build();
                 }
 
-                return AiAssistantResponse.builder()
-                        .reply(reply)
-                        .actionType("LOG_WEIGHT")
-                        .executed(true)
-                        .uiCommand("REFRESH_DATA")
-                        .actionSummary(summary)
-                        .build();
+                return commitLogWeight(barn, cycleOpt.get(), avgWeight, sampleSize, username);
             }
 
             case "LOG_MORTALITY": {
@@ -1157,44 +1845,36 @@ public class AiAssistantService {
 
                 List<Flock> flocks = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycleOpt.get().getId());
                 Flock flock = flocks.stream().filter(f -> f.getStatus() == FlockStatus.ACTIVE).findFirst().orElse(null);
-                if (flock != null) {
-                    FlockMovement movement = new FlockMovement();
-                    movement.setFlock(flock);
-                    movement.setType(FlockMovementType.DEATH);
-                    movement.setMovementDate(LocalDate.now());
-                    movement.setQuantity(qty);
-                    movement.setNote("Hao hụt ghi nhận qua Trợ lý AI FarmShift");
-                    movement.setCreatedBy(username != null && !username.isBlank() ? username : "Trợ lý AI");
-                    movementRepository.save(movement);
 
-                    flock.setQuantity(Math.max(0, flock.getQuantity() - qty));
-                    if (flock.getQuantity() == 0) flock.setStatus(FlockStatus.ARCHIVED);
-                    flockRepository.save(flock);
+                if (!autoExecute) {
+                    Map<String, Object> details = new LinkedHashMap<>();
+                    details.put("Chuồng nuôi", barn.getName());
+                    details.put("Số lượng chết", qty + " con");
+                    details.put("Lý do", "Hao hụt chăn nuôi");
+
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("actionType", "LOG_MORTALITY");
+                    payload.put("barnId", barn.getId());
+                    if (flock != null) payload.put("flockId", flock.getId());
+                    payload.put("quantity", qty);
+                    payload.put("reason", "Hao hụt chăn nuôi");
+
+                    return AiAssistantResponse.builder()
+                            .reply("Bạn có muốn ghi nhận hao hụt **" + qty + " con** tại **" + barn.getName() + "** không?")
+                            .actionType("LOG_MORTALITY")
+                            .executed(false)
+                            .requiresConfirmation(true)
+                            .pendingAction(Map.of(
+                                    "actionType", "LOG_MORTALITY",
+                                    "title", "Ghi nhận hao hụt đàn: " + barn.getName(),
+                                    "description", "Hao hụt " + qty + " con",
+                                    "details", details,
+                                    "payload", payload
+                            ))
+                            .build();
                 }
 
-                barn.setCurrentQuantity(Math.max(0, barn.getCurrentQuantity() - qty));
-                barnRepository.save(barn);
-
-                Map<String, Object> summary = new LinkedHashMap<>();
-                summary.put("title", "Đã ghi nhận hao hụt");
-                summary.put("barnName", barn.getName());
-                summary.put("detail", "Hao hụt " + qty + " con");
-                summary.put("quantity", String.valueOf(qty));
-                summary.put("remainingQuantity", String.valueOf(barn.getCurrentQuantity()));
-                summary.put("timestamp", LocalDateTime.now().toString());
-
-                String reply = parsed.path("reply").asText("");
-                if (reply.isBlank() || reply.length() < 10) {
-                    reply = "✅ Đã ghi nhận hao hụt **" + qty + " con** tại **" + barn.getName() + "**. Hiện chuồng còn **" + barn.getCurrentQuantity() + " con**.";
-                }
-
-                return AiAssistantResponse.builder()
-                        .reply(reply)
-                        .actionType("LOG_MORTALITY")
-                        .executed(true)
-                        .uiCommand("REFRESH_DATA")
-                        .actionSummary(summary)
-                        .build();
+                return commitLogMortality(barn, flock, qty, "Hao hụt ghi nhận qua Trợ lý AI", username);
             }
 
             case "LOG_EXPENSE": {
@@ -1215,48 +1895,50 @@ public class AiAssistantService {
                 ExpenseCategory category = ExpenseCategory.OTHER;
                 try { category = ExpenseCategory.valueOf(catStr); } catch (Exception ignored) {}
 
-                CycleExpense expense = new CycleExpense();
-                expense.setCycle(cycleOpt.get());
-                expense.setExpenseDate(LocalDate.now());
-                expense.setCategory(category);
-                expense.setAmount(BigDecimal.valueOf(amount));
-                expense.setNote("Ghi nhận qua Trợ lý AI FarmShift");
-                expense.setCreatedBy(username != null && !username.isBlank() ? username : "Trợ lý AI");
-                expenseRepository.save(expense);
-
                 String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
-                Map<String, Object> summary = new LinkedHashMap<>();
-                summary.put("title", "Đã ghi chi phí lứa nuôi");
-                summary.put("barnName", barn.getName());
-                summary.put("detail", category.name() + " • " + formattedMoney);
-                summary.put("category", category.name());
-                summary.put("amount", String.valueOf(amount));
-                summary.put("timestamp", LocalDateTime.now().toString());
 
-                String reply = parsed.path("reply").asText("");
-                if (reply.isBlank() || reply.length() < 10) {
-                    reply = "✅ Đã ghi chi phí **" + category.name() + "** cho **" + barn.getName() + "** với số tiền **" + formattedMoney + "**.";
+                if (!autoExecute) {
+                    Map<String, Object> details = new LinkedHashMap<>();
+                    details.put("Chuồng nuôi", barn.getName());
+                    details.put("Khoản chi", category.name());
+                    details.put("Số tiền", formattedMoney);
+
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("actionType", "LOG_EXPENSE");
+                    payload.put("barnId", barn.getId());
+                    payload.put("cycleId", cycleOpt.get().getId());
+                    payload.put("category", category.name());
+                    payload.put("categoryLabel", category.name());
+                    payload.put("amount", amount);
+
+                    return AiAssistantResponse.builder()
+                            .reply("Bạn có muốn ghi nhận chi phí **" + category.name() + "** số tiền **" + formattedMoney + "** cho **" + barn.getName() + "** không?")
+                            .actionType("LOG_EXPENSE")
+                            .executed(false)
+                            .requiresConfirmation(true)
+                            .pendingAction(Map.of(
+                                    "actionType", "LOG_EXPENSE",
+                                    "title", "Ghi nhận chi phí: " + barn.getName(),
+                                    "description", category.name() + " • " + formattedMoney,
+                                    "details", details,
+                                    "payload", payload
+                            ))
+                            .build();
                 }
 
-                return AiAssistantResponse.builder()
-                        .reply(reply)
-                        .actionType("LOG_EXPENSE")
-                        .executed(true)
-                        .uiCommand("REFRESH_DATA")
-                        .actionSummary(summary)
-                        .build();
+                return commitLogExpense(barn, cycleOpt.get(), category, category.name(), amount, username);
             }
 
             case "IMPORT_PURCHASE_STOCK": {
                 String invoiceCode = parsed.path("invoiceCode").asText("");
                 if (!invoiceCode.isBlank() && !"null".equalsIgnoreCase(invoiceCode)) {
-                    return handleImportStock(invoiceCode);
+                    return handleImportStock(invoiceCode, autoExecute);
                 }
                 break;
             }
 
             case "COMPLETE_DAILY_TASKS": {
-                return handleCompleteDailyTasks(norm, message, currentRoute, username);
+                return handleCompleteDailyTasks(norm, message, currentRoute, username, autoExecute);
             }
 
             default:
