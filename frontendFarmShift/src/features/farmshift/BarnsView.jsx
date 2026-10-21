@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Warehouse, Plus, Search, FileSpreadsheet, Edit2, Trash2,
@@ -64,6 +64,32 @@ export const BarnsView = () => {
       notes: 'Giai đoạn vỗ béo tăng trọng nhanh, chuẩn bị xuất chuồng sau 20 ngày'
     }
   ]);
+
+  useEffect(() => {
+    const handleAiAction = (event) => {
+      const action = event.detail;
+      if (!action) return;
+      if (action.actionType === 'LOG_MORTALITY' && action.actionSummary) {
+        const qty = Number(action.actionSummary.quantity) || 1;
+        setCycles(prev => prev.map(c => {
+          if (action.actionSummary.barnName && c.barn.toLowerCase().includes(action.actionSummary.barnName.toLowerCase())) {
+            return { ...c, currentQty: Math.max(0, c.currentQty - qty), lossQty: c.lossQty + qty };
+          }
+          return c;
+        }));
+      } else if (action.actionType === 'LOG_WEIGHT' && action.actionSummary) {
+        const avg = Number(action.actionSummary.avgWeight) || 1.5;
+        setCycles(prev => prev.map(c => {
+          if (action.actionSummary.barnName && c.barn.toLowerCase().includes(action.actionSummary.barnName.toLowerCase())) {
+            return { ...c, avgWeight: avg };
+          }
+          return c;
+        }));
+      }
+    };
+    window.addEventListener('farmshift:ai-action', handleAiAction);
+    return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
+  }, []);
 
   const [closedCycles] = useState([
     {

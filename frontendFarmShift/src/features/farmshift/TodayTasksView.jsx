@@ -38,6 +38,17 @@ export const TodayTasksView = () => {
     return () => { cancelled = true; };
   }, [date, requestKey]);
 
+  // Lắng nghe sự kiện toàn cục khi Trợ lý AI thực thi thao tác để tự động cập nhật tiến độ
+  useEffect(() => {
+    const handleAiAction = (e) => {
+      if (e.detail?.executed || e.detail?.uiCommand === 'REFRESH_DATA') {
+        setRevision(r => r + 1);
+      }
+    };
+    window.addEventListener('farmshift:ai-action', handleAiAction);
+    return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
+  }, []);
+
   const { busyKey, confirm, undo } = useDailyPlanActions(updated =>
     setState(current => ({ ...current, plans: current.plans.map(plan => (plan.cycleId === updated.cycleId ? updated : plan)) })));
   const loading = state.key !== requestKey;

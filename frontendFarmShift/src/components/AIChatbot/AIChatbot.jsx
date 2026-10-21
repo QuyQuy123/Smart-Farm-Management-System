@@ -1,11 +1,14 @@
 // src/components/AIChatbot/AIChatbot.jsx
-// Trợ lý Trí tuệ Nhân tạo FarmShift (Chẩn đoán Thú y & Tra cứu Vận hành)
+// Trợ lý Giọng nói & AI FarmShift (Actionable Voice Assistant & System Automation)
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles, X, Send, Bot, RotateCcw,
-  ChevronDown, Mic, MicOff, ShieldAlert
+  ChevronDown, Mic, MicOff, ShieldAlert,
+  Zap, ExternalLink, Volume2, VolumeX
 } from 'lucide-react';
 import { getSystemMessage } from '../../constants/systemMessages';
+import { transcribeAudio, sendAssistantMessage } from '../../services/aiAssistantService';
 import styles from './AIChatbot.module.css';
 
 let nextMsgId = 100;
@@ -19,12 +22,18 @@ const formatCurrentTime = () => {
 const INITIAL_MESSAGE = {
   id: 1,
   type: 'bot',
-  text: 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể hỗ trợ bạn tra cứu tồn kho thức ăn, tình trạng sức khỏe đàn gà, chẩn đoán bệnh thú y và tự động hóa chuồng trại.',
+  text: 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể thực thi trực tiếp các thao tác ghi cám, cân mẫu, báo cáo hao hụt, nhập kho hoặc giải đáp thú y & điều hành trang trại.',
   time: formatCurrentTime(),
   showChips: true
 };
 
 const SUGGESTIONS = [
+  // Action chips
+  { label: '✅ Xong việc hôm nay', query: 'Việc hôm nay đã làm xong' },
+  { label: '⚡ Ghi cám Nhà A1 50kg', query: 'Ghi cám cho Nhà A1 50 kg cám Higro 01' },
+  { label: '⚖️ Cân mẫu Nhà A1 1.5kg', query: 'Cân mẫu Nhà A1 trung bình 1.5 kg mẫu 50 con' },
+  { label: '📦 Nhập kho đơn NH000003', query: 'Xác nhận nhập kho đơn hàng NH000003' },
+  // Query chips
   { label: '🌾 Tồn kho cám CP', query: 'Kho cám hiện tại còn bao nhiêu bao?' },
   { label: '🩺 Gà thở khò khè', query: 'Gà có triệu chứng thở khò khè, ngáp gió điều trị thế nào?' },
   { label: '📊 Tình trạng Chuồng 2', query: 'Chuồng 2 nuôi được bao nhiêu ngày rồi?' },
@@ -32,124 +41,256 @@ const SUGGESTIONS = [
   { label: '🌡️ Cảnh báo IoT', query: 'Nhiệt độ các chuồng trại hiện tại ra sao?' },
 ];
 
-const KNOWLEDGE_BASE = [
-  {
-    keywords: ['cám', 'kho', 'bao nhiêu', 'thức ăn'],
-    response: '📦 Theo dõi kho tức thời:\n- Cám CP 511 (Giai đoạn 2): Còn 250 bao\n- Cám CP 512 (Giai đoạn 3): Còn 180 bao\n- Cám Higro 01: Còn 15 bao (Chạm ngưỡng cảnh báo tối thiểu!)\n👉 Đề xuất bạn tạo phiếu nhập thêm 50 bao Higro 01 vào hôm nay.',
-  },
-  {
-    keywords: ['chuồng 2', 'nuôi', 'ngày', 'gà-2024-09'],
-    response: '🐥 Lứa gà GÀ-2024-09 tại Chuồng J2:\n- Thời gian nuôi: 28 ngày tuổi\n- Số lượng hiện tại: 2,485 con\n- Trọng lượng ước tính: 1.25 kg/con\n- Tỷ lệ hao hụt lũy kế: 0.6% (Đạt chuẩn an toàn sinh học).',
-  },
-  {
-    keywords: ['khò khè', 'thở', 'ngáp', 'crd', 'hen'],
-    response: '🩺 Chẩn đoán thú y sơ bộ:\nTriệu chứng thở khò khè, vẩy mỏ, ngáp gió là dấu hiệu bệnh Hen gà (CRD) ghép E.coli hoặc Viêm phế quản truyền nhiễm (IB).\n💊 Phác đồ khuyến nghị:\n1. Phun sát trùng chuồng bằng dung dịch Iod (1:200)\n2. Dùng kháng sinh Doxycycline 50% kết hợp Tylosin (Kho thuốc hiện đang có sẵn 50 lọ)\n3. Tăng cường thông gió và giữ chuồng ấm về đêm.',
-  },
-  {
-    keywords: ['phân sáp', 'cầu trùng', 'máu', 'tiêu chảy'],
-    response: '⚠️ Cảnh báo bệnh Cầu trùng (Coccidiosis):\nPhân sáp vàng hoặc có lẫn vệt máu tươi là bệnh cầu trùng manh tràng.\n💊 Xử lý khẩn cấp:\n1. Cho uống Toltrazuril (Baycox) 2.5% liều 1ml/lít nước liên tục 2 ngày\n2. Bổ sung Vitamin K chống xuất huyết và men vi sinh tiêu hóa\n3. Rải thêm trấu khô độn chuồng để giảm độ ẩm.',
-  },
-  {
-    keywords: ['nhiệt độ', 'iot', 'cảm biến', 'chuông'],
-    response: '📡 Dữ liệu cảm biến IoT thời gian thực:\n- Nhà A1: 29.2°C | Độ ẩm: 74% (Quạt hút 3 đang chạy tăng tốc)\n- Nhà J1: 27.5°C | Độ ẩm: 68% (Ổn định)\n- Nhà Mía 1: 27.2°C | Độ ẩm: 67% (Lý tưởng)\nHệ thống cảm biến hoạt động bình thường, không có lỗi kết nối.',
-  },
-  {
-    keywords: ['vacxin', 'tiêm', 'lịch', 'phòng bệnh'],
-    response: '💉 Lịch phòng vacxin tuần này:\n- Đàn J1 (32 ngày): Uống vacxin Newcastle (ND-IB) nhắc lại lần 2.\n- Đàn A2 (14 ngày): Nhỏ mắt mũi Gumboro chủng trung bình.\nBạn có thể vào mục Ghi nhật ký để tích xác nhận đã hoàn thành.',
+/**
+ * Pure Vanilla React Markdown & Table Renderer
+ * Render formatting (bold, italics, inline code, bullet/numbered lists, and responsive markdown tables)
+ */
+export const FormattedBotText = ({ text }) => {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const blocks = [];
+  let currentTable = null;
+  let currentList = null;
+  let currentParagraph = [];
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      blocks.push({ type: 'p', content: currentParagraph.join('\n') });
+      currentParagraph = [];
+    }
+  };
+
+  const flushList = () => {
+    if (currentList) {
+      blocks.push(currentList);
+      currentList = null;
+    }
+  };
+
+  const flushTable = () => {
+    if (currentTable) {
+      blocks.push(currentTable);
+      currentTable = null;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Check if line is a table row: starts and ends with |
+    if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 2) {
+      flushParagraph();
+      flushList();
+      const cells = trimmed.split('|').slice(1, -1).map(c => c.trim());
+      const isSeparator = cells.every(c => /^:?-+:?$/.test(c));
+      if (!currentTable) {
+        currentTable = { type: 'table', headers: cells, rows: [] };
+      } else if (isSeparator) {
+        // Separator row, skip
+      } else {
+        currentTable.rows.push(cells);
+      }
+      continue;
+    } else {
+      flushTable();
+    }
+
+    // Check if line is bullet list: "- " or "* " or "• "
+    if (/^[-*•]\s+/.test(trimmed)) {
+      flushParagraph();
+      const itemContent = trimmed.replace(/^[-*•]\s+/, '');
+      if (!currentList || currentList.listType !== 'ul') {
+        flushList();
+        currentList = { type: 'list', listType: 'ul', items: [itemContent] };
+      } else {
+        currentList.items.push(itemContent);
+      }
+      continue;
+    }
+
+    // Check if line is numbered list: "1. " or "2) "
+    if (/^\d+[.)]\s+/.test(trimmed)) {
+      flushParagraph();
+      const itemContent = trimmed.replace(/^\d+[.)]\s+/, '');
+      if (!currentList || currentList.listType !== 'ol') {
+        flushList();
+        currentList = { type: 'list', listType: 'ol', items: [itemContent] };
+      } else {
+        currentList.items.push(itemContent);
+      }
+      continue;
+    }
+
+    // Otherwise, normal paragraph line
+    flushList();
+    if (trimmed === '') {
+      flushParagraph();
+    } else {
+      currentParagraph.push(line);
+    }
   }
-];
+
+  flushParagraph();
+  flushList();
+  flushTable();
+
+  const renderInline = (str) => {
+    if (!str) return null;
+    const parts = [];
+    const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(str)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(str.substring(lastIndex, match.index));
+      }
+      const token = match[0];
+      if (token.startsWith('**') && token.endsWith('**')) {
+        parts.push(<strong key={match.index}>{token.slice(2, -2)}</strong>);
+      } else if (token.startsWith('`') && token.endsWith('`')) {
+        parts.push(<code key={match.index} className={styles.inlineCode}>{token.slice(1, -1)}</code>);
+      } else if (token.startsWith('*') && token.endsWith('*')) {
+        parts.push(<em key={match.index}>{token.slice(1, -1)}</em>);
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < str.length) {
+      parts.push(str.substring(lastIndex));
+    }
+    return parts.length > 0 ? parts : str;
+  };
+
+  return (
+    <div className={styles.markdownContent}>
+      {blocks.map((block, idx) => {
+        if (block.type === 'table') {
+          return (
+            <div key={idx} className={styles.tableScrollWrapper}>
+              <table className={styles.markdownTable}>
+                <thead>
+                  <tr>
+                    {block.headers.map((h, hIdx) => (
+                      <th key={hIdx}>{renderInline(h)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.rows.map((row, rIdx) => (
+                    <tr key={rIdx}>
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx}>{renderInline(cell)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        if (block.type === 'list') {
+          const ListTag = block.listType;
+          return (
+            <ListTag key={idx} className={block.listType === 'ul' ? styles.markdownUl : styles.markdownOl}>
+              {block.items.map((it, itIdx) => (
+                <li key={itIdx}>{renderInline(it)}</li>
+              ))}
+            </ListTag>
+          );
+        }
+        return (
+          <p key={idx} className={styles.markdownP}>
+            {block.content.split('\n').map((line, lIdx) => (
+              <React.Fragment key={lIdx}>
+                {lIdx > 0 && <br />}
+                {renderInline(line)}
+              </React.Fragment>
+            ))}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
 
 export const AIChatbot = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([INITIAL_MESSAGE]);
+
+  // Restore previous session messages from sessionStorage
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('farmshift_ai_chat_history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_e) {
+      // ignore
+    }
+    return [INITIAL_MESSAGE];
+  });
+
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState('');
+
+  // TTS Voice Synthesis States
+  const [isAutoSpeakEnabled, setIsAutoSpeakEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('farmshift_ai_auto_speak') === 'true';
+    } catch (_e) {
+      return false;
+    }
+  });
+  const [speakingMsgId, setSpeakingMsgId] = useState(null);
+
   const endOfMessagesRef = useRef(null);
   const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const interimTranscriptRef = useRef('');
 
-  // Dọn dẹp Web Speech API khi unmount
+  // Persist messages across views in sessionStorage
+  useEffect(() => {
+    try {
+      if (messages.length > 0) {
+        sessionStorage.setItem('farmshift_ai_chat_history', JSON.stringify(messages));
+      }
+    } catch (_e) {
+      // ignore
+    }
+  }, [messages]);
+
+  // Dọn dẹp media streams và Web Speech API khi unmount
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch (e) {
-          // ignore
-        }
+        try { recognitionRef.current.abort(); } catch (_e) { /* ignore */ }
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch (_e) { /* ignore */ }
+      }
+      if ('speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
       }
     };
   }, []);
 
-  const toggleListening = () => {
-    if (isListening) {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          // ignore
-        }
-      }
-      setIsListening(false);
-      setVoiceNotice('');
-      return;
+  // Stop speech when chat window is closed
+  useEffect(() => {
+    if (!isOpen && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        setSpeakingMsgId(null);
+      } catch (_e) { /* ignore */ }
     }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Trình duyệt hiện tại chưa hỗ trợ nhận diện giọng nói Web Speech API (Khuyến nghị dùng Google Chrome hoặc Microsoft Edge). Bạn có thể gõ câu hỏi bằng bàn phím nhé!');
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'vi-VN';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setVoiceNotice('🎙️ Đang lắng nghe... Hãy nói câu hỏi bằng tiếng Việt');
-      };
-
-      recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          transcript += event.results[i][0].transcript;
-        }
-        if (transcript) {
-          setInput(transcript);
-        }
-      };
-
-      recognition.onerror = (event) => {
-        console.warn('Speech recognition error:', event.error);
-        setIsListening(false);
-        if (event.error === 'not-allowed') {
-          setVoiceNotice('⚠️ Vui lòng cấp quyền Micro trên trình duyệt để sử dụng.');
-          setTimeout(() => setVoiceNotice(''), 4000);
-        } else if (event.error === 'no-speech') {
-          setVoiceNotice('⚠️ Chưa nghe thấy giọng nói, bạn hãy thử lại nhé.');
-          setTimeout(() => setVoiceNotice(''), 3000);
-        } else {
-          setVoiceNotice('');
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        setVoiceNotice('');
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (err) {
-      console.error('Lỗi khởi tạo Voice to Text:', err);
-      setIsListening(false);
-      setVoiceNotice('');
-    }
-  };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && endOfMessagesRef.current) {
@@ -157,21 +298,101 @@ export const AIChatbot = () => {
     }
   }, [messages, isTyping, isOpen]);
 
-  const sendQuery = (queryText) => {
-    if (!queryText.trim()) return;
-
-    if (isListening && recognitionRef.current) {
+  // ── Web Speech API Text-to-Speech (TTS) Voice Synthesis ──
+  const toggleAutoSpeak = () => {
+    setIsAutoSpeakEnabled(prev => {
+      const next = !prev;
       try {
-        recognitionRef.current.stop();
-      } catch (_e) { }
-      setIsListening(false);
-      setVoiceNotice('');
+        localStorage.setItem('farmshift_ai_auto_speak', String(next));
+      } catch (_e) { /* ignore */ }
+      if (!next && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        setSpeakingMsgId(null);
+      }
+      return next;
+    });
+  };
+
+  const speakText = (text, msgId) => {
+    if (!('speechSynthesis' in window)) return;
+
+    if (speakingMsgId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    // Clean markdown characters before speech synthesis
+    const cleanText = (text || '')
+      .replace(/[#*_`|~]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/https?:\/\/\S+/g, '')
+      .trim();
+
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'vi-VN';
+    utterance.rate = 1.05;
+
+    const voices = window.speechSynthesis.getVoices();
+    const viVoice = voices.find(v => v.lang === 'vi-VN' || v.lang.startsWith('vi'));
+    if (viVoice) {
+      utterance.voice = viVoice;
+    }
+
+    utterance.onend = () => setSpeakingMsgId(null);
+    utterance.onerror = () => setSpeakingMsgId(null);
+
+    setSpeakingMsgId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Helper to determine destination route and friendly button label
+  const getDestination = (msg) => {
+    if (msg.navigateTo) {
+      return { route: msg.navigateTo, label: 'Xem tại màn hình đích' };
+    }
+    switch (msg.actionType) {
+      case 'LOG_FEED':
+        return { route: '/journal', label: 'Xem Nhật ký cho ăn' };
+      case 'LOG_WEIGHT':
+        return { route: '/barns', label: 'Xem Cân mẫu chuồng' };
+      case 'LOG_MORTALITY':
+        return { route: '/barns', label: 'Xem Đàn gà & Chuồng' };
+      case 'LOG_EXPENSE':
+        return { route: '/cashbook', label: 'Xem Sổ quỹ chi phí' };
+      case 'COMPLETE_DAILY_TASKS':
+        return { route: '/today-tasks', label: 'Xem Việc hôm nay' };
+      case 'IMPORT_PURCHASE_STOCK':
+        return { route: '/purchases', label: 'Xem Hóa đơn nhập hàng' };
+      case 'QUERY_FARM_STATUS':
+        return { route: '/reports', label: 'Xem Báo cáo trang trại' };
+      default:
+        return null;
+    }
+  };
+
+  // ── Xử lý gửi câu lệnh tới Trợ lý AI và Đồng bộ Hệ thống ──
+  const sendQuery = async (queryText) => {
+    const textToSend = (queryText || '').trim();
+    if (!textToSend) return;
+
+    // Dừng thu âm nếu đang bật
+    if (isListening) {
+      stopListening();
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
     }
 
     const userMsg = {
       id: generateMessageId(),
       type: 'user',
-      text: queryText.trim(),
+      text: textToSend,
       time: formatCurrentTime()
     };
 
@@ -179,29 +400,186 @@ export const AIChatbot = () => {
     setInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      let botResponse = 'Cảm ơn câu hỏi của bạn. Trợ lý AI FarmShift đang kết nối dữ liệu chuồng trại. Bạn có thể cung cấp thêm tên chuồng hoặc triệu chứng cụ thể hơn để tôi hỗ trợ chính xác nhất.';
-      const lowercaseInput = queryText.toLowerCase();
+    try {
+      // Build conversation history of past turns for multi-turn awareness
+      const historyPayload = messages
+        .filter(m => m.id !== 1 && m.text)
+        .slice(-8)
+        .map(m => ({
+          role: m.type === 'user' ? 'user' : 'assistant',
+          content: m.text
+        }));
 
-      for (const entry of KNOWLEDGE_BASE) {
-        const matches = entry.keywords.some(k => lowercaseInput.includes(k));
-        if (matches) {
-          botResponse = entry.response;
-          break;
-        }
+      const response = await sendAssistantMessage({
+        message: textToSend,
+        currentRoute: location.pathname,
+        history: historyPayload,
+        autoExecute: true
+      });
+
+      const botMsg = {
+        id: generateMessageId(),
+        type: 'bot',
+        text: response.reply,
+        executed: response.executed,
+        actionType: response.actionType,
+        actionSummary: response.actionSummary,
+        navigateTo: response.navigateTo,
+        time: formatCurrentTime()
+      };
+
+      setMessages(prev => [...prev, botMsg]);
+
+      // Auto-read response if enabled
+      if (isAutoSpeakEnabled && response.reply) {
+        speakText(response.reply, botMsg.id);
       }
 
+      // Phát sự kiện toàn cục để các màn hình lắng nghe tự reload dữ liệu
+      if (response.executed || response.uiCommand === 'REFRESH_DATA' || response.uiCommand === 'OPEN_CREATE_PURCHASE_MODAL') {
+        window.dispatchEvent(new CustomEvent('farmshift:ai-action', { detail: response }));
+      }
+
+      // Điều hướng màn hình nếu AI yêu cầu
+      if (response.navigateTo) {
+        navigate(response.navigateTo);
+      }
+    } catch (error) {
+      console.warn('Lỗi kết nối Trợ lý AI, sử dụng câu trả lời dự phòng:', error);
       setMessages(prev => [
         ...prev,
         {
           id: generateMessageId(),
           type: 'bot',
-          text: botResponse,
+          text: '⚠️ Không thể kết nối tới máy chủ Trợ lý AI vào lúc này. Vui lòng kiểm tra lại kết nối mạng.',
           time: formatCurrentTime()
         }
       ]);
+    } finally {
       setIsTyping(false);
-    }, 1100);
+    }
+  };
+
+  // ── Trình Thu âm Thông minh (MediaRecorder + Web Speech API song song) ──
+  const startListening = async () => {
+    setIsListening(true);
+    setVoiceNotice('🎙️ Đang nghe... Bấm lần nữa để gửi');
+    audioChunksRef.current = [];
+    interimTranscriptRef.current = '';
+
+    // Khởi tạo MediaRecorder
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const recorder = new MediaRecorder(stream, { mimeType });
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        // Dọn dẹp tracks microphone
+        stream.getTracks().forEach(track => track.stop());
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        let recognizedText = interimTranscriptRef.current;
+
+        // Thử gửi audioBlob lên Groq Whisper STT
+        if (audioBlob.size > 0) {
+          setVoiceNotice('⚡ Đang xử lý giọng nói qua Groq Whisper...');
+          try {
+            const sttResult = await transcribeAudio(audioBlob);
+            if (!sttResult.fallback && sttResult.text && sttResult.text.trim()) {
+              recognizedText = sttResult.text.trim();
+            }
+          } catch (sttErr) {
+            console.warn('Groq Whisper STT thất bại, dùng văn bản Web Speech API:', sttErr);
+          }
+        }
+
+        setIsListening(false);
+        setVoiceNotice('');
+
+        if (recognizedText && recognizedText.trim()) {
+          sendQuery(recognizedText.trim());
+        }
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+    } catch (mediaErr) {
+      console.warn('Không thể truy cập Micro qua MediaRecorder:', mediaErr);
+    }
+
+    // Chạy song song Web Speech API để hiển thị live preview và làm fallback
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'vi-VN';
+        recognition.continuous = false;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+          setIsListening(true);
+          setVoiceNotice('🎙️ Đang nghe... Bấm lần nữa để gửi');
+        };
+
+        recognition.onresult = (event) => {
+          let transcript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            transcript += event.results[i][0].transcript;
+          }
+          if (transcript) {
+            interimTranscriptRef.current = transcript;
+            setInput(transcript);
+          }
+        };
+
+        recognition.onerror = (event) => {
+          console.warn('Speech recognition error:', event.error);
+          if (event.error === 'not-allowed') {
+            setVoiceNotice('⚠️ Vui lòng cấp quyền Micro trên trình duyệt để sử dụng.');
+            setTimeout(() => setVoiceNotice(''), 4000);
+          }
+        };
+
+        recognition.onend = () => {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            try { mediaRecorderRef.current.stop(); } catch (_e) { /* ignore */ }
+          }
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+      } catch (e) {
+        console.warn('Lỗi khởi tạo Web Speech API:', e);
+      }
+    } else {
+      setIsListening(true);
+      setVoiceNotice('🎙️ Đang thu âm... Bấm lần nữa để gửi');
+    }
+  };
+
+  const stopListening = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try { mediaRecorderRef.current.stop(); } catch (_e) { /* ignore */ }
+    }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (_e) { /* ignore */ }
+    }
+    setIsListening(false);
+    setVoiceNotice('');
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
   };
 
   const handleSend = () => {
@@ -217,10 +595,15 @@ export const AIChatbot = () => {
 
   const handleReset = () => {
     setMessages([INITIAL_MESSAGE]);
-    if (isListening && recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (e) { }
-      setIsListening(false);
-      setVoiceNotice('');
+    try {
+      sessionStorage.removeItem('farmshift_ai_chat_history');
+    } catch (_e) { /* ignore */ }
+    if (isListening) {
+      stopListening();
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
     }
   };
 
@@ -242,13 +625,25 @@ export const AIChatbot = () => {
                 </div>
                 <div className={styles.headerSubtitle}>
                   <span className={styles.onlineBadge}>● Đang trực tuyến</span>
-                  <span>· Thú y & Quản lý trại</span>
+                  <span>· Thú y & Điều hành trại</span>
                 </div>
               </div>
             </div>
 
             <div className={styles.headerActions}>
+              {'speechSynthesis' in window && (
+                <button
+                  type="button"
+                  className={`${styles.ttsHeaderBtn} ${isAutoSpeakEnabled ? styles.ttsHeaderBtnActive : ''}`}
+                  title={isAutoSpeakEnabled ? 'Tắt tự động đọc giọng nói' : 'Bật tự động đọc giọng nói (Auto-TTS)'}
+                  onClick={toggleAutoSpeak}
+                  data-testid="header-tts-toggle"
+                >
+                  {isAutoSpeakEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                </button>
+              )}
               <button
+                type="button"
                 className={styles.iconBtn}
                 title="Bắt đầu hội thoại mới"
                 onClick={handleReset}
@@ -256,6 +651,7 @@ export const AIChatbot = () => {
                 <RotateCcw size={15} />
               </button>
               <button
+                type="button"
                 className={styles.iconBtn}
                 title="Thu nhỏ cửa sổ"
                 onClick={() => setIsOpen(false)}
@@ -278,12 +674,67 @@ export const AIChatbot = () => {
                   </div>
                 )}
                 <div className={`${styles.message} ${msg.type === 'user' ? styles.messageUser : styles.messageBot}`}>
-                  <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
-                  <div className={styles.messageTime}>{msg.time}</div>
+                  {msg.type === 'user' ? (
+                    <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
+                  ) : (
+                    <FormattedBotText text={msg.text} />
+                  )}
+
+                  {/* ── Thẻ Kết quả Thao tác Hệ thống (Action Execution Card) ── */}
+                  {msg.executed && msg.actionSummary && (
+                    <div className={styles.actionCard} data-testid="action-execution-card">
+                      <div className={styles.actionBadge}>
+                        <Zap size={12} />
+                        <span>Đã thực thi trên hệ thống</span>
+                      </div>
+                      <div className={styles.actionCardTitle}>{msg.actionSummary.title}</div>
+                      <div className={styles.actionCardDetail}>
+                        {msg.actionSummary.barnName ? `🏡 ${msg.actionSummary.barnName} • ` : ''}
+                        {msg.actionSummary.detail}
+                      </div>
+                      <div className={styles.actionCardFooter}>
+                        <span className={styles.actionTimestamp}>
+                          {msg.actionSummary.timestamp ? new Date(msg.actionSummary.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : msg.time}
+                        </span>
+                        {(() => {
+                          const dest = getDestination(msg);
+                          if (!dest) return null;
+                          return (
+                            <button
+                              type="button"
+                              className={styles.actionNavBtn}
+                              onClick={() => navigate(dest.route)}
+                              title={`Chuyển tới ${dest.route}`}
+                            >
+                              <span>{dest.label}</span>
+                              <ExternalLink size={12} />
+                            </button>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Message Footer: Time and Speaker button for Bot ── */}
+                  <div className={styles.messageFooter}>
+                    {msg.type === 'bot' && 'speechSynthesis' in window ? (
+                      <button
+                        type="button"
+                        className={`${styles.messageTtsBtn} ${speakingMsgId === msg.id ? styles.messageTtsBtnSpeaking : ''}`}
+                        onClick={() => speakText(msg.text, msg.id)}
+                        title={speakingMsgId === msg.id ? 'Dừng đọc' : 'Đọc câu trả lời bằng giọng nói'}
+                        data-testid="message-speaker-btn"
+                      >
+                        {speakingMsgId === msg.id ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                        <span>{speakingMsgId === msg.id ? 'Đang đọc...' : 'Đọc'}</span>
+                      </button>
+                    ) : <span />}
+                    <div className={styles.messageTime}>{msg.time}</div>
+                  </div>
 
                   {msg.showChips && (
                     <div className={styles.chipsContainer}>
-                      <span className={styles.chipsLabel}>Câu hỏi gợi ý nhanh:</span>
+                      <span className={styles.chipsLabel}>Thao tác & câu hỏi gợi ý nhanh:</span>
                       <div className={styles.chipsList}>
                         {SUGGESTIONS.map((item, idx) => (
                           <button
@@ -314,7 +765,7 @@ export const AIChatbot = () => {
                       <span className={styles.dot} />
                       <span className={styles.dot} />
                     </div>
-                    <span>Trợ lý đang tra cứu dữ liệu chuồng trại...</span>
+                    <span>Trợ lý AI đang xử lý thao tác trên dữ liệu trại...</span>
                   </div>
                 </div>
               </div>
@@ -324,16 +775,16 @@ export const AIChatbot = () => {
 
           {/* ── Input Box ── */}
           <div className={styles.inputArea}>
-            {/* Listening Banner */}
+            {/* Listening Wave Banner */}
             {isListening && (
-              <div className={styles.listeningBanner}>
+              <div className={styles.listeningBanner} data-testid="listening-banner">
                 <div className={styles.soundWave}>
                   <span className={styles.soundBar} />
                   <span className={styles.soundBar} />
                   <span className={styles.soundBar} />
                   <span className={styles.soundBar} />
                 </div>
-                <span>{voiceNotice || 'Đang lắng nghe... Nói câu hỏi của bạn'}</span>
+                <span>{voiceNotice || 'Đang lắng nghe... Bấm lần nữa để gửi'}</span>
               </div>
             )}
 
@@ -347,7 +798,7 @@ export const AIChatbot = () => {
               <input
                 type="text"
                 className={styles.input}
-                placeholder={isListening ? 'Đang nhận diện giọng nói...' : 'Hỏi về bệnh gà, tồn kho cám, nhiệt độ chuồng...'}
+                placeholder={isListening ? 'Đang nhận diện giọng nói...' : 'Hỏi hoặc ra lệnh: ghi cám Nhà A1, cân mẫu, nhập kho...'}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -359,7 +810,8 @@ export const AIChatbot = () => {
                 type="button"
                 className={`${styles.micBtn} ${isListening ? styles.micBtnActive : ''}`}
                 onClick={toggleListening}
-                title={isListening ? 'Đang lắng nghe... Bấm để dừng' : 'Nói để nhập bằng giọng nói (Voice to Text)'}
+                title={isListening ? 'Đang lắng nghe... Bấm để dừng và gửi' : 'Nói để ra lệnh bằng giọng nói (Voice Command)'}
+                data-testid="voice-mic-button"
               >
                 {isListening ? <MicOff size={16} /> : <Mic size={16} />}
               </button>
@@ -369,11 +821,12 @@ export const AIChatbot = () => {
                 className={styles.sendBtn}
                 disabled={!input.trim()}
                 onClick={handleSend}
-                title="Gửi câu hỏi"
+                title="Gửi câu lệnh"
               >
                 <Send size={15} />
               </button>
             </div>
+
             {/* Advisory Banner (MSG38) */}
             <div style={{
               fontSize: '11px',
@@ -389,8 +842,9 @@ export const AIChatbot = () => {
               <ShieldAlert size={13} color="#d97706" style={{ flexShrink: 0 }} />
               <span>{getSystemMessage('MSG38')}</span>
             </div>
+
             <div className={styles.inputHint}>
-              Nhấn <strong>Enter</strong> hoặc bấm Micro 🎙️ để nói · AI hỗ trợ chẩn đoán thú y
+              Nhấn <strong>Enter</strong> hoặc bấm Micro 🎙️ để ra lệnh bằng giọng nói
             </div>
           </div>
         </div>
@@ -402,6 +856,7 @@ export const AIChatbot = () => {
         className={styles.chatButton}
         onClick={() => setIsOpen(!isOpen)}
         title={isOpen ? 'Đóng Trợ lý AI' : 'Mở Trợ lý AI FarmShift'}
+        data-testid="ai-chatbot-launcher"
       >
         <span className={styles.pulseRing} />
         {isOpen ? <X size={26} /> : <Sparkles size={26} />}

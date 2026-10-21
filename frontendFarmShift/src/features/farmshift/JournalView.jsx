@@ -95,6 +95,70 @@ export const JournalView = () => {
     notes: ''
   });
 
+  // Feed logs organized by Barn
+  const [feedRows, setFeedRows] = useState([
+    { area: 'Khu Mía Thịt', barn: 'Nhà A1', dayAge: 6, meal1: 50, meal2: 45, meal3: 0, feedType: 'Higro 01 (Cám gà con)', unit: 'Kg' },
+    { area: 'Khu Mía Thịt', barn: 'Nhà A2', dayAge: 6, meal1: 48, meal2: 44, meal3: 0, feedType: 'Higro 01 (Cám gà con)', unit: 'Kg' },
+    { area: 'Khu Mía Thịt', barn: 'Nhà A3', dayAge: 6, meal1: 52, meal2: 48, meal3: 0, feedType: 'Higro 01 (Cám gà con)', unit: 'Kg' },
+    { area: 'Khu J Thịt', barn: 'Nhà B1', dayAge: 45, meal1: 120, meal2: 110, meal3: 0, feedType: 'Higro 03 (Gà vỗ béo)', unit: 'Kg' },
+    { area: 'Khu J Thịt', barn: 'Nhà B2', dayAge: 45, meal1: 115, meal2: 108, meal3: 0, feedType: 'Higro 03 (Gà vỗ béo)', unit: 'Kg' },
+  ]);
+
+  useEffect(() => {
+    const handleAiAction = (event) => {
+      const action = event.detail;
+      if (!action) return;
+      if (action.actionType === 'LOG_FEED' && action.actionSummary) {
+        const barnName = action.actionSummary.barnName || '';
+        const kg = Number(action.actionSummary.kg) || 50;
+        const feedName = action.actionSummary.feedName || 'Higro 01 (Cám gà con)';
+
+        setFeedRows(prev => {
+          const matchIndex = prev.findIndex(r => barnName && r.barn.toLowerCase().includes(barnName.toLowerCase()));
+          if (matchIndex >= 0) {
+            return prev.map((row, idx) => {
+              if (idx === matchIndex) {
+                const updatedMeal3 = row.meal3 > 0 ? row.meal3 + kg : kg;
+                return { ...row, meal3: updatedMeal3, feedType: feedName };
+              }
+              return row;
+            });
+          }
+          return [...prev, {
+            area: 'Khu Mía Thịt',
+            barn: barnName || 'Chuồng mới',
+            dayAge: 6,
+            meal1: kg,
+            meal2: 0,
+            meal3: 0,
+            feedType: feedName,
+            unit: 'Kg'
+          }];
+        });
+
+        showGlobalToast(`Đã đồng bộ nhật ký cám cho ${action.actionSummary.barnName || 'chuồng'}: ${action.actionSummary.detail}`);
+      } else if (action.actionType === 'LOG_WEIGHT' && action.actionSummary) {
+        const barnName = action.actionSummary.barnName || 'Chuồng';
+        const detail = action.actionSummary.detail || '';
+        const newTask = {
+          id: `work-weight-${Date.now()}`,
+          taskName: `Cân mẫu định kỳ (${detail})`,
+          area: 'Khu Mía Thịt',
+          barn: barnName,
+          time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          assignee: 'Trợ lý AI FarmShift',
+          priority: 'Hàng ngày',
+          status: 'Hoàn thành',
+          notes: `Đã ghi nhận số liệu cân mẫu qua AI: ${detail}`
+        };
+        setWorkTasks(prev => [newTask, ...prev]);
+        showGlobalToast(`Đã đồng bộ cân mẫu: ${action.actionSummary.detail}`);
+      }
+    };
+    window.addEventListener('farmshift:ai-action', handleAiAction);
+    return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
+  }, [showGlobalToast]);
+
   const handleCreateWorkTask = (e) => {
     e.preventDefault();
     if (!newWorkTask.taskName) return;
@@ -121,15 +185,6 @@ export const JournalView = () => {
       notes: ''
     });
   };
-
-  // Feed logs organized by Barn
-  const [feedRows, setFeedRows] = useState([
-    { area: 'Khu Mía Thịt', barn: 'Nhà A1', dayAge: 6, meal1: 50, meal2: 45, meal3: 0, feedType: 'Higro 01 (Cám gà con)', unit: 'Kg' },
-    { area: 'Khu Mía Thịt', barn: 'Nhà A2', dayAge: 6, meal1: 48, meal2: 44, meal3: 0, feedType: 'Higro 01 (Cám gà con)', unit: 'Kg' },
-    { area: 'Khu Mía Thịt', barn: 'Nhà A3', dayAge: 6, meal1: 52, meal2: 48, meal3: 0, feedType: 'Higro 01 (Cám gà con)', unit: 'Kg' },
-    { area: 'Khu J Thịt', barn: 'Nhà B1', dayAge: 45, meal1: 120, meal2: 110, meal3: 0, feedType: 'Higro 03 (Gà vỗ béo)', unit: 'Kg' },
-    { area: 'Khu J Thịt', barn: 'Nhà B2', dayAge: 45, meal1: 115, meal2: 108, meal3: 0, feedType: 'Higro 03 (Gà vỗ béo)', unit: 'Kg' },
-  ]);
 
   // Environment readings (IoT) - Chỉ nhiệt độ & độ ẩm
   const [envRows, setEnvRows] = useState([

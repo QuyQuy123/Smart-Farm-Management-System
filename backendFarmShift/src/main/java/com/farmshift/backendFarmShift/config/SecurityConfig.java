@@ -59,8 +59,9 @@ public class SecurityConfig {
 
                 // Authorization rules
                 .authorizeHttpRequests(auth -> auth
-                        // Authentication endpoints are public
+                        // Authentication and AI assistant endpoints are public
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/ai/**").permitAll()
                         // Actuator health check (add more granular rules as needed)
                         .requestMatchers("/actuator/health").permitAll()
                         // All other endpoints require an authenticated JWT
