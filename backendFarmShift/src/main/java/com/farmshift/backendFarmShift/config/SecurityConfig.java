@@ -61,6 +61,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Authentication endpoints are public
                         .requestMatchers("/api/auth/**").permitAll()
+                        // Public health check endpoints for UptimeRobot / Render keep-alive
+                        .requestMatchers("/api/health", "/health").permitAll()
                         // Actuator health check (add more granular rules as needed)
                         .requestMatchers("/actuator/health").permitAll()
                         // All other endpoints require an authenticated JWT
