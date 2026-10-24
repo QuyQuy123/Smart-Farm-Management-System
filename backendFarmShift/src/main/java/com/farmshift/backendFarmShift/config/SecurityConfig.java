@@ -104,6 +104,7 @@ public class SecurityConfig {
                 "http://localhost:5174",
                 "http://localhost:5175",
                 "http://localhost:3000",
+                "https://farmshift-smartfarm.vercel.app",
                 "https://admin-ae1mzp943-acet-ech291.vercel.app",
                 "https://admin-flax-eta-71.vercel.app",
                 "https://admin-acet-ech291.vercel.app"
