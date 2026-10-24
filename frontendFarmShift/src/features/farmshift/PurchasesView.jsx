@@ -158,6 +158,29 @@ export const PurchasesView = () => {
   }, [searchTerm, filterPayment, revision]);
 
   useEffect(() => {
+    const handleAiAction = (event) => {
+      const action = event.detail;
+      if (!action) return;
+      if (action.executed || action.uiCommand === 'REFRESH_DATA') {
+        fetchData();
+      }
+      if (action.uiCommand === 'OPEN_CREATE_PURCHASE_MODAL') {
+        setShowAddModal(true);
+        if (action.prefillData) {
+          setNewPo(prev => ({
+            ...prev,
+            supplierName: action.prefillData.supplierName || prev.supplierName,
+            supplierId: action.prefillData.supplierId || prev.supplierId,
+            date: action.prefillData.date || prev.date
+          }));
+        }
+      }
+    };
+    window.addEventListener('farmshift:ai-action', handleAiAction);
+    return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
+  }, [fetchData]);
+
+  useEffect(() => {
     if (!showAddModal || isOcrDraft) return;
     let cancelled = false;
     setProductLoading(true); setProductError('');
@@ -412,8 +435,9 @@ export const PurchasesView = () => {
       }
     }
 
-    if (newPo.referenceCode && (!/^[\p{L}\p{N}\s._/()\-]+$/u.test(newPo.referenceCode) || newPo.referenceCode.length > 100))
+    if (newPo.referenceCode && (!/^[\p{L}\p{N}\s._/()-]+$/u.test(newPo.referenceCode) || newPo.referenceCode.length > 100))
       errs.referenceCode = 'Số chứng từ chỉ gồm chữ, số và ký tự . _ / ( ) -, tối đa 100 ký tự.';
+    // eslint-disable-next-line no-control-regex
     if (newPo.note?.trim() && (!/\p{L}/u.test(newPo.note) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(newPo.note) || newPo.note.length > 1000))
       errs.note = 'Ghi chú phải có nội dung chữ, tối đa 1000 ký tự.';
     return errs;

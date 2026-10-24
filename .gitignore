@@ -23,6 +23,7 @@ FarmShift.html
 FarmShift_MienBinh_Full.html
 scratch/
 /.md
+.md/
 
 # AI Microservice (Python / FastAPI)
 aiServiceFarmShift/.env

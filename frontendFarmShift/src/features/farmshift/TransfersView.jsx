@@ -485,7 +485,7 @@ export const TransfersView = () => {
                 <button
                   type="button"
                   className="farmshift-btn farmshift-btn-secondary"
-                  onClick={() => setShowCreateSlipModal(false)}
+                  onClick={() => setActiveTab('slips')}
                 >
                   Bỏ qua
                 </button>

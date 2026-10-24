@@ -86,6 +86,21 @@ export const BarnDetailView = () => {
   const [financeTab, setFinanceTab] = useState('CHART');
 
   useEffect(() => {
+    const handleAiAction = (event) => {
+      const action = event.detail;
+      if (!action) return;
+      if (action.executed || action.uiCommand === 'REFRESH_DATA') {
+        setRevision(r => r + 1);
+        if (action.actionSummary) {
+          showToast(`Đã đồng bộ AI: ${action.actionSummary.title || ''} • ${action.actionSummary.detail || ''}`, 'success');
+        }
+      }
+    };
+    window.addEventListener('farmshift:ai-action', handleAiAction);
+    return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
+  }, [showToast]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
