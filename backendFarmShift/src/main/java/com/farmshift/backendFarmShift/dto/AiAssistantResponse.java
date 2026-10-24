@@ -24,4 +24,6 @@ public class AiAssistantResponse {
     private Map<String, Object> dataCard;
     private boolean requiresConfirmation;
     private Map<String, Object> pendingAction;
+    /** Ngữ cảnh ngắn hạn để client gửi lại ở lượt sau (câu kiểu "à nhầm, sửa lại thành 65kg"). */
+    private Map<String, Object> actionContext;
 }

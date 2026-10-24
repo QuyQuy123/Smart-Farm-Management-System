@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,8 @@ public class AiAssistantIntegrationTest {
     @Autowired SupplierRepository supplierRepository;
     @Autowired InventoryItemRepository inventoryRepository;
     @Autowired ProductTypeRepository productTypeRepository;
+    @Autowired WarehouseCategoryRepository warehouseCategoryRepository;
+    @Autowired ProductCategoryRepository productCategoryRepository;
 
     private Barn barnA1;
     private FarmingCycle cycleA1;
@@ -639,5 +642,197 @@ public class AiAssistantIntegrationTest {
                 .andExpect(jsonPath("$.executed").value(false))
                 .andExpect(jsonPath("$.requiresConfirmation").value(false))
                 .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Tồn kho thức ăn")));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // SECTION 8: AUTOMATED INTEGRATION TESTS (DB MUTATION & REVISION CAPABILITY)
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void testNaturalLanguageUpdateFeed_ModifiesExistingFeedRecord() throws Exception {
+        long initialFeeds = feedRepository.count();
+
+        // Bước 1: Gửi "Cho Nhà A1 ăn 50kg cám Higro 01" -> DB tạo FeedRecord 50 kg
+        String res1 = mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Cho Nhà A1 ăn 50kg cám Higro 01",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("LOG_FEED"))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode node1 = mapper.readTree(res1);
+        Map<String, Object> lastContext = mapper.convertValue(node1.path("actionContext"), Map.class);
+        assertEquals(initialFeeds + 1, feedRepository.count());
+
+        // Bước 2: Gửi tiếp "À nhầm, sửa lại lượng cám Nhà A1 hôm nay thành 65kg" -> DB cập nhật thành 65.0 kg (chứ không phải tạo thêm dòng mới)
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "À nhầm, sửa lại lượng cám Nhà A1 hôm nay thành 65kg",
+                        "lastActionContext", lastContext != null ? lastContext : Map.of(),
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+
+        assertEquals(initialFeeds + 1, feedRepository.count(), "Số lượng FeedRecord không được tăng thêm, mà phải cập nhật bản ghi cũ");
+        List<FeedRecord> records = feedRepository.findAll();
+        FeedRecord latest = records.get(records.size() - 1);
+        assertEquals(65.0, latest.getQuantityKg().doubleValue(), 0.001);
+    }
+
+    @Test
+    void testNaturalLanguageUpdateBarnCapacity_UpdatesDatabase() throws Exception {
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Cập nhật sức chứa của Nhà A1 thành 6500 con",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("UPDATE_BARN_INFO"));
+
+        Barn updated = barnRepository.findById(barnA1.getId()).orElseThrow();
+        assertEquals(6500, updated.getCapacity());
+    }
+
+    @Test
+    void testNaturalLanguageUpdateInventoryPrice_UpdatesDatabase() throws Exception {
+        WarehouseCategory wh = new WarehouseCategory();
+        wh.setName("Kho Cám Chính");
+        wh.setNameKey("kho cam chinh");
+        wh = warehouseCategoryRepository.saveAndFlush(wh);
+
+        ProductCategory prod = new ProductCategory();
+        prod.setName("Cám Higro 01");
+        prod.setNameKey("cam higro 01");
+        prod.setWarehouse(wh);
+        prod = productCategoryRepository.saveAndFlush(prod);
+
+        InventoryItem item = new InventoryItem();
+        item.setWarehouse(wh);
+        item.setProduct(prod);
+        item.setPrice(BigDecimal.valueOf(280000));
+        item.setStock(BigDecimal.valueOf(500));
+        item = inventoryRepository.saveAndFlush(item);
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Đổi giá bán cám Higro 01 lên 350 nghìn",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("UPDATE_INVENTORY_ITEM"));
+
+        InventoryItem updated = inventoryRepository.findById(item.getId()).orElseThrow();
+        assertEquals(350000.0, updated.getPrice().doubleValue(), 0.001);
+    }
+
+    @Test
+    void testNaturalLanguagePayPurchaseInvoice_UpdatesPaidAmountAndStatus() throws Exception {
+        ProductType pt = productTypeRepository.findAll().stream().findFirst().orElseGet(() -> {
+            ProductType newPt = new ProductType();
+            newPt.setName("Thức ăn gia cầm");
+            newPt.setNameKey("thức ăn gia cầm");
+            return productTypeRepository.saveAndFlush(newPt);
+        });
+
+        Supplier testSupplier = supplierRepository.findAll().stream().findFirst().orElseGet(() -> {
+            Supplier s = new Supplier();
+            s.setName("Công ty Thức ăn CP");
+            s.setNameKey("công ty thức ăn cp");
+            s.setRepresentative("Nguyễn Văn A");
+            s.setPhone("0987654321");
+            s.setProductType(pt);
+            return supplierRepository.saveAndFlush(s);
+        });
+
+        PurchaseInvoice inv = new PurchaseInvoice();
+        inv.setCode("NH000003");
+        inv.setSupplier(testSupplier);
+        inv.setInvoiceDate(LocalDate.now());
+        inv.setStockStatus("Chưa nhập kho");
+        inv.setPaymentStatus("Chưa thanh toán");
+        inv.setTotalAmount(35000000L);
+        inv.setPaidAmount(0L);
+        invoiceRepository.saveAndFlush(inv);
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Thanh toán 20 triệu cho đơn hàng NH000003",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("PAY_PURCHASE_INVOICE"));
+
+        PurchaseInvoice updated = invoiceRepository.findByCode("NH000003").orElseThrow();
+        assertEquals(20000000L, updated.getPaidAmount());
+        assertEquals("Thanh toán một phần", updated.getPaymentStatus());
+    }
+
+    @Test
+    void testVietnameseWordNumbersAndUnits_ParsedCorrectly() throws Exception {
+        long initialFeeds = feedRepository.count();
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Cho chuồng A1 ăn hai bao cám Higro 01",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("LOG_FEED"));
+
+        assertEquals(initialFeeds + 1, feedRepository.count());
+        List<FeedRecord> records = feedRepository.findAll();
+        FeedRecord latest = records.get(records.size() - 1);
+        assertEquals(50.0, latest.getQuantityKg().doubleValue(), 0.001);
+    }
+
+    @Test
+    void testWorkerRoleBlockedFromFinancialMutations() throws Exception {
+        WarehouseCategory wh = new WarehouseCategory();
+        wh.setName("Kho Thức Ăn");
+        wh.setNameKey("kho thuc an");
+        wh = warehouseCategoryRepository.saveAndFlush(wh);
+
+        ProductCategory prod = new ProductCategory();
+        prod.setName("Cám Higro 01");
+        prod.setNameKey("cam higro 01");
+        prod.setWarehouse(wh);
+        prod = productCategoryRepository.saveAndFlush(prod);
+
+        InventoryItem item = new InventoryItem();
+        item.setWarehouse(wh);
+        item.setProduct(prod);
+        item.setPrice(BigDecimal.valueOf(280000));
+        item.setStock(BigDecimal.valueOf(100));
+        item = inventoryRepository.saveAndFlush(item);
+
+        mvc.perform(post(ASSISTANT_API)
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("worker@farm.test")
+                        .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_FARM_WORKER")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Đổi giá cám Higro 01 thành 100 nghìn",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Tài khoản Công nhân không có quyền")));
+
+        // Verify DB unchanged
+        InventoryItem unchanged = inventoryRepository.findById(item.getId()).orElseThrow();
+        assertEquals(280000.0, unchanged.getPrice().doubleValue(), 0.001);
     }
 }

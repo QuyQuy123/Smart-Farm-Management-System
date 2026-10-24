@@ -42,7 +42,8 @@ export const sendAssistantMessage = async ({
   autoExecute = true,
   history,
   confirmAction,
-  pendingActionPayload
+  pendingActionPayload,
+  lastActionContext
 }) => {
   const response = await api.post('/ai/assistant', {
     message,
@@ -50,7 +51,8 @@ export const sendAssistantMessage = async ({
     autoExecute,
     history,
     confirmAction,
-    pendingActionPayload
+    pendingActionPayload,
+    lastActionContext
   });
 
   return response.data;

@@ -231,6 +231,7 @@ export const AIChatbot = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState('');
+  const [lastActionContext, setLastActionContext] = useState(null);
 
   // TTS Voice Synthesis States
   const [isAutoSpeakEnabled, setIsAutoSpeakEnabled] = useState(() => {
@@ -406,8 +407,15 @@ export const AIChatbot = () => {
         message: textToSend,
         currentRoute: location.pathname,
         history: historyPayload,
+        lastActionContext: lastActionContext || undefined,
         autoExecute: false
       });
+
+      if (response.actionContext) {
+        setLastActionContext(response.actionContext);
+      } else if (response.actionSummary) {
+        setLastActionContext(response.actionSummary);
+      }
 
       const botMsg = {
         id: generateMessageId(),
@@ -464,8 +472,15 @@ export const AIChatbot = () => {
         message: 'Xác nhận thực hiện',
         confirmAction: true,
         pendingActionPayload: payload,
-        currentRoute: location.pathname
+        currentRoute: location.pathname,
+        lastActionContext: lastActionContext || undefined
       });
+
+      if (response.actionContext) {
+        setLastActionContext(response.actionContext);
+      } else if (response.actionSummary) {
+        setLastActionContext(response.actionSummary);
+      }
 
       setMessages(prev => prev.map(m => {
         if (m.id === msgId) {

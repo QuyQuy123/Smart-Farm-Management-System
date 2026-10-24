@@ -3,14 +3,21 @@ package com.farmshift.backendFarmShift.service;
 import com.farmshift.backendFarmShift.dto.AiAssistantRequest;
 import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
 import com.farmshift.backendFarmShift.dto.request.BarnRequest;
+import com.farmshift.backendFarmShift.dto.request.CloseCycleRequest;
 import com.farmshift.backendFarmShift.dto.request.DailyTaskConfirmRequest;
 import com.farmshift.backendFarmShift.dto.request.FarmAreaRequest;
+import com.farmshift.backendFarmShift.dto.request.FlockTransferRequest;
+import com.farmshift.backendFarmShift.dto.request.PurchasePaymentRequest;
+import com.farmshift.backendFarmShift.dto.request.StartCycleRequest;
 import com.farmshift.backendFarmShift.dto.request.SupplierRequest;
+import com.farmshift.backendFarmShift.validation.ContactPhoneRules;
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -18,7 +25,11 @@ import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.NestedTransactionNotSupportedException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -28,6 +39,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -53,8 +65,15 @@ public class AiAssistantService {
     private final FarmAreaService farmAreaService;
     private final FarmAreaRepository areaRepository;
     private final ProductTypeRepository productTypeRepository;
+    private final CycleService cycleService;
+    private final FlockService flockService;
+    private final PlatformTransactionManager txManager;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+
+    /** Bộ nhớ ngữ cảnh hội thoại ngắn hạn theo người dùng (lastIntent, lastBarnId, lastItemName, lastInvoiceCode...). */
+    private final Map<String, Map<String, Object>> lastContextByUser = new ConcurrentHashMap<>();
+    private static final long CONTEXT_TTL_MILLIS = 30L * 60L * 1000L;
 
     private final String groqApiKey;
     private final String groqChatUrl;
@@ -78,6 +97,9 @@ public class AiAssistantService {
             FarmAreaService farmAreaService,
             FarmAreaRepository areaRepository,
             ProductTypeRepository productTypeRepository,
+            CycleService cycleService,
+            FlockService flockService,
+            PlatformTransactionManager txManager,
             ObjectMapper objectMapper,
             @Value("${app.ai.groq-api-key:}") String groqApiKey,
             @Value("${app.ai.groq-chat-url:https://api.groq.com/openai/v1/chat/completions}") String groqChatUrl,
@@ -100,6 +122,9 @@ public class AiAssistantService {
         this.farmAreaService = farmAreaService;
         this.areaRepository = areaRepository;
         this.productTypeRepository = productTypeRepository;
+        this.cycleService = cycleService;
+        this.flockService = flockService;
+        this.txManager = txManager;
         this.objectMapper = objectMapper;
         this.groqApiKey = groqApiKey != null ? groqApiKey.strip() : "";
         this.groqChatUrl = groqChatUrl != null && !groqChatUrl.isBlank() ? groqChatUrl.strip() : "https://api.groq.com/openai/v1/chat/completions";
@@ -113,9 +138,14 @@ public class AiAssistantService {
 
     @Transactional
     public AiAssistantResponse processRequest(AiAssistantRequest request, String username, Collection<? extends GrantedAuthority> authorities) {
+        String actor = username != null && !username.isBlank() ? username : "anonymous";
+        boolean isWorker = isWorkerOnly(authorities);
+
         // Check if this is an explicit confirmation of a pending action
         if (Boolean.TRUE.equals(request.getConfirmAction()) && request.getPendingActionPayload() != null) {
-            return executeConfirmedPayload(request.getPendingActionPayload(), username);
+            AiAssistantResponse confirmed = executeConfirmedPayload(request.getPendingActionPayload(), username, isWorker);
+            captureContext(actor, confirmed);
+            return confirmed;
         }
 
         String rawMessage = request.getMessage() != null ? request.getMessage().trim() : "";
@@ -127,23 +157,33 @@ public class AiAssistantService {
                     .build();
         }
 
-        boolean isWorker = authorities != null && authorities.stream()
-                .anyMatch(a -> "ROLE_FARM_WORKER".equalsIgnoreCase(a.getAuthority()))
-                && authorities.stream().noneMatch(a -> "ROLE_FARM_OWNER".equalsIgnoreCase(a.getAuthority()) || "ROLE_ACCOUNTANT".equalsIgnoreCase(a.getAuthority()));
-
         boolean autoExecute = request.getAutoExecute() == null || Boolean.TRUE.equals(request.getAutoExecute());
+        Env env = new Env(actor, isWorker, autoExecute);
 
-        // First, run our high-performance Vietnamese Rule-Based & Regex Action Engine (Layer 2)
-        AiAssistantResponse ruleResult = evaluateRuleEngine(rawMessage, request.getCurrentRoute(), username, isWorker, autoExecute);
+        // GIAI ĐOẠN 1: chuẩn hóa tiếng Việt đời thường (số bằng chữ, "500 nghìn", "2 bao cám", tên chuồng/đơn nói tắt...)
+        String message = VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawMessage);
+        Map<String, Object> ctx = resolveContext(actor, request.getLastActionContext());
+
+        // GIAI ĐOẠN 2a: Multi-Intent Fuzzy Engine — sửa/cập nhật bản ghi, công nợ, vật tư, nhà cung cấp, lứa nuôi, chuyển đàn
+        AiAssistantResponse mutation = evaluateMutationEngine(message, rawMessage, request.getCurrentRoute(), env, ctx);
+        if (mutation != null) {
+            captureContext(actor, mutation);
+            return mutation;
+        }
+
+        // GIAI ĐOẠN 2b: luật tạo mới truyền thống (ghi cám/cân mẫu/hao hụt/chi phí, tạo chuồng, nhập kho theo mã...)
+        AiAssistantResponse ruleResult = evaluateRuleEngine(message, request.getCurrentRoute(), username, isWorker, autoExecute);
         if (ruleResult != null) {
+            captureContext(actor, ruleResult);
             return ruleResult;
         }
 
-        // If rule engine did not trigger a specific action and Groq key is present, invoke Groq LLM (Layer 1)
+        // GIAI ĐOẠN 2c: Groq LLM JSON Mode + Live Database Snapshot khi câu lệnh phức tạp hơn các luật cục bộ
         if (!groqApiKey.isBlank()) {
             try {
-                AiAssistantResponse llmResult = evaluateLlmEngine(rawMessage, request.getCurrentRoute(), request.getHistory(), username, isWorker, autoExecute);
+                AiAssistantResponse llmResult = evaluateLlmEngine(message, request.getCurrentRoute(), request.getHistory(), env, ctx);
                 if (llmResult != null) {
+                    captureContext(actor, llmResult);
                     return llmResult;
                 }
             } catch (Exception e) {
@@ -154,6 +194,628 @@ public class AiAssistantService {
         // Smart fallback response with local veterinary and farming knowledge
         return getSmartFallbackResponse(rawMessage);
     }
+
+    /**
+     * Phân quyền RBAC: chỉ Chủ trại / Kế toán / Admin mới được thao tác quản trị & tài chính.
+     * Request không có Authentication (authorities == null) hoặc chỉ có ROLE_FARM_WORKER được coi là Công nhân.
+     */
+    private static boolean isWorkerOnly(Collection<? extends GrantedAuthority> authorities) {
+        if (authorities == null) return true;
+        boolean privileged = authorities.stream().anyMatch(a -> {
+            String role = a.getAuthority() == null ? "" : a.getAuthority().toUpperCase(Locale.ROOT);
+            return role.equals("ROLE_FARM_OWNER") || role.equals("ROLE_ACCOUNTANT") || role.equals("ROLE_ADMIN");
+        });
+        return !privileged;
+    }
+
+    private record Env(String user, boolean worker, boolean auto) {
+    }
+
+    public static final Set<String> WORKER_BLOCKED_ACTIONS = Set.of(
+            "UPDATE_BARN_INFO",
+            "CREATE_BARN",
+            "CREATE_BARN_OR_AREA",
+            "CREATE_AREA",
+            "UPDATE_INVENTORY_ITEM",
+            "UPDATE_SUPPLIER_INFO",
+            "CREATE_SUPPLIER",
+            "PAY_PURCHASE_INVOICE",
+            "CANCEL_PURCHASE_INVOICE",
+            "LOG_EXPENSE",
+            "LOG_OR_UPDATE_EXPENSE"
+    );
+
+    private AiAssistantResponse workerBlocked(String actionType) {
+        return AiAssistantResponse.builder()
+                .reply("⚠️ Tài khoản Công nhân không có quyền thực hiện thao tác này. Vui lòng liên hệ Kế toán hoặc Chủ trại.")
+                .actionType(actionType)
+                .executed(false)
+                .build();
+    }
+
+    private void captureContext(String actor, AiAssistantResponse response) {
+        if (response == null || actor == null) return;
+        Map<String, Object> ctx = response.getActionContext();
+        if (ctx == null && response.getActionSummary() != null) {
+            ctx = new LinkedHashMap<>(response.getActionSummary());
+        }
+        if (ctx == null) {
+            ctx = new LinkedHashMap<>();
+        } else {
+            ctx = new LinkedHashMap<>(ctx);
+        }
+        if (response.getActionType() != null && !"NONE".equalsIgnoreCase(response.getActionType()) && !"GENERAL_QNA".equalsIgnoreCase(response.getActionType())) {
+            ctx.put("lastIntent", response.getActionType());
+        }
+        if (!ctx.isEmpty()) {
+            ctx.put("_updatedAt", System.currentTimeMillis());
+            lastContextByUser.put(actor, ctx);
+            response.setActionContext(ctx);
+        }
+    }
+
+    private Map<String, Object> resolveContext(String actor, Map<String, Object> clientContext) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (actor != null && lastContextByUser.containsKey(actor)) {
+            Map<String, Object> cached = lastContextByUser.get(actor);
+            Long updatedAt = (Long) cached.get("_updatedAt");
+            if (updatedAt == null || (System.currentTimeMillis() - updatedAt <= CONTEXT_TTL_MILLIS)) {
+                merged.putAll(cached);
+            } else {
+                lastContextByUser.remove(actor);
+            }
+        }
+        if (clientContext != null) {
+            merged.putAll(clientContext);
+        }
+        return merged;
+    }
+
+    private AiAssistantResponse evaluateMutationEngine(String message, String rawMessage, String currentRoute, Env env, Map<String, Object> ctx) {
+        String norm = normalizeText(message);
+
+        // 1. UPDATE_BARN_INFO (Sửa thông tin chuồng nuôi: sức chứa, diện tích, mục tiêu cân nặng)
+        if ((norm.contains("suc chua") || norm.contains("dien tich") || norm.contains("muc tieu can") || norm.contains("trong luong muc tieu"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("cap nhat") || norm.contains("chinh") || norm.contains("thay doi") || norm.contains("tang") || norm.contains("giam") || norm.contains("len") || norm.contains("xuong") || norm.contains("thanh"))) {
+            if (env.worker()) {
+                return workerBlocked("UPDATE_BARN_INFO");
+            }
+            Barn barn = resolveBarn(norm, message, currentRoute);
+            if (barn == null && ctx.get("barnId") != null) {
+                barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
+            }
+            if (barn == null) {
+                return barnNotFoundResponse(norm);
+            }
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("actionType", "UPDATE_BARN_INFO");
+            payload.put("barnId", barn.getId());
+            payload.put("barnName", barn.getName());
+
+            // Extract capacity
+            Matcher capMatcher = Pattern.compile("(?:suc chua|chua|nuoi)\\s*(?:la|duoc|len|thanh|tam|duoc)?\\s*(\\d+)", Pattern.CASE_INSENSITIVE).matcher(norm);
+            if (capMatcher.find()) {
+                payload.put("capacity", Integer.parseInt(capMatcher.group(1)));
+            } else {
+                Matcher conMatcher = Pattern.compile("(\\d+)\\s*(?:con|cho|ga)", Pattern.CASE_INSENSITIVE).matcher(norm);
+                if (conMatcher.find()) {
+                    payload.put("capacity", Integer.parseInt(conMatcher.group(1)));
+                }
+            }
+
+            // Extract floorArea
+            Matcher areaMatcher = Pattern.compile("(?:dien tich|rong)\\s*(?:la|len|thanh)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:m2|m|met)?", Pattern.CASE_INSENSITIVE).matcher(norm);
+            if (areaMatcher.find()) {
+                payload.put("areaM2", Double.parseDouble(areaMatcher.group(1).replace(',', '.')));
+            } else {
+                Matcher m2Matcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:m2|met vuong)", Pattern.CASE_INSENSITIVE).matcher(norm);
+                if (m2Matcher.find()) {
+                    payload.put("areaM2", Double.parseDouble(m2Matcher.group(1).replace(',', '.')));
+                }
+            }
+
+            // Extract targetWeight
+            Matcher weightMatcher = Pattern.compile("(?:muc tieu can|trong luong muc tieu|muc tieu)\\s*(?:la|thanh)?\\s*(\\d+(?:[.,]\\d+)?)", Pattern.CASE_INSENSITIVE).matcher(norm);
+            if (weightMatcher.find()) {
+                double newWeight = Double.parseDouble(weightMatcher.group(1).replace(',', '.'));
+                payload.put("targetWeight", newWeight);
+            }
+
+            if (!payload.containsKey("capacity") && !payload.containsKey("areaM2") && !payload.containsKey("targetWeight")) {
+                Matcher anyNum = Pattern.compile("(\\d+(?:[.,]\\d+)?)").matcher(norm);
+                if (anyNum.find()) {
+                    if (norm.contains("suc chua")) {
+                        payload.put("capacity", Integer.parseInt(anyNum.group(1)));
+                    } else if (norm.contains("dien tich")) {
+                        payload.put("areaM2", Double.parseDouble(anyNum.group(1).replace(',', '.')));
+                    }
+                }
+            }
+
+            if (!env.auto()) {
+                Map<String, Object> details = new LinkedHashMap<>();
+                details.put("Chuồng nuôi", barn.getName());
+                if (payload.containsKey("capacity")) details.put("Sức chứa mới", payload.get("capacity") + " con");
+                if (payload.containsKey("areaM2")) details.put("Diện tích mới", payload.get("areaM2") + " m²");
+                if (payload.containsKey("targetWeight")) details.put("Trọng lượng mục tiêu", payload.get("targetWeight") + " kg");
+
+                return AiAssistantResponse.builder()
+                        .reply("Bạn có muốn cập nhật thông tin cho **" + barn.getName() + "** không?")
+                        .actionType("UPDATE_BARN_INFO")
+                        .executed(false)
+                        .requiresConfirmation(true)
+                        .pendingAction(Map.of(
+                                "actionType", "UPDATE_BARN_INFO",
+                                "title", "Cập nhật thông tin: " + barn.getName(),
+                                "details", details,
+                                "payload", payload
+                        ))
+                        .build();
+            }
+
+            return executeMutationPayload(payload, env.user());
+        }
+
+        // 2. UPDATE_INVENTORY_ITEM (Sửa đơn giá hoặc điều chỉnh tồn kho vật tư)
+        if (((norm.contains("gia") || norm.contains("don gia") || norm.contains("gia ban") || norm.contains("gia mua"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("cap nhat") || norm.contains("chinh") || norm.contains("len") || norm.contains("xuong") || norm.contains("thanh")))
+                || ((norm.contains("ton kho") || norm.contains("so luong ton")) && (norm.contains("dieu chinh") || norm.contains("sua") || norm.contains("doi") || norm.contains("cap nhat")))) {
+            if (env.worker()) {
+                return workerBlocked("UPDATE_INVENTORY_ITEM");
+            }
+            List<InventoryItem> items = inventoryRepository.findAll();
+            InventoryItem matched = FuzzyEntityResolver.findEntityInText(message, items, i -> i.getProduct() != null ? i.getProduct().getName() : "", 0.35);
+            if (matched == null && ctx.get("itemId") != null) {
+                matched = inventoryRepository.findById(Long.valueOf(String.valueOf(ctx.get("itemId")))).orElse(null);
+            }
+            if (matched != null) {
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("actionType", "UPDATE_INVENTORY_ITEM");
+                payload.put("itemId", matched.getId());
+                payload.put("productName", matched.getProduct() != null ? matched.getProduct().getName() : "");
+
+                if (norm.contains("gia") || norm.contains("don gia") || norm.contains("gia ban") || norm.contains("gia mua")) {
+                    Matcher priceMatcher = Pattern.compile("(?:thanh|len|xuong|la|gia)?\\s*(\\d{4,10})").matcher(norm);
+                    if (priceMatcher.find()) {
+                        payload.put("price", Double.parseDouble(priceMatcher.group(1)));
+                    } else {
+                        Matcher anyPrice = Pattern.compile("(\\d{4,10})").matcher(norm);
+                        if (anyPrice.find()) {
+                            payload.put("price", Double.parseDouble(anyPrice.group(1)));
+                        }
+                    }
+                } else {
+                    Matcher stockMatcher = Pattern.compile("(?:len|xuong|thanh|la|ton)?\\s*(\\d+(?:[.,]\\d+)?)").matcher(norm);
+                    if (stockMatcher.find()) {
+                        payload.put("stock", Double.parseDouble(stockMatcher.group(1).replace(',', '.')));
+                    }
+                }
+
+                if (!env.auto()) {
+                    String pName = matched.getProduct() != null ? matched.getProduct().getName() : "Vật tư";
+                    return AiAssistantResponse.builder()
+                            .reply("Bạn có chắc chắn muốn cập nhật vật tư **" + pName + "** không?")
+                            .actionType("UPDATE_INVENTORY_ITEM")
+                            .executed(false)
+                            .requiresConfirmation(true)
+                            .pendingAction(Map.of(
+                                    "actionType", "UPDATE_INVENTORY_ITEM",
+                                    "title", "Cập nhật vật tư: " + pName,
+                                    "payload", payload
+                            ))
+                            .build();
+                }
+
+                return executeMutationPayload(payload, env.user());
+            }
+        }
+
+        // 3. UPDATE_SUPPLIER_INFO (Sửa thông tin Nhà cung cấp: SĐT, chính sách thanh toán...)
+        if (((norm.contains("nha cung cap") || norm.contains("ncc") || norm.contains("doi tac") || norm.contains("dai ly"))
+                && (norm.contains("sua") || norm.contains("doi") || norm.contains("cap nhat") || norm.contains("chinh") || norm.contains("sdt") || norm.contains("so dien thoai") || norm.contains("chinh sach")))
+                || norm.contains("chinh sach thanh toan") || norm.contains("so dien thoai ncc") || norm.contains("sdt ncc")) {
+            if (env.worker()) {
+                return workerBlocked("UPDATE_SUPPLIER_INFO");
+            }
+            List<Supplier> suppliers = supplierRepository.findAll();
+            Supplier matched = FuzzyEntityResolver.findEntityInText(message, suppliers, Supplier::getName, 0.35);
+            if (matched == null && ctx.get("supplierId") != null) {
+                matched = supplierRepository.findById(Long.valueOf(String.valueOf(ctx.get("supplierId")))).orElse(null);
+            }
+            if (matched != null) {
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("actionType", "UPDATE_SUPPLIER_INFO");
+                payload.put("supplierId", matched.getId());
+                payload.put("supplierName", matched.getName());
+
+                Matcher phoneMatcher = Pattern.compile("(0\\d{8,11})").matcher(norm);
+                if (phoneMatcher.find()) {
+                    payload.put("phone", phoneMatcher.group(1));
+                }
+                if (norm.contains("tra sau")) {
+                    payload.put("paymentPolicy", "Trả sau");
+                } else if (norm.contains("tra truoc")) {
+                    payload.put("paymentPolicy", "Trả trước");
+                }
+
+                if (!env.auto()) {
+                    return AiAssistantResponse.builder()
+                            .reply("Bạn có muốn cập nhật thông tin nhà cung cấp **" + matched.getName() + "** không?")
+                            .actionType("UPDATE_SUPPLIER_INFO")
+                            .executed(false)
+                            .requiresConfirmation(true)
+                            .pendingAction(Map.of(
+                                    "actionType", "UPDATE_SUPPLIER_INFO",
+                                    "title", "Cập nhật NCC: " + matched.getName(),
+                                    "payload", payload
+                            ))
+                            .build();
+                }
+
+                return executeMutationPayload(payload, env.user());
+            }
+        }
+
+        // 4. PAY_PURCHASE_INVOICE (Thanh toán công nợ hóa đơn nhập)
+        if (norm.contains("thanh toan") || norm.contains("tra no") || norm.contains("tra het no") || norm.contains("tra tien don") || (norm.contains("tra") && norm.contains("cho don"))) {
+            if (env.worker()) {
+                return workerBlocked("PAY_PURCHASE_INVOICE");
+            }
+            Matcher codeMatcher = Pattern.compile("nh\\s*[-_]?\\s*(\\d+)", Pattern.CASE_INSENSITIVE).matcher(norm);
+            String invoiceCode = null;
+            if (codeMatcher.find()) {
+                invoiceCode = String.format(Locale.ROOT, "NH%06d", Integer.parseInt(codeMatcher.group(1)));
+            } else if (ctx.get("invoiceCode") != null) {
+                invoiceCode = String.valueOf(ctx.get("invoiceCode"));
+            }
+            if (invoiceCode != null) {
+                Optional<PurchaseInvoice> invOpt = invoiceRepository.findByCode(invoiceCode);
+                if (invOpt.isPresent()) {
+                    PurchaseInvoice inv = invOpt.get();
+                    long amount = 0;
+                    if (norm.contains("tra het") || norm.contains("toan bo")) {
+                        amount = Math.max(0, inv.getTotalAmount() - inv.getPaidAmount());
+                    } else {
+                        Matcher numMatcher = Pattern.compile("(\\d{5,12})").matcher(norm);
+                        if (numMatcher.find()) {
+                            amount = Long.parseLong(numMatcher.group(1));
+                        } else {
+                            amount = Math.max(0, inv.getTotalAmount() - inv.getPaidAmount());
+                        }
+                    }
+
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("actionType", "PAY_PURCHASE_INVOICE");
+                    payload.put("invoiceCode", inv.getCode());
+                    payload.put("invoiceId", inv.getId());
+                    payload.put("amount", amount);
+
+                    if (!env.auto()) {
+                        String moneyFormatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+                        return AiAssistantResponse.builder()
+                                .reply("Bạn có muốn thanh toán **" + moneyFormatted + "** cho đơn hàng **" + inv.getCode() + "** không?")
+                                .actionType("PAY_PURCHASE_INVOICE")
+                                .executed(false)
+                                .requiresConfirmation(true)
+                                .pendingAction(Map.of(
+                                        "actionType", "PAY_PURCHASE_INVOICE",
+                                        "title", "Thanh toán hóa đơn: " + inv.getCode(),
+                                        "payload", payload
+                                ))
+                                .build();
+                    }
+
+                    return executeMutationPayload(payload, env.user());
+                }
+            }
+        }
+
+        // 5. CANCEL_PURCHASE_INVOICE (Hủy hóa đơn nhập hàng)
+        if ((norm.contains("huy don") || norm.contains("huy hoa don") || norm.contains("xoa don")) && (norm.contains("nh") || norm.contains("nhap") || norm.matches(".*\\bnh\\d+.*"))) {
+            if (env.worker()) {
+                return workerBlocked("CANCEL_PURCHASE_INVOICE");
+            }
+            Matcher codeMatcher = Pattern.compile("nh\\s*[-_]?\\s*(\\d+)", Pattern.CASE_INSENSITIVE).matcher(norm);
+            String invoiceCode = null;
+            if (codeMatcher.find()) {
+                invoiceCode = String.format(Locale.ROOT, "NH%06d", Integer.parseInt(codeMatcher.group(1)));
+            } else if (ctx.get("invoiceCode") != null) {
+                invoiceCode = String.valueOf(ctx.get("invoiceCode"));
+            }
+            if (invoiceCode != null) {
+                Optional<PurchaseInvoice> invOpt = invoiceRepository.findByCode(invoiceCode);
+                if (invOpt.isPresent()) {
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("actionType", "CANCEL_PURCHASE_INVOICE");
+                    payload.put("invoiceCode", invOpt.get().getCode());
+                    payload.put("invoiceId", invOpt.get().getId());
+
+                    if (!env.auto()) {
+                        return AiAssistantResponse.builder()
+                                .reply("Bạn có chắc chắn muốn hủy đơn hàng **" + invOpt.get().getCode() + "** không?")
+                                .actionType("CANCEL_PURCHASE_INVOICE")
+                                .executed(false)
+                                .requiresConfirmation(true)
+                                .pendingAction(Map.of(
+                                        "actionType", "CANCEL_PURCHASE_INVOICE",
+                                        "title", "Hủy hóa đơn: " + invOpt.get().getCode(),
+                                        "payload", payload
+                                ))
+                                .build();
+                    }
+
+                    return executeMutationPayload(payload, env.user());
+                }
+            }
+        }
+
+        // 6. TRANSFER_FLOCK (Tách / Chuyển đàn giữa các chuồng)
+        if (norm.contains("chuyen dan") || norm.contains("tach dan") || (norm.contains("chuyen") && (norm.contains("con ga") || norm.contains("con") || norm.contains("dan")) && norm.contains("sang"))) {
+            Matcher matcher = Pattern.compile("(?:tu\\s+)?([a-z0-9\\s]+?)\\s+sang\\s+([a-z0-9\\s]+)").matcher(norm);
+            Barn sourceBarn = null;
+            Barn targetBarn = null;
+            if (matcher.find()) {
+                sourceBarn = resolveBarn(matcher.group(1), matcher.group(1));
+                targetBarn = resolveBarn(matcher.group(2), matcher.group(2));
+            }
+            if (sourceBarn == null) {
+                sourceBarn = resolveBarn(norm, message, currentRoute);
+            }
+            if (targetBarn == null && sourceBarn != null) {
+                for (Barn b : barnRepository.findAll()) {
+                    if (!b.getId().equals(sourceBarn.getId()) && norm.contains(normalizeText(b.getName()))) {
+                        targetBarn = b;
+                        break;
+                    }
+                }
+            }
+            if (sourceBarn != null && targetBarn != null) {
+                Optional<FarmingCycle> sCycle = cycleRepository.findFirstByBarnIdAndStatus(sourceBarn.getId(), CycleStatus.ACTIVE);
+                if (sCycle.isPresent()) {
+                    List<Flock> flocks = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(sCycle.get().getId());
+                    Flock flock = flocks.stream().filter(f -> f.getStatus() == FlockStatus.ACTIVE).findFirst().orElse(null);
+                    if (flock != null) {
+                        Matcher qMatcher = Pattern.compile("(\\d+)\\s*(?:con)?").matcher(norm);
+                        int qty = qMatcher.find() ? Integer.parseInt(qMatcher.group(1)) : 100;
+
+                        Map<String, Object> payload = new LinkedHashMap<>();
+                        payload.put("actionType", "TRANSFER_FLOCK");
+                        payload.put("flockId", flock.getId());
+                        payload.put("sourceBarnId", sourceBarn.getId());
+                        payload.put("targetBarnId", targetBarn.getId());
+                        payload.put("quantity", qty);
+
+                        if (!env.auto()) {
+                            return AiAssistantResponse.builder()
+                                    .reply("Bạn có muốn chuyển **" + qty + " con gà** từ **" + sourceBarn.getName() + "** sang **" + targetBarn.getName() + "** không?")
+                                    .actionType("TRANSFER_FLOCK")
+                                    .executed(false)
+                                    .requiresConfirmation(true)
+                                    .pendingAction(Map.of(
+                                            "actionType", "TRANSFER_FLOCK",
+                                            "title", "Chuyển đàn: " + sourceBarn.getName() + " ➔ " + targetBarn.getName(),
+                                            "payload", payload
+                                    ))
+                                    .build();
+                        }
+
+                        return executeMutationPayload(payload, env.user());
+                    }
+                }
+            }
+        }
+
+        // 7. START_OR_CLOSE_CYCLE (Bắt đầu hoặc kết thúc lứa)
+        if (norm.contains("mo lua") || norm.contains("bat dau lua") || norm.contains("khai bao lua") || norm.contains("ket thuc lua") || norm.contains("dong lua")) {
+            Barn barn = resolveBarn(norm, message, currentRoute);
+            if (barn != null) {
+                boolean isClose = norm.contains("ket thuc") || norm.contains("dong");
+                if (isClose) {
+                    Optional<FarmingCycle> actCycle = cycleRepository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE);
+                    if (actCycle.isPresent()) {
+                        Map<String, Object> payload = Map.of("actionType", "CLOSE_CYCLE", "cycleId", actCycle.get().getId(), "barnName", barn.getName());
+                        if (!env.auto()) {
+                            return AiAssistantResponse.builder()
+                                    .reply("Bạn có muốn kết thúc lứa nuôi tại **" + barn.getName() + "** không?")
+                                    .actionType("START_OR_CLOSE_CYCLE")
+                                    .executed(false)
+                                    .requiresConfirmation(true)
+                                    .pendingAction(Map.of("actionType", "CLOSE_CYCLE", "title", "Kết thúc lứa: " + barn.getName(), "payload", payload))
+                                    .build();
+                        }
+                        return executeMutationPayload(payload, env.user());
+                    }
+                } else {
+                    Map<String, Object> payload = Map.of("actionType", "START_CYCLE", "barnId", barn.getId(), "barnName", barn.getName());
+                    if (!env.auto()) {
+                        return AiAssistantResponse.builder()
+                                .reply("Bạn có muốn mở lứa nuôi mới tại **" + barn.getName() + "** không?")
+                                .actionType("START_OR_CLOSE_CYCLE")
+                                .executed(false)
+                                .requiresConfirmation(true)
+                                .pendingAction(Map.of("actionType", "START_CYCLE", "title", "Mở lứa: " + barn.getName(), "payload", payload))
+                                .build();
+                    }
+                    return executeMutationPayload(payload, env.user());
+                }
+            }
+        }
+
+        // 8. LOG_OR_UPDATE_FEED (Sửa lượng cám đã ghi hoặc bù trừ sai sót)
+        boolean hasUpdateSignal = norm.contains("sua") || norm.contains("doi") || norm.contains("nham") || norm.contains("thanh") || norm.contains("lai");
+        if (hasUpdateSignal && (norm.contains("cam") || norm.contains("cho an") || "LOG_FEED".equals(ctx.get("lastIntent")) || "LOG_OR_UPDATE_FEED".equals(ctx.get("lastIntent")))) {
+            Barn barn = resolveBarn(norm, message, currentRoute);
+            if (barn == null && ctx.get("barnId") != null) {
+                barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
+            }
+            if (barn != null) {
+                Optional<FarmingCycle> cycleOpt = cycleRepository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE);
+                if (cycleOpt.isPresent()) {
+                    List<FeedRecord> records = feedRepository.findAllByCycleIdOrderByRecordDateDescIdDesc(cycleOpt.get().getId());
+                    FeedRecord latestRecord = records.stream().findFirst().orElse(null);
+                    if (latestRecord != null) {
+                        Matcher kgMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:kg|ki|ky|can)").matcher(norm);
+                        double newKg = 0;
+                        if (kgMatcher.find()) {
+                            newKg = Double.parseDouble(kgMatcher.group(1).replace(',', '.'));
+                        } else {
+                            Matcher baoMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*bao").matcher(norm);
+                            if (baoMatcher.find()) {
+                                newKg = Double.parseDouble(baoMatcher.group(1).replace(',', '.')) * 25.0;
+                            } else {
+                                Matcher genericNum = Pattern.compile("(?:thanh|la|thanh ra)\\s*(\\d+(?:[.,]\\d+)?)").matcher(norm);
+                                if (genericNum.find()) {
+                                    newKg = Double.parseDouble(genericNum.group(1).replace(',', '.'));
+                                }
+                            }
+                        }
+                        if (newKg > 0) {
+                            Map<String, Object> payload = new LinkedHashMap<>();
+                            payload.put("actionType", "UPDATE_FEED");
+                            payload.put("recordId", latestRecord.getId());
+                            payload.put("barnId", barn.getId());
+                            payload.put("newKg", newKg);
+
+                            if (!env.auto()) {
+                                return AiAssistantResponse.builder()
+                                        .reply("Bạn có muốn sửa lại lượng cám của **" + barn.getName() + "** thành **" + newKg + " kg** không?")
+                                        .actionType("LOG_OR_UPDATE_FEED")
+                                        .executed(false)
+                                        .requiresConfirmation(true)
+                                        .pendingAction(Map.of(
+                                                "actionType", "UPDATE_FEED",
+                                                "title", "Sửa lượng cám: " + barn.getName(),
+                                                "payload", payload
+                                        ))
+                                        .build();
+                            }
+
+                            return executeMutationPayload(payload, env.user());
+                        }
+                    }
+                }
+            }
+        }
+
+        // 9. LOG_OR_UPDATE_WEIGHT (Sửa cân mẫu)
+        if (hasUpdateSignal && (norm.contains("can") || norm.contains("trong luong") || norm.contains("can mau") || "LOG_WEIGHT".equals(ctx.get("lastIntent")) || "LOG_OR_UPDATE_WEIGHT".equals(ctx.get("lastIntent")))) {
+            Barn barn = resolveBarn(norm, message, currentRoute);
+            if (barn == null && ctx.get("barnId") != null) {
+                barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
+            }
+            if (barn != null) {
+                Optional<FarmingCycle> cycleOpt = cycleRepository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE);
+                if (cycleOpt.isPresent()) {
+                    List<WeightSample> samples = weightRepository.findAllByCycleIdOrderBySampleDateDescIdDesc(cycleOpt.get().getId());
+                    WeightSample latestSample = samples.stream().findFirst().orElse(null);
+                    if (latestSample != null) {
+                        Matcher weightMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:kg|can|ky)").matcher(norm);
+                        double newAvg = 0;
+                        if (weightMatcher.find()) {
+                            newAvg = Double.parseDouble(weightMatcher.group(1).replace(',', '.'));
+                        } else {
+                            Matcher genericNum = Pattern.compile("(?:thanh|la)\\s*(\\d+(?:[.,]\\d+)?)").matcher(norm);
+                            if (genericNum.find()) {
+                                newAvg = Double.parseDouble(genericNum.group(1).replace(',', '.'));
+                            }
+                        }
+                        if (newAvg > 0) {
+                            Map<String, Object> payload = new LinkedHashMap<>();
+                            payload.put("actionType", "UPDATE_WEIGHT");
+                            payload.put("sampleId", latestSample.getId());
+                            payload.put("barnId", barn.getId());
+                            payload.put("avgWeight", newAvg);
+
+                            Matcher sizeMatcher = Pattern.compile("(?:mau|co mau)\\s*(\\d+)\\s*(?:con)?").matcher(norm);
+                            if (sizeMatcher.find()) {
+                                payload.put("sampleSize", Integer.parseInt(sizeMatcher.group(1)));
+                            }
+
+                            if (!env.auto()) {
+                                return AiAssistantResponse.builder()
+                                        .reply("Bạn có muốn sửa lại kết quả cân mẫu **" + barn.getName() + "** thành **" + newAvg + " kg** không?")
+                                        .actionType("LOG_OR_UPDATE_WEIGHT")
+                                        .executed(false)
+                                        .requiresConfirmation(true)
+                                        .pendingAction(Map.of(
+                                                "actionType", "UPDATE_WEIGHT",
+                                                "title", "Sửa cân mẫu: " + barn.getName(),
+                                                "payload", payload
+                                        ))
+                                        .build();
+                            }
+
+                            return executeMutationPayload(payload, env.user());
+                        }
+                    }
+                }
+            }
+        }
+
+        // 10. LOG_OR_UPDATE_MORTALITY (Sửa hao hụt / chết)
+        if (hasUpdateSignal && (norm.contains("hao hut") || norm.contains("chet") || norm.contains("loai thai") || "LOG_MORTALITY".equals(ctx.get("lastIntent")) || "LOG_OR_UPDATE_MORTALITY".equals(ctx.get("lastIntent")))) {
+            Barn barn = resolveBarn(norm, message, currentRoute);
+            if (barn == null && ctx.get("barnId") != null) {
+                barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
+            }
+            if (barn != null) {
+                Matcher numMatcher = Pattern.compile("(?:la|thanh)?\\s*(\\d+)\\s*(?:con)?").matcher(norm);
+                int qty = 0;
+                while (numMatcher.find()) {
+                    qty = Integer.parseInt(numMatcher.group(1));
+                }
+                if (qty > 0) {
+                    Map<String, Object> payload = Map.of("actionType", "UPDATE_MORTALITY", "barnId", barn.getId(), "quantity", qty);
+                    if (!env.auto()) {
+                        return AiAssistantResponse.builder()
+                                .reply("Bạn có muốn sửa lại số lượng hao hụt tại **" + barn.getName() + "** thành **" + qty + " con** không?")
+                                .actionType("LOG_OR_UPDATE_MORTALITY")
+                                .executed(false)
+                                .requiresConfirmation(true)
+                                .pendingAction(Map.of("actionType", "UPDATE_MORTALITY", "title", "Sửa hao hụt: " + barn.getName(), "payload", payload))
+                                .build();
+                    }
+                    return executeMutationPayload(payload, env.user());
+                }
+            }
+        }
+
+        // 11. LOG_OR_UPDATE_EXPENSE (Sửa chi phí)
+        if (hasUpdateSignal && (norm.contains("chi phi") || norm.contains("tien dien") || norm.contains("tien nuoc") || norm.contains("tien thuoc") || "LOG_EXPENSE".equals(ctx.get("lastIntent")) || "LOG_OR_UPDATE_EXPENSE".equals(ctx.get("lastIntent")))) {
+            if (env.worker()) {
+                return workerBlocked("LOG_EXPENSE");
+            }
+            Barn barn = resolveBarn(norm, message, currentRoute);
+            if (barn == null && ctx.get("barnId") != null) {
+                barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
+            }
+            if (barn != null) {
+                Matcher numMatcher = Pattern.compile("(\\d{4,12})").matcher(norm);
+                long amount = 0;
+                if (numMatcher.find()) {
+                    amount = Long.parseLong(numMatcher.group(1));
+                }
+                if (amount > 0) {
+                    Map<String, Object> payload = Map.of("actionType", "UPDATE_EXPENSE", "barnId", barn.getId(), "amount", amount);
+                    if (!env.auto()) {
+                        String formatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+                        return AiAssistantResponse.builder()
+                                .reply("Bạn có muốn sửa lại chi phí cho **" + barn.getName() + "** thành **" + formatted + "** không?")
+                                .actionType("LOG_OR_UPDATE_EXPENSE")
+                                .executed(false)
+                                .requiresConfirmation(true)
+                                .pendingAction(Map.of("actionType", "UPDATE_EXPENSE", "title", "Sửa chi phí: " + barn.getName(), "payload", payload))
+                                .build();
+                    }
+                    return executeMutationPayload(payload, env.user());
+                }
+            }
+        }
+
+        return null;
+    }
+
 
     // ─────────────────────────────────────────────────────────────────────────────
     // LAYER 2: LOCAL VIETNAMESE RULE-BASED & REGEX ACTION ENGINE (100% Deterministic)
@@ -964,26 +1626,9 @@ public class AiAssistantService {
         }
 
         long amount = 500000L;
-        if (norm.contains("trieu")) {
-            Matcher trieuMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*trieu(?:\\s*(\\d+))?").matcher(norm);
-            if (trieuMatcher.find()) {
-                double main = Double.parseDouble(trieuMatcher.group(1).replace(',', '.'));
-                amount = (long) (main * 1_000_000);
-                if (trieuMatcher.group(2) != null) {
-                    long extra = Long.parseLong(trieuMatcher.group(2));
-                    amount += extra * 100_000;
-                }
-            }
-        } else if (norm.contains("nghin") || norm.contains("ngan") || norm.contains("k")) {
-            Matcher kMatcher = Pattern.compile("(\\d+)\\s*(?:nghin|ngan|k)").matcher(norm);
-            if (kMatcher.find()) {
-                amount = Long.parseLong(kMatcher.group(1)) * 1_000;
-            }
-        } else {
-            Matcher numMatcher = Pattern.compile("(\\d{4,12})").matcher(norm);
-            if (numMatcher.find()) {
-                amount = Long.parseLong(numMatcher.group(1));
-            }
+        Long spokenMoney = VietnameseSpeechNormalizer.extractMoney(norm);
+        if (spokenMoney != null) {
+            amount = spokenMoney;
         }
 
         String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
@@ -1328,8 +1973,432 @@ public class AiAssistantService {
                 .build();
     }
 
-    public AiAssistantResponse executeConfirmedPayload(Map<String, Object> payload, String username) {
+    public AiAssistantResponse executeMutationPayload(Map<String, Object> payload, String username) {
+        if (payload == null) return null;
         String actionType = payload.get("actionType") != null ? String.valueOf(payload.get("actionType")) : "";
+        switch (actionType) {
+            case "UPDATE_BARN_INFO": {
+                Long barnId = payload.get("barnId") != null ? Long.valueOf(String.valueOf(payload.get("barnId"))) : null;
+                Barn barn = null;
+                if (barnId != null) {
+                    barn = barnRepository.findById(barnId).orElse(null);
+                } else if (payload.containsKey("barnName")) {
+                    barn = barnRepository.findAll().stream()
+                            .filter(b -> b.getName().equalsIgnoreCase(String.valueOf(payload.get("barnName"))))
+                            .findFirst().orElse(null);
+                }
+                if (barn == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy chuồng để cập nhật.").executed(false).build();
+                }
+                if (payload.containsKey("capacity")) {
+                    int newCap = Integer.parseInt(String.valueOf(payload.get("capacity")));
+                    int curQty = barn.getCurrentQuantity();
+                    if (newCap < curQty) {
+                        return AiAssistantResponse.builder()
+                                .reply("⚠️ Sức chứa mới (" + newCap + " con) không thể nhỏ hơn số gà đang nuôi (" + curQty + " con) trong chuồng **" + barn.getName() + "**.")
+                                .executed(false)
+                                .actionType("UPDATE_BARN_INFO")
+                                .build();
+                    }
+                    barn.setCapacity(newCap);
+                }
+                if (payload.containsKey("areaM2")) {
+                    barn.setAreaM2(BigDecimal.valueOf(Double.parseDouble(String.valueOf(payload.get("areaM2")))));
+                }
+                if (payload.containsKey("targetWeight")) {
+                    barn.setTargetWeight(BigDecimal.valueOf(Double.parseDouble(String.valueOf(payload.get("targetWeight")))));
+                }
+                Barn saved = barnRepository.save(barn);
+                Map<String, Object> summary = new LinkedHashMap<>();
+                summary.put("title", "Đã cập nhật chuồng " + saved.getName());
+                summary.put("barnId", saved.getId());
+                summary.put("barnName", saved.getName());
+                summary.put("capacity", saved.getCapacity());
+                summary.put("areaM2", saved.getAreaM2());
+                summary.put("timestamp", LocalDateTime.now().toString());
+
+                return AiAssistantResponse.builder()
+                        .reply("✅ Đã cập nhật thành công thông tin chuồng **" + saved.getName() + "**: Sức chứa " + saved.getCapacity() + " con, Diện tích " + (saved.getAreaM2() != null ? saved.getAreaM2() : "-") + " m².")
+                        .actionType("UPDATE_BARN_INFO")
+                        .executed(true)
+                        .navigateTo("/barns")
+                        .uiCommand("REFRESH_DATA")
+                        .actionSummary(summary)
+                        .actionContext(Map.of("lastIntent", "UPDATE_BARN_INFO", "barnId", saved.getId(), "barnName", saved.getName()))
+                        .build();
+            }
+
+            case "UPDATE_INVENTORY_ITEM": {
+                Long itemId = payload.get("itemId") != null ? Long.valueOf(String.valueOf(payload.get("itemId"))) : null;
+                InventoryItem item = null;
+                if (itemId != null) {
+                    item = inventoryRepository.findById(itemId).orElse(null);
+                } else if (payload.containsKey("productName")) {
+                    String pName = String.valueOf(payload.get("productName"));
+                    item = FuzzyEntityResolver.findEntityInText(pName, inventoryRepository.findAll(), i -> i.getProduct() != null ? i.getProduct().getName() : "", 0.35);
+                }
+                if (item == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy vật tư trong kho để cập nhật.").executed(false).build();
+                }
+                String name = item.getProduct() != null ? item.getProduct().getName() : "Vật tư";
+                if (payload.containsKey("price")) {
+                    BigDecimal price = BigDecimal.valueOf(Double.parseDouble(String.valueOf(payload.get("price"))));
+                    item.setPrice(price);
+                }
+                if (payload.containsKey("stock")) {
+                    BigDecimal stock = BigDecimal.valueOf(Double.parseDouble(String.valueOf(payload.get("stock"))));
+                    item.setStock(stock);
+                }
+                InventoryItem saved = inventoryRepository.save(item);
+                String priceFormatted = saved.getPrice() != null ? NumberFormat.getInstance(new Locale("vi", "VN")).format(saved.getPrice()) + " đ" : "chưa đặt";
+                Map<String, Object> summary = new LinkedHashMap<>();
+                summary.put("title", "Đã cập nhật vật tư: " + name);
+                summary.put("itemId", saved.getId());
+                summary.put("itemName", name);
+                summary.put("price", saved.getPrice());
+                summary.put("stock", saved.getStock());
+                summary.put("timestamp", LocalDateTime.now().toString());
+
+                return AiAssistantResponse.builder()
+                        .reply("✅ Đã cập nhật thành công vật tư **" + name + "**: Đơn giá " + priceFormatted + ", Tồn kho " + saved.getStock() + " " + (saved.getUnit() != null ? saved.getUnit().getName() : "") + ".")
+                        .actionType("UPDATE_INVENTORY_ITEM")
+                        .executed(true)
+                        .navigateTo("/inventory")
+                        .uiCommand("REFRESH_DATA")
+                        .actionSummary(summary)
+                        .actionContext(Map.of("lastIntent", "UPDATE_INVENTORY_ITEM", "itemId", saved.getId(), "itemName", name))
+                        .build();
+            }
+
+            case "UPDATE_SUPPLIER_INFO": {
+                Long supplierId = payload.get("supplierId") != null ? Long.valueOf(String.valueOf(payload.get("supplierId"))) : null;
+                Supplier supplier = null;
+                if (supplierId != null) {
+                    supplier = supplierRepository.findById(supplierId).orElse(null);
+                } else if (payload.containsKey("supplierName")) {
+                    String sName = String.valueOf(payload.get("supplierName"));
+                    supplier = FuzzyEntityResolver.findEntityInText(sName, supplierRepository.findAll(), Supplier::getName, 0.35);
+                }
+                if (supplier == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy nhà cung cấp để cập nhật.").executed(false).build();
+                }
+                if (payload.containsKey("phone")) {
+                    supplier.setPhone(String.valueOf(payload.get("phone")));
+                }
+                if (payload.containsKey("paymentPolicy")) {
+                    supplier.setPaymentPolicy(String.valueOf(payload.get("paymentPolicy")));
+                }
+                if (payload.containsKey("representative")) {
+                    supplier.setRepresentative(String.valueOf(payload.get("representative")));
+                }
+                Supplier saved = supplierRepository.save(supplier);
+                Map<String, Object> summary = new LinkedHashMap<>();
+                summary.put("title", "Đã cập nhật NCC: " + saved.getName());
+                summary.put("supplierId", saved.getId());
+                summary.put("name", saved.getName());
+                summary.put("phone", saved.getPhone());
+                summary.put("policy", saved.getPaymentPolicy());
+
+                return AiAssistantResponse.builder()
+                        .reply("✅ Đã cập nhật thành công thông tin nhà cung cấp **" + saved.getName() + "**: SĐT " + (saved.getPhone() != null ? saved.getPhone() : "-") + ", Chính sách: " + (saved.getPaymentPolicy() != null ? saved.getPaymentPolicy() : "-") + ".")
+                        .actionType("UPDATE_SUPPLIER_INFO")
+                        .executed(true)
+                        .navigateTo("/suppliers")
+                        .uiCommand("REFRESH_DATA")
+                        .actionSummary(summary)
+                        .actionContext(Map.of("lastIntent", "UPDATE_SUPPLIER_INFO", "supplierId", saved.getId(), "supplierName", saved.getName()))
+                        .build();
+            }
+
+            case "PAY_PURCHASE_INVOICE": {
+                String invoiceCode = String.valueOf(payload.get("invoiceCode"));
+                Long invoiceId = payload.get("invoiceId") != null ? Long.valueOf(String.valueOf(payload.get("invoiceId"))) : null;
+                PurchaseInvoice invoice = invoiceId != null ? invoiceRepository.findById(invoiceId).orElse(null) : invoiceRepository.findByCode(invoiceCode).orElse(null);
+                if (invoice == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy hóa đơn " + invoiceCode + " để thanh toán.").executed(false).build();
+                }
+                long amount = Long.parseLong(String.valueOf(payload.getOrDefault("amount", invoice.getTotalAmount() - invoice.getPaidAmount())));
+                if (amount <= 0) {
+                    return AiAssistantResponse.builder().reply("⚠️ Số tiền thanh toán phải lớn hơn 0.").executed(false).build();
+                }
+                var updated = purchaseService.pay(invoice.getId(), new PurchasePaymentRequest(amount, "Thanh toán qua Trợ lý AI"));
+                String moneyFormatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+                Map<String, Object> summary = new LinkedHashMap<>();
+                summary.put("title", "Đã thanh toán hóa đơn " + updated.code());
+                summary.put("invoiceCode", updated.code());
+                summary.put("paidAmount", moneyFormatted);
+                summary.put("paymentStatus", updated.paymentStatus());
+
+                return AiAssistantResponse.builder()
+                        .reply("✅ Đã ghi nhận thanh toán **" + moneyFormatted + "** cho hóa đơn **" + updated.code() + "**. Trạng thái thanh toán hiện tại: **" + updated.paymentStatus() + "**.")
+                        .actionType("PAY_PURCHASE_INVOICE")
+                        .executed(true)
+                        .navigateTo("/purchases")
+                        .uiCommand("REFRESH_DATA")
+                        .actionSummary(summary)
+                        .actionContext(Map.of("lastIntent", "PAY_PURCHASE_INVOICE", "invoiceCode", updated.code(), "invoiceId", updated.id()))
+                        .build();
+            }
+
+            case "CANCEL_PURCHASE_INVOICE": {
+                String invoiceCode = String.valueOf(payload.get("invoiceCode"));
+                Long invoiceId = payload.get("invoiceId") != null ? Long.valueOf(String.valueOf(payload.get("invoiceId"))) : null;
+                PurchaseInvoice invoice = invoiceId != null ? invoiceRepository.findById(invoiceId).orElse(null) : invoiceRepository.findByCode(invoiceCode).orElse(null);
+                if (invoice == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy hóa đơn " + invoiceCode + " để hủy.").executed(false).build();
+                }
+                try {
+                    purchaseService.cancel(invoice.getId());
+                    return AiAssistantResponse.builder()
+                            .reply("✅ Đã hủy thành công hóa đơn nhập hàng **" + invoice.getCode() + "**.")
+                            .actionType("CANCEL_PURCHASE_INVOICE")
+                            .executed(true)
+                            .navigateTo("/purchases")
+                            .uiCommand("REFRESH_DATA")
+                            .actionSummary(Map.of("title", "Đã hủy hóa đơn " + invoice.getCode(), "invoiceCode", invoice.getCode()))
+                            .actionContext(Map.of("lastIntent", "CANCEL_PURCHASE_INVOICE", "invoiceCode", invoice.getCode()))
+                            .build();
+                } catch (Exception ex) {
+                    return AiAssistantResponse.builder()
+                            .reply("⚠️ Không thể hủy hóa đơn " + invoice.getCode() + ": " + ex.getMessage())
+                            .actionType("CANCEL_PURCHASE_INVOICE")
+                            .executed(false)
+                            .build();
+                }
+            }
+
+            case "TRANSFER_FLOCK": {
+                Long flockId = Long.valueOf(String.valueOf(payload.get("flockId")));
+                Long targetBarnId = Long.valueOf(String.valueOf(payload.get("targetBarnId")));
+                int quantity = Integer.parseInt(String.valueOf(payload.get("quantity")));
+                String note = String.valueOf(payload.getOrDefault("note", "Chuyển đàn qua Trợ lý AI"));
+                Flock flock = flockRepository.findById(flockId).orElse(null);
+                Barn targetBarn = barnRepository.findById(targetBarnId).orElse(null);
+                if (flock == null || targetBarn == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy thông tin đàn hoặc chuồng đích.").executed(false).build();
+                }
+                try {
+                    var res = flockService.transfer(flockId, new FlockTransferRequest(targetBarnId, quantity, LocalDate.now(), null, null, note), username);
+                    return AiAssistantResponse.builder()
+                            .reply("✅ Đã chuyển thành công **" + quantity + " con gà** sang chuồng **" + targetBarn.getName() + "**.")
+                            .actionType("TRANSFER_FLOCK")
+                            .executed(true)
+                            .navigateTo("/barns")
+                            .uiCommand("REFRESH_DATA")
+                            .actionSummary(Map.of("title", "Đã chuyển đàn", "quantity", quantity, "targetBarn", targetBarn.getName()))
+                            .actionContext(Map.of("lastIntent", "TRANSFER_FLOCK", "targetBarnId", targetBarn.getId(), "targetBarnName", targetBarn.getName()))
+                            .build();
+                } catch (Exception ex) {
+                    return AiAssistantResponse.builder()
+                            .reply("⚠️ Chuyển đàn không thành công: " + ex.getMessage())
+                            .actionType("TRANSFER_FLOCK")
+                            .executed(false)
+                            .build();
+                }
+            }
+
+            case "START_OR_CLOSE_CYCLE":
+            case "START_CYCLE": {
+                Long barnId = Long.valueOf(String.valueOf(payload.get("barnId")));
+                Barn barn = barnRepository.findById(barnId).orElse(null);
+                if (barn == null) return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy chuồng.").executed(false).build();
+                try {
+                    var res = cycleService.start(barnId, new StartCycleRequest(LocalDate.now(), null, "Mở lứa qua Trợ lý AI"));
+                    return AiAssistantResponse.builder()
+                            .reply("✅ Đã mở lứa nuôi mới (Lứa #" + res.cycleNumber() + ") cho chuồng **" + barn.getName() + "**.")
+                            .actionType("START_OR_CLOSE_CYCLE")
+                            .executed(true)
+                            .navigateTo("/barns/" + barn.getId())
+                            .uiCommand("REFRESH_DATA")
+                            .build();
+                } catch (Exception ex) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không thể mở lứa nuôi: " + ex.getMessage()).executed(false).build();
+                }
+            }
+
+            case "CLOSE_CYCLE": {
+                Long cycleId = Long.valueOf(String.valueOf(payload.get("cycleId")));
+                try {
+                    var res = cycleService.close(cycleId, new CloseCycleRequest(LocalDate.now(), "Đóng lứa qua Trợ lý AI"));
+                    return AiAssistantResponse.builder()
+                            .reply("✅ Đã đóng lứa nuôi #" + res.cycleNumber() + " thành công.")
+                            .actionType("START_OR_CLOSE_CYCLE")
+                            .executed(true)
+                            .navigateTo("/barns")
+                            .uiCommand("REFRESH_DATA")
+                            .build();
+                } catch (Exception ex) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không thể kết thúc lứa: " + ex.getMessage()).executed(false).build();
+                }
+            }
+
+            case "LOG_OR_UPDATE_FEED":
+            case "UPDATE_FEED": {
+                Long recordId = payload.get("recordId") != null ? Long.valueOf(String.valueOf(payload.get("recordId"))) : null;
+                FeedRecord record = recordId != null ? feedRepository.findById(recordId).orElse(null) : null;
+                if (record == null) {
+                    Long barnId = payload.get("barnId") != null ? Long.valueOf(String.valueOf(payload.get("barnId"))) : null;
+                    if (barnId != null) {
+                        record = feedRepository.findAllByCycleIdOrderByRecordDateDescIdDesc(
+                                cycleRepository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE).map(FarmingCycle::getId).orElse(0L)
+                        ).stream().findFirst().orElse(null);
+                    }
+                }
+                if (record == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy nhật ký cám gần đây để sửa đổi.").executed(false).build();
+                }
+                double newKg = Double.parseDouble(String.valueOf(payload.get("newKg")));
+                double oldKg = record.getQuantityKg() != null ? record.getQuantityKg().doubleValue() : 0.0;
+                double delta = newKg - oldKg;
+                record.setQuantityKg(BigDecimal.valueOf(newKg));
+                record.setNote(record.getNote() != null ? record.getNote() + " | Sửa qua AI" : "Sửa qua AI");
+                FeedRecord saved = feedRepository.save(record);
+                deductInventoryStock(saved.getFeedName() != null ? saved.getFeedName() : "cám", delta);
+
+                Barn b = saved.getCycle().getBarn();
+                Map<String, Object> summary = new LinkedHashMap<>();
+                summary.put("title", "Đã sửa nhật ký cám: " + (b != null ? b.getName() : ""));
+                summary.put("barnId", b != null ? b.getId() : null);
+                summary.put("barnName", b != null ? b.getName() : "");
+                summary.put("oldQuantityKg", oldKg);
+                summary.put("newQuantityKg", newKg);
+                summary.put("recordId", saved.getId());
+
+                return AiAssistantResponse.builder()
+                        .reply("✅ Đã cập nhật lại lượng cám của **" + (b != null ? b.getName() : "chuồng") + "** từ **" + oldKg + " kg** thành **" + newKg + " kg**. Tồn kho vật tư đã được bù trừ tương ứng.")
+                        .actionType("LOG_OR_UPDATE_FEED")
+                        .executed(true)
+                        .navigateTo("/journal")
+                        .uiCommand("REFRESH_DATA")
+                        .actionSummary(summary)
+                        .actionContext(Map.of("lastIntent", "LOG_FEED", "barnId", b != null ? b.getId() : 0, "barnName", b != null ? b.getName() : "", "recordId", saved.getId()))
+                        .build();
+            }
+
+            case "LOG_OR_UPDATE_WEIGHT":
+            case "UPDATE_WEIGHT": {
+                Long sampleId = payload.get("sampleId") != null ? Long.valueOf(String.valueOf(payload.get("sampleId"))) : null;
+                WeightSample sample = sampleId != null ? weightRepository.findById(sampleId).orElse(null) : null;
+                if (sample == null) {
+                    Long barnId = payload.get("barnId") != null ? Long.valueOf(String.valueOf(payload.get("barnId"))) : null;
+                    if (barnId != null) {
+                        sample = weightRepository.findAllByCycleIdOrderBySampleDateDescIdDesc(
+                                cycleRepository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE).map(FarmingCycle::getId).orElse(0L)
+                        ).stream().findFirst().orElse(null);
+                    }
+                }
+                if (sample == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy bản ghi cân mẫu gần đây để sửa đổi.").executed(false).build();
+                }
+                double newAvg = Double.parseDouble(String.valueOf(payload.get("avgWeight")));
+                sample.setAvgWeightKg(BigDecimal.valueOf(newAvg));
+                if (payload.containsKey("sampleSize")) {
+                    sample.setSampleSize(Integer.parseInt(String.valueOf(payload.get("sampleSize"))));
+                }
+                WeightSample saved = weightRepository.save(sample);
+                Barn b = saved.getCycle().getBarn();
+                return AiAssistantResponse.builder()
+                        .reply("✅ Đã cập nhật lại cân mẫu của **" + (b != null ? b.getName() : "chuồng") + "** thành **" + newAvg + " kg/con** (mẫu " + saved.getSampleSize() + " con).")
+                        .actionType("LOG_OR_UPDATE_WEIGHT")
+                        .executed(true)
+                        .navigateTo("/journal")
+                        .uiCommand("REFRESH_DATA")
+                        .actionContext(Map.of("lastIntent", "LOG_WEIGHT", "barnId", b != null ? b.getId() : 0, "sampleId", saved.getId()))
+                        .build();
+            }
+
+            case "LOG_OR_UPDATE_MORTALITY":
+            case "UPDATE_MORTALITY": {
+                Long movementId = payload.get("movementId") != null ? Long.valueOf(String.valueOf(payload.get("movementId"))) : null;
+                FlockMovement movement = movementId != null ? movementRepository.findById(movementId).orElse(null) : null;
+                if (movement == null) {
+                    Long barnId = payload.get("barnId") != null ? Long.valueOf(String.valueOf(payload.get("barnId"))) : null;
+                    if (barnId != null) {
+                        movement = movementRepository.findAll().stream()
+                                .filter(m -> (m.getType() == FlockMovementType.DEATH || m.getType() == FlockMovementType.CULL)
+                                        && m.getFlock() != null && m.getFlock().getCycle() != null
+                                        && barnId.equals(m.getFlock().getCycle().getBarn().getId()))
+                                .sorted((a, b) -> b.getId().compareTo(a.getId()))
+                                .findFirst().orElse(null);
+                    }
+                }
+                if (movement == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy bản ghi hao hụt gần đây để sửa đổi.").executed(false).build();
+                }
+                int newQty = Integer.parseInt(String.valueOf(payload.get("quantity")));
+                int oldQty = movement.getQuantity();
+                int delta = newQty - oldQty;
+                movement.setQuantity(newQty);
+                movementRepository.save(movement);
+
+                Flock flock = movement.getFlock();
+                if (flock != null) {
+                    flock.setQuantity(Math.max(0, flock.getQuantity() - delta));
+                    flockRepository.save(flock);
+                    Barn barn = flock.getCycle().getBarn();
+                    if (barn != null) {
+                        barn.setCurrentQuantity(Math.max(0, barn.getCurrentQuantity() - delta));
+                        barnRepository.save(barn);
+                    }
+                }
+
+                return AiAssistantResponse.builder()
+                        .reply("✅ Đã cập nhật lại số lượng hao hụt từ **" + oldQty + " con** thành **" + newQty + " con**.")
+                        .actionType("LOG_OR_UPDATE_MORTALITY")
+                        .executed(true)
+                        .navigateTo("/journal")
+                        .uiCommand("REFRESH_DATA")
+                        .build();
+            }
+
+            case "LOG_OR_UPDATE_EXPENSE":
+            case "UPDATE_EXPENSE": {
+                Long expenseId = payload.get("expenseId") != null ? Long.valueOf(String.valueOf(payload.get("expenseId"))) : null;
+                CycleExpense expense = expenseId != null ? expenseRepository.findById(expenseId).orElse(null) : null;
+                if (expense == null) {
+                    Long barnId = payload.get("barnId") != null ? Long.valueOf(String.valueOf(payload.get("barnId"))) : null;
+                    if (barnId != null) {
+                        expense = expenseRepository.findAll().stream()
+                                .filter(e -> e.getCycle() != null && barnId.equals(e.getCycle().getBarn().getId()))
+                                .sorted((a, b) -> b.getId().compareTo(a.getId()))
+                                .findFirst().orElse(null);
+                    }
+                }
+                if (expense == null) {
+                    return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy bản ghi chi phí gần đây để sửa đổi.").executed(false).build();
+                }
+                long amount = Long.parseLong(String.valueOf(payload.get("amount")));
+                expense.setAmount(BigDecimal.valueOf(amount));
+                CycleExpense saved = expenseRepository.save(expense);
+                String formatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+
+                return AiAssistantResponse.builder()
+                        .reply("✅ Đã cập nhật lại số tiền chi phí **" + saved.getCategory() + "** thành **" + formatted + "**.")
+                        .actionType("LOG_OR_UPDATE_EXPENSE")
+                        .executed(true)
+                        .navigateTo("/journal")
+                        .uiCommand("REFRESH_DATA")
+                        .build();
+            }
+
+            default:
+                return null;
+        }
+    }
+
+    public AiAssistantResponse executeConfirmedPayload(Map<String, Object> payload, String username) {
+        return executeConfirmedPayload(payload, username, false);
+    }
+
+    public AiAssistantResponse executeConfirmedPayload(Map<String, Object> payload, String username, boolean isWorker) {
+        String actionType = payload.get("actionType") != null ? String.valueOf(payload.get("actionType")) : "";
+        if (isWorker && WORKER_BLOCKED_ACTIONS.contains(actionType)) {
+            return workerBlocked(actionType);
+        }
+        AiAssistantResponse mutationResult = executeMutationPayload(payload, username);
+        if (mutationResult != null) {
+            return mutationResult;
+        }
         switch (actionType) {
             case "LOG_FEED": {
                 Long barnId = Long.valueOf(String.valueOf(payload.get("barnId")));
@@ -1628,14 +2697,42 @@ public class AiAssistantService {
     // LAYER 1: GROQ LLM INTENT ENGINE (FALLBACK / COMPLEX QUERIES)
     // ─────────────────────────────────────────────────────────────────────────────
 
+    private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, Env env, Map<String, Object> ctx) {
+        return evaluateLlmEngine(message, currentRoute, history, env.user(), env.worker(), env.auto(), ctx);
+    }
+
     private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker) {
-        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, true);
+        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, true, null);
     }
 
     private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker, boolean autoExecute) {
+        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, autoExecute, null);
+    }
+
+    private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker, boolean autoExecute, Map<String, Object> ctx) {
         try {
             List<Barn> barns = barnRepository.findAll();
-            String barnNames = barns.stream().map(Barn::getName).collect(Collectors.joining(", "));
+            String barnSummary = barns.stream()
+                    .map(b -> String.format("{id:%d, name:'%s', status:'%s', currentQty:%d, capacity:%d}",
+                            b.getId(), b.getName(), b.getStatus(), b.getCurrentQuantity(), b.getCapacity()))
+                    .collect(Collectors.joining(", "));
+
+            String inventorySummary = inventoryRepository.findAll().stream().limit(20)
+                    .map(i -> String.format("{id:%d, name:'%s', stock:%s, price:%s, unit:'%s'}",
+                            i.getId(), i.getProduct() != null ? i.getProduct().getName() : "", i.getStock(), i.getPrice(), i.getUnit() != null ? i.getUnit().getName() : ""))
+                    .collect(Collectors.joining(", "));
+
+            String supplierSummary = supplierRepository.findAll().stream()
+                    .map(s -> String.format("{id:%d, code:'%s', name:'%s', phone:'%s', policy:'%s'}",
+                            s.getId(), s.getCode(), s.getName(), s.getPhone(), s.getPaymentPolicy()))
+                    .collect(Collectors.joining(", "));
+
+            String invoiceSummary = invoiceRepository.findAll().stream()
+                    .sorted((a, b) -> b.getId().compareTo(a.getId())).limit(10)
+                    .map(inv -> String.format("{id:%d, code:'%s', supplier:'%s', total:%d, paid:%d, payStatus:'%s', stockStatus:'%s'}",
+                            inv.getId(), inv.getCode(), inv.getSupplier() != null ? inv.getSupplier().getName() : "",
+                            inv.getTotalAmount(), inv.getPaidAmount(), inv.getPaymentStatus(), inv.getStockStatus()))
+                    .collect(Collectors.joining(", "));
 
             String routeHint = "";
             if (currentRoute != null && currentRoute.matches(".*/barns/\\d+.*")) {
@@ -1644,26 +2741,36 @@ public class AiAssistantService {
                     Long bId = Long.parseLong(m.group(1));
                     Barn activeBarn = barnRepository.findById(bId).orElse(null);
                     if (activeBarn != null) {
-                        routeHint = "Người dùng đang xem trang của chuồng: " + activeBarn.getName() + " (ID: " + activeBarn.getId() + "). Nếu người dùng không nêu tên chuồng cụ thể, mặc định là chuồng này.\n";
+                        routeHint = "Người dùng đang xem trang của chuồng: " + activeBarn.getName() + " (ID: " + activeBarn.getId() + ").\n";
                     }
                 }
             }
 
+            String contextHint = (ctx != null && !ctx.isEmpty()) ? "Ngữ cảnh thao tác trước đó: " + ctx + "\n" : "";
+
             String systemPrompt = "Bạn là Trợ lý AI điều hành hệ thống trang trại gà thịt FarmShift tiếng Việt.\n" +
-                    routeHint +
-                    "Hệ thống hiện có các chuồng: " + (barnNames.isBlank() ? "Nhà A1, Nhà A2, Nhà A3, Nhà B1, Nhà B2" : barnNames) + ".\n" +
+                    routeHint + contextHint +
+                    "Live Database Snapshot:\n" +
+                    "- Chuồng nuôi (Barns): [" + barnSummary + "]\n" +
+                    "- Vật tư kho (Inventory): [" + inventorySummary + "]\n" +
+                    "- Nhà cung cấp (Suppliers): [" + supplierSummary + "]\n" +
+                    "- Hóa đơn nhập gần nhất (Invoices): [" + invoiceSummary + "]\n" +
                     "Phân tích yêu cầu và trả về ĐÚNG DUY NHẤT một đối tượng JSON hợp lệ không bọc trong markdown:\n" +
                     "{\n" +
-                    "  \"intent\": \"LOG_FEED | LOG_WEIGHT | LOG_MORTALITY | LOG_EXPENSE | COMPLETE_DAILY_TASKS | IMPORT_PURCHASE_STOCK | QUERY_FARM_STATUS | VET_DIAGNOSIS | NAVIGATE_AND_PREFILL | GENERAL_QNA\",\n" +
-                    "  \"barnName\": \"Tên chuồng chính xác (ví dụ: Nhà A1) hoặc null\",\n" +
-                    "  \"feedKg\": số_kg_cám_hoặc_null_1_bao_la_25kg,\n" +
-                    "  \"feedName\": \"tên_loại_cám_hoặc_null\",\n" +
-                    "  \"avgWeightKg\": số_kg_trọng_lượng_trung_bình_hoặc_null,\n" +
-                    "  \"sampleSize\": số_con_cân_mẫu_hoặc_null,\n" +
-                    "  \"mortalityQty\": số_con_chết_hoặc_hao_hụt_hoặc_null,\n" +
-                    "  \"expenseAmount\": số_tiền_hoặc_null,\n" +
-                    "  \"expenseCategory\": \"ELECTRICITY | WATER | MEDICINE | LABOR | OTHER | null\",\n" +
-                    "  \"invoiceCode\": \"mã_NHxxxxxx_hoặc_null\",\n" +
+                    "  \"intent\": \"LOG_FEED | LOG_WEIGHT | LOG_MORTALITY | LOG_EXPENSE | UPDATE_BARN_INFO | UPDATE_INVENTORY_ITEM | UPDATE_SUPPLIER_INFO | PAY_PURCHASE_INVOICE | CANCEL_PURCHASE_INVOICE | TRANSFER_FLOCK | COMPLETE_DAILY_TASKS | IMPORT_PURCHASE_STOCK | QUERY_FARM_STATUS | VET_DIAGNOSIS | NAVIGATE_AND_PREFILL | GENERAL_QNA\",\n" +
+                    "  \"operation\": \"CREATE | UPDATE | DELETE | STATE_CHANGE | QUERY | NAVIGATE\",\n" +
+                    "  \"targetBarnId\": 1,\n" +
+                    "  \"targetBarnName\": \"Nhà A1\",\n" +
+                    "  \"targetEntityId\": 3,\n" +
+                    "  \"targetCode\": \"NH000003\",\n" +
+                    "  \"itemName\": \"Higro 01\",\n" +
+                    "  \"quantity\": 50.0,\n" +
+                    "  \"unit\": \"kg\",\n" +
+                    "  \"sampleSize\": 50,\n" +
+                    "  \"amount\": 1500000,\n" +
+                    "  \"fieldToUpdate\": \"capacity | areaM2 | price | stock | phone | paymentPolicy | quantityKg | avgWeightKg | amount\",\n" +
+                    "  \"newValue\": \"6500\",\n" +
+                    "  \"reason\": \"Ghi chú\",\n" +
                     "  \"navigateTo\": \"/journal | /barns | /inventory | /purchases | /today-tasks | null\",\n" +
                     "  \"reply\": \"Câu trả lời hoặc giải thích bằng tiếng Việt chi tiết, chuẩn chuyên môn nông nghiệp, thân thiện\"\n" +
                     "}";
@@ -1732,17 +2839,99 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse executeActionFromLlm(String intent, JsonNode parsed, String message, String currentRoute, String username, boolean isWorker, boolean autoExecute) {
+        if (isWorker && WORKER_BLOCKED_ACTIONS.contains(intent)) {
+            return workerBlocked(intent);
+        }
+
         String norm = normalizeText(message);
-        String barnNameCandidate = parsed.path("barnName").asText("");
+        String barnNameCandidate = parsed.path("barnName").asText(parsed.path("targetBarnName").asText(""));
         Barn barn = null;
         if (!barnNameCandidate.isBlank() && !"null".equalsIgnoreCase(barnNameCandidate)) {
             barn = resolveBarn(normalizeText(barnNameCandidate), barnNameCandidate, currentRoute);
+        }
+        if (barn == null && !parsed.path("targetBarnId").isMissingNode() && !parsed.path("targetBarnId").isNull()) {
+            barn = barnRepository.findById(parsed.path("targetBarnId").asLong()).orElse(null);
         }
         if (barn == null) {
             barn = resolveBarn(norm, message, currentRoute);
         }
 
         switch (intent) {
+            case "UPDATE_BARN_INFO": {
+                if (isWorker) return workerBlocked("UPDATE_BARN_INFO");
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("actionType", "UPDATE_BARN_INFO");
+                if (barn != null) payload.put("barnId", barn.getId());
+                if (!parsed.path("targetBarnId").isMissingNode() && !parsed.path("targetBarnId").isNull()) {
+                    payload.put("barnId", parsed.path("targetBarnId").asLong());
+                }
+                String field = parsed.path("fieldToUpdate").asText("");
+                String val = parsed.path("newValue").asText("");
+                if ("capacity".equalsIgnoreCase(field) || parsed.path("capacity").asInt(0) > 0) {
+                    payload.put("capacity", parsed.path("capacity").asInt(0) > 0 ? parsed.path("capacity").asInt() : Integer.parseInt(val));
+                }
+                if ("areaM2".equalsIgnoreCase(field) || parsed.path("areaM2").asDouble(0) > 0) {
+                    payload.put("areaM2", parsed.path("areaM2").asDouble(0) > 0 ? parsed.path("areaM2").asDouble() : Double.parseDouble(val));
+                }
+                return executeMutationPayload(payload, username);
+            }
+
+            case "UPDATE_INVENTORY_ITEM": {
+                if (isWorker) return workerBlocked("UPDATE_INVENTORY_ITEM");
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("actionType", "UPDATE_INVENTORY_ITEM");
+                if (!parsed.path("targetEntityId").isMissingNode() && !parsed.path("targetEntityId").isNull()) {
+                    payload.put("itemId", parsed.path("targetEntityId").asLong());
+                }
+                if (!parsed.path("itemName").asText("").isBlank()) {
+                    payload.put("productName", parsed.path("itemName").asText());
+                }
+                String field = parsed.path("fieldToUpdate").asText("");
+                String val = parsed.path("newValue").asText("");
+                if ("price".equalsIgnoreCase(field) || parsed.path("amount").asLong(0) > 0) {
+                    payload.put("price", parsed.path("amount").asLong(0) > 0 ? parsed.path("amount").asLong() : Double.parseDouble(val));
+                }
+                if ("stock".equalsIgnoreCase(field) || parsed.path("quantity").asDouble(0) > 0) {
+                    payload.put("stock", parsed.path("quantity").asDouble(0) > 0 ? parsed.path("quantity").asDouble() : Double.parseDouble(val));
+                }
+                return executeMutationPayload(payload, username);
+            }
+
+            case "UPDATE_SUPPLIER_INFO": {
+                if (isWorker) return workerBlocked("UPDATE_SUPPLIER_INFO");
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("actionType", "UPDATE_SUPPLIER_INFO");
+                if (!parsed.path("targetEntityId").isMissingNode() && !parsed.path("targetEntityId").isNull()) {
+                    payload.put("supplierId", parsed.path("targetEntityId").asLong());
+                }
+                String field = parsed.path("fieldToUpdate").asText("");
+                String val = parsed.path("newValue").asText("");
+                if ("phone".equalsIgnoreCase(field)) payload.put("phone", val);
+                if ("paymentPolicy".equalsIgnoreCase(field)) payload.put("paymentPolicy", val);
+                return executeMutationPayload(payload, username);
+            }
+
+            case "PAY_PURCHASE_INVOICE": {
+                if (isWorker) return workerBlocked("PAY_PURCHASE_INVOICE");
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("actionType", "PAY_PURCHASE_INVOICE");
+                String code = parsed.path("targetCode").asText(parsed.path("invoiceCode").asText(""));
+                payload.put("invoiceCode", code);
+                if (parsed.path("amount").asLong(0) > 0) {
+                    payload.put("amount", parsed.path("amount").asLong());
+                }
+                return executeMutationPayload(payload, username);
+            }
+
+            case "CANCEL_PURCHASE_INVOICE": {
+                if (isWorker) return workerBlocked("CANCEL_PURCHASE_INVOICE");
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("actionType", "CANCEL_PURCHASE_INVOICE");
+                String code = parsed.path("targetCode").asText(parsed.path("invoiceCode").asText(""));
+                payload.put("invoiceCode", code);
+                return executeMutationPayload(payload, username);
+            }
+
             case "LOG_FEED": {
                 if (barn == null) return barnNotFoundResponse(norm);
                 Optional<FarmingCycle> cycleOpt = cycleRepository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE);
