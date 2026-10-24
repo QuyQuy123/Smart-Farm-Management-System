@@ -10,12 +10,15 @@ import { useNotification } from '../../context/NotificationContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
 import {
   addExpense, addFeedRecord, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample,
-  getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
+  assignCycleProgram, assignFlockProgram, getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
 } from '../../services/cycleService';
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
 import { AreaTabs } from './AreaTabs';
+import { DailyPlanCard } from './DailyPlanCard';
+import { useDailyPlanActions } from './useDailyPlanActions';
+import { getBarnDailyPlan } from '../../services/dailyPlanService';
 import {
   EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
@@ -89,7 +92,9 @@ export const BarnDetailView = () => {
         const [barn, cycles, barns, areas, programs] = await Promise.all([getBarn(id), listCycles(id), listBarns(), listFarmAreas(), listPrograms()]);
         const cycleId = requestedCycle || barn.activeCycleId;
         const detail = cycleId ? await getCycle(cycleId) : null;
-        if (!cancelled) setState({ key: requestKey, barn, cycles, barns, areas, programs: Array.isArray(programs) ? programs : [], detail, error: '' });
+        // Phiếu việc hôm nay chỉ có với lứa đang nuôi; lỗi tải phiếu việc không làm hỏng cả trang.
+        const dayPlan = detail?.cycle.status === 'ACTIVE' ? await getBarnDailyPlan(detail.cycle.id).catch(() => null) : null;
+        if (!cancelled) setState({ key: requestKey, barn, cycles, barns, areas, programs: Array.isArray(programs) ? programs : [], detail, dayPlan, error: '' });
       } catch (requestError) {
         if (!cancelled) setState({ key: requestKey, error: requestError.response?.status === 404 ? 'Không tìm thấy chuồng hoặc lứa nuôi.' : apiErrorMessage(requestError) });
       }
@@ -98,12 +103,18 @@ export const BarnDetailView = () => {
   }, [id, requestedCycle, requestKey]);
 
   const loading = state.key !== requestKey;
-  const { barn, cycles = [], barns = [], areas = [], programs = [], detail, error } = state;
+  const { barn, cycles = [], barns = [], areas = [], programs = [], detail, dayPlan, error } = state;
   const cycle = detail?.cycle;
   const metrics = detail?.metrics;
   const active = cycle?.status === 'ACTIVE';
   const today = todayIso();
   const done = message => { setModal(null); showToast(message, 'success'); setRevision(value => value + 1); };
+  // Xác nhận việc làm đổi nhật ký cám, chi phí và tồn kho: cập nhật phiếu việc ngay rồi tải lại chi tiết lứa (không hiện màn tải).
+  const dailyActions = useDailyPlanActions(updated => {
+    setState(current => ({ ...current, dayPlan: updated }));
+    getCycle(updated.cycleId).then(fresh => setState(current => (current.detail?.cycle.id === fresh.cycle.id ? { ...current, detail: fresh } : current)))
+      .catch(() => {});
+  });
   const sameArea = useMemo(() => barns.filter(item => barn && item.areaId === barn.areaId), [barns, barn]);
 
   const dateRule = (value, label, from = cycle?.startDate) => {
@@ -226,6 +237,50 @@ export const BarnDetailView = () => {
         await transferFlock(flock.id, { targetBarnId: Number(values.targetBarnId), quantity: Number(values.quantity), transferDate: values.transferDate,
           name: values.name.trim(), avgWeight: values.avgWeight === '' ? null : Number(values.avgWeight), note: values.note.trim() });
         return `Đã chuyển ${num(values.quantity)} con từ đàn ${flock.code}.`;
+      },
+    });
+  };
+
+  /**
+   * Gắn / đổi chương trình nuôi cho tất cả đàn đang nuôi (mặc định) hoặc từng đàn.
+   * Lịch tính theo ngày tuổi hiện tại nên chương trình phải dài hơn tuổi đàn.
+   */
+  const openAssignProgram = () => {
+    const flocks = detail.flocks.filter(flock => flock.status === 'ACTIVE');
+    const shared = flocks.every(flock => flock.programId === flocks[0]?.programId) ? flocks[0]?.programId : null;
+    const flockLabel = flock => `${flock.code} · ${flock.name} · ${flock.currentAgeDays} ngày tuổi · ${flock.programName || 'chưa có chương trình'}`;
+    setModal({
+      title: 'Gắn chương trình nuôi cho đàn',
+      intro: 'Lịch cám, vắc-xin, thuốc và nhiệt độ của đàn sẽ chạy theo chương trình, tính từ ngày tuổi hiện tại của đàn.',
+      warning: programs.length ? null : 'Chưa có chương trình nuôi. Vào Thiết lập chăn nuôi → Chương trình nuôi để tạo trước.',
+      initial: { flockId: 'ALL', programId: shared ? String(shared) : programs[0] ? String(programs[0].id) : '' },
+      fields: [
+        { key: 'flockId', label: 'Đàn đang nuôi', type: 'select', required: true, full: true,
+          options: [{ value: 'ALL', label: `Tất cả đàn đang nuôi (${flocks.length} đàn)` },
+            ...flocks.map(flock => ({ value: String(flock.id), label: flockLabel(flock) }))] },
+        { key: 'programId', label: 'Chương trình nuôi (giống)', type: 'select', required: true, full: true,
+          options: programs.length ? programs.map(program => ({ value: String(program.id), label: `${program.name} · ${program.breed} · ${program.durationDays} ngày` }))
+            : [{ value: '', label: 'Chưa có chương trình nuôi' }] },
+      ],
+      validate: values => {
+        const chosen = values.flockId === 'ALL' ? flocks : flocks.filter(item => String(item.id) === values.flockId);
+        const oldest = chosen.reduce((max, item) => (!max || item.currentAgeDays > max.currentAgeDays ? item : max), null);
+        const program = programs.find(item => String(item.id) === values.programId);
+        return {
+          flockId: chosen.length ? undefined : 'Vui lòng chọn đàn.',
+          programId: !program ? 'Vui lòng chọn chương trình nuôi.'
+            : oldest && oldest.currentAgeDays > program.durationDays
+              ? `Đàn ${oldest.code} đã ${oldest.currentAgeDays} ngày tuổi, vượt thời gian nuôi ${program.durationDays} ngày của chương trình.` : undefined,
+        };
+      },
+      onSubmit: async values => {
+        const name = programs.find(item => String(item.id) === values.programId)?.name;
+        if (values.flockId === 'ALL') {
+          await assignCycleProgram(cycle.id, Number(values.programId));
+          return `Đã gắn chương trình ${name} cho ${flocks.length} đàn đang nuôi.`;
+        }
+        await assignFlockProgram(Number(values.flockId), Number(values.programId));
+        return `Đã gắn chương trình ${name} cho đàn.`;
       },
     });
   };
@@ -473,29 +528,17 @@ export const BarnDetailView = () => {
             </table></div>}
         </Card>
 
-        {active && <Card title={`Kế hoạch hôm nay · ${formatDay(today)}`} icon={CalendarDays}>
-          {detail.todayPlan.length === 0 ? <Empty>Chưa có đàn đang nuôi theo chương trình nuôi.</Empty> : detail.todayPlan.map(plan => <div key={plan.flockId} className={styles.program}>
-            <div className={styles.programHead}>
-              <strong>{plan.flockCode} · {plan.flockName}</strong>
-              <span className={`${styles.badge} ${styles.badge_info}`}>Ngày tuổi {plan.ageDays}</span>
-              <span className={styles.muted}>{num(plan.quantity)} con · {plan.programName}</span>
-            </div>
-            {plan.items.length === 0 ? <p className={styles.planEmpty}>Chương trình không có nội dung cho ngày tuổi này.</p> : <ul className={styles.planList}>
-              {plan.items.map((item, index) => <li key={index}>
-                <span className={`${styles.badge} ${styles[`plan_${item.category}`]}`}>{STEP_CATEGORIES.find(category => category.value === item.category)?.label}</span>
-                <div>
-                  <strong>{item.name}</strong>
-                  <small>{item.category === 'FEED'
-                    ? `${num(item.quantity, 1)} g/con × ${num(plan.quantity)} con = ${num(item.totalFeedKg, 1)} kg/ngày · ${item.mealsPerDay} cữ × ${num(item.feedKgPerMeal, 1)} kg`
-                    : item.category === 'TEMPERATURE' ? `Giữ nhiệt độ chuồng ${describeStep(item)}` : describeStep(item)}</small>
-                  {item.note && <small className={styles.muted}>{item.note}</small>}
-                </div>
-              </li>)}
-            </ul>}
-          </div>)}
+        {active && <Card title={`Việc hôm nay · ${formatDay(today)}`} icon={CalendarDays}
+          actions={<Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
+          {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
+            : dayPlan.flocks.length === 0 ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
+              : <div className={styles.dayPlan}><DailyPlanCard plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
+                onConfirm={dailyActions.confirm} onUndo={dailyActions.undo} /></div>}
         </Card>}
 
-        <Card title="Chương trình nuôi" icon={ClipboardList}>
+        <Card title="Chương trình nuôi" icon={ClipboardList}
+          actions={isOwner && active && detail.flocks.some(flock => flock.status === 'ACTIVE')
+            && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={openAssignProgram}><PlusCircle size={15} />Gắn chương trình</button>}>
           {detail.programs.length === 0 ? <Empty>Các đàn của lứa chưa gắn chương trình nuôi.</Empty> : detail.programs.map(program => <div key={program.id} className={styles.program}>
             <div className={styles.programHead}>
               <strong>{program.name}</strong><span className={`${styles.badge} ${styles.badge_warning}`}>{program.breed}</span>

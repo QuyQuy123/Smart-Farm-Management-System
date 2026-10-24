@@ -160,7 +160,7 @@ const SEARCHABLE_ITEMS = [
     id: 'general-settings',
     category: 'Hệ thống & Cấu hình',
     title: 'Thiết lập chung & Thông tin trang trại',
-    description: 'Tên trang trại Miến Bình, địa chỉ, cấu hình cảm biến IoT & cảnh báo',
+    description: 'Tên trang trại Miền Bính, địa chỉ, cấu hình cảm biến IoT & cảnh báo',
     path: '/general-settings',
     icon: Sliders,
     keywords: ['thiet lap chung', 'cai dat', 'trang trai mien binh', 'thong tin trai']

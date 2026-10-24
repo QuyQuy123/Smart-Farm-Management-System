@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.service;
 import com.farmshift.backendFarmShift.dto.request.FlockHarvestRequest;
 import com.farmshift.backendFarmShift.dto.request.FlockImportRequest;
 import com.farmshift.backendFarmShift.dto.request.FlockLossRequest;
+import com.farmshift.backendFarmShift.dto.request.FlockProgramRequest;
 import com.farmshift.backendFarmShift.dto.request.FlockTransferRequest;
 import com.farmshift.backendFarmShift.dto.response.FlockMovementResponse;
 import com.farmshift.backendFarmShift.dto.response.FlockResponse;
@@ -113,6 +114,43 @@ public class FlockService {
         decrease(source, quantity);
         target.setCurrentQuantity(target.getCurrentQuantity() + quantity);
         return flockResponse(moved, today(), true);
+    }
+
+    /**
+     * Gắn hoặc đổi chương trình nuôi của đàn (ví dụ đàn nhập trước khi có chương trình). Lịch cám / vắc-xin tính theo ngày tuổi hiện tại,
+     * nên không cho gắn chương trình ngắn hơn tuổi của đàn.
+     */
+    @Transactional
+    public FlockResponse assignProgram(Long flockId, FlockProgramRequest request) {
+        Flock flock = requireActive(flockId);
+        FarmingProgram program = programService.find(request.programId());
+        checkProgramFits(flock, program);
+        flock.setProgram(program);
+        return flockResponse(flock, today(), true);
+    }
+
+    /** Gắn cùng một chương trình nuôi cho tất cả đàn đang nuôi của lứa; đàn nào quá tuổi chương trình thì không gắn đàn nào. */
+    @Transactional
+    public List<FlockResponse> assignProgramToCycle(Long cycleId, FlockProgramRequest request) {
+        cycleService.requireActive(cycleId);
+        FarmingProgram program = programService.find(request.programId());
+        List<Flock> flocks = repository.findAllByCycleIdOrderByImportDateAscIdAsc(cycleId).stream()
+                .filter(flock -> flock.getStatus() == FlockStatus.ACTIVE).toList();
+        if (flocks.isEmpty()) {
+            throw new BadRequestException("Lứa nuôi chưa có đàn đang nuôi để gắn chương trình.", "CYCLE_NO_ACTIVE_FLOCK");
+        }
+        flocks.forEach(flock -> checkProgramFits(flock, program));
+        flocks.forEach(flock -> flock.setProgram(program));
+        return flocks.stream().map(flock -> flockResponse(flock, today(), true)).toList();
+    }
+
+    /** Lịch chương trình tính theo ngày tuổi hiện tại, nên chương trình phải dài hơn tuổi của đàn. */
+    private static void checkProgramFits(Flock flock, FarmingProgram program) {
+        int age = ageOn(flock, today());
+        if (age > program.getDurationDays()) {
+            throw new BadRequestException("Đàn " + flockCode(flock) + " đã " + age + " ngày tuổi, vượt thời gian nuôi " + program.getDurationDays()
+                    + " ngày của chương trình " + program.getName() + ".", "FLOCK_PROGRAM_TOO_SHORT");
+        }
     }
 
     /** Ghi hao hụt (chết) hoặc loại thải. */

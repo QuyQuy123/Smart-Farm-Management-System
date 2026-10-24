@@ -97,18 +97,6 @@
 			<version>1.12.720</version>
 		</dependency>
 
-		<!-- RapidOCR (PaddleOCR ONNX Java Runtime - Offline & Free) -->
-		<dependency>
-			<groupId>io.github.mymonstercat</groupId>
-			<artifactId>rapidocr</artifactId>
-			<version>0.0.7</version>
-		</dependency>
-		<dependency>
-			<groupId>io.github.mymonstercat</groupId>
-			<artifactId>rapidocr-onnx-platform</artifactId>
-			<version>0.0.7</version>
-		</dependency>
-
 		<!-- Apache PDFBox for PDF to Image conversion in OCR -->
 		<dependency>
 			<groupId>org.apache.pdfbox</groupId>
@@ -177,6 +165,13 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<argLine>-Xmx256m -Xms64m -Xshare:off</argLine>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

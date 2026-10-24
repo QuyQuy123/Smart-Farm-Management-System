@@ -9,6 +9,7 @@ import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.FarmingProgramRepository;
 import com.farmshift.backendFarmShift.repository.FlockRepository;
+import com.farmshift.backendFarmShift.repository.InventoryItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class FarmingProgramService {
 
     private final FarmingProgramRepository repository;
     private final FlockRepository flockRepository;
+    private final InventoryItemRepository inventoryRepository;
 
     public List<FarmingProgramResponse> list() {
         return repository.findAllByOrderByNameAsc().stream().map(program -> response(program, activeFlocks(program), null)).toList();
@@ -93,7 +95,7 @@ public class FarmingProgramService {
     }
 
     /** Each category keeps only the columns it needs, so stale values never leak into another category. */
-    private static FarmingProgramStep step(FarmingProgram program, FarmingProgramRequest.Step item) {
+    private FarmingProgramStep step(FarmingProgram program, FarmingProgramRequest.Step item) {
         FarmingProgramStep step = new FarmingProgramStep();
         step.setProgram(program);
         step.setCategory(item.category());
@@ -107,7 +109,41 @@ public class FarmingProgramService {
             case TEMPERATURE -> { step.setTempMin(item.tempMin()); step.setTempMax(item.tempMax()); }
             case WORK -> { }
         }
+        step.setInventoryItem(inventoryItem(step, item.inventoryItemId()));
         return step;
+    }
+
+    /**
+     * Cám, thuốc, vắc-xin có thể gắn một hàng hóa trong kho. Hàng hóa phải có quy cách (ví dụ Bao 25kg = 25 kg)
+     * cùng loại đại lượng với định mức để quy đổi được: cám theo khối lượng, thuốc / vắc-xin theo tử số của đơn vị liều.
+     */
+    private InventoryItem inventoryItem(FarmingProgramStep step, Long itemId) {
+        if (itemId == null) return null;
+        String label = LABELS.get(step.getCategory()) + " \"" + step.getName() + "\"";
+        if (step.getCategory() == ProgramStepCategory.TEMPERATURE || step.getCategory() == ProgramStepCategory.WORK) {
+            throw new BadRequestException(label + ": chỉ cám, thuốc và vắc-xin mới gắn hàng hóa kho.", "PROGRAM_ITEM_NOT_ALLOWED");
+        }
+        InventoryItem item = inventoryRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hàng hóa trong kho."));
+        String itemName = item.getProduct().getName();
+        if (!UsageMath.hasContent(item)) {
+            throw new BadRequestException(label + ": hàng hóa " + itemName + " chưa có quy cách đơn vị (ví dụ Bao 25kg = 25 kg). "
+                    + "Hãy khai báo quy cách ở Thiết lập danh mục → Đơn vị tính.", "PROGRAM_ITEM_NO_CONTENT");
+        }
+        UsageUnit usage = UsageMath.usageUnit(step.getCategory(), step.getUnit());
+        if (usage == null) {
+            throw new BadRequestException(label + ": đơn vị liều chưa rõ. Dùng dạng g/..., ml/... hoặc liều/con để trừ kho được.", "PROGRAM_ITEM_DOSE_UNIT");
+        }
+        if (!UsageMath.compatible(item, usage)) {
+            throw new BadRequestException(label + ": định mức tính theo " + usage.label() + " nhưng hàng hóa " + itemName + " đóng theo "
+                    + item.getUnit().getContentUnit().label() + ", không quy đổi được.", "PROGRAM_ITEM_UNIT_MISMATCH");
+        }
+        if (step.getCategory() == ProgramStepCategory.MEDICINE && UsageMath.basis(step.getCategory(), step.getUnit()) == null) {
+            throw new BadRequestException(label + ": đơn vị liều cần ghi rõ tính theo kg cám, lít nước hoặc con (ví dụ 2 g/kg cám).", "PROGRAM_ITEM_DOSE_UNIT");
+        }
+        if (step.getCategory() == ProgramStepCategory.VACCINE && (step.getQuantity() == null || step.getQuantity().signum() <= 0)) {
+            throw new BadRequestException(label + ": cần nhập liều cho mỗi con để tính số lọ vắc-xin.", "PROGRAM_ITEM_DOSE_UNIT");
+        }
+        return item;
     }
 
     private static void validate(FarmingProgramRequest request) {
@@ -182,14 +218,13 @@ public class FarmingProgramService {
         List<ProgramStepResponse> steps = program.getSteps().stream().map(step -> new ProgramStepResponse(step.getId(), step.getCategory(),
                 step.getName(), step.getDayFrom(), step.getDayTo(), step.getQuantity(), step.getUnit(), step.getMealsPerDay(), step.getMethod(),
                 step.getTempMin(), step.getTempMax(), step.getNote(),
-                currentDay == null ? null : currentDay > step.getDayTo() ? "DONE" : currentDay >= step.getDayFrom() ? "IN_PROGRESS" : "UPCOMING"))
+                currentDay == null ? null : currentDay > step.getDayTo() ? "DONE" : currentDay >= step.getDayFrom() ? "IN_PROGRESS" : "UPCOMING",
+                step.getInventoryItem() == null ? null : step.getInventoryItem().getId(),
+                step.getInventoryItem() == null ? null : step.getInventoryItem().getProduct().getName(),
+                step.getInventoryItem() == null || step.getInventoryItem().getUnit() == null ? null : step.getInventoryItem().getUnit().getName()))
                 .toList();
         return new FarmingProgramResponse(program.getId(), String.format(Locale.ROOT, "CT%04d", program.getId()), program.getName(),
                 program.getBreed(), program.getDurationDays(), program.getTargetWeightMin(), program.getTargetWeightMax(),
                 program.getDescription(), steps, activeFlockCount, currentDay);
-    }
-
-    static BigDecimal kg(BigDecimal grams, int heads) {
-        return grams.multiply(BigDecimal.valueOf(heads)).divide(BigDecimal.valueOf(1000), 1, java.math.RoundingMode.HALF_UP);
     }
 }

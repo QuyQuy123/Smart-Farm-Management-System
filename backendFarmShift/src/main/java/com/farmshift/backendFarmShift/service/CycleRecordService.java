@@ -4,8 +4,10 @@ import com.farmshift.backendFarmShift.dto.request.CycleExpenseRequest;
 import com.farmshift.backendFarmShift.dto.request.FeedRecordRequest;
 import com.farmshift.backendFarmShift.dto.request.WeightSampleRequest;
 import com.farmshift.backendFarmShift.entity.*;
+import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.CycleExpenseRepository;
+import com.farmshift.backendFarmShift.repository.DailyTaskLogRepository;
 import com.farmshift.backendFarmShift.repository.FeedRecordRepository;
 import com.farmshift.backendFarmShift.repository.WeightSampleRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,13 @@ public class CycleRecordService {
     private final FeedRecordRepository feedRepository;
     private final WeightSampleRepository weightRepository;
     private final CycleExpenseRepository expenseRepository;
+    private final DailyTaskLogRepository taskLogRepository;
+
+    /** Dữ liệu sinh ra khi xác nhận phiếu việc phải hoàn tác ở phiếu việc để tồn kho được hoàn lại cùng lúc. */
+    private static ConflictException fromDailyPlan(String label) {
+        return new ConflictException(label + " này được ghi tự động từ phiếu việc hằng ngày. Hãy hoàn tác việc đó ở mục Việc hôm nay "
+                + "để tồn kho được hoàn lại.", "RECORD_FROM_DAILY_PLAN", null);
+    }
 
     public Long addFeed(Long cycleId, FeedRecordRequest request, String user) {
         FarmingCycle cycle = cycleService.requireActive(cycleId);
@@ -41,6 +50,7 @@ public class CycleRecordService {
 
     public void deleteFeed(Long cycleId, Long id) {
         cycleService.requireActive(cycleId);
+        if (taskLogRepository.existsByFeedRecordId(id)) throw fromDailyPlan("Nhật ký cám");
         feedRepository.delete(feedRepository.findByIdAndCycleId(id, cycleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhật ký cám.")));
     }
@@ -79,6 +89,7 @@ public class CycleRecordService {
 
     public void deleteExpense(Long cycleId, Long id) {
         cycleService.requireActive(cycleId);
+        if (taskLogRepository.existsByExpenseId(id)) throw fromDailyPlan("Khoản chi");
         expenseRepository.delete(expenseRepository.findByIdAndCycleId(id, cycleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khoản chi.")));
     }

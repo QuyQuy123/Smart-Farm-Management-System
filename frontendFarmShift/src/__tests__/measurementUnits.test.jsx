@@ -42,9 +42,15 @@ describe('Measurement unit CRUD', () => {
     fireEvent.change(within(dialog).getByLabelText(/Tên đơn vị/), { target: { value: 'Bao' } });
     fireEvent.change(within(dialog).getByLabelText(/Mã đơn vị/), { target: { value: 'BAO' } });
     fireEvent.change(within(dialog).getByLabelText('Mô tả'), { target: { value: 'Thuốc thú y' } });
+    // Pack size: both the amount and its unit are needed.
+    fireEvent.change(within(dialog).getByLabelText(/Quy cách/), { target: { value: '25' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu đơn vị' }));
+    expect(await within(dialog).findByText(/cần nhập cả số lượng và đơn vị/)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText('Đơn vị quy cách'), { target: { value: 'KG' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu đơn vị' }));
     await screen.findByText('Bao');
-    expect(service.createMeasurementUnit).toHaveBeenCalledWith({ code: 'BAO', name: 'Bao', description: 'Thuốc thú y' });
+    expect(service.createMeasurementUnit).toHaveBeenCalledWith({ code: 'BAO', name: 'Bao', description: 'Thuốc thú y', contentQuantity: 25, contentUnit: 'KG' });
+    expect(screen.getByText('25 kg')).toBeInTheDocument();
     expect(mocks.showToast).toHaveBeenCalledWith('Đã lưu đơn vị tính thành công.', 'success');
     expect(screen.queryByText('Đã lưu đơn vị tính thành công.')).not.toBeInTheDocument();
 
@@ -58,7 +64,7 @@ describe('Measurement unit CRUD', () => {
     fireEvent.change(within(dialog).getByLabelText(/Tên đơn vị/), { target: { value: 'Bao lớn' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu đơn vị' }));
     await screen.findByText('Bao lớn');
-    expect(service.updateMeasurementUnit).toHaveBeenCalledWith(2, { code: 'BAO', name: 'Bao lớn', description: 'Thuốc thú y' });
+    expect(service.updateMeasurementUnit).toHaveBeenCalledWith(2, { code: 'BAO', name: 'Bao lớn', description: 'Thuốc thú y', contentQuantity: 25, contentUnit: 'KG' });
     fireEvent.change(screen.getByRole('textbox', { name: 'Tìm đơn vị tính' }), { target: { value: 'lớn' } });
     expect(screen.queryByText('Kg')).not.toBeInTheDocument();
 

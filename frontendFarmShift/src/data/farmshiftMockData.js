@@ -11,7 +11,7 @@ export const getFarmInfo = (user) => {
     } catch (e) {}
 
     return {
-        name: 'Trang trại Miến Bình',
+        name: 'Trang trại Miền Bính',
         owner: 'Trần Văn Bình',
         phone: '0987 654 321',
         address: 'Xã Tân Dân, Huyện Sóc Sơn, Hà Nội',
@@ -31,7 +31,7 @@ export const saveFarmInfo = (info) => {
 
 export const INITIAL_FARMSHIFT_DATA = {
     farmInfo: {
-        name: 'Trang trại Miến Bình',
+        name: 'Trang trại Miền Bính',
         owner: 'Trần Văn Bình',
         phone: '0987 654 321',
         address: 'Xã Tân Dân, Huyện Sóc Sơn, Hà Nội',
@@ -218,7 +218,7 @@ export const INITIAL_FARMSHIFT_DATA = {
     // 7. Nhân sự & Tài khoản (Đồng bộ chuẩn từ Database)
     staff: [
         { id: 'st-1', name: 'Admin', email: 'hiepgacute1989@gmail.com', phone: '0966755095', role: 'Chủ trang trại (Admin)', barnAssigned: 'Toàn bộ trang trại', status: 'Hoạt động' },
-        { id: 'st-2', name: 'Miến Bình', email: 'mienbinh@smartfarm.com', phone: '0988111222', role: 'Chủ trang trại', barnAssigned: 'Toàn bộ trang trại', status: 'Hoạt động' },
+        { id: 'st-2', name: 'Miền Bính', email: 'mienbinh@smartfarm.com', phone: '0988111222', role: 'Chủ trang trại', barnAssigned: 'Toàn bộ trang trại', status: 'Hoạt động' },
         { id: 'st-3', name: 'Trần Kế Toán', email: 'ketoan@smartfarm.com', phone: '0977222333', role: 'Kế toán', barnAssigned: 'Sổ quỹ & Kho hàng', status: 'Hoạt động' },
         { id: 'st-4', name: 'Lê Công Nhân', email: 'congnhan@smartfarm.com', phone: '0966333444', role: 'Công nhân trại', barnAssigned: 'Khu J Thịt, Chuồng B6', status: 'Hoạt động' },
     ],

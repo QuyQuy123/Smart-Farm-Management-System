@@ -2,6 +2,7 @@ package com.farmshift.backendFarmShift.controller;
 
 import com.farmshift.backendFarmShift.dto.request.FlockHarvestRequest;
 import com.farmshift.backendFarmShift.dto.request.FlockLossRequest;
+import com.farmshift.backendFarmShift.dto.request.FlockProgramRequest;
 import com.farmshift.backendFarmShift.dto.request.FlockTransferRequest;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.FlockMovementResponse;
@@ -14,7 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-/** Biến động đàn: chuyển đàn (chủ trại), hao hụt / loại thải (chủ trại, công nhân), xuất bán (chủ trại, kế toán). */
+/** Biến động đàn: gắn chương trình nuôi và chuyển đàn (chủ trại), hao hụt / loại thải (chủ trại, công nhân), xuất bán (chủ trại, kế toán). */
 @RestController
 @RequestMapping("/api/flocks")
 @RequiredArgsConstructor
@@ -26,6 +27,12 @@ public class FlockController {
     @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
     public ApiResponse<FlockResponse> transfer(@PathVariable Long id, @Valid @RequestBody FlockTransferRequest request, Authentication authentication) {
         return ApiResponse.success("Đã chuyển đàn", service.transfer(id, request, authentication.getName()));
+    }
+
+    @PutMapping("/{id}/program")
+    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
+    public ApiResponse<FlockResponse> assignProgram(@PathVariable Long id, @Valid @RequestBody FlockProgramRequest request) {
+        return ApiResponse.success("Đã gắn chương trình nuôi", service.assignProgram(id, request));
     }
 
     @PostMapping("/{id}/losses")
