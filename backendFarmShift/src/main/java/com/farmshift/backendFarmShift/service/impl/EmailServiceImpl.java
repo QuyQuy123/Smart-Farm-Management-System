@@ -28,7 +28,7 @@ public class EmailServiceImpl implements EmailService {
     @Value("${resend.api-key:}")
     private String resendApiKey;
 
-    @Value("${resend.from-email:onboarding@resend.dev}")
+    @Value("${resend.from-email:FarmShift <onboarding@resend.dev>}")
     private String resendFromEmail;
 
     public EmailServiceImpl(ObjectProvider<JavaMailSender> mailSenderProvider) {
