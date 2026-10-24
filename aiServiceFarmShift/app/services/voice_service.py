@@ -3,6 +3,7 @@ import logging
 import httpx
 from app.core.config import settings
 from app.schemas.voice_schema import SpeechTranscribeResponse
+from app.services.stt_postprocess import postprocess_vietnamese_stt
 
 logger = logging.getLogger("aiServiceFarmShift.voice")
 
@@ -59,7 +60,7 @@ class VoiceService:
 
             if response.status_code == 200:
                 result = response.json()
-                transcribed_text = result.get("text", "").strip()
+                transcribed_text = postprocess_vietnamese_stt(result.get("text", "").strip())
                 logger.info(f"Groq Whisper STT thành công trong {duration_ms}ms: '{transcribed_text}'")
                 return SpeechTranscribeResponse(
                     text=transcribed_text,

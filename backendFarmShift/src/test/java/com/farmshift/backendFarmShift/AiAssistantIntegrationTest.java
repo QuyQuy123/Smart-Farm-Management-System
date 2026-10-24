@@ -835,4 +835,170 @@ public class AiAssistantIntegrationTest {
         InventoryItem unchanged = inventoryRepository.findById(item.getId()).orElseThrow();
         assertEquals(280000.0, unchanged.getPrice().doubleValue(), 0.001);
     }
+
+    @Test
+    void testNavigationRouting_MoGhiNhatKy_RoutesToJournalNotBarns() throws Exception {
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Mở ghi nhật ký",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigateTo").value("/journal"))
+                .andExpect(jsonPath("$.actionType").value("NAVIGATE_AND_PREFILL"));
+
+        // Additional sidebar routes
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Mở sổ quỹ"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigateTo").value("/cashbook"));
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Mở việc hôm nay"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigateTo").value("/today-tasks"));
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Mở khu nuôi và chuồng trại"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigateTo").value("/barns"));
+    }
+
+    @Test
+    void testUpdateBarnInfo_WithDiffAndDirectConfirmation() throws Exception {
+        // 1. Pending Action Card with Old -> New diff
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Sửa sức chứa Nhà A1 thành 6000 con",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.actionType").value("UPDATE_BARN_INFO"))
+                .andExpect(jsonPath("$.pendingAction.details['Sức chứa']").value("5.000 con → 6.000 con"));
+
+        // 2. Direct confirmation keyword ("luôn nhé") bypasses confirmation card
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Sửa sức chứa Nhà A1 thành 6000 con luôn nhé",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("UPDATE_BARN_INFO"));
+
+        Barn updatedBarn = barnRepository.findById(barnA1.getId()).orElseThrow();
+        assertEquals(6000, updatedBarn.getCapacity());
+    }
+
+    @Test
+    void testUpdateFeedRecord_ModifiesDbAndCalculatesDelta() throws Exception {
+        // First, log initial feed of 40 kg
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Ghi cám cho Nhà A1 40 kg",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+
+        // Now, update feed to 60 kg with direct confirmation
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Sửa lượng cám Nhà A1 thành 60 kg xác nhận luôn",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("LOG_OR_UPDATE_FEED"));
+
+        List<FeedRecord> records = feedRepository.findAllByCycleIdOrderByRecordDateDescIdDesc(cycleA1.getId());
+        assertFalse(records.isEmpty());
+        assertEquals(60.0, records.get(0).getQuantityKg().doubleValue(), 0.001);
+    }
+
+    @Test
+    void testUpdateMortalityAndHarvest_SyncsLiveCountAccurately() throws Exception {
+        // Initial state: Flock has 2000, Barn has 2000
+        assertEquals(2000, barnA1.getCurrentQuantity());
+
+        // 1. Log mortality of 10 birds
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Nhà A1 chết 10 con chốt luôn",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+
+        Barn bAfterDeath = barnRepository.findById(barnA1.getId()).orElseThrow();
+        assertEquals(1990, bAfterDeath.getCurrentQuantity());
+
+        // 2. Update mortality from 10 to 15 birds
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Sửa hao hụt Nhà A1 thành 15 con luôn nhé",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+
+        Barn bAfterUpdate = barnRepository.findById(barnA1.getId()).orElseThrow();
+        assertEquals(1985, bAfterUpdate.getCurrentQuantity());
+
+        // 3. Harvest 100 birds
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Xuất bán 100 con ở Nhà A1 luôn nhé",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+
+        Barn bAfterHarvest = barnRepository.findById(barnA1.getId()).orElseThrow();
+        assertEquals(1885, bAfterHarvest.getCurrentQuantity());
+
+        // 4. Update harvest from 100 to 120 birds
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Sửa xuất bán Nhà A1 thành 120 con luôn",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+
+        Barn bFinal = barnRepository.findById(barnA1.getId()).orElseThrow();
+        assertEquals(1865, bFinal.getCurrentQuantity());
+    }
+
+    @Test
+    void testHomophoneSpeechNormalization_HandlesSpellingVariants() throws Exception {
+        // "sổ quỷ" normalized to "sổ quỹ" -> navigates to /cashbook
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "mở sổ quỷ"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigateTo").value("/cashbook"));
+
+        // "nhật kí" normalized to "nhật ký" -> navigates to /journal
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "mở nhật kí"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigateTo").value("/journal"));
+    }
 }
+
