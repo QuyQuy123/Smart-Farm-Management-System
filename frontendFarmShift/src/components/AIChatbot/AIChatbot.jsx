@@ -211,7 +211,23 @@ export const AIChatbot = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [isOpen, setIsOpen] = useState(false);
+  // Restore previous open/closed status from sessionStorage across routes & tabs
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem('farmshift_ai_chat_open') === 'true';
+    } catch (_e) {
+      return false;
+    }
+  });
+
+  // Sync isOpen state to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('farmshift_ai_chat_open', String(isOpen));
+    } catch (_e) {
+      // ignore
+    }
+  }, [isOpen]);
 
   // Restore previous session messages from sessionStorage
   const [messages, setMessages] = useState(() => {
@@ -243,6 +259,8 @@ export const AIChatbot = () => {
   });
   const [speakingMsgId, setSpeakingMsgId] = useState(null);
 
+  const chatWindowRef = useRef(null);
+  const chatButtonRef = useRef(null);
   const endOfMessagesRef = useRef(null);
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -283,6 +301,44 @@ export const AIChatbot = () => {
         setSpeakingMsgId(null);
       } catch (_e) { /* ignore */ }
     }
+  }, [isOpen]);
+
+  // Đóng box chat khi bấm ra ngoài hoặc nhấn phím Escape
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event) => {
+      // Nếu bấm bên trong cửa sổ chat hoặc nút launcher thì không đóng
+      if (
+        chatWindowRef.current?.contains(event.target) ||
+        chatButtonRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
+      // Nếu bấm chuyển tab hoặc menu điều hướng (sidebar, tab bar...), giữ nguyên box chat mở
+      if (event.target.closest('nav, aside, [role="tab"], [class*="tab"], .farmshift-sidebar, a[href]')) {
+        return;
+      }
+
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -672,7 +728,7 @@ export const AIChatbot = () => {
   return (
     <div className={styles.chatbotWidget}>
       {isOpen && (
-        <div className={styles.chatWindow}>
+        <div className={styles.chatWindow} ref={chatWindowRef}>
           {/* ── Header ── */}
           <div className={styles.header}>
             <div className={styles.headerInfo}>
@@ -985,6 +1041,7 @@ export const AIChatbot = () => {
       <button
         type="button"
         className={styles.chatButton}
+        ref={chatButtonRef}
         onClick={() => setIsOpen(!isOpen)}
         title={isOpen ? 'Đóng Trợ lý AI' : 'Mở Trợ lý AI FarmShift'}
         data-testid="ai-chatbot-launcher"

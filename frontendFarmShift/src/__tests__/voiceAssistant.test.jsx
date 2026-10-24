@@ -445,4 +445,48 @@ describe('Voice Assistant & Actionable AI Chatbot Suite', () => {
     expect(screen.getByTestId('confirm-accept-btn')).toBeInTheDocument();
     expect(screen.getByTestId('confirm-reject-btn')).toBeInTheDocument();
   });
+
+  it('closes chat window when clicking outside the chat window', async () => {
+    renderComponent();
+    const launcherBtn = screen.getByTestId('ai-chatbot-launcher');
+    fireEvent.click(launcherBtn);
+
+    expect(screen.getByText('Trợ lý AI FarmShift')).toBeInTheDocument();
+
+    // Click outside on document body
+    fireEvent.mouseDown(document.body);
+
+    // Chat window should be closed
+    expect(screen.queryByText('Trợ lý AI FarmShift')).not.toBeInTheDocument();
+    expect(sessionStorage.getItem('farmshift_ai_chat_open')).toBe('false');
+  });
+
+  it('closes chat window when pressing Escape key', async () => {
+    renderComponent();
+    const launcherBtn = screen.getByTestId('ai-chatbot-launcher');
+    fireEvent.click(launcherBtn);
+
+    expect(screen.getByText('Trợ lý AI FarmShift')).toBeInTheDocument();
+
+    // Press Escape
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByText('Trợ lý AI FarmShift')).not.toBeInTheDocument();
+    expect(sessionStorage.getItem('farmshift_ai_chat_open')).toBe('false');
+  });
+
+  it('preserves open state across remounts via sessionStorage when opening another tab', async () => {
+    sessionStorage.setItem('farmshift_ai_chat_open', 'true');
+    const { unmount } = renderComponent();
+
+    // Chat window should already be open on initial mount
+    expect(screen.getByText('Trợ lý AI FarmShift')).toBeInTheDocument();
+
+    // Simulate route navigation / component remounting
+    unmount();
+    renderComponent();
+
+    // Chat window remains open after remounting
+    expect(screen.getByText('Trợ lý AI FarmShift')).toBeInTheDocument();
+  });
 });
