@@ -22,4 +22,11 @@ FarmShift.html
 /Farmgo-clone
 FarmShift_MienBinh_Full.html
 scratch/
+/.md
 .md/
+
+# AI Microservice (Python / FastAPI)
+aiServiceFarmShift/.env
+aiServiceFarmShift/venv/
+aiServiceFarmShift/__pycache__/
+aiServiceFarmShift/**/__pycache__/

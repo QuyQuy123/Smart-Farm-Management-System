@@ -104,7 +104,7 @@ public class PurchaseOcrService {
 
         String engine = json.hasNonNull("engine") 
                 ? json.path("engine").asText() 
-                : (visionClient instanceof PaddleVisionClient ? "RapidOCR" : "OpenAI gpt-5.6-sol");
+                : "aiServiceFarmShift (FastAPI)";
         StringBuilder note = new StringBuilder();
         if (vat > 0) {
             note.append(String.format(Locale.ROOT, "Đã gồm thuế GTGT %,d đ trong chi phí khác", vat).replace(',', '.'));

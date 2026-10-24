@@ -62,6 +62,8 @@ public class SecurityConfig {
                         // Authentication and AI assistant endpoints are public
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/ai/**").permitAll()
+                        // Public health check endpoints for UptimeRobot / Render keep-alive
+                        .requestMatchers("/api/health", "/health").permitAll()
                         // Actuator health check (add more granular rules as needed)
                         .requestMatchers("/actuator/health").permitAll()
                         // All other endpoints require an authenticated JWT
@@ -103,6 +105,7 @@ public class SecurityConfig {
                 "http://localhost:5174",
                 "http://localhost:5175",
                 "http://localhost:3000",
+                "https://farmshift-smartfarm.vercel.app",
                 "https://admin-ae1mzp943-acet-ech291.vercel.app",
                 "https://admin-flax-eta-71.vercel.app",
                 "https://admin-acet-ech291.vercel.app"

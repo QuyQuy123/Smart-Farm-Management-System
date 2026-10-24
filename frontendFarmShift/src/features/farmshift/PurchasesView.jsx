@@ -6,7 +6,7 @@ import {
   DollarSign, Upload, Tag, Printer,
   Trash2, Pencil, AlertTriangle, PackageCheck, Loader2,
   ZoomIn, ZoomOut, RotateCw, ExternalLink, FileText,
-  Camera, RefreshCw, Smartphone, Check
+  Camera, RefreshCw, Smartphone, Check, ArrowLeft
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -218,6 +218,21 @@ export const PurchasesView = () => {
     }
   }, [cameraStream]);
 
+  const handleVideoRef = useCallback((node) => {
+    videoRef.current = node;
+    if (node && cameraStream) {
+      node.srcObject = cameraStream;
+      node.play().catch(() => {});
+    }
+  }, [cameraStream]);
+
+  useEffect(() => {
+    if (ocrTab === 'camera' && cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraStream, ocrTab]);
+
   const startCamera = async (facing = facingMode) => {
     setCameraError('');
     setIsCameraStarting(true);
@@ -228,14 +243,23 @@ export const PurchasesView = () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Thiết bị không hỗ trợ camera trực tiếp');
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facing },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: false
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: facing ? { ideal: facing } : undefined,
+            width: { ideal: 1920, min: 640 },
+            height: { ideal: 1080, min: 480 }
+          },
+          audio: false
+        });
+      } catch (errFallback) {
+        console.warn('Fallback to basic video constraints:', errFallback);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
       setCameraStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -247,6 +271,17 @@ export const PurchasesView = () => {
     } finally {
       setIsCameraStarting(false);
     }
+  };
+
+  const handleRetakeOcr = () => {
+    setShowAddModal(false);
+    setOcrBanner(false);
+    setIsOcrDraft(false);
+    setOcrPreviewUrl(null);
+    setOcrRotation(0);
+    setOcrWarnings([]);
+    setShowOcrModal(true);
+    setOcrTab('upload');
   };
 
   const handleSwitchFacing = () => {
@@ -1644,7 +1679,25 @@ export const PurchasesView = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                {ocrPreviewUrl && (
+                  <button
+                    type="button"
+                    className="farmshift-btn farmshift-btn-secondary"
+                    onClick={handleRetakeOcr}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '12.5px',
+                      padding: '4px 10px',
+                      fontWeight: 600
+                    }}
+                    title="Quay lại chọn hoặc chụp ảnh khác"
+                  >
+                    <ArrowLeft size={14} /> Chụp / Chọn ảnh khác
+                  </button>
+                )}
                 <h3 className="farmshift-modal-title">
                   {ocrPreviewUrl ? 'Đối chiếu chứng từ & Tạo đơn nhập hàng' : 'Tạo mới đơn nhập hàng'}
                 </h3>
@@ -1709,6 +1762,15 @@ export const PurchasesView = () => {
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          type="button"
+                          className="farmshift-btn farmshift-btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: '11px', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={handleRetakeOcr}
+                          title="Tải ảnh khác hoặc chụp lại chứng từ"
+                        >
+                          <RefreshCw size={12} /> Đổi ảnh
+                        </button>
                         <button
                           type="button"
                           className="farmshift-btn farmshift-btn-secondary"
@@ -2292,7 +2354,27 @@ export const PurchasesView = () => {
                 </div>
               </div>
 
-              <div className="farmshift-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <div
+                className="farmshift-modal-footer"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '16px 24px',
+                  borderTop: '1px solid var(--color-hairline)',
+                  backgroundColor: 'var(--color-surface)'
+                }}
+              >
+                {ocrPreviewUrl ? (
+                  <button
+                    type="button"
+                    className="farmshift-btn farmshift-btn-secondary"
+                    onClick={handleRetakeOcr}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+                  >
+                    <ArrowLeft size={15} /> Chụp lại / Đổi ảnh khác
+                  </button>
+                ) : <div />}
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button
                     type="button"
@@ -2436,22 +2518,80 @@ export const PurchasesView = () => {
                 </div>
               )}
 
-              {/* Loading State */}
+              {/* Loading State with blurred preview background */}
               {ocrLoading && (
                 <div
                   style={{
-                    border: '1px solid var(--color-hairline)',
+                    position: 'relative',
+                    height: '340px',
                     borderRadius: 'var(--rounded-lg)',
-                    padding: '36px 20px',
-                    textAlign: 'center',
-                    backgroundColor: 'var(--color-surface-soft)',
-                    marginBottom: '16px'
+                    overflow: 'hidden',
+                    marginBottom: '16px',
+                    backgroundColor: '#111827',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid var(--color-hairline)'
                   }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                    <Loader2 size={38} color="var(--color-primary)" className="farmshift-spinner" />
-                    <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--color-primary)' }}>
-                      Đang bóc tách chứng từ bằng AI Vision...
+                  {/* Ảnh mờ của chứng từ đang xử lý làm nền */}
+                  {ocrPreviewUrl ? (
+                    <img
+                      src={ocrPreviewUrl}
+                      alt="Ảnh chứng từ đang bóc tách"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        filter: 'blur(6px) brightness(0.6)',
+                        transform: 'scale(1.08)',
+                        pointerEvents: 'none'
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(17,24,39,0.95))'
+                      }}
+                    />
+                  )}
+
+                  {/* Card thông tin quét AI nổi bật */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      zIndex: 2,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '24px 32px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(17, 24, 39, 0.82)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255, 255, 255, 0.18)',
+                      boxShadow: '0 12px 32px rgba(0, 0, 0, 0.45)',
+                      maxWidth: '85%',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <Loader2 size={40} color="#10b981" className="farmshift-spinner" />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '15.5px', color: '#ffffff', marginBottom: '4px' }}>
+                        Đang bóc tách chứng từ bằng AI Vision...
+                      </div>
+                      <div style={{ fontSize: '12.5px', color: '#9ca3af' }}>
+                        {ocrPreviewName ? <span style={{ color: '#d1fae5', fontWeight: 500 }}>{ocrPreviewName} • </span> : null}
+                        Đang căn chỉnh góc nghiêng và trích xuất bảng biểu
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2555,10 +2695,15 @@ export const PurchasesView = () => {
                         }}
                       >
                         <video
-                          ref={videoRef}
+                          ref={handleVideoRef}
                           autoPlay
                           playsInline
                           muted
+                          onLoadedMetadata={() => {
+                            if (videoRef.current) {
+                              videoRef.current.play().catch(() => {});
+                            }
+                          }}
                           style={{
                             width: '100%',
                             height: '100%',
