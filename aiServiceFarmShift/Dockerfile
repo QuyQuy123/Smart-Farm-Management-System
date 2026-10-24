@@ -19,8 +19,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy toàn bộ mã nguồn
 COPY . .
 
-# Expose port
+# Expose port (Render sẽ tự động ánh xạ qua $PORT)
 EXPOSE 8000
 
-# Khởi chạy FastAPI
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Khởi chạy FastAPI linh hoạt theo biến PORT của Render
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
