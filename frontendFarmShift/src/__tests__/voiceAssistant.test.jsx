@@ -489,4 +489,78 @@ describe('Voice Assistant & Actionable AI Chatbot Suite', () => {
     // Chat window remains open after remounting
     expect(screen.getByText('Trợ lý AI FarmShift')).toBeInTheDocument();
   });
+
+  it('navigates accurately to /journal when receiving navigation command "Mở ghi nhật ký"', async () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    aiAssistantService.sendAssistantMessage.mockResolvedValueOnce({
+      reply: '🚀 Đang chuyển bạn sang màn hình Ghi nhật ký chăn nuôi.',
+      actionType: 'NAVIGATE_AND_PREFILL',
+      executed: true,
+      navigateTo: '/journal'
+    });
+
+    renderComponent();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    const input = screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Mở ghi nhật ký' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await waitFor(() => {
+      expect(aiAssistantService.sendAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Mở ghi nhật ký'
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'farmshift:ai-action',
+          detail: expect.objectContaining({
+            navigateTo: '/journal'
+          })
+        })
+      );
+    });
+  });
+
+  it('displays old -> new diff in Pending Action Card for mutation updates', async () => {
+    aiAssistantService.sendAssistantMessage.mockResolvedValueOnce({
+      reply: 'Bạn có muốn cập nhật thông tin cho Nhà A1 không?',
+      actionType: 'UPDATE_BARN_INFO',
+      executed: false,
+      requiresConfirmation: true,
+      pendingAction: {
+        actionType: 'UPDATE_BARN_INFO',
+        title: 'Cập nhật thông tin: Nhà A1',
+        details: {
+          'Chuồng nuôi': 'Nhà A1',
+          'Sức chứa': '5.000 con → 6.000 con'
+        },
+        payload: {
+          actionType: 'UPDATE_BARN_INFO',
+          barnId: 1,
+          capacity: 6000
+        }
+      }
+    });
+
+    renderComponent();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    const input = screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Sửa sức chứa Nhà A1 thành 6000 con' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('confirmation-card')).toBeInTheDocument();
+    });
+
+    const card = screen.getByTestId('confirmation-card');
+    expect(card).toHaveTextContent('Cập nhật thông tin: Nhà A1');
+    expect(card).toHaveTextContent('5.000 con → 6.000 con');
+  });
 });
