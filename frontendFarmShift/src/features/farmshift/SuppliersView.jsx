@@ -108,6 +108,15 @@ export const SuppliersView = () => {
       .catch(error => { if (!cancelled) setError(message(error)); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [revision]);
+  useEffect(() => {
+    // Trợ lý AI vừa sửa/tạo nhà cung cấp trong DB → tải lại bảng ngay lập tức.
+    const handleAiAction = event => {
+      const action = event.detail;
+      if (action && (action.executed || action.uiCommand === 'REFRESH_DATA')) setRevision(value => value + 1);
+    };
+    window.addEventListener('farmshift:ai-action', handleAiAction);
+    return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
+  }, []);
   const filtered = suppliers.filter(supplier => [supplier.name, supplier.representative, supplier.phone, supplier.productTypeName].some(value => value?.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi'))));
   return <div className={`farmshift-card ${styles.card}`}>
     <div className={styles.toolbar}><div className={styles.heading}><span className={styles.headingIcon}><Truck size={21} /></span><div><h2>Nhà cung cấp</h2><p>Quản lý đối tác và nhóm cung cấp hàng hóa</p></div></div>{canEdit && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => setModal({ mode: 'create' })}><Plus size={16} />Thêm nhà cung cấp</button>}</div>

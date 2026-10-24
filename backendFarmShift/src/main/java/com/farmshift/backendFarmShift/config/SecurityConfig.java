@@ -59,8 +59,9 @@ public class SecurityConfig {
 
                 // Authorization rules
                 .authorizeHttpRequests(auth -> auth
-                        // Authentication endpoints are public
+                        // Authentication and AI assistant endpoints are public
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/ai/**").permitAll()
                         // Public health check endpoints for UptimeRobot / Render keep-alive
                         .requestMatchers("/api/health", "/health").permitAll()
                         // Actuator health check (add more granular rules as needed)

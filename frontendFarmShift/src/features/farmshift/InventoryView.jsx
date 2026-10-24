@@ -55,6 +55,18 @@ export const InventoryView = () => {
   }, [categoryRevision]);
 
   useEffect(() => {
+    const handleAiAction = (event) => {
+      const action = event.detail;
+      if (!action) return;
+      if (action.executed || action.uiCommand === 'REFRESH_DATA') {
+        setItemsRevision(r => r + 1);
+      }
+    };
+    window.addEventListener('farmshift:ai-action', handleAiAction);
+    return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     setItems([]); setItemError('');
     if (!selectedCategory) { setLoadingItems(false); return; }

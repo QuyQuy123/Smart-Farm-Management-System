@@ -50,6 +50,7 @@ uvicorn main:app --reload --port 8000
 | Method | Endpoint | Mô tả |
 | :--- | :--- | :--- |
 | `GET` | `/health` | Kiểm tra tình trạng hoạt động |
+| `POST` | `/api/voice/transcribe` | Chuyển đổi giọng nói (STT) tiếng Việt chăn nuôi sang văn bản |
 | `POST` | `/api/ocr/extract-invoice` | Bóc tách hóa đơn & phiếu cân xuất bán A4 |
 | `POST` | `/api/ocr/preprocess` | Kiểm tra góc nghiêng & tiền xử lý ảnh |
 | `GET` | `/api/ocr/sample` | Lấy dữ liệu hóa đơn mẫu thử nghiệm |
