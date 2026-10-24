@@ -15,8 +15,7 @@ import com.farmshift.backendFarmShift.repository.OtpTokenRepository;
 import com.farmshift.backendFarmShift.security.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import com.farmshift.backendFarmShift.service.EmailService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -63,7 +62,7 @@ public class AuthServiceImpl implements AuthService {
     private final AccountRepository      accountRepository;
     private final OtpTokenRepository     otpTokenRepository;
     private final PasswordEncoder        passwordEncoder;
-    private final JavaMailSender         mailSender;
+    private final EmailService           emailService;
 
     // ------------------------------------------------------------------ login
 
@@ -131,9 +130,9 @@ public class AuthServiceImpl implements AuthService {
 
         otpTokenRepository.save(otpToken);
 
-        sendOtpEmail(email, otp);
+        emailService.sendOtpEmail(email, otp);
 
-        log.info("OTP issued and emailed to: {}", email);
+        log.info("OTP issued and sent for email: {}", email);
     }
 
     // ------------------------------------------------------------------ verify OTP
@@ -201,29 +200,5 @@ public class AuthServiceImpl implements AuthService {
         SecureRandom random = new SecureRandom();
         int otp = 100_000 + random.nextInt(900_000); // range [100000, 999999]
         return String.valueOf(otp);
-    }
-
-    /** Sends a plain-text OTP email via the configured JavaMailSender. */
-    private void sendOtpEmail(String email, String otp) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(email);
-        message.setSubject("FarmShift — Your Password Reset Code");
-        message.setText(
-                "Hello,\n\n"
-                + "You requested a password reset for your FarmShift account.\n\n"
-                + "Your verification code is:\n\n"
-                + "  " + otp + "\n\n"
-                + "This code is valid for " + OTP_EXPIRY_MINUTES + " minutes.\n\n"
-                + "If you did not request this, please ignore this email.\n\n"
-                + "— The FarmShift Team"
-        );
-
-        try {
-            mailSender.send(message);
-        } catch (Exception ex) {
-            // Log but do NOT expose mail failure details to the caller
-            log.error("Failed to send OTP email to {}: {}", email, ex.getMessage());
-            throw new BadRequestException("Failed to send OTP email. Please try again later.");
-        }
     }
 }

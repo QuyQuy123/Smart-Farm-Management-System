@@ -20,3 +20,6 @@ R2_SECRET_KEY=your_r2_secret_key_here
 R2_ENDPOINT_URL=https://your_cloudflare_account_id.r2.cloudflarestorage.com
 R2_BUCKET_NAME=farmshift-storage
 R2_PUBLIC_URL=https://your_public_r2_dev_url.r2.dev
+
+RESEND_API_KEY=your_resend_api_key_here
+RESEND_FROM_EMAIL=FarmShift <onboarding@resend.dev>
