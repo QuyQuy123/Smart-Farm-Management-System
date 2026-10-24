@@ -72,6 +72,7 @@ public final class VietnameseSpeechNormalizer {
         String text = Normalizer.normalize(rawText, Normalizer.Form.NFC).replace('\u00A0', ' ').trim().replaceAll("\\s+", " ");
         if (text.isEmpty()) return text;
 
+        text = fixSttHomophones(text);
         text = wordNumbersToDigits(text);
         text = DECIMAL_WORD.matcher(text).replaceAll("$1.$2");
         text = replaceAll(WEIGHT_HALF, text, m -> formatNumber(parseDecimal(m.group(1)) + 0.5) + " kg");
@@ -86,6 +87,10 @@ public final class VietnameseSpeechNormalizer {
 
         String plain = removeVietnameseDiacritics(text);
         if (plain.contains("cam") || plain.contains("thuc an") || plain.contains("cho an")) {
+            text = replaceAll(BAG, text, m -> formatNumber(parseDecimal(m.group(1)) * KG_PER_BAG) + " kg");
+        } else if (!plain.contains("vac xin") && !plain.contains("thuoc") && !plain.contains("trau")
+                && !plain.contains("dung") && !plain.contains("gia cam") && !plain.contains("hoa don")) {
+            // "hai bao" -> "50 kg" (STT thường rớt chữ "cám"); bỏ qua khi câu nói về vật tư khác.
             text = replaceAll(BAG, text, m -> formatNumber(parseDecimal(m.group(1)) * KG_PER_BAG) + " kg");
         }
 
@@ -116,6 +121,35 @@ public final class VietnameseSpeechNormalizer {
 
     public static String invoiceCode(String digits) {
         return String.format(Locale.ROOT, "NH%06d", Long.parseLong(digits));
+    }
+
+    // ───────────────────────────── đồng âm / nhận nhầm của STT ─────────────────────────────
+
+    private static final Pattern[] HOMOPHONE_PATTERNS = {
+            Pattern.compile("(?iu)(?<![\\p{L}])nhật\\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)(?![\\p{L}])"),
+            Pattern.compile("(?iu)(?<![\\p{L}])(?:sổ|số|xổ)\\s+(?:quỷ|quĩ|quý|quỹ|qũy|quỳ)(?![\\p{L}])"),
+            Pattern.compile("(?iu)(?<![\\p{L}\\d])(?:hóa|hoá)\\s+đơn"),
+            Pattern.compile("(?iu)(?<![\\p{L}\\d.,])((?:\\d+(?:[.,]\\d+)?|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)\\s+)?triệu\\s+rưỡi(?![\\p{L}])"),
+            Pattern.compile("(?iu)(?<![\\p{L}])(?:hai|hi|hy|hai\\s+gờ|hi\\s+gờ|hai\\s+grô|hi\\s+grô)\\s*(?:rô|grô|gờ\\s*rô|gro)\\s*(\\d{2})?(?![\\p{L}])"),
+            Pattern.compile("(?iu)(?<![\\p{L}])đa\\s+ba\\s+cô(?![\\p{L}])"),
+            Pattern.compile("(?iu)(?<![\\p{L}])han\\s+vét(?![\\p{L}])"),
+            Pattern.compile("(?iu)(?<![\\p{L}])la\\s+sô\\s+ta(?![\\p{L}])"),
+            Pattern.compile("(?iu)(?<![\\p{L}])gum\\s+bô\\s+rô(?![\\p{L}])"),
+    };
+
+    /** Sửa các cụm đồng âm tiếng Việt hay bị Whisper / Web Speech nhận nhầm. */
+    static String fixSttHomophones(String text) {
+        String out = text;
+        out = HOMOPHONE_PATTERNS[0].matcher(out).replaceAll("nhật ký");
+        out = HOMOPHONE_PATTERNS[1].matcher(out).replaceAll("sổ quỹ");
+        out = HOMOPHONE_PATTERNS[2].matcher(out).replaceAll("hóa đơn");
+        out = HOMOPHONE_PATTERNS[3].matcher(out).replaceAll(r -> r.group(1) != null ? r.group(0) : "1 triệu rưỡi");
+        out = HOMOPHONE_PATTERNS[4].matcher(out).replaceAll(r -> "Higro" + (r.group(1) != null ? " " + r.group(1) : ""));
+        out = HOMOPHONE_PATTERNS[5].matcher(out).replaceAll("Dabaco");
+        out = HOMOPHONE_PATTERNS[6].matcher(out).replaceAll("Hanvet");
+        out = HOMOPHONE_PATTERNS[7].matcher(out).replaceAll("Lasota");
+        out = HOMOPHONE_PATTERNS[8].matcher(out).replaceAll("Gumboro");
+        return out;
     }
 
     // ───────────────────────────── số đếm bằng chữ ─────────────────────────────

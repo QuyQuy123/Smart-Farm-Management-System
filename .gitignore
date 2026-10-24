@@ -17,6 +17,8 @@ backendFarmShift/src/main/resources/application-local.properties
 backendFarmShift/.mvn/wrapper/maven-wrapper.jar
 !backendFarmShift/.mvn/wrapper/maven-wrapper.properties
 backendFarmShift/HELP.md
+backendFarmShift/hs_err_pid*.log
+backendFarmShift/replay_pid*.log
 UI_FarmShift.pdf
 FarmShift.html
 /Farmgo-clone
