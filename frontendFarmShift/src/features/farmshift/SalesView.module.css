@@ -1,0 +1,16 @@
+.closeButton {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: #f1f5f4;
+  color: #647570;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+.closeButton:hover { background: #dc2626; color: #fff; }
+.closeButton:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; }
+.required, .error { color: #dc2626; }
+.hint { color: var(--color-muted); font-size: 13px; }
