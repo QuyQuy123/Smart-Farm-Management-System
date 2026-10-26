@@ -3,7 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { listSalesCustomers } from '../../services/salesCustomerService';
-import { Plus, Search, FileSpreadsheet } from 'lucide-react';
+import { listBarns } from '../../services/farmAreaService';
+import { listCycles } from '../../services/cycleService';
+import styles from './SalesView.module.css';
+import { Plus, Search, FileSpreadsheet, X } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 
 export const SalesView = () => {
@@ -32,12 +35,37 @@ export const SalesView = () => {
   const [newSale, setNewSale] = useState({
     customer: '',
     date: new Date().toISOString().split('T')[0],
-    flock: 'Khu J Thịt - Lứa J01',
+    flock: '',
     quantity: '',
     totalWeight: '',
     unitPrice: '',
     note: ''
   });
+
+  const [cycleOptions, setCycleOptions] = useState([]);
+  const [cyclesLoading, setCyclesLoading] = useState(false);
+  const [cyclesError, setCyclesError] = useState('');
+  const openSaleModal = async () => {
+    setShowAddModal(true);
+    setCyclesLoading(true);
+    setCyclesError('');
+    try {
+      const barns = await listBarns();
+      const options = await Promise.all(barns.map(async barn => {
+        const cycles = await listCycles(barn.id);
+        return cycles.map(cycle => ({
+          id: String(cycle.id),
+          label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
+        }));
+      }));
+      setCycleOptions(options.flat());
+    } catch {
+      setCycleOptions([]);
+      setCyclesError('Không thể tải khu nuôi - chuồng - lứa. Vui lòng thử lại.');
+    } finally {
+      setCyclesLoading(false);
+    }
+  };
 
   const handleCreateSale = (e) => {
     e.preventDefault();
@@ -51,7 +79,7 @@ export const SalesView = () => {
       code: `BH0000${sales.length + 47}`,
       date: newSale.date,
       customer: newSale.customer,
-      flock: newSale.flock,
+      flock: cycleOptions.find(option => option.id === newSale.flock)?.label || '',
       quantity: qty,
       totalWeight: weight,
       unitPrice: price,
@@ -83,7 +111,7 @@ export const SalesView = () => {
           </button>
           <button
             className="farmshift-btn farmshift-btn-mint"
-            onClick={() => setShowAddModal(true)}
+            onClick={openSaleModal}
           >
             <Plus size={16} /> Tạo đơn bán hàng
           </button>
@@ -225,38 +253,37 @@ export const SalesView = () => {
 
       {/* ── Modal: Tạo đơn bán mới ───────────────────────── */}
       {showAddModal && (
-        <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal">
+        <div className="farmshift-modal-backdrop" onClick={event => { if (event.target === event.currentTarget) setShowAddModal(false); }}>
+          <div className="farmshift-modal" role="dialog" aria-modal="true" aria-labelledby="sale-modal-title">
             <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Tạo đơn bán gà thương phẩm</h3>
+              <h3 id="sale-modal-title" className="farmshift-modal-title">Tạo đơn bán</h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
+                type="button"
+                className={styles.closeButton}
+                aria-label="Đóng"
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
             <form onSubmit={handleCreateSale}>
               <div className="farmshift-modal-body">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Khách hàng / Thương lái *</label>
-                    <select
+                    <label className="farmshift-form-label">Khách hàng / Thương lái <span className={styles.required}>*</span></label>
+                    <input
+                      type="text"
                       className="farmshift-form-control"
                       required
                       value={newSale.customer}
                       onChange={(e) => setNewSale({ ...newSale, customer: e.target.value })}
-                    >
-                      <option value="">Chọn khách hàng</option>
-                      {customers.map(c => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Ngày xuất chuồng *</label>
+                    <label className="farmshift-form-label">Ngày xuất chuồng <span className={styles.required}>*</span></label>
                     <input
                       type="date"
+                      required
                       className="farmshift-form-control"
                       value={newSale.date}
                       onChange={(e) => setNewSale({ ...newSale, date: e.target.value })}
@@ -265,22 +292,24 @@ export const SalesView = () => {
                 </div>
 
                 <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Lứa nuôi / Chuồng xuất *</label>
+                  <label className="farmshift-form-label">Khu nuôi - chuồng - lứa <span className={styles.required}>*</span></label>
                   <select
                     className="farmshift-form-control"
+                    required
+                    disabled={cyclesLoading || !!cyclesError}
                     value={newSale.flock}
                     onChange={(e) => setNewSale({ ...newSale, flock: e.target.value })}
                   >
-                    <option value="Khu J Thịt - Lứa J01">Khu J Thịt - Nhà J1</option>
-                    <option value="Khu J Thịt - Lứa J02">Khu J Thịt - Nhà J2</option>
-                    <option value="Khu Mía Thịt - Lứa M01">Khu Mía Thịt - Nhà Mía 1</option>
-                    <option value="Khu Nhà A - Lứa A01">Khu Nhà A - Nhà A1</option>
+                    <option value="">{cyclesLoading ? 'Đang tải...' : 'Chọn khu nuôi - chuồng - lứa'}</option>
+                    {cycleOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </select>
+                  {cyclesError && <p role="alert" className={styles.error}>{cyclesError} <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openSaleModal}>Thử lại</button></p>}
+                  {!cyclesLoading && !cyclesError && cycleOptions.length === 0 && <p className={styles.hint}>Chưa có lứa nuôi trong cơ sở dữ liệu.</p>}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số con xuất</label>
+                    <label className="farmshift-form-label">Số con xuất <span className={styles.required}>*</span></label>
                     <input
                       type="number"
                       required
@@ -291,7 +320,7 @@ export const SalesView = () => {
                     />
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Tổng khối lượng (kg)</label>
+                    <label className="farmshift-form-label">Tổng khối lượng (kg) <span className={styles.required}>*</span></label>
                     <input
                       type="number"
                       required
@@ -302,7 +331,7 @@ export const SalesView = () => {
                     />
                   </div>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Đơn giá (đ/kg)</label>
+                    <label className="farmshift-form-label">Đơn giá (đ/kg) <span className={styles.required}>*</span></label>
                     <input
                       type="number"
                       required
@@ -318,7 +347,6 @@ export const SalesView = () => {
                   <label className="farmshift-form-label">Ghi chú xuất bán</label>
                   <input
                     type="text"
-                    placeholder="Giao xe tải biển 29C-xxx..."
                     className="farmshift-form-control"
                     value={newSale.note}
                     onChange={(e) => setNewSale({ ...newSale, note: e.target.value })}
