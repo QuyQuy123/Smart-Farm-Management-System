@@ -1,17 +1,16 @@
 // src/features/farmshift/SalesView.jsx
-// Quản lý bán hàng, Đơn thu hoạch & Khách hàng chuẩn FarmShift & DESIGN.md
+// Quản lý bán hàng và danh sách khách hàng.
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { listSalesCustomers } from '../../services/salesCustomerService';
 import { Plus, Search, FileSpreadsheet } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
-import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
 
 export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'customers' ? 'customers' : 'orders';
   const setActiveTab = tab => setSearchParams({ tab });
-  const [sales, setSales] = useState(INITIAL_FARMSHIFT_DATA.sales);
+  const [sales, setSales] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [customers, setCustomers] = useState([]);
@@ -115,7 +114,7 @@ export const SalesView = () => {
               <Search size={16} color="var(--color-muted)" />
               <input
                 type="text"
-                placeholder="Tìm theo mã đơn bán, khách hàng, khu chuồng..."
+                placeholder="Tìm theo mã hóa đơn, khách hàng, khu nuôi / chuồng / lứa..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -127,18 +126,28 @@ export const SalesView = () => {
               <table className="farmshift-table">
                 <thead>
                   <tr>
-                    <th>Mã đơn</th>
+                    <th>Mã hóa đơn</th>
                     <th>Ngày xuất</th>
                     <th>Khách hàng</th>
-                    <th>Lứa / Chuồng</th>
+                    <th>Khu nuôi/Chuồng/lứa</th>
                     <th>Số lượng xuất</th>
                     <th>Tổng trọng lượng</th>
                     <th>Đơn giá</th>
                     <th>Tổng doanh thu</th>
-                    <th>Trạng thái thu tiền</th>
+                    <th>Trạng thái</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {filteredSales.length === 0 && (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--color-muted)' }}>
+                        <strong style={{ display: 'block', color: 'var(--color-ink)', marginBottom: '8px' }}>
+                          {searchTerm ? 'Không tìm thấy đơn bán phù hợp' : 'Chưa có đơn bán hàng'}
+                        </strong>
+                        {searchTerm ? 'Thử tìm theo mã hóa đơn hoặc tên khách hàng khác.' : 'Các đơn bán sau khi được tạo sẽ hiển thị tại đây.'}
+                      </td>
+                    </tr>
+                  )}
                   {filteredSales.map(s => (
                     <tr key={s.id}>
                       <td>
@@ -150,7 +159,7 @@ export const SalesView = () => {
                       <td><strong>{s.customer}</strong></td>
                       <td>{s.flock}</td>
                       <td><strong>{s.quantity.toLocaleString()}</strong> con</td>
-                      <td><strong>{s.totalWeight.toLocaleString()}</strong> kg (TB {(s.totalWeight / s.quantity).toFixed(2)} kg/con)</td>
+                      <td><strong>{s.totalWeight.toLocaleString('vi-VN')}</strong> kg</td>
                       <td>{s.unitPrice.toLocaleString('vi-VN')} đ/kg</td>
                       <td>
                         <strong style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>
@@ -159,10 +168,10 @@ export const SalesView = () => {
                       </td>
                       <td>
                         <span
-                          className={`farmshift-badge ${s.status.includes('Đã thu') ? 'farmshift-badge-success' : 'farmshift-badge-warning'
+                          className={`farmshift-badge ${(s.totalAmount - s.paidAmount) <= 0 ? 'farmshift-badge-success' : 'farmshift-badge-warning'
                             }`}
                         >
-                          {s.status}
+                          {s.totalAmount - s.paidAmount > 0 ? `Còn nợ ${formatMoney(s.totalAmount - s.paidAmount)}` : 'Đã thanh toán'}
                         </span>
                       </td>
                     </tr>
