@@ -14,3 +14,25 @@
 .closeButton:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; }
 .required, .error { color: #dc2626; }
 .hint { color: var(--color-muted); font-size: 13px; }
+
+.ordersContainer.ordersContainer { overflow-x: visible; }
+.ordersTable.ordersTable { table-layout: fixed; min-width: 0; width: 100%; }
+.ordersTable.ordersTable th, .ordersTable.ordersTable td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 12px 10px;
+}
+.ordersTable th:nth-child(4) { width: 16%; }
+.ordersTable th:nth-child(8), .ordersTable th:nth-child(9) { width: 12%; }
+.ordersTable :global(.farmshift-badge) { white-space: normal; }
+.invoiceLink { border: 0; padding: 0; background: transparent; color: var(--fg-teal, #008577); font: 600 13px monospace; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; overflow-wrap: anywhere; text-align: left; }
+.invoiceLink:hover { color: #00594f; }
+.details { margin: 0; padding: 20px 24px; }
+.details > div { display: grid; grid-template-columns: 1fr 1.5fr; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--color-hairline); }
+.details dt { color: var(--color-muted); }
+.details dd { margin: 0; overflow-wrap: anywhere; font-weight: 500; }
+@media (max-width: 640px) {
+  .ordersTable.ordersTable th, .ordersTable.ordersTable td { padding: 8px 3px; font-size: 11px; }
+  .invoiceLink { font-size: 11px; }
+  .details > div { grid-template-columns: 1fr; gap: 4px; }
+}

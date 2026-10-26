@@ -1,6 +1,8 @@
 // src/features/farmshift/SalesView.jsx
 // Quản lý bán hàng và danh sách khách hàng.
 import React, { useEffect, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { readLocalSales, saveLocalSales } from '../../services/localSalesStorage';
 import { useSearchParams } from 'react-router-dom';
 import { listSalesCustomers } from '../../services/salesCustomerService';
 import { listBarns } from '../../services/farmAreaService';
@@ -13,7 +15,11 @@ export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') === 'customers' ? 'customers' : 'orders';
   const setActiveTab = tab => setSearchParams({ tab });
-  const [sales, setSales] = useState([]);
+  const { user } = useAuth();
+  const storageKey = `farmshift-sales-v1:${user?.email || 'demo'}`;
+  const [sales, setSales] = useState(() => readLocalSales(storageKey));
+  const [saveError, setSaveError] = useState('');
+  const [selectedSale, setSelectedSale] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [customers, setCustomers] = useState([]);
@@ -76,7 +82,7 @@ export const SalesView = () => {
 
     const created = {
       id: `so-${Date.now()}`,
-      code: `BH0000${sales.length + 47}`,
+      code: `BH${String(sales.length + 47).padStart(6, '0')}`,
       date: newSale.date,
       customer: newSale.customer,
       flock: cycleOptions.find(option => option.id === newSale.flock)?.label || '',
@@ -89,7 +95,15 @@ export const SalesView = () => {
       note: newSale.note
     };
 
-    setSales([created, ...sales]);
+    const nextSales = [created, ...sales];
+    try {
+      saveLocalSales(storageKey, nextSales);
+    } catch {
+      setSaveError('Không thể lưu đơn trên trình duyệt. Vui lòng kiểm tra dung lượng hoặc quyền lưu trữ rồi thử lại.');
+      return;
+    }
+    setSaveError('');
+    setSales(nextSales);
     setShowAddModal(false);
   };
 
@@ -150,8 +164,8 @@ export const SalesView = () => {
           </div>
 
           <div className="farmshift-card">
-            <div className="farmshift-table-container" style={{ border: 'none' }}>
-              <table className="farmshift-table">
+            <div className={`farmshift-table-container ${styles.ordersContainer}`} style={{ border: 'none' }}>
+              <table className={`farmshift-table ${styles.ordersTable}`}>
                 <thead>
                   <tr>
                     <th>Mã hóa đơn</th>
@@ -179,9 +193,9 @@ export const SalesView = () => {
                   {filteredSales.map(s => (
                     <tr key={s.id}>
                       <td>
-                        <strong style={{ color: 'var(--color-ink)', fontFamily: 'monospace', fontSize: '14px' }}>
+                        <button type="button" className={styles.invoiceLink} onClick={() => setSelectedSale(s)} aria-label={`Xem hóa đơn ${s.code}`}>
                           {s.code}
-                        </strong>
+                        </button>
                       </td>
                       <td>{s.date}</td>
                       <td><strong>{s.customer}</strong></td>
@@ -251,6 +265,33 @@ export const SalesView = () => {
         </div>
       )}
 
+      {selectedSale && (
+        <div className="farmshift-modal-backdrop" onClick={event => { if (event.target === event.currentTarget) setSelectedSale(null); }}>
+          <div className="farmshift-modal" role="dialog" aria-modal="true" aria-labelledby="sale-detail-title">
+            <div className="farmshift-modal-header">
+              <h3 id="sale-detail-title" className="farmshift-modal-title">Chi tiết hóa đơn {selectedSale.code}</h3>
+              <button type="button" className={styles.closeButton} aria-label="Đóng chi tiết hóa đơn" onClick={() => setSelectedSale(null)}><X size={18} /></button>
+            </div>
+            <dl className={styles.details}>
+              {[
+                ['Mã hóa đơn', selectedSale.code],
+                ['Ngày xuất', selectedSale.date],
+                ['Khách hàng', selectedSale.customer],
+                ['Khu nuôi - chuồng - lứa', selectedSale.flock],
+                ['Số lượng xuất', `${selectedSale.quantity.toLocaleString('vi-VN')} con`],
+                ['Tổng trọng lượng', `${selectedSale.totalWeight.toLocaleString('vi-VN')} kg`],
+                ['Đơn giá', `${formatMoney(selectedSale.unitPrice)}/kg`],
+                ['Tổng doanh thu', formatMoney(selectedSale.totalAmount)],
+                ['Đã thanh toán', formatMoney(selectedSale.paidAmount)],
+                ['Trạng thái', selectedSale.totalAmount > selectedSale.paidAmount ? `Còn nợ ${formatMoney(selectedSale.totalAmount - selectedSale.paidAmount)}` : 'Đã thanh toán'],
+                ['Ghi chú', selectedSale.note || '—'],
+              ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+            </dl>
+            <div className="farmshift-modal-footer"><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setSelectedSale(null)}>Đóng</button></div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal: Tạo đơn bán mới ───────────────────────── */}
       {showAddModal && (
         <div className="farmshift-modal-backdrop" onClick={event => { if (event.target === event.currentTarget) setShowAddModal(false); }}>
@@ -268,6 +309,7 @@ export const SalesView = () => {
             </div>
             <form onSubmit={handleCreateSale}>
               <div className="farmshift-modal-body">
+                {saveError && <p role="alert" className={styles.error}>{saveError}</p>}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Khách hàng / Thương lái <span className={styles.required}>*</span></label>
