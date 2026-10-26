@@ -19,8 +19,8 @@ class SalesOrderServiceTest {
   when(orders.findById("sale-id")).thenReturn(Optional.empty());
   when(orders.save(any())).thenAnswer(call -> call.getArgument(0));
   var customer = new CustomerContact(); customer.setTotalBought(new BigDecimal("100000")); customer.setDebt(new BigDecimal("50000"));
-  when(customers.findFirstByPhoneOrderByIdAsc("0912345678")).thenReturn(Optional.of(customer));
-  var order = new SalesOrderService(orders, customers).create(request("PARTIAL", "300000"));
+  when(customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc("0912345678", "Buyer")).thenReturn(Optional.of(customer));
+  var order = new SalesOrderService(orders, customers, mock(com.farmshift.backendFarmShift.service.SalesInvoiceCodeService.class)).create(request("PARTIAL", "300000"));
   assertEquals(0, new BigDecimal("1000000").compareTo(order.getTotalAmount()));
   assertEquals(0, new BigDecimal("300000").compareTo(order.getPaidAmount()));
   assertEquals(0, new BigDecimal("1100000").compareTo(customer.getTotalBought()));
@@ -31,9 +31,9 @@ class SalesOrderServiceTest {
   for (String status : new String[]{"PAID", "DEBT"}) {
    var orders = mock(SalesOrderRepository.class); var customers = mock(CustomerContactRepository.class);
    when(orders.findById(any())).thenReturn(Optional.empty());
-   when(customers.findFirstByPhoneOrderByIdAsc(any())).thenReturn(Optional.empty());
+   when(customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(any(), any())).thenReturn(Optional.empty());
    when(orders.save(any())).thenAnswer(call -> call.getArgument(0));
-   var service = new SalesOrderService(orders, customers);
+   var service = new SalesOrderService(orders, customers, mock(com.farmshift.backendFarmShift.service.SalesInvoiceCodeService.class));
    var order = service.create(request(status, null));
    assertEquals(0, (status.equals("PAID") ? new BigDecimal("1000000") : BigDecimal.ZERO).compareTo(order.getPaidAmount()));
    verify(customers).save(argThat(c -> c.getDebt().compareTo(status.equals("PAID") ? BigDecimal.ZERO : new BigDecimal("1000000")) == 0));
@@ -42,14 +42,14 @@ class SalesOrderServiceTest {
  @Test void invalidPartialPaymentDoesNotWriteAnything() {
   var orders = mock(SalesOrderRepository.class); var customers = mock(CustomerContactRepository.class);
   when(orders.findById(any())).thenReturn(Optional.empty());
-  var service = new SalesOrderService(orders, customers);
+  var service = new SalesOrderService(orders, customers, mock(com.farmshift.backendFarmShift.service.SalesInvoiceCodeService.class));
   for (String amount : new String[]{"0", "-1", "1000000", "1000001"}) assertThrows(BadRequestException.class, () -> service.create(request("PARTIAL", amount)));
   verifyNoInteractions(customers); verify(orders, never()).save(any());
  }
  @Test void retryDoesNotAccumulateTwice() {
   var orders = mock(SalesOrderRepository.class); var customers = mock(CustomerContactRepository.class);
   var existing = new SalesOrder(); when(orders.findById("sale-id")).thenReturn(Optional.of(existing));
-  assertSame(existing, new SalesOrderService(orders, customers).create(request("PAID", null)));
+  assertSame(existing, new SalesOrderService(orders, customers, mock(com.farmshift.backendFarmShift.service.SalesInvoiceCodeService.class)).create(request("PAID", null)));
   verifyNoInteractions(customers);
  }
 }

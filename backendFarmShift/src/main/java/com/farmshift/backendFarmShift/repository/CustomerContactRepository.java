@@ -6,6 +6,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface CustomerContactRepository extends JpaRepository<CustomerContact, Long> {
-    java.util.Optional<CustomerContact> findFirstByPhoneOrderByIdAsc(String phone);
+    java.util.Optional<CustomerContact> findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(String phone, String name);
     Page<CustomerContact> findByNameContainingIgnoreCaseOrPhoneContaining(String name, String phone, Pageable pageable);
 }

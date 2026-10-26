@@ -26,6 +26,9 @@ export const SalesView = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [customers, setCustomers] = useState([]);
+  const [customerPage, setCustomerPage] = useState(0);
+  const customerPageCount = Math.max(1, Math.ceil(customers.length / 10));
+  const currentCustomerPage = Math.min(customerPage, customerPageCount - 1);
   const [customersLoading, setCustomersLoading] = useState(true);
   const [customersError, setCustomersError] = useState('');
   const [customerRevision, setCustomerRevision] = useState(0);
@@ -265,7 +268,7 @@ export const SalesView = () => {
                 {customersLoading ? <tr><td colSpan={6} role="status">Đang tải khách hàng...</td></tr>
                   : customersError ? <tr><td colSpan={6} role="alert">{customersError} <button className="farmshift-btn farmshift-btn-secondary" onClick={() => { setCustomersLoading(true); setCustomersError(''); setCustomerRevision(value => value + 1); }}>Thử lại</button></td></tr>
                   : customers.length === 0 ? <tr><td colSpan={6}>Chưa có khách hàng.</td></tr>
-                  : customers.map(c => (
+                  : customers.slice(currentCustomerPage * 10, (currentCustomerPage + 1) * 10).map(c => (
                   <tr key={c.id}>
                     <td><strong style={{ color: 'var(--color-ink)' }}>{c.name}</strong></td>
                     <td>{c.phone || '—'}</td>
@@ -280,6 +283,14 @@ export const SalesView = () => {
               </tbody>
             </table>
           </div>
+          <nav aria-label="Phân trang khách hàng" className={styles.pagination}>
+            <span>{customers.length ? `${currentCustomerPage * 10 + 1}–${Math.min((currentCustomerPage + 1) * 10, customers.length)} / ${customers.length} khách hàng` : '0 khách hàng'}</span>
+            <div>
+              <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={customersLoading || currentCustomerPage === 0} onClick={() => setCustomerPage(currentCustomerPage - 1)}>Trước</button>
+              <span>Trang {currentCustomerPage + 1} / {customerPageCount}</span>
+              <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={customersLoading || currentCustomerPage + 1 >= customerPageCount} onClick={() => setCustomerPage(currentCustomerPage + 1)}>Sau</button>
+            </div>
+          </nav>
         </div>
       )}
 
@@ -409,14 +420,15 @@ export const SalesView = () => {
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Đơn giá (đ/kg) <span className={styles.required}>*</span></label>
                     <input
-                      type="number"
-                      min="0.01"
-                      step="any"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[1-9][0-9.]*"
+                      title="Nhập đơn giá lớn hơn 0"
                       required
-                      placeholder="VD: 78000"
+                      placeholder="VD: 78.000"
                       className="farmshift-form-control"
-                      value={newSale.unitPrice}
-                      onChange={(e) => setNewSale({ ...newSale, unitPrice: e.target.value })}
+                      value={newSale.unitPrice.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
+                      onChange={(e) => setNewSale({ ...newSale, unitPrice: e.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '') })}
                     />
                   </div>
                 </div>
@@ -429,7 +441,7 @@ export const SalesView = () => {
                 </div>
                 {newSale.paymentStatus === 'PARTIAL' && <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-paid-amount">Số tiền đã trả (đ) <span className={styles.required}>*</span></label>
-                  <input id="sale-paid-amount" type="number" required min="0.01" step="0.01" className="farmshift-form-control" value={newSale.paidAmount} onChange={event => setNewSale({ ...newSale, paidAmount: event.target.value })} />
+                  <input id="sale-paid-amount" type="text" inputMode="numeric" required pattern="[1-9][0-9.]*" title="Nhập số tiền đã trả lớn hơn 0" className="farmshift-form-control" value={newSale.paidAmount.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} onChange={event => setNewSale({ ...newSale, paidAmount: event.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '') })} />
                 </div>}
                 <p className={styles.hint}>Tổng tiền: {formatMoney(Number(newSale.totalWeight) * Number(newSale.unitPrice))}</p>
 

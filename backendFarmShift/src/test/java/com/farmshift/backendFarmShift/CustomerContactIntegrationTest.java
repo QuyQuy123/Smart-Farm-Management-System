@@ -25,6 +25,29 @@ class CustomerContactIntegrationTest {
     private static final String API = "/api/customer-contacts";
     private static final String BODY = "{\"name\":\" Nguyễn Văn A \",\"phone\":\"0912345678\"}";
 
+    @Autowired com.farmshift.backendFarmShift.service.SalesOrderService sales;
+
+    private com.farmshift.backendFarmShift.dto.request.SalesOrderRequest sale(String id, String name) {
+        return new com.farmshift.backendFarmShift.dto.request.SalesOrderRequest(id, java.time.LocalDate.now(), name,
+            "0912345678", "Address", "Area - Barn - Cycle", 10, new java.math.BigDecimal("20"),
+            new java.math.BigDecimal("50000"), "DEBT", null, "");
+    }
+
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void salesPreservesDifferentCustomerNamesAndUsesSequentialCodes() {
+        var first = sales.create(sale("first-sale", "First buyer"));
+        var second = sales.create(sale("second-sale", "Second buyer"));
+        assertTrue(first.getCode().matches("BH[0-9]{5,}"));
+        assertEquals(Long.parseLong(first.getCode().substring(2)) + 1, Long.parseLong(second.getCode().substring(2)));
+        assertEquals(2, repository.count());
+        var firstCustomer = repository.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc("0912345678", "First buyer").orElseThrow();
+        assertEquals("First buyer", firstCustomer.getName());
+        assertEquals(0, firstCustomer.getTotalBought().compareTo(new java.math.BigDecimal("1000000")));
+        sales.create(sale("third-sale", "First buyer"));
+        assertEquals(2, repository.count());
+        assertEquals(0, firstCustomer.getTotalBought().compareTo(new java.math.BigDecimal("2000000")));
+    }
+
     @Autowired com.farmshift.backendFarmShift.repository.CustomerRepository profiles;
 
     @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
