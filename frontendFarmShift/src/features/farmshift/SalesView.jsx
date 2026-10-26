@@ -1,51 +1,42 @@
 // src/features/farmshift/SalesView.jsx
 // Quản lý bán hàng, Đơn thu hoạch & Khách hàng chuẩn FarmShift & DESIGN.md
-import React, { useState } from 'react';
-import {
-  ShoppingCart, Plus, Search, FileSpreadsheet, CheckCircle,
-  TrendingUp, Users, DollarSign, Calendar, Scale, X, Building
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { listSalesCustomers } from '../../services/salesCustomerService';
+import { Plus, Search, FileSpreadsheet } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
 
 export const SalesView = () => {
-  const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'harvest' | 'customers'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'customers' ? 'customers' : 'orders';
+  const setActiveTab = tab => setSearchParams({ tab });
   const [sales, setSales] = useState(INITIAL_FARMSHIFT_DATA.sales);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showHarvestModal, setShowHarvestModal] = useState(false);
-
-  // Harvest records (from FarmShift-clone/Tạo đơn thu hoạch.html)
-  const [harvestRecords, setHarvestRecords] = useState([
-    { id: 'hv-1', code: 'TH000012', date: '2026-10-04', barn: 'Nhà Mía 1', qty: 800, grade1Kg: 1520, grade2Kg: 200, totalKg: 1720, avgWeight: 2.15, note: 'Thu hoạch đợt 1 chuồng Mía 1' },
-    { id: 'hv-2', code: 'TH000011', date: '2026-09-28', barn: 'Nhà J1', qty: 1200, grade1Kg: 2200, grade2Kg: 260, totalKg: 2460, avgWeight: 2.05, note: 'Thu hoạch xuất trọn chuồng J1' },
-  ]);
-
-  // Customers (from FarmShift-clone/Bán hàng - Khách hàng.html)
-  const [customers, setCustomers] = useState([
-    { id: 'cus-1', name: 'Thương lái Trần Văn Tuấn', phone: '0988 123 456', address: 'Chợ đầu mối gia cầm Hà Vỹ, Thường Tín, Hà Nội', totalBought: 191880000, debt: 0, note: 'Khách quen lấy sỉ theo xe tải' },
-    { id: 'cus-2', name: 'Công ty Thực phẩm Sạch Minh Tâm', phone: '0977 654 321', address: 'Hoàng Mai, Hà Nội', totalBought: 144480000, debt: 44480000, note: 'Cung cấp chuỗi siêu thị thực phẩm sạch' },
-    { id: 'cus-3', name: 'Hợp tác xã Chăn nuôi & Tiêu thụ An Phát', phone: '0912 345 678', address: 'Đông Anh, Hà Nội', totalBought: 75000000, debt: 0, note: 'Hợp tác bao tiêu sản phẩm' },
-  ]);
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const [customersError, setCustomersError] = useState('');
+  const [customerRevision, setCustomerRevision] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    listSalesCustomers().then(data => {
+      if (!cancelled) setCustomers(data);
+    }).catch(() => {
+      if (!cancelled) setCustomersError('Không thể tải danh sách khách hàng. Vui lòng thử lại.');
+    }).finally(() => { if (!cancelled) setCustomersLoading(false); });
+    return () => { cancelled = true; };
+  }, [customerRevision]);
+  const formatMoney = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN')} đ`;
 
   // New Sale state
   const [newSale, setNewSale] = useState({
-    customer: 'Thương lái Trần Văn Tuấn',
+    customer: '',
     date: new Date().toISOString().split('T')[0],
     flock: 'Khu J Thịt - Lứa J01',
     quantity: '',
     totalWeight: '',
     unitPrice: '',
-    note: ''
-  });
-
-  // New Harvest state
-  const [newHarvest, setNewHarvest] = useState({
-    barn: 'Nhà J2',
-    date: new Date().toISOString().split('T')[0],
-    qty: '',
-    grade1Kg: '',
-    grade2Kg: '',
     note: ''
   });
 
@@ -75,31 +66,6 @@ export const SalesView = () => {
     setShowAddModal(false);
   };
 
-  const handleCreateHarvest = (e) => {
-    e.preventDefault();
-    const q = Number(newHarvest.qty) || 0;
-    const g1 = Number(newHarvest.grade1Kg) || 0;
-    const g2 = Number(newHarvest.grade2Kg) || 0;
-    const tot = g1 + g2;
-    const avg = q > 0 ? (tot / q).toFixed(2) : 0;
-
-    const created = {
-      id: `hv-${Date.now()}`,
-      code: `TH0000${harvestRecords.length + 13}`,
-      date: newHarvest.date,
-      barn: newHarvest.barn,
-      qty: q,
-      grade1Kg: g1,
-      grade2Kg: g2,
-      totalKg: tot,
-      avgWeight: avg,
-      note: newHarvest.note
-    };
-
-    setHarvestRecords([created, ...harvestRecords]);
-    setShowHarvestModal(false);
-  };
-
   const filteredSales = sales.filter(s =>
     s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -108,7 +74,8 @@ export const SalesView = () => {
 
   return (
     <FarmShiftLayout
-      pageTitle="Quản lý bán hàng & Thu hoạch"
+      pageTitle="Quản lý bán hàng"
+      breadcrumbTitle={activeTab === 'customers' ? 'Khách hàng' : 'Danh sách đơn bán'}
       breadcrumbs={[{ label: 'Quản lý bán hàng' }]}
       actions={
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -116,13 +83,7 @@ export const SalesView = () => {
             <FileSpreadsheet size={15} /> Xuất Excel
           </button>
           <button
-            className="farmshift-btn farmshift-btn-secondary"
-            onClick={() => setShowHarvestModal(true)}
-          >
-            <Scale size={16} /> Tạo đơn thu hoạch
-          </button>
-          <button
-            className="farmshift-btn farmshift-btn-primary"
+            className="farmshift-btn farmshift-btn-mint"
             onClick={() => setShowAddModal(true)}
           >
             <Plus size={16} /> Tạo đơn bán hàng
@@ -136,19 +97,13 @@ export const SalesView = () => {
           className={`farmshift-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
           onClick={() => setActiveTab('orders')}
         >
-          Đơn bán hàng ({sales.length})
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'harvest' ? 'active' : ''}`}
-          onClick={() => setActiveTab('harvest')}
-        >
-          Đơn thu hoạch xuất chuồng ({harvestRecords.length})
+          Danh sách đơn bán
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
           onClick={() => setActiveTab('customers')}
         >
-          Khách hàng thương lái ({customers.length})
+          Khách hàng
         </button>
       </div>
 
@@ -219,78 +174,38 @@ export const SalesView = () => {
         </>
       )}
 
-      {/* ── Tab 2: Đơn thu hoạch ─────────────────────────── */}
-      {activeTab === 'harvest' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Danh sách các đợt thu hoạch từ chuồng</h3>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Mã phiếu</th>
-                  <th>Ngày thu hoạch</th>
-                  <th>Chuồng xuất</th>
-                  <th>Số lượng</th>
-                  <th>Gà loại 1 (kg)</th>
-                  <th>Gà loại 2 (kg)</th>
-                  <th>Tổng khối lượng</th>
-                  <th>Trọng lượng TB</th>
-                  <th>Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody>
-                {harvestRecords.map(hv => (
-                  <tr key={hv.id}>
-                    <td><strong style={{ color: 'var(--color-ink)', fontFamily: 'monospace' }}>{hv.code}</strong></td>
-                    <td>{hv.date}</td>
-                    <td><strong style={{ color: 'var(--fg-teal)' }}>{hv.barn}</strong></td>
-                    <td><strong>{hv.qty.toLocaleString()}</strong> con</td>
-                    <td>{hv.grade1Kg} kg</td>
-                    <td>{hv.grade2Kg} kg</td>
-                    <td><strong>{hv.totalKg} kg</strong></td>
-                    <td><span className="farmshift-badge farmshift-badge-neutral">{hv.avgWeight} kg/con</span></td>
-                    <td style={{ color: 'var(--color-muted)' }}>{hv.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* ── Tab 3: Khách hàng thương lái ─────────────────── */}
       {activeTab === 'customers' && (
         <div className="farmshift-card">
           <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Danh bạ thương lái & Khách hàng mua sỉ</h3>
+            <h3 className="farmshift-card-title">Khách hàng</h3>
           </div>
           <div className="farmshift-table-container" style={{ border: 'none' }}>
             <table className="farmshift-table">
               <thead>
                 <tr>
-                  <th>Họ và tên / Đơn vị</th>
+                  <th>Họ và tên/ đơn vị</th>
                   <th>Số điện thoại</th>
-                  <th>Địa chỉ giao hàng</th>
+                  <th>Địa chỉ</th>
                   <th>Tổng mua lũy kế</th>
-                  <th>Công nợ phải thu</th>
+                  <th>Công nợ</th>
                   <th>Ghi chú</th>
                 </tr>
               </thead>
               <tbody>
-                {customers.map(c => (
+                {customersLoading ? <tr><td colSpan={6} role="status">Đang tải khách hàng...</td></tr>
+                  : customersError ? <tr><td colSpan={6} role="alert">{customersError} <button className="farmshift-btn farmshift-btn-secondary" onClick={() => { setCustomersLoading(true); setCustomersError(''); setCustomerRevision(value => value + 1); }}>Thử lại</button></td></tr>
+                  : customers.length === 0 ? <tr><td colSpan={6}>Chưa có khách hàng.</td></tr>
+                  : customers.map(c => (
                   <tr key={c.id}>
                     <td><strong style={{ color: 'var(--color-ink)' }}>{c.name}</strong></td>
-                    <td>{c.phone}</td>
-                    <td>{c.address}</td>
-                    <td><strong>{c.totalBought.toLocaleString('vi-VN')} đ</strong></td>
+                    <td>{c.phone || '—'}</td>
+                    <td>{c.address || '—'}</td>
+                    <td><strong>{formatMoney(c.totalBought)}</strong></td>
                     <td>
-                      <span className={`farmshift-badge ${c.debt > 0 ? 'farmshift-badge-warning' : 'farmshift-badge-success'}`}>
-                        {c.debt > 0 ? `Nợ: ${c.debt.toLocaleString('vi-VN')} đ` : 'Đã thanh toán hết'}
-                      </span>
+                      {formatMoney(c.debt)}
                     </td>
-                    <td style={{ color: 'var(--color-muted)' }}>{c.note}</td>
+                    <td style={{ color: 'var(--color-muted)' }}>{c.note || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -319,9 +234,11 @@ export const SalesView = () => {
                     <label className="farmshift-form-label">Khách hàng / Thương lái *</label>
                     <select
                       className="farmshift-form-control"
+                      required
                       value={newSale.customer}
                       onChange={(e) => setNewSale({ ...newSale, customer: e.target.value })}
                     >
+                      <option value="">Chọn khách hàng</option>
                       {customers.map(c => (
                         <option key={c.id} value={c.name}>{c.name}</option>
                       ))}
@@ -408,7 +325,7 @@ export const SalesView = () => {
                 >
                   Hủy
                 </button>
-                <button type="submit" className="farmshift-btn farmshift-btn-primary">
+                <button type="submit" className="farmshift-btn farmshift-btn-mint">
                   Lưu đơn bán
                 </button>
               </div>
@@ -417,109 +334,6 @@ export const SalesView = () => {
         </div>
       )}
 
-      {/* ── Modal: Tạo đơn thu hoạch ─────────────────────── */}
-      {showHarvestModal && (
-        <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal">
-            <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Lập phiếu thu hoạch xuất chuồng</h3>
-              <button
-                onClick={() => setShowHarvestModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}
-              >
-                ✕
-              </button>
-            </div>
-            <form onSubmit={handleCreateHarvest}>
-              <div className="farmshift-modal-body">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Chuồng thu hoạch *</label>
-                    <select
-                      className="farmshift-form-control"
-                      value={newHarvest.barn}
-                      onChange={(e) => setNewHarvest({ ...newHarvest, barn: e.target.value })}
-                    >
-                      <option value="Nhà J1">Nhà J1 (Gà J-Dabaco)</option>
-                      <option value="Nhà J2">Nhà J2 (Gà J-Dabaco)</option>
-                      <option value="Nhà Mía 1">Nhà Mía 1 (Gà Mía)</option>
-                      <option value="Nhà A1">Nhà A1 (Gà lai chọi)</option>
-                    </select>
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Ngày thu hoạch *</label>
-                    <input
-                      type="date"
-                      className="farmshift-form-control"
-                      value={newHarvest.date}
-                      onChange={(e) => setNewHarvest({ ...newHarvest, date: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số con xuất</label>
-                    <input
-                      type="number"
-                      required
-                      placeholder="VD: 500"
-                      className="farmshift-form-control"
-                      value={newHarvest.qty}
-                      onChange={(e) => setNewHarvest({ ...newHarvest, qty: e.target.value })}
-                    />
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Gà loại 1 (kg)</label>
-                    <input
-                      type="number"
-                      required
-                      placeholder="VD: 950"
-                      className="farmshift-form-control"
-                      value={newHarvest.grade1Kg}
-                      onChange={(e) => setNewHarvest({ ...newHarvest, grade1Kg: e.target.value })}
-                    />
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Gà loại 2 (kg)</label>
-                    <input
-                      type="number"
-                      placeholder="VD: 100"
-                      className="farmshift-form-control"
-                      value={newHarvest.grade2Kg}
-                      onChange={(e) => setNewHarvest({ ...newHarvest, grade2Kg: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Ghi chú phân loại</label>
-                  <input
-                    type="text"
-                    placeholder="Gà mã đẹp, lông mượt, phân loại đưa vào kho hàng thu hoạch..."
-                    className="farmshift-form-control"
-                    value={newHarvest.note}
-                    onChange={(e) => setNewHarvest({ ...newHarvest, note: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="farmshift-modal-footer">
-                <button
-                  type="button"
-                  className="farmshift-btn farmshift-btn-secondary"
-                  onClick={() => setShowHarvestModal(false)}
-                >
-                  Hủy
-                </button>
-                <button type="submit" className="farmshift-btn farmshift-btn-primary">
-                  Lưu phiếu thu hoạch
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </FarmShiftLayout>
   );
 };

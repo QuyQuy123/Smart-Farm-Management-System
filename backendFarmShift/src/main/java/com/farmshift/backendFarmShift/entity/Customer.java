@@ -37,6 +37,15 @@ public class Customer {
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
+    @Column(name = "total_bought", precision = 19, scale = 2)
+    private java.math.BigDecimal totalBought;
+
+    @Column(precision = 19, scale = 2)
+    private java.math.BigDecimal debt;
+
+    @Column(columnDefinition = "TEXT")
+    private String note;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
