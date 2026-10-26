@@ -16,7 +16,13 @@
 .hint { color: var(--color-muted); font-size: 13px; }
 
 .ordersContainer.ordersContainer { overflow-x: visible; }
-.ordersTable.ordersTable { table-layout: fixed; min-width: 0; width: 100%; }
+.ordersTable.ordersTable {
+  table-layout: fixed;
+  min-width: 0;
+  width: 100%;
+  caret-color: transparent;
+  cursor: default;
+}
 .ordersTable.ordersTable th, .ordersTable.ordersTable td {
   white-space: normal;
   overflow-wrap: anywhere;

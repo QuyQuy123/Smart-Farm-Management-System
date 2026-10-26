@@ -127,11 +127,12 @@ export const SalesView = () => {
     } finally { setSaving(false); }
   };
 
-  const filteredSales = sales.filter(s =>
-    s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.flock.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const normalizeSearch = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  const searchWords = normalizeSearch(searchTerm).trim().split(/\s+/).filter(Boolean);
+  const filteredSales = sales.filter(s => {
+    const searchable = normalizeSearch([s.code, s.customer, s.flock].join(' '));
+    return searchWords.every(word => searchable.includes(word));
+  });
 
   return (
     <FarmShiftLayout
@@ -177,7 +178,8 @@ export const SalesView = () => {
               <Search size={16} color="var(--color-muted)" />
               <input
                 type="text"
-                placeholder="Tìm theo mã hóa đơn, khách hàng, khu nuôi / chuồng / lứa..."
+                placeholder="Tìm theo khách hàng, khu nuôi,....."
+                aria-label="Tìm đơn bán theo khách hàng, khu nuôi, chuồng nuôi, lứa hoặc mã hóa đơn"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -207,7 +209,7 @@ export const SalesView = () => {
                         <strong style={{ display: 'block', color: 'var(--color-ink)', marginBottom: '8px' }}>
                           {searchTerm ? 'Không tìm thấy đơn bán phù hợp' : 'Chưa có đơn bán hàng'}
                         </strong>
-                        {searchTerm ? 'Thử tìm theo mã hóa đơn hoặc tên khách hàng khác.' : 'Các đơn bán sau khi được tạo sẽ hiển thị tại đây.'}
+                        {searchTerm ? 'Thử tìm theo khách hàng, khu nuôi, chuồng nuôi hoặc lứa khác.' : 'Các đơn bán sau khi được tạo sẽ hiển thị tại đây.'}
                       </td>
                     </tr>
                   )}
