@@ -25,6 +25,55 @@ class CustomerContactIntegrationTest {
     private static final String API = "/api/customer-contacts";
     private static final String BODY = "{\"name\":\" Nguyễn Văn A \",\"phone\":\"0912345678\"}";
 
+    @Autowired com.farmshift.backendFarmShift.service.SalesOrderService sales;
+
+    private com.farmshift.backendFarmShift.dto.request.SalesOrderRequest sale(String id, String name) {
+        return new com.farmshift.backendFarmShift.dto.request.SalesOrderRequest(id, java.time.LocalDate.now(), name,
+            "0912345678", "Address", "Area - Barn - Cycle", 10, new java.math.BigDecimal("20"),
+            new java.math.BigDecimal("50000"), "DEBT", null, "");
+    }
+
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void salesPreservesDifferentCustomerNamesAndUsesSequentialCodes() {
+        var first = sales.create(sale("first-sale", "First buyer"));
+        var second = sales.create(sale("second-sale", "Second buyer"));
+        assertTrue(first.getCode().matches("BH[0-9]{5,}"));
+        assertEquals(Long.parseLong(first.getCode().substring(2)) + 1, Long.parseLong(second.getCode().substring(2)));
+        assertEquals(2, repository.count());
+        var firstCustomer = repository.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc("0912345678", "First buyer").orElseThrow();
+        assertEquals("First buyer", firstCustomer.getName());
+        assertEquals(0, firstCustomer.getTotalBought().compareTo(new java.math.BigDecimal("1000000")));
+        sales.create(sale("third-sale", "First buyer"));
+        assertEquals(2, repository.count());
+        assertEquals(0, firstCustomer.getTotalBought().compareTo(new java.math.BigDecimal("2000000")));
+    }
+
+    @Autowired com.farmshift.backendFarmShift.repository.CustomerRepository profiles;
+
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void salesListsCustomerContactsInsteadOfPersonnelProfiles() throws Exception {
+        var profile = new com.farmshift.backendFarmShift.entity.Customer();
+        profile.setFullName("Personnel profile");
+        profiles.saveAndFlush(profile);
+        var customer = new CustomerContact();
+        customer.setName("Sales customer");
+        customer.setPhone("0912345678");
+        customer.setAddress("Customer address");
+        customer.setTotalBought(new java.math.BigDecimal("1500000"));
+        customer.setDebt(new java.math.BigDecimal("200000"));
+        customer.setNote("Customer note");
+        repository.saveAndFlush(customer);
+        mvc.perform(get("/api/sales/customers"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].name").value("Sales customer"))
+            .andExpect(jsonPath("$.data[0].phone").value("0912345678"))
+            .andExpect(jsonPath("$.data[0].address").value("Customer address"))
+            .andExpect(jsonPath("$.data[0].totalBought").value(1500000))
+            .andExpect(jsonPath("$.data[0].debt").value(200000))
+            .andExpect(jsonPath("$.data[0].note").value("Customer note"));
+    }
+
     @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
     void crudStoresCodeWithoutReturningIt() throws Exception {
         var result = mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(BODY))

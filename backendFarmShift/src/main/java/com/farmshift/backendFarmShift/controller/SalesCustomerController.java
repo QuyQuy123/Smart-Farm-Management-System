@@ -2,7 +2,7 @@ package com.farmshift.backendFarmShift.controller;
 
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.SalesCustomerResponse;
-import com.farmshift.backendFarmShift.repository.CustomerRepository;
+import com.farmshift.backendFarmShift.repository.CustomerContactRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
@@ -12,11 +12,11 @@ import java.util.List;
 @RequestMapping("/api/sales/customers")
 @RequiredArgsConstructor
 public class SalesCustomerController {
-    private final CustomerRepository customers;
+    private final CustomerContactRepository customers;
 
     @GetMapping
     public ApiResponse<List<SalesCustomerResponse>> list() {
-        return ApiResponse.success("Danh sách khách hàng", customers.findAll(Sort.by("fullName").ascending())
+        return ApiResponse.success("Danh sách khách hàng", customers.findAll(Sort.by("name").ascending())
                 .stream().map(SalesCustomerResponse::from).toList());
     }
 }
