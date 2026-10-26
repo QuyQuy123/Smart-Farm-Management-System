@@ -23,7 +23,16 @@ export const SalesView = () => {
   const [ordersError, setOrdersError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [selectedSale, setSelectedSale] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('customer') || '');
+  const customerFilter = searchParams.get('customer') || '';
+  const showCustomerOrders = customer => {
+    setSearchTerm(customer.name);
+    setSearchParams({ tab: 'orders', customer: customer.name });
+  };
+  const clearCustomerFilter = () => {
+    setSearchTerm('');
+    setSearchParams({ tab: 'orders' });
+  };
   const [showAddModal, setShowAddModal] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [customerPage, setCustomerPage] = useState(0);
@@ -130,6 +139,7 @@ export const SalesView = () => {
   const normalizeSearch = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
   const searchWords = normalizeSearch(searchTerm).trim().split(/\s+/).filter(Boolean);
   const filteredSales = sales.filter(s => {
+    if (customerFilter) return normalizeSearch(s.customer).trim() === normalizeSearch(customerFilter).trim();
     const searchable = normalizeSearch([s.code, s.customer, s.flock].join(' '));
     return searchWords.every(word => searchable.includes(word));
   });
@@ -172,6 +182,10 @@ export const SalesView = () => {
       {/* ── Tab 1: Đơn bán hàng ──────────────────────────── */}
       {activeTab === 'orders' && (
         <>
+          {customerFilter && <div className={styles.customerFilter}>
+            <span>Hóa đơn của khách hàng: <strong>{customerFilter}</strong></span>
+            <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={clearCustomerFilter}>Bỏ lọc</button>
+          </div>}
           {ordersError && <p role="alert" className={styles.error}>{ordersError}</p>}
           <div className="farmshift-toolbar">
             <div className="farmshift-search-box">
@@ -180,8 +194,11 @@ export const SalesView = () => {
                 type="text"
                 placeholder="Tìm theo khách hàng, khu nuôi,....."
                 aria-label="Tìm đơn bán theo khách hàng, khu nuôi, chuồng nuôi, lứa hoặc mã hóa đơn"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={customerFilter || searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  if (customerFilter) setSearchParams({ tab: 'orders' }, { replace: true });
+                }}
               />
             </div>
           </div>
@@ -207,9 +224,9 @@ export const SalesView = () => {
                     <tr>
                       <td colSpan={9} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--color-muted)' }}>
                         <strong style={{ display: 'block', color: 'var(--color-ink)', marginBottom: '8px' }}>
-                          {searchTerm ? 'Không tìm thấy đơn bán phù hợp' : 'Chưa có đơn bán hàng'}
+                          {(customerFilter || searchTerm) ? 'Không tìm thấy đơn bán phù hợp' : 'Chưa có đơn bán hàng'}
                         </strong>
-                        {searchTerm ? 'Thử tìm theo khách hàng, khu nuôi, chuồng nuôi hoặc lứa khác.' : 'Các đơn bán sau khi được tạo sẽ hiển thị tại đây.'}
+                        {(customerFilter || searchTerm) ? 'Thử tìm theo khách hàng, khu nuôi, chuồng nuôi hoặc lứa khác.' : 'Các đơn bán sau khi được tạo sẽ hiển thị tại đây.'}
                       </td>
                     </tr>
                   )}
@@ -272,7 +289,7 @@ export const SalesView = () => {
                   : customers.length === 0 ? <tr><td colSpan={6}>Chưa có khách hàng.</td></tr>
                   : customers.slice(currentCustomerPage * 10, (currentCustomerPage + 1) * 10).map(c => (
                   <tr key={c.id}>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{c.name}</strong></td>
+                    <td><button type="button" className={styles.customerLink} onClick={() => showCustomerOrders(c)} aria-label={`Xem hóa đơn của ${c.name}`}>{c.name}</button></td>
                     <td>{c.phone || '—'}</td>
                     <td>{c.address || '—'}</td>
                     <td><strong>{formatMoney(c.totalBought)}</strong></td>
