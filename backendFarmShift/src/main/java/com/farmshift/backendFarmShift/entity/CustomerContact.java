@@ -17,6 +17,17 @@ public class CustomerContact {
     private String name;
     @Column(nullable = false, length = 20)
     private String phone;
+    private String address;
+
+    @Column(name = "total_bought", precision = 19, scale = 2)
+    private java.math.BigDecimal totalBought;
+
+    @Column(precision = 19, scale = 2)
+    private java.math.BigDecimal debt;
+
+    @Column(columnDefinition = "TEXT")
+    private String note;
+
     @CreationTimestamp @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
     @UpdateTimestamp @Column(name = "updated_at")

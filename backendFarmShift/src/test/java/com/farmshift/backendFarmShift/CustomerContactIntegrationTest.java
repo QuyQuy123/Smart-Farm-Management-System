@@ -25,6 +25,32 @@ class CustomerContactIntegrationTest {
     private static final String API = "/api/customer-contacts";
     private static final String BODY = "{\"name\":\" Nguyễn Văn A \",\"phone\":\"0912345678\"}";
 
+    @Autowired com.farmshift.backendFarmShift.repository.CustomerRepository profiles;
+
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void salesListsCustomerContactsInsteadOfPersonnelProfiles() throws Exception {
+        var profile = new com.farmshift.backendFarmShift.entity.Customer();
+        profile.setFullName("Personnel profile");
+        profiles.saveAndFlush(profile);
+        var customer = new CustomerContact();
+        customer.setName("Sales customer");
+        customer.setPhone("0912345678");
+        customer.setAddress("Customer address");
+        customer.setTotalBought(new java.math.BigDecimal("1500000"));
+        customer.setDebt(new java.math.BigDecimal("200000"));
+        customer.setNote("Customer note");
+        repository.saveAndFlush(customer);
+        mvc.perform(get("/api/sales/customers"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].name").value("Sales customer"))
+            .andExpect(jsonPath("$.data[0].phone").value("0912345678"))
+            .andExpect(jsonPath("$.data[0].address").value("Customer address"))
+            .andExpect(jsonPath("$.data[0].totalBought").value(1500000))
+            .andExpect(jsonPath("$.data[0].debt").value(200000))
+            .andExpect(jsonPath("$.data[0].note").value("Customer note"));
+    }
+
     @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
     void crudStoresCodeWithoutReturningIt() throws Exception {
         var result = mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(BODY))

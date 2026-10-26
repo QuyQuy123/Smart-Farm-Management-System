@@ -36,3 +36,28 @@
   .invoiceLink { font-size: 11px; }
   .details > div { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* Every flex ancestor must shrink so the form body owns scrolling. */
+.modal.modal {
+  max-height: min(90vh, calc(100dvh - 32px));
+  min-height: 0;
+  overflow: hidden;
+}
+.saleForm {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.modal > :global(.farmshift-modal-header),
+.modal :global(.farmshift-modal-footer) {
+  flex: 0 0 auto;
+}
+.saleForm > :global(.farmshift-modal-body),
+.modal > .details {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
