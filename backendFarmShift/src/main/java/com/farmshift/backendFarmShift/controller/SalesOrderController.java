@@ -13,6 +13,11 @@ import java.util.List;
 public class SalesOrderController {
  private final SalesOrderRepository orders;
  private final SalesOrderService service;
+ private final com.farmshift.backendFarmShift.service.SalesInvoiceService invoiceService;
+ @GetMapping("/{id}/invoice")
+ public ApiResponse<com.farmshift.backendFarmShift.dto.response.SalesInvoiceResponse> invoice(@PathVariable String id) {
+  return ApiResponse.success("Thông tin hóa đơn bán hàng", invoiceService.get(id));
+ }
  @GetMapping public ApiResponse<List<SalesOrder>> list() {
   return ApiResponse.success("Danh sách đơn bán", orders.findAll(Sort.by("date").descending().and(Sort.by("id").descending())));
  }

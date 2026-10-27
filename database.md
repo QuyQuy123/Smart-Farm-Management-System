@@ -652,3 +652,11 @@ Hệ thống hỗ trợ linh hoạt 2 chế độ lưu trữ qua biến môi tr�
    - Cơ sở dữ liệu lưu URL đầy đủ truy cập công khai CDN (VD: `https://pub-xxxx.r2.dev/avatars/<UUID>.png`).
 
 `purchase_invoices.imported_date` (DATE, nullable): ngày nhập kho thực tế do server ghi theo Asia/Bangkok khi tạo hóa đơn ở trạng thái Đã nhập kho hoặc xác nhận nhập kho. Khác với ngày chứng từ `invoice_date`. Phiếu chưa nhập hoặc dữ liệu cũ chưa có ngày hiển thị —; không suy đoán ngày từ ngày chứng từ.
+
+### Thông tin xuất hóa đơn bán hàng
+
+- `customer_contacts.tax_code` (VARCHAR 50), `payment_method` (VARCHAR 100): mã số thuế và hình thức thanh toán, lưu từ form tạo đơn bán hàng.
+- `sales_orders.customer_id`: FK tới `customer_contacts`, dùng đọc thông tin bên mua trên hóa đơn.
+- `sales_orders.created_at`: thời điểm tạo đơn do server ghi theo Asia/Bangkok; mẫu hóa đơn hiển thị ngày của thời điểm này. Đơn cũ chưa có timestamp dùng `date` đã lưu, không tự đoán lại thời điểm tạo.
+- API `GET /api/sales/orders/{id}/invoice`: chỉ trả các trường thông tin hóa đơn, không trả toàn bộ cấu hình hệ thống. Đơn cũ chưa liên kết khách hàng được tra bằng tên và số điện thoại.
+- Thông tin đơn vị bán lấy từ `sales.invoice.seller.name`, `tax-code`, `address`, `phone`, `fax`, `bank-account` trong `application-local.properties`. Giá trị để trống chờ cấu hình thực tế. Không thêm bảng mới; khởi động backend với ddl-auto=update để bổ sung các cột.
