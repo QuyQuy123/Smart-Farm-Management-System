@@ -52,7 +52,7 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="measurement-unit-title"
     onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
     onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-    <section className={styles.modal}>
+    <section className={`${styles.modal} ${styles.unitModal}`}>
       <header className={styles.modalHeader}>
         <h2 id="measurement-unit-title">{title}</h2>
         <button type="button" className={styles.iconButton} onClick={onClose} disabled={saving} aria-label="Đóng"><X size={20} /></button>
@@ -67,7 +67,7 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
             <label htmlFor="measurement-unit-name">Tên đơn vị {!readOnly && <span className={styles.required}>*</span>}</label>
             <input id="measurement-unit-name" className="farmshift-form-control" placeholder="Ví dụ: Kilôgam" value={name} onChange={event => setName(event.target.value)} required maxLength={150} readOnly={readOnly} disabled={saving} />
             <label htmlFor="measurement-unit-content">Quy cách: 1 {name.trim() || 'đơn vị'} chứa</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 10 }}>
+            <div className={styles.unitConversionRow}>
               <input id="measurement-unit-content" className="farmshift-form-control" type="number" min="0" step="0.001" inputMode="decimal"
                 placeholder="Ví dụ: 25" value={contentQuantity} onChange={event => setContentQuantity(event.target.value)} readOnly={readOnly} disabled={saving} />
               <select aria-label="Đơn vị quy cách" className="farmshift-form-control" value={contentUnit} onChange={event => setContentUnit(event.target.value)}
@@ -76,10 +76,9 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
                 {USAGE_UNITS.map(unit => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
               </select>
             </div>
-            <small style={{ display: 'block', margin: '-4px 0 12px', color: '#607781', fontSize: 13.5 }}>
-              Dùng để quy đổi định mức chương trình nuôi sang tồn kho, ví dụ Bao 25kg = 25 kg, Lọ 1000 liều = 1000 liều.</small>
+
             <label htmlFor="measurement-unit-description">Mô tả</label>
-            <textarea id="measurement-unit-description" className="farmshift-form-control" rows={4} placeholder="Nhập mô tả đơn vị tính" value={description} onChange={event => setDescription(event.target.value)} maxLength={1000} readOnly={readOnly} disabled={saving} />
+            <textarea id="measurement-unit-description" className="farmshift-form-control" rows={2} placeholder="Nhập mô tả đơn vị tính" value={description} onChange={event => setDescription(event.target.value)} maxLength={1000} readOnly={readOnly} disabled={saving} />
           </>}
         </div>
         <footer className={styles.footer}>

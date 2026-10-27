@@ -24,4 +24,7 @@ public class SalesOrderController {
  @PostMapping public ApiResponse<SalesOrder> create(@Valid @RequestBody SalesOrderRequest request) {
   return ApiResponse.success("Đã lưu đơn bán", service.create(request));
  }
+ @PutMapping("/{id}") public ApiResponse<SalesOrder> update(@PathVariable String id, @Valid @RequestBody SalesOrderRequest request) {
+  return ApiResponse.success("Đã cập nhật hóa đơn", service.update(id, request));
+ }
 }
