@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, Coins, Flag, Gauge, HeartCrack, Layers, Pencil, PlusCircle,
+  ArrowLeftRight, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Coins, Flag, Gauge, HeartCrack, Layers, Pencil, PlusCircle,
   Scale, ShoppingCart, Skull, Sprout, Trash2, Users, Warehouse, Wheat,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
@@ -84,6 +84,7 @@ export const BarnDetailView = () => {
   const [journalTab, setJournalTab] = useState('FEED');
   const [expenseTab, setExpenseTab] = useState('ELECTRICITY');
   const [financeTab, setFinanceTab] = useState('CHART');
+  const [showMoreKpis, setShowMoreKpis] = useState(false);
 
   useEffect(() => {
     const handleAiAction = (event) => {
@@ -447,17 +448,25 @@ export const BarnDetailView = () => {
     </div>;
   };
 
+  // Chỉ số chính luôn hiện; các chỉ số phụ nằm sau nút "Xem thêm chỉ số" cho gọn.
+  const weightProgress = metrics && metrics.avgWeightKg != null && barn.targetWeight
+    ? Math.min(100, Math.round((Number(metrics.avgWeightKg) / Number(barn.targetWeight)) * 100)) : null;
+  const mainKpis = metrics && [
+    { icon: CalendarDays, label: 'Ngày tuổi', value: metrics.ageDays != null ? num(metrics.ageDays) : '—', unit: 'ngày',
+      hint: `Ngày nuôi thứ ${num(metrics.dayOfCycle)}` },
+    { icon: Users, label: 'Đang nuôi', value: num(metrics.currentQuantity), unit: 'con',
+      hint: `Hao hụt ${num(metrics.deaths)} con${metrics.lossRate != null ? ` (${num(metrics.lossRate, 2)}%)` : ''}` },
+    { icon: Scale, label: 'Cân nặng TB', value: metrics.avgWeightKg != null ? num(metrics.avgWeightKg, 3) : '—', unit: 'kg',
+      hint: barn.targetWeight != null ? `Mục tiêu ${num(barn.targetWeight, 2)} kg` : 'Chưa đặt mục tiêu', progress: weightProgress },
+    { icon: Wheat, label: 'Hệ số FCR', value: metrics.fcr != null ? num(metrics.fcr, 2) : '—', unit: '',
+      hint: `Đã ăn ${num(metrics.feedKg, 1)} kg cám` },
+  ];
   const kpis = metrics && [
-    { icon: CalendarDays, label: 'Ngày nuôi', value: num(metrics.dayOfCycle), hint: metrics.ageDays != null ? `Ngày tuổi ${num(metrics.ageDays)}` : null },
-    { icon: Users, label: 'Tổng đàn', value: `${num(metrics.currentQuantity)} con`, hint: `Nhập ${num(metrics.totalIn)} con` },
-    { icon: Scale, label: 'Cân nặng TB', value: metrics.avgWeightKg != null ? `${num(metrics.avgWeightKg, 3)} kg` : '—',
-      hint: barn.targetWeight != null ? `Mục tiêu ${num(barn.targetWeight, 2)} kg` : null },
+    { icon: Users, label: 'Tổng nhập', value: `${num(metrics.totalIn)} con`, hint: null },
     { icon: Gauge, label: 'Mật độ', value: metrics.densityPerM2 != null ? `${num(metrics.densityPerM2, 1)} con/m²` : '—', hint: barn.areaM2 ? null : 'Chưa khai báo diện tích' },
-    { icon: Wheat, label: 'Hệ số FCR', value: metrics.fcr != null ? num(metrics.fcr, 2) : '—', hint: `Cám ${num(metrics.feedKg, 1)} kg` },
     ...(canFinance && detail.finance ? [{ icon: Coins, label: 'Chi phí', value: detail.finance.costPerKg != null ? `${num(detail.finance.costPerKg)}đ/kg` : '—',
       hint: detail.finance.costPerHead != null ? `${num(detail.finance.costPerHead)}đ/con` : null }] : []),
     { icon: ShoppingCart, label: 'Sản lượng ước tính', value: `${num(metrics.biomassKg, 1)} kg`, hint: `Tăng trọng ${num(metrics.weightGainKg, 1)} kg` },
-    { icon: Skull, label: 'SL hao hụt', value: num(metrics.deaths), hint: metrics.lossRate != null ? `${num(metrics.lossRate, 2)}%` : null },
     { icon: HeartCrack, label: 'SL loại thải', value: num(metrics.culls), hint: metrics.cullRate != null ? `${num(metrics.cullRate, 2)}%` : null },
     { icon: CheckCircle2, label: 'SL thu hoạch', value: num(metrics.harvestedQuantity), hint: `${num(metrics.harvestedWeightKg, 1)} kg` },
   ];
@@ -515,10 +524,19 @@ export const BarnDetailView = () => {
       </div>
 
       <div className={styles.right}>
-        <Card title="Chỉ số kỹ thuật" icon={Gauge}>
-          <div className={styles.kpis}>{kpis.map(({ icon: Icon, label, value, hint }) => <div key={label} className={styles.kpi}>
-            <Icon size={20} /><div><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</div>
+        <Card title="Chỉ số kỹ thuật" icon={Gauge}
+          actions={<button type="button" className={styles.moreButton} aria-expanded={showMoreKpis} onClick={() => setShowMoreKpis(value => !value)}>
+            {showMoreKpis ? <>Thu gọn <ChevronUp size={16} /></> : <>Xem thêm chỉ số <ChevronDown size={16} /></>}</button>}>
+          <div className={styles.mainKpis}>{mainKpis.map(({ icon: Icon, label, value, unit, hint, progress }) => <div key={label} className={styles.mainKpi}>
+            <span className={styles.mainKpiIcon}><Icon size={20} /></span>
+            <span className={styles.mainKpiLabel}>{label}</span>
+            <strong>{value}{unit && value !== '—' && <small> {unit}</small>}</strong>
+            {progress != null && <span className={styles.mainKpiBar} aria-label={`Đạt ${progress}% mục tiêu`}><i style={{ width: `${progress}%` }} /></span>}
+            <span className={styles.mainKpiHint}>{hint}</span>
           </div>)}</div>
+          {showMoreKpis && <div className={styles.kpis}>{kpis.map(({ icon: Icon, label, value, hint }) => <div key={label} className={styles.kpi}>
+            <Icon size={18} /><div><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</div>
+          </div>)}</div>}
         </Card>
 
         <Card title={`Danh sách đàn (${detail.flocks.length})`} icon={Users}
