@@ -14,4 +14,11 @@ public record SalesOrderRequest(
  @NotNull @DecimalMin("0.01") BigDecimal unitPrice,
  @NotBlank String status,
  BigDecimal paidAmount,
- @Size(max=5000) String note) {}
+ @Size(max=5000) String note,
+ @Size(max=50) String taxCode,
+ @Size(max=100) String paymentMethod) {
+ public SalesOrderRequest(String id, LocalDate date, String customer, String phone, String address, String flock,
+                          int quantity, BigDecimal totalWeight, BigDecimal unitPrice, String status, BigDecimal paidAmount, String note) {
+  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,null,null);
+ }
+}

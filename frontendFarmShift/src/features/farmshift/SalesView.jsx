@@ -8,7 +8,8 @@ import { listSalesCustomers, listSalesOrders, createSalesOrder } from '../../ser
 import { listBarns } from '../../services/farmAreaService';
 import { listCycles } from '../../services/cycleService';
 import styles from './SalesView.module.css';
-import { Plus, Search, FileSpreadsheet, X } from 'lucide-react';
+import { SalesInvoiceTemplate } from './SalesInvoiceTemplate';
+import { Plus, Search, FileSpreadsheet, X, Printer } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 
 export const SalesView = () => {
@@ -23,6 +24,8 @@ export const SalesView = () => {
   const [ordersError, setOrdersError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [selectedSale, setSelectedSale] = useState(null);
+  const invoiceRef = useRef(null);
+  const [invoiceReady, setInvoiceReady] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('customer') || '');
   const customerFilter = searchParams.get('customer') || '';
   const showCustomerOrders = customer => {
@@ -66,6 +69,8 @@ export const SalesView = () => {
     customer: '',
     phone: '',
     address: '',
+    taxCode: '',
+    paymentMethod: 'Tiền mặt',
     paymentStatus: 'PAID',
     paidAmount: '',
     date: new Date().toISOString().split('T')[0],
@@ -122,7 +127,7 @@ export const SalesView = () => {
     try {
       const created = await createSalesOrder({
         id: requestId.current, date: newSale.date, customer: newSale.customer.trim(),
-        phone: newSale.phone.trim(), address: newSale.address.trim(), flock,
+        phone: newSale.phone.trim(), address: newSale.address.trim(), taxCode: newSale.taxCode.trim(), paymentMethod: newSale.paymentMethod, flock,
         quantity: qty, totalWeight: weight, unitPrice: price,
         status: newSale.paymentStatus, paidAmount, note: newSale.note,
       });
@@ -130,7 +135,7 @@ export const SalesView = () => {
       setSales(previous => [created, ...previous]);
       setCustomerRevision(value => value + 1);
       setShowAddModal(false);
-      setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '' }));
+      setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '' }));
     } catch (error) {
       setSaveError(error.response?.data?.message || 'Không thể lưu đơn bán. Vui lòng thử lại.');
     } finally { setSaving(false); }
@@ -233,7 +238,7 @@ export const SalesView = () => {
                   {filteredSales.map(s => (
                     <tr key={s.id}>
                       <td>
-                        <button type="button" className={styles.invoiceLink} onClick={() => setSelectedSale(s)} aria-label={`Xem hóa đơn ${s.code}`}>
+                        <button type="button" className={styles.invoiceLink} onClick={() => { setInvoiceReady(false); setSelectedSale(s); }} aria-label={`Xem hóa đơn ${s.code}`}>
                           {s.code}
                         </button>
                       </td>
@@ -249,10 +254,7 @@ export const SalesView = () => {
                         </strong>
                       </td>
                       <td>
-                        <span
-                          className={`farmshift-badge ${(s.totalAmount - s.paidAmount) <= 0 ? 'farmshift-badge-success' : 'farmshift-badge-warning'
-                            }`}
-                        >
+                        <span>
                           {s.totalAmount - s.paidAmount > 0 ? `Còn nợ ${formatMoney(s.totalAmount - s.paidAmount)}` : 'Đã thanh toán'}
                         </span>
                       </td>
@@ -315,29 +317,12 @@ export const SalesView = () => {
 
       {selectedSale && (
         <div className="farmshift-modal-backdrop" onClick={event => { if (event.target === event.currentTarget) setSelectedSale(null); }}>
-          <div className={`farmshift-modal ${styles.modal}`} role="dialog" aria-modal="true" aria-labelledby="sale-detail-title">
-            <div className="farmshift-modal-header">
-              <h3 id="sale-detail-title" className="farmshift-modal-title">Chi tiết hóa đơn {selectedSale.code}</h3>
+          <div className={`farmshift-modal ${styles.modal} ${styles.invoiceModal}`} role="dialog" aria-modal="true" aria-label="Hóa đơn bán hàng">
+            <div className={`farmshift-modal-header ${styles.invoiceHeader}`}>
               <button type="button" className={styles.closeButton} aria-label="Đóng chi tiết hóa đơn" onClick={() => setSelectedSale(null)}><X size={18} /></button>
             </div>
-            <dl className={styles.details}>
-              {[
-                ['Mã hóa đơn', selectedSale.code],
-                ['Ngày xuất', selectedSale.date],
-                ['Khách hàng', selectedSale.customer],
-                ['Số điện thoại', selectedSale.phone || '—'],
-                ['Địa chỉ', selectedSale.address || '—'],
-                ['Khu nuôi - chuồng - lứa', selectedSale.flock],
-                ['Số lượng xuất', `${selectedSale.quantity.toLocaleString('vi-VN')} con`],
-                ['Tổng trọng lượng', `${selectedSale.totalWeight.toLocaleString('vi-VN')} kg`],
-                ['Đơn giá', `${formatMoney(selectedSale.unitPrice)}/kg`],
-                ['Tổng doanh thu', formatMoney(selectedSale.totalAmount)],
-                ['Đã thanh toán', formatMoney(selectedSale.paidAmount)],
-                ['Trạng thái', selectedSale.totalAmount > selectedSale.paidAmount ? `Còn nợ ${formatMoney(selectedSale.totalAmount - selectedSale.paidAmount)}` : 'Đã thanh toán'],
-                ['Ghi chú', selectedSale.note || '—'],
-              ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-            </dl>
-            <div className="farmshift-modal-footer"><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setSelectedSale(null)}>Đóng</button></div>
+            <div className={styles.invoiceBody}><SalesInvoiceTemplate ref={invoiceRef} key={selectedSale.id} orderId={selectedSale.id} onReady={setInvoiceReady} /></div>
+            <div className="farmshift-modal-footer"><button type="button" className="farmshift-btn farmshift-btn-mint" disabled={!invoiceReady} onClick={() => invoiceRef.current?.print()}><Printer size={16} />Xuất hóa đơn</button></div>
           </div>
         </div>
       )}
@@ -369,7 +354,12 @@ export const SalesView = () => {
                       className="farmshift-form-control"
                       required
                       value={newSale.customer}
-                      onChange={(e) => setNewSale({ ...newSale, customer: e.target.value })}
+                      onChange={event => {
+                        const name = event.target.value;
+                        const matches = customers.filter(customer => customer.name?.trim().toLowerCase() === name.trim().toLowerCase());
+                        const existing = matches.length === 1 ? matches[0] : null;
+                        setNewSale(previous => ({ ...previous, customer: name, ...(existing ? { phone: existing.phone || '', address: existing.address || '', taxCode: existing.taxCode || '', paymentMethod: existing.paymentMethod || 'Tiền mặt' } : {}) }));
+                      }}
                     />
                   </div>
                   <div className="farmshift-form-group">
@@ -391,6 +381,11 @@ export const SalesView = () => {
                 <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-address">Địa chỉ <span className={styles.required}>*</span></label>
                   <input id="sale-address" required maxLength={255} className="farmshift-form-control" value={newSale.address} onChange={event => setNewSale({ ...newSale, address: event.target.value })} />
+                </div>
+
+                <div className={styles.customerInvoiceFields}>
+                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-tax-code">Mã số thuế</label><input id="sale-tax-code" className="farmshift-form-control" maxLength={50} value={newSale.taxCode} onChange={event => setNewSale({ ...newSale, taxCode: event.target.value })} /></div>
+                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-payment-method">Hình thức thanh toán <span className={styles.required}>*</span></label><select id="sale-payment-method" className="farmshift-form-control" required value={newSale.paymentMethod} onChange={event => setNewSale({ ...newSale, paymentMethod: event.target.value })}><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option><option value="Tiền mặt / Chuyển khoản">Tiền mặt / Chuyển khoản</option>{newSale.paymentMethod && !['Tiền mặt','Chuyển khoản','Tiền mặt / Chuyển khoản'].includes(newSale.paymentMethod) && <option value={newSale.paymentMethod}>{newSale.paymentMethod}</option>}</select></div>
                 </div>
 
                 <div className="farmshift-form-group">

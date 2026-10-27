@@ -29,10 +29,13 @@ public class SalesOrderService {
   };
   var customer = customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(request.phone().strip(), request.customer().strip()).orElseGet(CustomerContact::new);
   customer.setName(request.customer().strip()); customer.setPhone(request.phone().strip()); customer.setAddress(request.address().strip());
+  if(request.taxCode()!=null && !request.taxCode().isBlank()) customer.setTaxCode(request.taxCode().strip());
+  if(request.paymentMethod()!=null && !request.paymentMethod().isBlank()) customer.setPaymentMethod(request.paymentMethod().strip());
   customer.setTotalBought((customer.getTotalBought() == null ? BigDecimal.ZERO : customer.getTotalBought()).add(total));
   customer.setDebt((customer.getDebt() == null ? BigDecimal.ZERO : customer.getDebt()).add(total.subtract(paid)));
   customers.save(customer);
   var order = new SalesOrder();
+  order.setBuyer(customer);
   order.setId(request.id()); order.setCode(codes.nextCode());
   order.setDate(request.date()); order.setCustomer(customer.getName()); order.setPhone(customer.getPhone()); order.setAddress(customer.getAddress());
   order.setFlock(request.flock()); order.setQuantity(request.quantity()); order.setTotalWeight(request.totalWeight()); order.setUnitPrice(request.unitPrice());

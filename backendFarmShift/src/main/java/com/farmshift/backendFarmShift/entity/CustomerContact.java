@@ -18,6 +18,8 @@ public class CustomerContact {
     @Column(nullable = false, length = 20)
     private String phone;
     private String address;
+    @Column(name="tax_code", length=50) private String taxCode;
+    @Column(name="payment_method", length=100) private String paymentMethod;
 
     @Column(name = "total_bought", precision = 19, scale = 2)
     private java.math.BigDecimal totalBought;

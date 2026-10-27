@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class SalesOrderServiceTest {
  private SalesOrderRequest request(String status, String paid) {
-  return new SalesOrderRequest("sale-id", LocalDate.now(), "Buyer", "0912345678", "Address", "Area - Barn - Cycle", 10, new BigDecimal("20"), new BigDecimal("50000"), status, paid == null ? null : new BigDecimal(paid), "note");
+  return new SalesOrderRequest("sale-id", LocalDate.now(), "Buyer", "0912345678", "Address", "Area - Barn - Cycle", 10, new BigDecimal("20"), new BigDecimal("50000"), status, paid == null ? null : new BigDecimal(paid), "note", "0123456789", "Chuyển khoản");
  }
  @Test void partialPaymentAccumulatesExistingCustomerTotals() {
   var orders = mock(SalesOrderRepository.class); var customers = mock(CustomerContactRepository.class);
@@ -25,6 +25,9 @@ class SalesOrderServiceTest {
   assertEquals(0, new BigDecimal("300000").compareTo(order.getPaidAmount()));
   assertEquals(0, new BigDecimal("1100000").compareTo(customer.getTotalBought()));
   assertEquals(0, new BigDecimal("750000").compareTo(customer.getDebt()));
+  assertEquals("0123456789", customer.getTaxCode());
+  assertEquals("Chuyển khoản", customer.getPaymentMethod());
+  assertSame(customer, order.getBuyer());
   assertEquals("Address", customer.getAddress()); verify(customers).save(customer);
  }
  @Test void paidAndDebtCreateCustomersWithCorrectBalances() {
