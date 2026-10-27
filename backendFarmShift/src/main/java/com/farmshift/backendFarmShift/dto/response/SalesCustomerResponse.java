@@ -4,9 +4,9 @@ import com.farmshift.backendFarmShift.entity.CustomerContact;
 import java.math.BigDecimal;
 
 public record SalesCustomerResponse(Long id, String name, String phone, String address,
-                                    BigDecimal totalBought, BigDecimal debt, String note) {
+                                    BigDecimal totalBought, BigDecimal debt, String note, String taxCode, String paymentMethod) {
     public static SalesCustomerResponse from(CustomerContact customer) {
         return new SalesCustomerResponse(customer.getId(), customer.getName(), customer.getPhone(),
-                customer.getAddress(), customer.getTotalBought(), customer.getDebt(), customer.getNote());
+                customer.getAddress(), customer.getTotalBought(), customer.getDebt(), customer.getNote(), customer.getTaxCode(), customer.getPaymentMethod());
     }
 }
