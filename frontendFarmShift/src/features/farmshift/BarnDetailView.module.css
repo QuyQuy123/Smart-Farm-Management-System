@@ -66,23 +66,23 @@
 /* KPIs */
 /* Chỉ số kỹ thuật: 4 chỉ số chính dạng thẻ lớn, chỉ số phụ mở bằng nút "Xem thêm chỉ số" */
 .mainKpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 16px 18px; }
-.mainKpi { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid #d7ecdc; border-radius: 12px; background: #f6fbf7; min-width: 0; }
-.mainKpiIcon { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 4px; border-radius: 10px; background: #e3f3e8; color: #2d6a4f; }
-.mainKpiLabel { font-size: 14px; font-weight: 600; color: #3f4a59; }
-.mainKpi strong { font-size: 26px; font-weight: 800; line-height: 1.15; color: #1b4332; }
-.mainKpi strong small { font-size: 15px; font-weight: 600; color: #52796f; }
-.mainKpiHint { font-size: 13.5px; color: #52796f; }
-.mainKpiBar { height: 6px; margin: 2px 0; border-radius: 999px; background: #e3efe6; overflow: hidden; }
-.mainKpiBar i { display: block; height: 100%; background: linear-gradient(90deg, #2d6a4f, #74c69d); }
-.moreButton { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid #d7ecdc; border-radius: 999px; background: #fff;
-  color: #2d6a4f; font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer; }
-.moreButton:hover { background: #e9f6ec; }
-.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin: 0 18px 16px; border: 1px solid #edf1f0; border-radius: 12px; overflow: hidden; }
+.mainKpi { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid #cfe2fb; border-radius: 12px; background: #f3f8ff; min-width: 0; }
+.mainKpiIcon { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 4px; border-radius: 10px; background: #dbeafe; color: #1d4ed8; }
+.mainKpiLabel { font-size: 14px; font-weight: 600; color: #334155; }
+.mainKpi strong { font-size: 26px; font-weight: 800; line-height: 1.15; color: #1e3a8a; }
+.mainKpi strong small { font-size: 15px; font-weight: 600; color: #3b5b8c; }
+.mainKpiHint { font-size: 13.5px; color: #3b5b8c; }
+.mainKpiBar { height: 6px; margin: 2px 0; border-radius: 999px; background: #dbe7f7; overflow: hidden; }
+.mainKpiBar i { display: block; height: 100%; background: linear-gradient(90deg, #1d4ed8, #60a5fa); }
+.moreButton { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid #cfe2fb; border-radius: 999px; background: #fff;
+  color: #1d4ed8; font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer; }
+.moreButton:hover { background: #eff6ff; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin: 0 18px 16px; border: 1px solid #dbe7f7; border-radius: 12px; overflow: hidden; }
 .kpi { display: flex; gap: 10px; padding: 12px 14px; border-right: 1px solid #edf1f0; border-bottom: 1px solid #edf1f0; }
-.kpi svg { flex-shrink: 0; color: #2d6a4f; margin-top: 2px; }
+.kpi svg { flex-shrink: 0; color: #1d4ed8; margin-top: 2px; }
 .kpi span { display: block; font-size: 13.5px; font-weight: 600; color: #3f4a59; }
-.kpi strong { display: block; font-size: 16px; font-weight: 700; color: #1b4332; }
-.kpi small { display: block; font-size: 13.5px; color: #52796f; }
+.kpi strong { display: block; font-size: 16px; font-weight: 700; color: #1e3a8a; }
+.kpi small { display: block; font-size: 13.5px; color: #3b5b8c; }
 @media (max-width: 1100px) { .mainKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .mainKpis { grid-template-columns: 1fr; } }
 
