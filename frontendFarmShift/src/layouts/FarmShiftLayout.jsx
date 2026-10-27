@@ -281,7 +281,7 @@ export const FarmShiftLayout = ({
                             }
                         }}
                     >
-                        <Menu size={18} />
+                        <Menu size={20} />
                     </button>
 
                     <div className="farmshift-header-brand-tag">
@@ -301,7 +301,7 @@ export const FarmShiftLayout = ({
                         title="Toàn màn hình"
                         onClick={toggleFullscreen}
                     >
-                        {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                        {isFullscreen ? <Minimize size={19} /> : <Maximize size={19} />}
                     </button>
 
                     {/* Notifications Dropdown */}
@@ -311,7 +311,7 @@ export const FarmShiftLayout = ({
                             title="Thông báo hệ thống"
                             onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }}
                         >
-                            <Bell size={16} />
+                            <Bell size={19} />
                             {unreadCount > 0 && (
                                 <span className="farmshift-badge-counter farmshift-badge-bounce">{unreadCount}</span>
                             )}
@@ -477,7 +477,7 @@ export const FarmShiftLayout = ({
                                     user?.name ? user.name.charAt(0).toUpperCase() : 'A'
                                 )}
                             </div>
-                            <span className="farmshift-user-name" style={{ fontSize: '15px', fontWeight: 500, color: 'var(--color-ink)' }}>
+                            <span className="farmshift-user-name" style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-ink)' }}>
                                 {user?.name || farmInfo.owner}
                             </span>
                         </div>
@@ -610,7 +610,7 @@ export const FarmShiftLayout = ({
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
-                                        <Icon size={16} />
+                                        <Icon size={19} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (
@@ -638,7 +638,7 @@ export const FarmShiftLayout = ({
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
-                                        <Icon size={16} />
+                                        <Icon size={19} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (

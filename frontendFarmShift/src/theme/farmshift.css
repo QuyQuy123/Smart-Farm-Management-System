@@ -64,8 +64,8 @@
   --rounded-full: 9999px;
 
   /* ── Dimensions & Layout ──────────────────────────────────── */
-  --fs-header-height: 64px;
-  --fs-sidebar-width: 250px;
+  --fs-header-height: 70px;
+  --fs-sidebar-width: 272px;
   --fs-sidebar-collapsed-width: 72px;
 }
 
@@ -183,7 +183,7 @@ h6 {
   border: 1px solid var(--color-hairline);
   color: var(--color-ink);
   cursor: pointer;
-  padding: 8px;
+  padding: 10px;
   border-radius: var(--rounded-md);
   display: flex;
   align-items: center;
@@ -202,12 +202,12 @@ h6 {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px;
+  padding: 7px 14px;
   border-radius: var(--rounded-pill);
   background-color: var(--fs-teal-soft);
   color: var(--fs-teal-dark);
-  font-size: 14.5px;
-  font-weight: 500;
+  font-size: 15.5px;
+  font-weight: 600;
   border: 1px solid rgba(1, 151, 136, 0.15);
 }
 
@@ -231,7 +231,7 @@ h6 {
   border: 1px solid var(--color-hairline);
   color: var(--color-ink);
   cursor: pointer;
-  padding: 8px;
+  padding: 10px;
   border-radius: var(--rounded-full);
   display: flex;
   align-items: center;
@@ -253,10 +253,10 @@ h6 {
   right: -2px;
   background-color: var(--color-signature-coral);
   color: #ffffff;
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 700;
   border-radius: var(--rounded-pill);
-  padding: 1px 6px;
+  padding: 1px 7px;
   line-height: 1.2;
 }
 
@@ -281,16 +281,16 @@ h6 {
 
 .farmshift-user-avatar,
 .farmgo-user-avatar {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--rounded-full);
   background-color: var(--color-primary);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 500;
-  font-size: 15px;
+  font-weight: 600;
+  font-size: 16px;
 }
 
 /* ── Secondary Sidebar ───────────────────────────────────── */
@@ -864,9 +864,9 @@ h6 {
   background-color: var(--color-canvas);
   border: 1px solid var(--color-hairline);
   border-radius: var(--rounded-md);
-  padding: 8px 14px;
+  padding: 10px 16px;
   gap: 10px;
-  width: 320px;
+  width: 380px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -881,7 +881,8 @@ h6 {
   border: none;
   outline: none;
   width: 100%;
-  font-size: 15px;
+  font-size: 15.5px;
+  font-weight: 500;
   color: var(--color-ink);
   background: transparent;
 }
@@ -2268,14 +2269,14 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
 }
 
 .farmshift-sidebar .farmshift-menu-item {
-  gap: 12px;
-  min-height: 46px;
+  gap: 14px;
+  min-height: 52px;
   padding: 8px 18px 8px 20px;
   border-radius: 0;
-  border-right: 3px solid transparent;
-  color: #62738a;
-  font-size: 15px;
-  font-weight: 400;
+  border-right: 4px solid transparent;
+  color: #1f2933;
+  font-size: 16.5px;
+  font-weight: 500;
 }
 
 .farmshift-sidebar .farmshift-menu-item:hover {
@@ -2291,8 +2292,8 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
 }
 
 .farmshift-sidebar .farmshift-menu-icon {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background-color: #e8f4f1;
   color: #2f7d72;
@@ -2312,8 +2313,8 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
 .farmshift-sidebar.collapsed .farmshift-menu-item,
 .farmshift-sidebar.collapsed .farmshift-menu-item.active {
   width: 100%;
-  min-height: 46px;
-  height: 46px;
+  min-height: 52px;
+  height: 52px;
   padding: 0;
   margin: 0;
   justify-content: center;
