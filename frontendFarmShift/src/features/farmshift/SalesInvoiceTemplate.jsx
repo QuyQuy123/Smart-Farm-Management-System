@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { readMoneyToVietnameseWords } from '../../utils/vietnameseWords';
 import { getSalesInvoice } from '../../services/salesCustomerService';
 import styles from './SalesInvoiceTemplate.module.css';
@@ -7,7 +8,8 @@ function BlankLine({ label, value }) {
   return <div className={styles.line}><span>{label}</span><span className={styles.blank}>{value || ''}</span></div>;
 }
 
-export function SalesInvoiceTemplate({ orderId }) {
+export const SalesInvoiceTemplate = forwardRef(function SalesInvoiceTemplate({ orderId, onReady }, ref) {
+  const [printing, setPrinting] = useState(false);
   const [data, setData] = useState(null), [error, setError] = useState(''), [revision, setRevision] = useState(0);
   useEffect(() => {
     let cancelled = false;
@@ -16,13 +18,24 @@ export function SalesInvoiceTemplate({ orderId }) {
       .catch(() => { if (!cancelled) setError('Không tải được thông tin hóa đơn. Vui lòng thử lại.'); });
     return () => { cancelled = true; };
   }, [orderId, revision]);
+  useEffect(() => { onReady?.(!!data && !error); }, [data, error, onReady]);
+  useImperativeHandle(ref, () => ({ print: () => { if (data && !error) setPrinting(true); } }), [data, error]);
+  useEffect(() => {
+    if (!printing) return;
+    const finish = () => setPrinting(false);
+    window.addEventListener('afterprint', finish);
+    const timer = window.setTimeout(() => {
+      try { window.print(); } catch { finish(); }
+    }, 0);
+    return () => { window.clearTimeout(timer); window.removeEventListener('afterprint', finish); };
+  }, [printing]);
   if (error) return <div role="alert">{error}<button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>;
   if (!data) return <p role="status">Đang tải thông tin hóa đơn...</p>;
   const seller = data.seller || {}, buyer = data.buyer || {}, order = data.order;
   const number = value => value == null ? '' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 });
   const money = value => value == null ? '' : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} đ`;
   const [year, month, day] = (data.createdDate || '').split('-');
-  return <article className={styles.paper} aria-label="Hóa đơn bán hàng">
+  const invoice = <article className={styles.paper} aria-label="Hóa đơn bán hàng">
     <header className={styles.header}>
       <div className={styles.heading}><h2>HÓA ĐƠN BÁN HÀNG</h2><p>Ngày {day || '........'} tháng {month || '........'} năm {year || '........'}</p></div>
       <div className={styles.serial}><BlankLine label="Mẫu số:" /><BlankLine label="Ký hiệu:" /><BlankLine label="Số:" value={order?.code} /></div>
@@ -52,4 +65,5 @@ export function SalesInvoiceTemplate({ orderId }) {
     <div className={styles.signatures}><div><strong>Người mua hàng</strong><em>(Ký, ghi rõ họ tên)</em></div><div><strong>Người bán hàng</strong><em>(Ký, đóng dấu, ghi rõ họ tên)</em></div></div>
     <p className={styles.notice}>(Cần kiểm tra, đối chiếu khi lập, giao, nhận hóa đơn)</p>
   </article>;
-}
+  return <>{invoice}{printing && createPortal(<div className={styles.printRoot} data-sales-invoice-print aria-hidden="true">{invoice}</div>, document.body)}</>;
+});

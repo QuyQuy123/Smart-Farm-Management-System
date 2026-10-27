@@ -9,7 +9,7 @@ import { listBarns } from '../../services/farmAreaService';
 import { listCycles } from '../../services/cycleService';
 import styles from './SalesView.module.css';
 import { SalesInvoiceTemplate } from './SalesInvoiceTemplate';
-import { Plus, Search, FileSpreadsheet, X } from 'lucide-react';
+import { Plus, Search, FileSpreadsheet, X, Printer } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 
 export const SalesView = () => {
@@ -24,6 +24,8 @@ export const SalesView = () => {
   const [ordersError, setOrdersError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [selectedSale, setSelectedSale] = useState(null);
+  const invoiceRef = useRef(null);
+  const [invoiceReady, setInvoiceReady] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('customer') || '');
   const customerFilter = searchParams.get('customer') || '';
   const showCustomerOrders = customer => {
@@ -236,7 +238,7 @@ export const SalesView = () => {
                   {filteredSales.map(s => (
                     <tr key={s.id}>
                       <td>
-                        <button type="button" className={styles.invoiceLink} onClick={() => setSelectedSale(s)} aria-label={`Xem hóa đơn ${s.code}`}>
+                        <button type="button" className={styles.invoiceLink} onClick={() => { setInvoiceReady(false); setSelectedSale(s); }} aria-label={`Xem hóa đơn ${s.code}`}>
                           {s.code}
                         </button>
                       </td>
@@ -319,8 +321,8 @@ export const SalesView = () => {
             <div className={`farmshift-modal-header ${styles.invoiceHeader}`}>
               <button type="button" className={styles.closeButton} aria-label="Đóng chi tiết hóa đơn" onClick={() => setSelectedSale(null)}><X size={18} /></button>
             </div>
-            <div className={styles.invoiceBody}><SalesInvoiceTemplate key={selectedSale.id} orderId={selectedSale.id} /></div>
-            <div className="farmshift-modal-footer"><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setSelectedSale(null)}>Đóng</button></div>
+            <div className={styles.invoiceBody}><SalesInvoiceTemplate ref={invoiceRef} key={selectedSale.id} orderId={selectedSale.id} onReady={setInvoiceReady} /></div>
+            <div className="farmshift-modal-footer"><button type="button" className="farmshift-btn farmshift-btn-mint" disabled={!invoiceReady} onClick={() => invoiceRef.current?.print()}><Printer size={16} />Xuất hóa đơn</button></div>
           </div>
         </div>
       )}

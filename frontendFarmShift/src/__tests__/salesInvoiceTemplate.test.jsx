@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { SalesInvoiceTemplate } from '../features/farmshift/SalesInvoiceTemplate';
 import { getSalesInvoice } from '../services/salesCustomerService';
 vi.mock('../services/salesCustomerService', () => ({ getSalesInvoice: vi.fn() }));
@@ -32,4 +32,27 @@ it('shows a retrieval error and supports retry', async () => {
  expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được thông tin hóa đơn');
  fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
  expect(await screen.findByRole('article', { name: 'Hóa đơn bán hàng' })).toBeInTheDocument();
+});
+
+it('prints the loaded invoice without refetching and removes the print copy afterward', async () => {
+ const invoice = { createdDate: '2026-10-27', order: { code: 'SALE-PRINT', quantity: 10, totalWeight: 20, unitPrice: 50000, totalAmount: 1000000, paidAmount: 300000, debtAmount: 700000 }, seller: { name: 'Seller' }, buyer: { name: 'Buyer' } };
+ getSalesInvoice.mockResolvedValue(invoice);
+ const ref = React.createRef(), ready = vi.fn();
+ const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+ try {
+  render(<SalesInvoiceTemplate ref={ref} orderId="print-order" onReady={ready} />);
+  act(() => ref.current.print());
+  expect(print).not.toHaveBeenCalled();
+  await screen.findByText('SALE-PRINT');
+  expect(ready).toHaveBeenLastCalledWith(true);
+  act(() => ref.current.print());
+  await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+  const copy = document.body.querySelector('[data-sales-invoice-print]');
+  expect(copy).toHaveTextContent('SALE-PRINT');
+  expect(copy).toHaveTextContent('700.000 đ');
+  expect(copy.parentElement).toBe(document.body);
+  expect(getSalesInvoice).toHaveBeenCalledTimes(1);
+  act(() => window.dispatchEvent(new Event('afterprint')));
+  expect(document.body.querySelector('[data-sales-invoice-print]')).toBeNull();
+ } finally { print.mockRestore(); }
 });

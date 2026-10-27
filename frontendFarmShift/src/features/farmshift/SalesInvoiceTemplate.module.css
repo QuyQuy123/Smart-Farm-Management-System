@@ -35,3 +35,16 @@
 .quantityNote { margin-top: 4px; font-size: 12px; }
 .paymentSummary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 10px 0; }
 @media (max-width: 640px) { .paymentSummary { grid-template-columns: 1fr; gap: 4px; } }
+.printRoot { display: none; }
+@media print {
+  :global(body):has(> .printRoot) > :not(.printRoot) { display: none !important; }
+  .printRoot { display: block !important; width: 100%; margin: 0; padding: 0; }
+  .printRoot .header { display: grid !important; }
+  .printRoot .paper { min-height: 0; width: 100%; padding: 6mm; font-size: 11pt; box-shadow: none; }
+  .printRoot .heading h2 { font-size: 20pt; }
+  .printRoot .items { font-size: 10pt; }
+  .printRoot .items tbody td { height: 7mm; }
+  .printRoot .signatures { min-height: 30mm; break-inside: avoid; }
+  .printRoot .items tr { break-inside: avoid; }
+  .printRoot .paymentSummary, .printRoot .amount { break-inside: avoid; }
+}
