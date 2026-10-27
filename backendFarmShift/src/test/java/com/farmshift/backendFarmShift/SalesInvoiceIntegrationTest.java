@@ -27,6 +27,7 @@ class SalesInvoiceIntegrationTest {
  @Test @WithMockUser(authorities="ROLE_FARM_OWNER") void persistsCustomerFieldsAndUsesSystemCreationDateAndPublicSellerConfig() throws Exception {
   String id=UUID.randomUUID().toString();
   var body=new java.util.HashMap<String,Object>(Map.of("id",id,"date","2020-01-02","customer","Invoice Buyer","phone","0981234567","address","Buyer address","flock","Area A - Barn A - Cycle A","quantity",10,"totalWeight",20,"unitPrice",50000,"status","DEBT"));
+  body.put("status","PARTIAL"); body.put("paidAmount",250000);
   body.put("taxCode","BUYER123"); body.put("paymentMethod","Chuyển khoản");
   mvc.perform(post("/api/sales/orders").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
    .andExpect(status().isOk()).andExpect(jsonPath("$.data.createdAt").exists());
@@ -39,7 +40,13 @@ class SalesInvoiceIntegrationTest {
    .andExpect(jsonPath("$.data.seller.bankAccount").value("123456789"))
    .andExpect(jsonPath("$.data.buyer.name").value("Invoice Buyer"))
    .andExpect(jsonPath("$.data.buyer.taxCode").value("BUYER123"))
-   .andExpect(jsonPath("$.data.buyer.paymentMethod").value("Chuyển khoản"));
+   .andExpect(jsonPath("$.data.buyer.paymentMethod").value("Chuyển khoản"))
+   .andExpect(jsonPath("$.data.order.quantity").value(10))
+   .andExpect(jsonPath("$.data.order.totalWeight").value(20))
+   .andExpect(jsonPath("$.data.order.unitPrice").value(50000))
+   .andExpect(jsonPath("$.data.order.totalAmount").value(1000000))
+   .andExpect(jsonPath("$.data.order.paidAmount").value(250000))
+   .andExpect(jsonPath("$.data.order.debtAmount").value(750000));
   buyer.setAddress("Updated database address"); customers.saveAndFlush(buyer);
   mvc.perform(get("/api/sales/orders/"+id+"/invoice")).andExpect(jsonPath("$.data.buyer.address").value("Updated database address"));
  }

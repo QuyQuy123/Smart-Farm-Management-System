@@ -21,8 +21,11 @@ public class SalesInvoiceService {
   var order=orders.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn bán hàng."));
   var buyer=order.getBuyer();
   if(buyer==null) buyer=customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(order.getPhone(),order.getCustomer()).orElse(null);
+  var paid = order.getPaidAmount() == null ? java.math.BigDecimal.ZERO : order.getPaidAmount();
+  var debt = order.getTotalAmount() == null ? null : order.getTotalAmount().subtract(paid).max(java.math.BigDecimal.ZERO);
   return new SalesInvoiceResponse(order.getCreatedAt()==null ? order.getDate() : order.getCreatedAt().toLocalDate(),
    new SalesInvoiceResponse.Seller(name,taxCode,address,phone,fax,bankAccount),
-   buyer==null ? null : new SalesInvoiceResponse.Buyer(buyer.getName(),buyer.getTaxCode(),buyer.getAddress(),buyer.getPaymentMethod()));
+   buyer==null ? null : new SalesInvoiceResponse.Buyer(buyer.getName(),buyer.getTaxCode(),buyer.getAddress(),buyer.getPaymentMethod()),
+   new SalesInvoiceResponse.Order(order.getCode(),order.getQuantity(),order.getTotalWeight(),order.getUnitPrice(),order.getTotalAmount(),paid,debt,order.getNote()));
  }
 }

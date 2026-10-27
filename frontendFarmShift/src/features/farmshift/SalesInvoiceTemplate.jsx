@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { readMoneyToVietnameseWords } from '../../utils/vietnameseWords';
 import { getSalesInvoice } from '../../services/salesCustomerService';
 import styles from './SalesInvoiceTemplate.module.css';
 
@@ -17,12 +18,14 @@ export function SalesInvoiceTemplate({ orderId }) {
   }, [orderId, revision]);
   if (error) return <div role="alert">{error}<button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>;
   if (!data) return <p role="status">Đang tải thông tin hóa đơn...</p>;
-  const seller = data.seller || {}, buyer = data.buyer || {};
+  const seller = data.seller || {}, buyer = data.buyer || {}, order = data.order;
+  const number = value => value == null ? '' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 });
+  const money = value => value == null ? '' : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} đ`;
   const [year, month, day] = (data.createdDate || '').split('-');
   return <article className={styles.paper} aria-label="Hóa đơn bán hàng">
     <header className={styles.header}>
       <div className={styles.heading}><h2>HÓA ĐƠN BÁN HÀNG</h2><p>Ngày {day || '........'} tháng {month || '........'} năm {year || '........'}</p></div>
-      <div className={styles.serial}><BlankLine label="Mẫu số:" /><BlankLine label="Ký hiệu:" /><BlankLine label="Số:" /></div>
+      <div className={styles.serial}><BlankLine label="Mẫu số:" /><BlankLine label="Ký hiệu:" /><BlankLine label="Số:" value={order?.code} /></div>
     </header>
     <section className={styles.seller} aria-label="Thông tin đơn vị bán hàng">
       <BlankLine label="Đơn vị bán hàng:" value={seller.name} /><BlankLine label="Mã số thuế:" value={seller.taxCode} /><BlankLine label="Địa chỉ:" value={seller.address} />
@@ -31,15 +34,21 @@ export function SalesInvoiceTemplate({ orderId }) {
     </section>
     <section className={styles.buyer} aria-label="Thông tin người mua hàng">
       <BlankLine label="Họ tên người mua hàng:" value={buyer.name} /><BlankLine label="Mã số thuế:" value={buyer.taxCode} /><BlankLine label="Địa chỉ:" value={buyer.address} />
-      <div className={styles.twoColumns}><BlankLine label="Hình thức thanh toán:" value={buyer.paymentMethod} /><BlankLine label="Số tài khoản:" /></div>
+      <BlankLine label="Hình thức thanh toán:" value={buyer.paymentMethod} />
     </section>
-    <table className={styles.items} aria-label="Danh sách hàng hóa để trống">
+    <table className={styles.items} aria-label="Danh sách hàng hóa">
       <colgroup><col style={{ width: '6%' }} /><col style={{ width: '35%' }} /><col style={{ width: '11%' }} /><col style={{ width: '12%' }} /><col style={{ width: '17%' }} /><col style={{ width: '19%' }} /></colgroup>
       <thead><tr><th>STT</th><th>Tên hàng hóa, dịch vụ</th><th>Đơn vị tính</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
-      <tbody>{Array.from({ length: 10 }, (_, index) => <tr key={index}>{Array.from({ length: 6 }, (_, column) => <td key={column}>&nbsp;</td>)}</tr>)}</tbody>
-      <tfoot><tr><td colSpan={5}>Cộng tiền hàng hóa, dịch vụ:</td><td>&nbsp;</td></tr></tfoot>
+      <tbody>
+        {order && <tr><td className={styles.center}>1</td><td><strong>Gà thịt</strong><div className={styles.quantityNote}>Số lượng: {number(order.quantity)} con</div></td><td className={styles.center}>Kg</td><td className={styles.numeric}>{number(order.totalWeight)}</td><td className={styles.numeric}>{money(order.unitPrice)}</td><td className={styles.numeric}>{money(order.totalAmount)}</td></tr>}
+        {Array.from({ length: order ? 9 : 10 }, (_, index) => <tr key={index}>{Array.from({ length: 6 }, (_, column) => <td key={column}>&nbsp;</td>)}</tr>)}</tbody>
+      <tfoot><tr><td colSpan={5}>Cộng tiền hàng hóa, dịch vụ:</td><td className={styles.numeric}><strong>{money(order?.totalAmount)}</strong></td></tr></tfoot>
     </table>
-    <div className={styles.amount}><BlankLine label="Số tiền viết bằng chữ:" /><BlankLine label="" /></div>
+    <div className={styles.amount}><BlankLine label="Số tiền viết bằng chữ:" value={order?.totalAmount != null ? readMoneyToVietnameseWords(Number(order.totalAmount)) : ''} /></div>
+    <div className={styles.paymentSummary} aria-label="Thanh toán hóa đơn">
+      <BlankLine label="Đã thanh toán:" value={money(order?.paidAmount)} />
+      <BlankLine label="Còn nợ:" value={money(order?.debtAmount)} />
+    </div>
     <div className={styles.signatures}><div><strong>Người mua hàng</strong><em>(Ký, ghi rõ họ tên)</em></div><div><strong>Người bán hàng</strong><em>(Ký, đóng dấu, ghi rõ họ tên)</em></div></div>
     <p className={styles.notice}>(Cần kiểm tra, đối chiếu khi lập, giao, nhận hóa đơn)</p>
   </article>;

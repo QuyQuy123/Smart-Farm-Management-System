@@ -315,9 +315,8 @@ export const SalesView = () => {
 
       {selectedSale && (
         <div className="farmshift-modal-backdrop" onClick={event => { if (event.target === event.currentTarget) setSelectedSale(null); }}>
-          <div className={`farmshift-modal ${styles.modal} ${styles.invoiceModal}`} role="dialog" aria-modal="true" aria-labelledby="sale-detail-title">
-            <div className="farmshift-modal-header">
-              <h3 id="sale-detail-title" className="farmshift-modal-title">Chi tiết hóa đơn {selectedSale.code}</h3>
+          <div className={`farmshift-modal ${styles.modal} ${styles.invoiceModal}`} role="dialog" aria-modal="true" aria-label="Hóa đơn bán hàng">
+            <div className={`farmshift-modal-header ${styles.invoiceHeader}`}>
               <button type="button" className={styles.closeButton} aria-label="Đóng chi tiết hóa đơn" onClick={() => setSelectedSale(null)}><X size={18} /></button>
             </div>
             <div className={styles.invoiceBody}><SalesInvoiceTemplate key={selectedSale.id} orderId={selectedSale.id} /></div>
