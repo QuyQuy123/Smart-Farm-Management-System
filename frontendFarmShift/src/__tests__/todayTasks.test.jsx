@@ -4,12 +4,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { TodayTasksView } from '../features/farmshift/TodayTasksView';
 import * as service from '../services/dailyPlanService';
+import * as workService from '../services/workAssignmentService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_WORKER', email: 'worker@farm.test', showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: mocks.role, email: mocks.email } }) }));
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ pageTitle, children }) => <main><h1>{pageTitle}</h1>{children}</main> }));
 vi.mock('../services/dailyPlanService', () => ({ getFarmDailyPlan: vi.fn(), confirmDailyTask: vi.fn(), undoDailyTask: vi.fn() }));
+vi.mock('../services/workAssignmentService', () => ({ checkWorkTask: vi.fn(), uncheckWorkTask: vi.fn() }));
 
 const today = (() => {
   const now = new Date();
@@ -95,6 +97,23 @@ describe('Việc hôm nay: workers follow the plan and only tick tasks', () => {
     expect(await within(first).findByRole('alert')).toHaveTextContent('Kho chỉ còn 1 Bao 25kg Higro 02');
   });
 
+  it('shows the tasks the owner gave this worker and ticks them in the barn', async () => {
+    const given = { id: 31, barnId: 10, title: 'Rửa máng uống', note: 'Dùng nước sát trùng', startDate: today, endDate: today, dueTime: '07:30:00',
+      assignee: { id: 5, fullName: 'Công nhân A', email: 'worker@farm.test' }, done: null };
+    service.getFarmDailyPlan.mockResolvedValue([{ ...plan(10, 'Chuồng 1', [meal(1, mine)]), workers: [given.assignee], assignedTasks: [given] }]);
+    workService.checkWorkTask.mockResolvedValue({ ...given, done: { doneBy: 'worker@farm.test', doneAt: `${today}T07:40:00`, note: '' } });
+    renderView();
+    // The barn list counts the given task too: 1 of 2 done.
+    expect(await screen.findByText('Còn 1 việc')).toBeInTheDocument();
+    const card = await openBarn('Chuồng 1');
+    expect(within(card).getByText('Phụ trách: Công nhân A')).toBeInTheDocument();
+    expect(within(card).getByText('Việc được giao')).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole('button', { name: 'Xong Rửa máng uống' }));
+    await waitFor(() => expect(workService.checkWorkTask).toHaveBeenCalledWith(31, today));
+    expect(await within(card).findByText(/Xong lúc 07:40 · worker@farm.test/)).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Hoàn tác Rửa máng uống' })).toBeInTheDocument();
+  });
+
   it('goes back a day to catch up and cannot go into the future', async () => {
     renderView();
     await screen.findByRole('button', { name: 'Mở việc chuồng Chuồng 1' });
@@ -102,7 +121,7 @@ describe('Việc hôm nay: workers follow the plan and only tick tasks', () => {
     service.getFarmDailyPlan.mockResolvedValue([]);
     fireEvent.click(screen.getByRole('button', { name: 'Ngày trước' }));
     await waitFor(() => expect(service.getFarmDailyPlan).toHaveBeenLastCalledWith(yesterday));
-    expect(await screen.findByText(/Không có chuồng nào đang nuôi/)).toBeInTheDocument();
+    expect(await screen.findByText(/Bạn chưa được phân công chuồng nào/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hôm nay' })).toBeInTheDocument();
   });
 });

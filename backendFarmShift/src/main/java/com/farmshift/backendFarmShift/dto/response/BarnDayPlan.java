@@ -13,7 +13,7 @@ import java.util.List;
  */
 public record BarnDayPlan(Long cycleId, String cycleCode, Long barnId, String barnName, String areaName, LocalDate date,
                           int headcount, List<FlockLine> flocks, List<Task> tasks, int doneCount, BigDecimal doneCost,
-                          List<String> warnings) {
+                          List<String> warnings, List<WorkBoard.WorkerRef> workers, List<WorkBoard.AssignedTask> assignedTasks) {
 
     /** Đàn có mặt trong chuồng ngày đó (số con cuối ngày, đã trừ hao hụt / xuất bán / chuyển đi). */
     public record FlockLine(Long flockId, String code, String name, String programName, int ageDays, int quantity) {

@@ -42,6 +42,8 @@ class DailyPlanIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired InventoryItemRepository inventory;
+    @Autowired com.farmshift.backendFarmShift.repository.AccountRepository accounts;
+    @Autowired com.farmshift.backendFarmShift.repository.RoleRepository roles;
 
     long feedItem, vaccineItem, medicineItem, bagUnit, vialUnit, plainUnit, plainItem, programId, barnId, cycleId, maleFlock, femaleFlock;
 
@@ -106,6 +108,17 @@ class DailyPlanIntegrationTest {
         Map<String, Object> body = new HashMap<>(Map.of("name", name, "programId", programId, "gender", gender, "importDate", START.toString(),
                 "ageAtImport", 1, "quantity", quantity, "avgWeight", 0.04, "unitPrice", 11000));
         return id(send(post("/api/cycles/" + cycleId + "/flocks"), body));
+    }
+
+    private long workerAccount(String email) {
+        var role = roles.findByName("ROLE_FARM_WORKER").orElseGet(() -> roles.save(new com.farmshift.backendFarmShift.entity.Role(null, "ROLE_FARM_WORKER", "Công nhân")));
+        var account = new com.farmshift.backendFarmShift.entity.Account();
+        account.setEmail(email);
+        account.setPassword("x");
+        account.setFullName(email);
+        account.setRole(role);
+        account.setIsActive(true);
+        return accounts.save(account).getId();
     }
 
     private String plan() { return "/api/cycles/" + cycleId + "/daily-plan"; }
@@ -234,6 +247,9 @@ class DailyPlanIntegrationTest {
         var worker = user("worker@farm.test").authorities(() -> "ROLE_FARM_WORKER");
         var other = user("other@farm.test").authorities(() -> "ROLE_FARM_WORKER");
         var accountant = user("ketoan@farm.test").authorities(() -> "ROLE_ACCOUNTANT");
+        // Workers only work in the barns they are assigned to.
+        send(put("/api/barns/" + barnId + "/workers"), Map.of("workerIds", List.of(workerAccount("worker@farm.test"), workerAccount("other@farm.test"))))
+            .andExpect(status().isOk());
         String medicine = "MEDICINE:I" + medicineItem;
         mvc.perform(post(plan() + "/tasks").with(worker).contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("date", TODAY.toString(), "taskKey", medicine))))

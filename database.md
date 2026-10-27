@@ -596,6 +596,48 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 
 **API:** `GET /api/daily-plan?date=` (mọi chuồng đang nuôi), `GET /api/cycles/{id}/daily-plan?date=`, `POST /api/cycles/{id}/daily-plan/tasks` `{date, taskKey, actualQuantity?, note?}` và `DELETE /api/cycles/{id}/daily-plan/tasks?date=&taskKey=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Tiền chỉ trả về cho chủ trại và kế toán.
 
+### 6.11 Bảng `barn_workers`, `work_tasks`, `work_task_checks` — Phân công công việc
+
+Entity: `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Màn **Phân công công việc** (`/work-assignments`, chỉ chủ trại).
+
+**Bảng `barn_workers`** — công nhân phụ trách chuồng:
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `barn_id` | BIGINT | NOT NULL, FOREIGN KEY → `barns.id`. |
+| `account_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id` (tài khoản `ROLE_FARM_WORKER` đang hoạt động). UNIQUE (`barn_id`, `account_id`). |
+| `assigned_by` | VARCHAR(150) | Email người phân công. |
+| `assigned_at` | TIMESTAMP | Thời điểm phân công. |
+
+**Bảng `work_tasks`** — việc chủ trại giao thêm (ngoài chương trình nuôi), lặp mỗi ngày từ `start_date` đến `end_date`:
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `barn_id` | BIGINT | NOT NULL, FOREIGN KEY → `barns.id`. |
+| `assignee_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id`. Phải là công nhân phụ trách chuồng (`WORK_ASSIGNEE_NOT_IN_BARN`). |
+| `title` | VARCHAR(200) | NOT NULL. Tên việc (VD: `Rửa máng uống`). |
+| `note` | VARCHAR(1000) | Hướng dẫn thêm. |
+| `start_date`, `end_date` | DATE | NOT NULL. `end_date` ≥ `start_date`, tối đa 183 ngày, `end_date` không trước hôm nay. |
+| `due_time` | TIME | Giờ nên làm (không bắt buộc). |
+| `created_by`, `created_at` | VARCHAR / TIMESTAMP | Người và thời điểm giao. |
+
+**Bảng `work_task_checks`** — ngày việc được làm xong:
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `task_id` | BIGINT | NOT NULL, FOREIGN KEY → `work_tasks.id`. UNIQUE (`task_id`, `check_date`). |
+| `check_date` | DATE | NOT NULL. Ngày làm (trong khoảng ngày của việc, không sau hôm nay). |
+| `note` | VARCHAR(1000) | Ghi chú của người làm. |
+| `done_by`, `done_at` | VARCHAR(150) / TIMESTAMP | NOT NULL. Người xác nhận và thời điểm. |
+
+**Quy tắc:**
+- Công nhân chỉ thấy phiếu việc (`/api/daily-plan`) của chuồng mình phụ trách và chỉ việc giao cho mình; xem / xác nhận phiếu việc chuồng khác bị chặn (`BARN_NOT_ASSIGNED`). Chủ trại và kế toán xem mọi chuồng.
+- Chỉ người được giao (hoặc chủ trại) xác nhận việc (`WORK_TASK_NOT_YOURS`). Công nhân chỉ hoàn tác việc mình xác nhận trong hôm nay.
+- Không bỏ phân công công nhân còn việc được giao ở chuồng đó (`WORKER_HAS_TASKS`). Việc đã có ngày làm xong không đổi được chuồng, người làm, ngày bắt đầu (`WORK_TASK_HAS_CHECKS`).
+- Xóa chuồng thì xóa luôn phân công và việc giao của chuồng.
+
+**API:** `GET /api/work-assignments?date=`, `PUT /api/barns/{id}/workers` `{workerIds}`, `POST /api/work-tasks`, `PUT /api/work-tasks/{id}`, `DELETE /api/work-tasks/{id}` (`ROLE_FARM_OWNER`); `POST /api/work-tasks/{id}/checks` `{date, note}`, `DELETE /api/work-tasks/{id}/checks?date=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Phiếu việc của chuồng trả thêm `workers` và `assignedTasks`.
+
 ---
 
 ## PHẦN 7: LƯU TRỮ VÀ QUẢN LÝ TỆP TIN (MEDIA & ATTACHMENTS)

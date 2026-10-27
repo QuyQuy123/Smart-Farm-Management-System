@@ -49,11 +49,14 @@ export const TodayTasksView = () => {
     return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
   }, []);
 
-  const { busyKey, confirm, undo } = useDailyPlanActions(updated =>
+  const { busyKey, confirm, undo, confirmAssigned, undoAssigned } = useDailyPlanActions(updated =>
     setState(current => ({ ...current, plans: current.plans.map(plan => (plan.cycleId === updated.cycleId ? updated : plan)) })));
   const loading = state.key !== requestKey;
-  const tasks = state.plans.reduce((sum, plan) => sum + plan.tasks.length, 0);
-  const done = state.plans.reduce((sum, plan) => sum + plan.doneCount, 0);
+  // Đếm cả việc theo chương trình và việc được giao.
+  const count = plan => plan.tasks.length + (plan.assignedTasks || []).length;
+  const doneOf = plan => plan.doneCount + (plan.assignedTasks || []).filter(task => task.done).length;
+  const tasks = state.plans.reduce((sum, plan) => sum + count(plan), 0);
+  const done = state.plans.reduce((sum, plan) => sum + doneOf(plan), 0);
   const opened = state.plans.find(plan => String(plan.cycleId) === openCycle);
   const open = cycleId => {
     setSearchParams(cycleId ? { cycle: String(cycleId) } : {});
@@ -82,14 +85,18 @@ export const TodayTasksView = () => {
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
         : opened ? <div className={styles.detail}>
           <button type="button" className={styles.back} onClick={() => open(null)}><ArrowLeft size={16} />Tất cả chuồng</button>
-          <DailyPlanCard plan={opened} userEmail={user?.email} role={user?.role} busyKey={busyKey} onConfirm={confirm} onUndo={undo} hideDone={hideDone} />
+          <DailyPlanCard plan={opened} userEmail={user?.email} role={user?.role} busyKey={busyKey} onConfirm={confirm} onUndo={undo}
+            onConfirmAssigned={confirmAssigned} onUndoAssigned={undoAssigned} hideDone={hideDone} />
         </div>
-          : state.plans.length === 0 ? <p className={styles.state}>Không có chuồng nào đang nuôi theo chương trình trong ngày {formatDay(date)}.</p>
+          : state.plans.length === 0 ? <p className={styles.state}>{user?.role === 'ROLE_FARM_WORKER'
+            ? 'Bạn chưa được phân công chuồng nào đang nuôi. Liên hệ chủ trại để được phân công.'
+            : `Không có chuồng nào đang nuôi theo chương trình trong ngày ${formatDay(date)}.`}</p>
             : <div className={styles.grid}>
               {state.plans.map(plan => {
-                const total = plan.tasks.length;
-                const percent = total ? Math.round((plan.doneCount / total) * 100) : 0;
-                const left = total - plan.doneCount;
+                const total = count(plan);
+                const finished = doneOf(plan);
+                const percent = total ? Math.round((finished / total) * 100) : 0;
+                const left = total - finished;
                 return <button key={plan.cycleId} type="button" className={`${styles.barn} ${total && left === 0 ? styles.barnDone : ''}`}
                   onClick={() => open(plan.cycleId)} aria-label={`Mở việc chuồng ${plan.barnName}`}>
                   <span className={styles.barnHead}>
@@ -99,7 +106,7 @@ export const TodayTasksView = () => {
                   </span>
                   <span className={styles.barnMeta}>{formatAmount(plan.headcount)} con · {ageText(plan)}{plan.flocks.length > 1 ? ` · ${plan.flocks.length} đàn` : ''}</span>
                   <span className={styles.barnProgress}>
-                    <strong>{plan.doneCount}/{total}</strong> việc
+                    <strong>{finished}/{total}</strong> việc
                     <span className={styles.barnStatus}>{total === 0 ? 'Không có việc' : left === 0 ? 'Đã xong' : `Còn ${left} việc`}</span>
                   </span>
                   <span className={styles.bar}><i style={{ width: `${percent}%` }} /></span>

@@ -4,6 +4,8 @@
 .header h3 { margin: 0; font-size: 16px; color: #1b4332; }
 .header h3 span { font-weight: 500; color: #52796f; }
 .header p { margin: 4px 0 0; font-size: 14.5px; color: #52796f; }
+.header .workers { font-weight: 600; color: #2d6a4f; }
+.assignedMeta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .progress { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 2px 6px; min-width: 200px; }
 .progress strong { font-size: 20px; color: #1b4332; }
 .progress span { font-size: 13.5px; color: #52796f; }

@@ -566,7 +566,8 @@ export const BarnDetailView = () => {
           {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
             : dayPlan.flocks.length === 0 ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
               : <div className={styles.dayPlan}><DailyPlanCard plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
-                onConfirm={dailyActions.confirm} onUndo={dailyActions.undo} /></div>}
+                onConfirm={dailyActions.confirm} onUndo={dailyActions.undo}
+                onConfirmAssigned={dailyActions.confirmAssigned} onUndoAssigned={dailyActions.undoAssigned} /></div>}
         </Card>}
 
         <Card title="Chương trình nuôi" icon={ClipboardList}

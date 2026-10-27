@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Check, RotateCcw, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
+import { AlertTriangle, Check, ClipboardCheck, Clock, RotateCcw, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
 import { METHODS, formatAmount, labelOf, todayIso } from './farmAreaOptions';
 import styles from './DailyPlanCard.module.css';
 
@@ -26,13 +26,15 @@ const amountText = (quantity, unit, stock, stockUnit) => {
  * Phiếu việc một ngày của một chuồng. Công nhân bấm "Xong" khi làm đúng kế hoạch, "Khác kế hoạch" khi lượng thực tế khác
  * (bắt buộc ghi lý do nếu lệch nhiều). onConfirm / onUndo trả về thông báo lỗi (chuỗi) hoặc null khi thành công.
  */
-export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, showHeader = true, hideDone = false }) {
+export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, onConfirmAssigned, onUndoAssigned, showHeader = true, hideDone = false }) {
   const [editing, setEditing] = useState(null);
   const [errors, setErrors] = useState({});
   const isOwner = role === 'ROLE_FARM_OWNER';
   const canAct = isOwner || role === 'ROLE_FARM_WORKER';
-  const total = plan.tasks.length;
-  const progress = total ? Math.round((plan.doneCount / total) * 100) : 0;
+  const assigned = plan.assignedTasks || [];
+  const total = plan.tasks.length + assigned.length;
+  const doneTotal = plan.doneCount + assigned.filter(task => task.done).length;
+  const progress = total ? Math.round((doneTotal / total) * 100) : 0;
   const ages = [...new Set(plan.flocks.map(flock => flock.ageDays))].sort((a, b) => a - b);
 
   const run = async (task, action) => {
@@ -48,6 +50,13 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
   }));
   const undo = task => run(task, () => onUndo(plan, task));
   const canUndo = done => isOwner || (role === 'ROLE_FARM_WORKER' && done.doneBy === userEmail && plan.date === todayIso());
+  // Việc được giao dùng khóa riêng ("A<id>") để báo lỗi / trạng thái đang lưu không lẫn với việc theo chương trình.
+  const assignedKey = task => `A${task.id}`;
+  const runAssigned = async (task, action) => {
+    setErrors(current => ({ ...current, [assignedKey(task)]: undefined }));
+    const message = await action();
+    if (message) setErrors(current => ({ ...current, [assignedKey(task)]: message }));
+  };
 
   return <section className={styles.card} aria-label={`Phiếu việc ${plan.barnName}`}>
     {showHeader && <header className={styles.header}>
@@ -55,9 +64,10 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         <h3>{plan.barnName} <span>· {plan.areaName}</span></h3>
         <p>{formatAmount(plan.headcount)} con · ngày tuổi {ages.length > 1 ? `${ages[0]}–${ages[ages.length - 1]}` : ages[0] ?? '—'}
           {plan.flocks.length > 1 && ` · ${plan.flocks.length} đàn`}</p>
+        {plan.workers && <p className={styles.workers}>Phụ trách: {plan.workers.length ? plan.workers.map(worker => worker.fullName).join(', ') : 'chưa phân công'}</p>}
       </div>
-      <div className={styles.progress} aria-label={`Đã xong ${plan.doneCount}/${total} việc`}>
-        <strong>{plan.doneCount}/{total}</strong><span>việc</span>
+      <div className={styles.progress} aria-label={`Đã xong ${doneTotal}/${total} việc`}>
+        <strong>{doneTotal}/{total}</strong><span>việc</span>
         <div className={styles.bar}><i style={{ width: `${progress}%` }} /></div>
         {plan.doneCost != null && <small>Chi phí đã ghi: {money(plan.doneCost)}</small>}
       </div>
@@ -67,7 +77,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
       {plan.warnings.map(warning => <li key={warning}><AlertTriangle size={14} />{warning}</li>)}
     </ul>}
 
-    {total === 0 ? <p className={styles.empty}>Không có việc theo chương trình nuôi cho ngày này.</p> : SECTIONS.map(section => {
+    {plan.tasks.length === 0 && assigned.length === 0 ? <p className={styles.empty}>Không có việc cho ngày này.</p> : SECTIONS.map(section => {
       const tasks = plan.tasks.filter(task => task.category === section.category && !(hideDone && task.done));
       if (!tasks.length) return null;
       const Icon = section.icon;
@@ -127,5 +137,31 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         </ul>
       </div>;
     })}
+
+    {assigned.filter(task => !(hideDone && task.done)).length > 0 && <div className={styles.section}>
+      <h4><ClipboardCheck size={15} />Việc được giao</h4>
+      <ul>{assigned.filter(task => !(hideDone && task.done)).map(task => {
+        const busy = busyKey === `${plan.cycleId}:${assignedKey(task)}`;
+        const mine = isOwner || task.assignee.email === userEmail;
+        return <li key={task.id} className={`${styles.task} ${task.done ? styles.done : ''}`}>
+          <div className={styles.info}>
+            <strong>{task.title}</strong>
+            <small className={styles.assignedMeta}>
+              {task.dueTime && <><Clock size={13} />{String(task.dueTime).slice(0, 5)} · </>}Giao cho {task.assignee.fullName}
+            </small>
+            {task.note && <small>{task.note}</small>}
+            {task.done && <small className={styles.doneLine}><Check size={13} />Xong lúc {time(task.done.doneAt)} · {task.done.doneBy}
+              {task.done.note && ` · ${task.done.note}`}</small>}
+            {errors[assignedKey(task)] && <small role="alert" className={styles.error}>{errors[assignedKey(task)]}</small>}
+          </div>
+          {canAct && mine && onConfirmAssigned && <div className={styles.actions}>
+            {task.done ? canUndo(task.done) && <button type="button" className={styles.undoButton} disabled={busy}
+              onClick={() => runAssigned(task, () => onUndoAssigned(plan, task))} aria-label={`Hoàn tác ${task.title}`}><RotateCcw size={14} />Hoàn tác</button>
+              : <button type="button" className={`farmshift-btn ${styles.doneButton}`} disabled={busy} aria-label={`Xong ${task.title}`}
+                onClick={() => runAssigned(task, () => onConfirmAssigned(plan, task))}><Check size={15} />{busy ? 'Đang lưu...' : 'Xong'}</button>}
+          </div>}
+        </li>;
+      })}</ul>
+    </div>}
   </section>;
 }
