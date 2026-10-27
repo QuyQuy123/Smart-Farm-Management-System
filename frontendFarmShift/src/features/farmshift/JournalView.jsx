@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Utensils, ClipboardCheck, Thermometer, Fan, HeartPulse,
-  ShieldAlert, Plus, X, Video, FileSpreadsheet
+  ShieldAlert, Plus, X, Video, FileSpreadsheet, HeartCrack, Scale
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -15,14 +15,24 @@ import { WorkDiaryTab } from './WorkDiaryTab';
 import { EnvironmentalTab } from './EnvironmentalTab';
 import { HealthDiaryTab } from './HealthDiaryTab';
 import { IotDevicesTab } from './IotDevicesTab';
+import { BarnJournal } from './BarnJournal';
 
 export const JournalView = () => {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const initialTab = searchParams.get('tab') || 'feed';
+  const initialTab = searchParams.get('tab') || 'loss';
 
   const { sendNotification, showToast: showGlobalToast } = useNotification();
-  const [activeTab, setActiveTab] = useState(initialTab); // 'feed' | 'env' | 'iot_devices' | 'health' | 'treatment' | 'work'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'loss' | 'weight' | 'feed' | 'env' | 'iot_devices' | 'health' | 'treatment' | 'work'
+  // Chuồng đang chọn ở tab Hao hụt / Cân mẫu, giữ khi chuyển qua lại giữa hai tab.
+  const [journalCycleId, setJournalCycleId] = useState(null);
+  const barnJournal = activeTab === 'loss' || activeTab === 'weight';
+  // Lối tắt ?tab=... bấm khi đang ở trang này vẫn chuyển đúng tab.
+  const [tabParam, setTabParam] = useState(initialTab);
+  if (tabParam !== initialTab) {
+    setTabParam(initialTab);
+    setActiveTab(initialTab);
+  }
   const [viewingCctvBarn, setViewingCctvBarn] = useState(null);
   const [activeChartBarns, setActiveChartBarns] = useState({});
 
@@ -799,7 +809,7 @@ export const JournalView = () => {
     <FarmShiftLayout
       pageTitle="Ghi nhật ký chăn nuôi"
       breadcrumbs={[{ label: 'Ghi nhật ký' }]}
-      actions={
+      actions={barnJournal ? null : (
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="farmshift-btn farmshift-btn-excel">
             <FileSpreadsheet size={15} /> Xuất Excel
@@ -827,10 +837,24 @@ export const JournalView = () => {
             </button>
           )}
         </div>
-      }
+      )}
     >
       {/* ── FarmShift Tab Navigation ────────────────────────── */}
       <div className="farmshift-tabs">
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'loss' ? 'active' : ''}`}
+          onClick={() => setActiveTab('loss')}
+        >
+          <HeartCrack size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+          Hao hụt (chết / loại thải)
+        </button>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'weight' ? 'active' : ''}`}
+          onClick={() => setActiveTab('weight')}
+        >
+          <Scale size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+          Cân mẫu
+        </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'feed' ? 'active' : ''}`}
           onClick={() => setActiveTab('feed')}
@@ -874,6 +898,9 @@ export const JournalView = () => {
           Xử lý vật nuôi & Phác đồ
         </button>
       </div>
+
+      {/* ── TAB: HAO HỤT / CÂN MẪU (dữ liệu thật theo chuồng) ── */}
+      {barnJournal && <BarnJournal mode={activeTab} selectedCycleId={journalCycleId} onSelect={setJournalCycleId} />}
 
       {/* ── TAB: CỮ ĂN HÀNG NGÀY (Feed Diary) ─────────────── */}
       {activeTab === 'feed' && (

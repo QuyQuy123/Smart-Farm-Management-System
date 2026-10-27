@@ -132,6 +132,12 @@ public class CycleService {
 
     // ---------------------------------------------------------------- shared rules
 
+    /** Chuồng của lứa nuôi, để kiểm tra công nhân có phụ trách chuồng đó không. */
+    @Transactional(readOnly = true)
+    public Long barnIdOf(Long id) {
+        return find(id).getBarn().getId();
+    }
+
     FarmingCycle find(Long id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lứa nuôi."));
     }

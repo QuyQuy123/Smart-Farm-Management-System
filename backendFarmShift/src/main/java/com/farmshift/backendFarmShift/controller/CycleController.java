@@ -9,6 +9,7 @@ import com.farmshift.backendFarmShift.security.RoleNames;
 import com.farmshift.backendFarmShift.service.CycleRecordService;
 import com.farmshift.backendFarmShift.service.CycleService;
 import com.farmshift.backendFarmShift.service.FlockService;
+import com.farmshift.backendFarmShift.service.WorkAssignmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,7 @@ public class CycleController {
     private final CycleService service;
     private final FlockService flockService;
     private final CycleRecordService recordService;
+    private final WorkAssignmentService workAssignment;
 
     static boolean canSeeFinance(Authentication authentication) {
         return authentication.getAuthorities().stream().anyMatch(authority -> FINANCE_ROLES.contains(authority.getAuthority()));
@@ -74,6 +76,7 @@ public class CycleController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_FARM_WORKER')")
     public ApiResponse<Long> addFeed(@PathVariable Long id, @Valid @RequestBody FeedRecordRequest request, Authentication authentication) {
+        workAssignment.requireAssigned(authentication, service.barnIdOf(id));
         return ApiResponse.success("Đã ghi nhật ký cám", recordService.addFeed(id, request, authentication.getName()));
     }
 
@@ -88,6 +91,7 @@ public class CycleController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_FARM_WORKER')")
     public ApiResponse<Long> addWeight(@PathVariable Long id, @Valid @RequestBody WeightSampleRequest request, Authentication authentication) {
+        workAssignment.requireAssigned(authentication, service.barnIdOf(id));
         return ApiResponse.success("Đã ghi thông số vật nuôi", recordService.addWeight(id, request, authentication.getName()));
     }
 

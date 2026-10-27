@@ -153,6 +153,13 @@ public class FlockService {
         }
     }
 
+    /** Chuồng đang nuôi đàn, để kiểm tra công nhân có phụ trách chuồng đó không. */
+    @Transactional(readOnly = true)
+    public Long barnIdOf(Long flockId) {
+        return repository.findById(flockId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đàn."))
+                .getCycle().getBarn().getId();
+    }
+
     /** Ghi hao hụt (chết) hoặc loại thải. */
     @Transactional
     public FlockMovementResponse recordLoss(Long flockId, FlockLossRequest request, String user) {

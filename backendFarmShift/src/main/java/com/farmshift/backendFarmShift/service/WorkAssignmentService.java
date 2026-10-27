@@ -11,6 +11,7 @@ import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.*;
 import com.farmshift.backendFarmShift.security.RoleNames;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
@@ -179,6 +180,14 @@ public class WorkAssignmentService {
 
     public boolean isWorkerOfBarn(String email, Long barnId) {
         return barnWorkerRepository.existsByBarnIdAndWorkerEmailIgnoreCase(barnId, email);
+    }
+
+    /** Công nhân chỉ ghi nhật ký / xác nhận việc cho chuồng mình phụ trách; chủ trại và kế toán không bị giới hạn. */
+    public void requireAssigned(Authentication authentication, Long barnId) {
+        boolean worker = authentication.getAuthorities().stream().anyMatch(authority -> RoleNames.FARM_WORKER.equals(authority.getAuthority()));
+        if (worker && !isWorkerOfBarn(authentication.getName(), barnId)) {
+            throw new ConflictException("Bạn không phụ trách chuồng này. Liên hệ chủ trại để được phân công.", "BARN_NOT_ASSIGNED", null);
+        }
     }
 
     public Set<Long> barnIdsOf(String email) {

@@ -41,7 +41,7 @@ export const FarmSystemMap = ({ onSelectNode }) => {
       nodes: [
         { id: 'feed-diary', title: 'Ghi cám', desc: 'Lượng ăn theo cữ / ngày', count: '711 kg/ngày', route: '/journal?tab=feed', icon: <Utensils size={16} /> },
         { id: 'work-diary', title: 'Ghi công việc', desc: 'Vệ sinh, sát trùng, đảo trấu', count: '5 việc/ngày', route: '/journal?tab=work', icon: <ClipboardCheck size={16} /> },
-        { id: 'health-diary', title: 'Theo dõi vật nuôi', desc: 'Cân mẫu & hao hụt', count: '2 con hao hụt', route: '/journal?tab=health', icon: <HeartPulse size={16} /> },
+        { id: 'health-diary', title: 'Theo dõi vật nuôi', desc: 'Cân mẫu & hao hụt', count: '2 con hao hụt', route: '/journal?tab=loss', icon: <HeartPulse size={16} /> },
         { id: 'env-diary', title: 'Theo dõi môi trường', desc: 'Nhiệt ẩm IoT & điều khiển', count: '28.5°C | 72%', route: '/journal?tab=env', icon: <Thermometer size={16} /> }
       ]
     },

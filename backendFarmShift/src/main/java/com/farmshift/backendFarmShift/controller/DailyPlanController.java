@@ -4,7 +4,6 @@ import com.farmshift.backendFarmShift.dto.request.DailyTaskConfirmRequest;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
 import com.farmshift.backendFarmShift.security.RoleNames;
-import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.service.DailyPlanService;
 import com.farmshift.backendFarmShift.service.WorkAssignmentService;
 import jakarta.validation.Valid;
@@ -59,10 +58,7 @@ public class DailyPlanController {
 
     /** Công nhân chỉ xem và xác nhận phiếu việc của chuồng mình phụ trách. */
     private void requireAssigned(Long cycleId, Authentication authentication) {
-        String worker = workerEmail(authentication);
-        if (worker != null && !workAssignment.isWorkerOfBarn(worker, service.barnIdOf(cycleId))) {
-            throw new ConflictException("Bạn không phụ trách chuồng này. Liên hệ chủ trại để được phân công.", "BARN_NOT_ASSIGNED", null);
-        }
+        workAssignment.requireAssigned(authentication, service.barnIdOf(cycleId));
     }
 
     /** Email của công nhân đang đăng nhập; null với chủ trại và kế toán (xem toàn trại). */
