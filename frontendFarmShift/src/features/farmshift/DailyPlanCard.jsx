@@ -58,6 +58,99 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     if (message) setErrors(current => ({ ...current, [assignedKey(task)]: message }));
   };
 
+  // Lịch trong ngày: cữ ăn và việc giao có giờ xếp theo giờ; vắc-xin, thuốc, nhiệt độ và việc không hẹn giờ để ở "Trong ngày".
+  const visible = task => !(hideDone && task.done);
+  const slots = new Map();
+  const slotAt = at => {
+    if (!slots.has(at)) slots.set(at, { feed: [], assigned: [], meals: [] });
+    return slots.get(at);
+  };
+  plan.tasks.filter(task => task.category === 'FEED' && task.time && visible(task)).forEach(task => {
+    const slot = slotAt(task.time);
+    slot.feed.push(task);
+    if (task.meal && !slot.meals.includes(task.meal)) slot.meals.push(task.meal);
+  });
+  assigned.filter(task => task.dueTime && visible(task)).forEach(task => slotAt(String(task.dueTime).slice(0, 5)).assigned.push(task));
+  const timeline = [...slots.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const allDay = SECTIONS.map(section => ({ ...section,
+    tasks: plan.tasks.filter(task => task.category === section.category && !(task.category === 'FEED' && task.time) && visible(task)) }))
+    .filter(section => section.tasks.length);
+  const allDayAssigned = assigned.filter(task => !task.dueTime && visible(task));
+
+  const renderTask = task => {
+    const done = task.done;
+    const busy = busyKey === `${plan.cycleId}:${task.key}`;
+    const isEditing = editing?.key === task.key;
+    const planned = amountText(task.plannedQuantity, task.unit, task.plannedStock, task.stockUnit);
+    return <li key={task.key} className={`${styles.task} ${done ? styles.done : ''} ${done?.deviated ? styles.deviated : ''}`}>
+      <div className={styles.info}>
+        <strong>{title(task)}</strong>
+        <span className={styles.amount}>
+          {task.category === 'TEMPERATURE' ? `Giữ ${formatAmount(task.tempMin)} – ${formatAmount(task.tempMax)} °C` : planned || (MEASURED.includes(task.category) ? 'Chưa tính được lượng' : '')}
+        </span>
+        <small>
+          {[task.method && labelOf(METHODS, task.method), task.doseText, task.note].filter(Boolean).join(' · ')}
+          {task.shares.length > 1 && task.plannedQuantity != null && <> · {task.shares.map(share => `${share.flockCode}: ${formatAmount(share.plannedQuantity)} ${task.unit}`).join(', ')}</>}
+        </small>
+        {task.stockEnough === false && !done && <small className={styles.short}>Kho không đủ: còn {formatAmount(task.stockOnHand)} {task.stockUnit}</small>}
+        {done && <small className={styles.doneLine}>
+          <Check size={13} />Xong lúc {time(done.doneAt)} · {done.doneBy}
+          {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity))
+            && ` · thực tế ${amountText(done.actualQuantity, task.unit, done.stockQuantity, task.stockUnit)}`}
+          {done.cost != null && Number(done.cost) > 0 && ` · ${money(done.cost)}`}
+          {done.note && ` · ${done.note}`}
+        </small>}
+        {errors[task.key] && <small role="alert" className={styles.error}>{errors[task.key]}</small>}
+        {isEditing && <div className={styles.editor}>
+          {MEASURED.includes(task.category) && <label>Lượng thực tế ({task.unit || 'đơn vị'})
+            <input type="number" min="0" step="0.001" inputMode="decimal" className="farmshift-form-control" value={editing.quantity}
+              onChange={event => setEditing({ ...editing, quantity: event.target.value })} autoFocus /></label>}
+          <label>Lý do / ghi chú
+            <input className="farmshift-form-control" value={editing.note} maxLength={1000} placeholder="Ví dụ: gà bỏ ăn do nóng"
+              onChange={event => setEditing({ ...editing, note: event.target.value })} /></label>
+          <div className={styles.editorActions}>
+            <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setEditing(null)} disabled={busy}>Hủy</button>
+            <button type="button" className={`farmshift-btn ${styles.doneButton}`} onClick={() => saveDifferent(task)} disabled={busy}>Lưu</button>
+          </div>
+        </div>}
+      </div>
+      {canAct && <div className={styles.actions}>
+        {done ? canUndo(done) && <button type="button" className={styles.undoButton} onClick={() => undo(task)} disabled={busy}
+          aria-label={`Hoàn tác ${title(task)}`}><RotateCcw size={14} />Hoàn tác</button>
+          : !isEditing && <>
+            <button type="button" className={`farmshift-btn ${styles.doneButton}`} onClick={() => quickDone(task)} disabled={busy}
+              aria-label={`Xong ${title(task)}`}><Check size={15} />{busy ? 'Đang lưu...' : 'Xong'}</button>
+            <button type="button" className={styles.otherButton} disabled={busy} aria-label={`Khác kế hoạch ${title(task)}`}
+              onClick={() => setEditing({ key: task.key, quantity: task.plannedQuantity == null ? '' : String(task.plannedQuantity), note: '' })}>
+              <SlidersHorizontal size={13} />Khác kế hoạch</button>
+          </>}
+      </div>}
+    </li>;
+  };
+
+  const renderAssigned = (task, tagged = false) => {
+    const busy = busyKey === `${plan.cycleId}:${assignedKey(task)}`;
+    const mine = isOwner || task.assignee.email === userEmail;
+    return <li key={task.id} className={`${styles.task} ${task.done ? styles.done : ''}`}>
+      <div className={styles.info}>
+        <strong>{task.title}{tagged && <span className={styles.tag}>Việc được giao</span>}</strong>
+        <small className={styles.assignedMeta}>
+          {task.dueTime && <><Clock size={13} />{String(task.dueTime).slice(0, 5)} · </>}Giao cho {task.assignee.fullName}
+        </small>
+        {task.note && <small>{task.note}</small>}
+        {task.done && <small className={styles.doneLine}><Check size={13} />Xong lúc {time(task.done.doneAt)} · {task.done.doneBy}
+          {task.done.note && ` · ${task.done.note}`}</small>}
+        {errors[assignedKey(task)] && <small role="alert" className={styles.error}>{errors[assignedKey(task)]}</small>}
+      </div>
+      {canAct && mine && onConfirmAssigned && <div className={styles.actions}>
+        {task.done ? canUndo(task.done) && <button type="button" className={styles.undoButton} disabled={busy}
+          onClick={() => runAssigned(task, () => onUndoAssigned(plan, task))} aria-label={`Hoàn tác ${task.title}`}><RotateCcw size={14} />Hoàn tác</button>
+          : <button type="button" className={`farmshift-btn ${styles.doneButton}`} disabled={busy} aria-label={`Xong ${task.title}`}
+            onClick={() => runAssigned(task, () => onConfirmAssigned(plan, task))}><Check size={15} />{busy ? 'Đang lưu...' : 'Xong'}</button>}
+      </div>}
+    </li>;
+  };
+
   return <section className={styles.card} aria-label={`Phiếu việc ${plan.barnName}`}>
     {showHeader && <header className={styles.header}>
       <div>
@@ -77,91 +170,31 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
       {plan.warnings.map(warning => <li key={warning}><AlertTriangle size={14} />{warning}</li>)}
     </ul>}
 
-    {plan.tasks.length === 0 && assigned.length === 0 ? <p className={styles.empty}>Không có việc cho ngày này.</p> : SECTIONS.map(section => {
-      const tasks = plan.tasks.filter(task => task.category === section.category && !(hideDone && task.done));
-      if (!tasks.length) return null;
-      const Icon = section.icon;
-      return <div key={section.category} className={styles.section}>
-        <h4><Icon size={15} />{section.label}</h4>
-        <ul>
-          {tasks.map(task => {
-            const done = task.done;
-            const busy = busyKey === `${plan.cycleId}:${task.key}`;
-            const isEditing = editing?.key === task.key;
-            const planned = amountText(task.plannedQuantity, task.unit, task.plannedStock, task.stockUnit);
-            return <li key={task.key} className={`${styles.task} ${done ? styles.done : ''} ${done?.deviated ? styles.deviated : ''}`}>
-              <div className={styles.info}>
-                <strong>{title(task)}</strong>
-                <span className={styles.amount}>
-                  {task.category === 'TEMPERATURE' ? `Giữ ${formatAmount(task.tempMin)} – ${formatAmount(task.tempMax)} °C` : planned || (MEASURED.includes(task.category) ? 'Chưa tính được lượng' : '')}
-                </span>
-                <small>
-                  {[task.method && labelOf(METHODS, task.method), task.doseText, task.note].filter(Boolean).join(' · ')}
-                  {task.shares.length > 1 && task.plannedQuantity != null && <> · {task.shares.map(share => `${share.flockCode}: ${formatAmount(share.plannedQuantity)} ${task.unit}`).join(', ')}</>}
-                </small>
-                {task.stockEnough === false && !done && <small className={styles.short}>Kho không đủ: còn {formatAmount(task.stockOnHand)} {task.stockUnit}</small>}
-                {done && <small className={styles.doneLine}>
-                  <Check size={13} />Xong lúc {time(done.doneAt)} · {done.doneBy}
-                  {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity))
-                    && ` · thực tế ${amountText(done.actualQuantity, task.unit, done.stockQuantity, task.stockUnit)}`}
-                  {done.cost != null && Number(done.cost) > 0 && ` · ${money(done.cost)}`}
-                  {done.note && ` · ${done.note}`}
-                </small>}
-                {errors[task.key] && <small role="alert" className={styles.error}>{errors[task.key]}</small>}
-                {isEditing && <div className={styles.editor}>
-                  {MEASURED.includes(task.category) && <label>Lượng thực tế ({task.unit || 'đơn vị'})
-                    <input type="number" min="0" step="0.001" inputMode="decimal" className="farmshift-form-control" value={editing.quantity}
-                      onChange={event => setEditing({ ...editing, quantity: event.target.value })} autoFocus /></label>}
-                  <label>Lý do / ghi chú
-                    <input className="farmshift-form-control" value={editing.note} maxLength={1000} placeholder="Ví dụ: gà bỏ ăn do nóng"
-                      onChange={event => setEditing({ ...editing, note: event.target.value })} /></label>
-                  <div className={styles.editorActions}>
-                    <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setEditing(null)} disabled={busy}>Hủy</button>
-                    <button type="button" className={`farmshift-btn ${styles.doneButton}`} onClick={() => saveDifferent(task)} disabled={busy}>Lưu</button>
-                  </div>
-                </div>}
-              </div>
-              {canAct && <div className={styles.actions}>
-                {done ? canUndo(done) && <button type="button" className={styles.undoButton} onClick={() => undo(task)} disabled={busy}
-                  aria-label={`Hoàn tác ${title(task)}`}><RotateCcw size={14} />Hoàn tác</button>
-                  : !isEditing && <>
-                    <button type="button" className={`farmshift-btn ${styles.doneButton}`} onClick={() => quickDone(task)} disabled={busy}
-                      aria-label={`Xong ${title(task)}`}><Check size={15} />{busy ? 'Đang lưu...' : 'Xong'}</button>
-                    <button type="button" className={styles.otherButton} disabled={busy} aria-label={`Khác kế hoạch ${title(task)}`}
-                      onClick={() => setEditing({ key: task.key, quantity: task.plannedQuantity == null ? '' : String(task.plannedQuantity), note: '' })}>
-                      <SlidersHorizontal size={13} />Khác kế hoạch</button>
-                  </>}
-              </div>}
-            </li>;
-          })}
-        </ul>
-      </div>;
-    })}
-
-    {assigned.filter(task => !(hideDone && task.done)).length > 0 && <div className={styles.section}>
-      <h4><ClipboardCheck size={15} />Việc được giao</h4>
-      <ul>{assigned.filter(task => !(hideDone && task.done)).map(task => {
-        const busy = busyKey === `${plan.cycleId}:${assignedKey(task)}`;
-        const mine = isOwner || task.assignee.email === userEmail;
-        return <li key={task.id} className={`${styles.task} ${task.done ? styles.done : ''}`}>
-          <div className={styles.info}>
-            <strong>{task.title}</strong>
-            <small className={styles.assignedMeta}>
-              {task.dueTime && <><Clock size={13} />{String(task.dueTime).slice(0, 5)} · </>}Giao cho {task.assignee.fullName}
-            </small>
-            {task.note && <small>{task.note}</small>}
-            {task.done && <small className={styles.doneLine}><Check size={13} />Xong lúc {time(task.done.doneAt)} · {task.done.doneBy}
-              {task.done.note && ` · ${task.done.note}`}</small>}
-            {errors[assignedKey(task)] && <small role="alert" className={styles.error}>{errors[assignedKey(task)]}</small>}
+    {plan.tasks.length === 0 && assigned.length === 0 ? <p className={styles.empty}>Không có việc cho ngày này.</p>
+      : <div className={styles.schedule} aria-label="Lịch việc trong ngày">
+        {(allDay.length > 0 || allDayAssigned.length > 0) && <div className={styles.slot}>
+          <div className={`${styles.slotTime} ${styles.slotAllDay}`}><strong>Trong ngày</strong><small>không hẹn giờ</small></div>
+          <div className={styles.slotTasks}>
+            {allDay.map(section => {
+              const Icon = section.icon;
+              return <div key={section.category} className={styles.section}>
+                <h4><Icon size={15} />{section.label}</h4>
+                <ul>{section.tasks.map(renderTask)}</ul>
+              </div>;
+            })}
+            {allDayAssigned.length > 0 && <div className={styles.section}>
+              <h4><ClipboardCheck size={15} />Việc được giao</h4>
+              <ul>{allDayAssigned.map(task => renderAssigned(task))}</ul>
+            </div>}
           </div>
-          {canAct && mine && onConfirmAssigned && <div className={styles.actions}>
-            {task.done ? canUndo(task.done) && <button type="button" className={styles.undoButton} disabled={busy}
-              onClick={() => runAssigned(task, () => onUndoAssigned(plan, task))} aria-label={`Hoàn tác ${task.title}`}><RotateCcw size={14} />Hoàn tác</button>
-              : <button type="button" className={`farmshift-btn ${styles.doneButton}`} disabled={busy} aria-label={`Xong ${task.title}`}
-                onClick={() => runAssigned(task, () => onConfirmAssigned(plan, task))}><Check size={15} />{busy ? 'Đang lưu...' : 'Xong'}</button>}
-          </div>}
-        </li>;
-      })}</ul>
-    </div>}
+        </div>}
+        {timeline.map(([at, slot]) => <div key={at} className={styles.slot}>
+          <div className={styles.slotTime}><strong>{at}</strong>{slot.meals.length > 0 && <small><Utensils size={13} />Cữ {slot.meals.join(', ')}</small>}</div>
+          <ul className={styles.slotTasks}>
+            {slot.feed.map(renderTask)}
+            {slot.assigned.map(task => renderAssigned(task, true))}
+          </ul>
+        </div>)}
+      </div>}
   </section>;
 }
