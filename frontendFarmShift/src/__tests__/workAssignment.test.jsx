@@ -41,6 +41,8 @@ const board = () => ({
   ],
 });
 const renderView = () => render(<MemoryRouter><WorkAssignmentPanel date={today} /></MemoryRouter>);
+/** The tab opens on the area map; a barn card shows once its area is opened. */
+const openArea = async () => fireEvent.click(await screen.findByRole('button', { name: 'Mở khu Khu Mía' }));
 
 describe('Phân công công việc (chủ trại)', () => {
   beforeEach(() => {
@@ -50,8 +52,22 @@ describe('Phân công công việc (chủ trại)', () => {
     service.createWorkTask.mockResolvedValue({});
   });
 
+  it('starts on the area map, then opens the barns of an area', async () => {
+    renderView();
+    const area = await screen.findByRole('button', { name: 'Mở khu Khu Mía' });
+    expect(within(area).getByText('2 chuồng · 9.000 con đang nuôi')).toBeInTheDocument();
+    expect(within(area).getByTitle('Nhà A1: Đã xong việc giao')).toBeInTheDocument();
+    expect(within(area).getByTitle('Nhà A2: Chưa có người phụ trách')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Phân công Nhà A1' })).not.toBeInTheDocument();
+    fireEvent.click(area);
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A1' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sơ đồ khu' }));
+    expect(screen.getByRole('button', { name: 'Mở khu Khu Mía' })).toBeInTheDocument();
+  });
+
   it('shows each barn with its workers and the tasks given for the day', async () => {
     renderView();
+    await openArea();
     const a1 = await screen.findByRole('region', { name: 'Phân công Nhà A1' });
     expect(service.getWorkBoard).toHaveBeenCalledWith(today);
     expect(within(a1).getByText('Công nhân A')).toBeInTheDocument();
@@ -67,6 +83,7 @@ describe('Phân công công việc (chủ trại)', () => {
 
   it('assigns workers to a barn', async () => {
     renderView();
+    await openArea();
     const a2 = await screen.findByRole('region', { name: 'Phân công Nhà A2' });
     // Giving a task needs a worker in charge first.
     fireEvent.click(within(a2).getByRole('button', { name: 'Giao việc Nhà A2' }));
@@ -83,6 +100,7 @@ describe('Phân công công việc (chủ trại)', () => {
 
   it('gives a repeating daily task to a worker of the barn', async () => {
     renderView();
+    await openArea();
     const a1 = await screen.findByRole('region', { name: 'Phân công Nhà A1' });
     fireEvent.click(within(a1).getByRole('button', { name: 'Giao việc Nhà A1' }));
     const dialog = await screen.findByRole('dialog');

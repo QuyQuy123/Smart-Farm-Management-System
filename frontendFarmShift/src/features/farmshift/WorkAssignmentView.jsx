@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Circle, Clock, Pencil, Plus, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronRight, Circle, Clock, MapPinned, Pencil, Plus, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import { deleteWorkTask, getWorkBoard, setBarnWorkers, createWorkTask, updateWorkTask } from '../../services/workAssignmentService';
 import { FormDialog } from './CycleDialogs';
@@ -10,6 +10,31 @@ import styles from './WorkAssignmentView.module.css';
 /** Việc chăm sóc hay giao, để chủ trại bấm chọn nhanh khi giao việc. */
 const COMMON_TASKS = ['Rửa máng uống', 'Thay / rắc thêm trấu', 'Sát trùng lối đi, hố sát trùng', 'Kiểm tra quạt, đèn sưởi', 'Dọn phân, đảo đệm lót'];
 const time = value => (value ? String(value).slice(0, 5) : '');
+const initial = name => String(name || '?').trim().charAt(0).toUpperCase();
+
+/** Tình trạng một chuồng trên sơ đồ: chưa có người phụ trách / còn việc giao / đã xong việc giao / chưa giao việc. */
+const barnState = barn => {
+  if (barn.activeCycleId && barn.workers.length === 0) return 'unassigned';
+  if (barn.tasks.length === 0) return 'idle';
+  return barn.tasks.every(task => task.done) ? 'done' : 'pending';
+};
+const STATE_LABELS = { unassigned: 'Chưa có người phụ trách', pending: 'Còn việc giao', done: 'Đã xong việc giao', idle: 'Chưa giao việc' };
+
+/** Gom chuồng theo khu, giữ thứ tự khu như danh sách chuồng. */
+const groupAreas = barns => {
+  const areas = new Map();
+  barns.forEach(barn => {
+    if (!areas.has(barn.areaId)) areas.set(barn.areaId, { areaId: barn.areaId, areaName: barn.areaName, barns: [] });
+    areas.get(barn.areaId).barns.push(barn);
+  });
+  return [...areas.values()].map(area => {
+    const tasks = area.barns.flatMap(barn => barn.tasks);
+    const workers = [...new Map(area.barns.flatMap(barn => barn.workers).map(worker => [worker.id, worker])).values()];
+    return { ...area, workers, taskCount: tasks.length, doneCount: tasks.filter(task => task.done).length,
+      headcount: area.barns.reduce((sum, barn) => sum + barn.headcount, 0),
+      unassigned: area.barns.filter(barn => barnState(barn) === 'unassigned').length };
+  });
+};
 
 /** Chọn nhiều công nhân phụ trách một chuồng. */
 function BarnWorkersDialog({ barn, workers, onClose, onSaved }) {
@@ -61,6 +86,7 @@ export function WorkAssignmentPanel({ date }) {
   const today = todayIso();
   const [revision, setRevision] = useState(0);
   const [workerFilter, setWorkerFilter] = useState(null);
+  const [areaId, setAreaId] = useState(null);
   const [state, setState] = useState({ key: null, board: null, error: '' });
   const [modal, setModal] = useState(null);
   const requestKey = `${date}:${revision}`;
@@ -76,8 +102,12 @@ export function WorkAssignmentPanel({ date }) {
   const loading = state.key !== requestKey;
   const board = state.board;
   const done = message => { setModal(null); showToast(message, 'success'); setRevision(value => value + 1); };
-  const barns = !board ? [] : board.barns.filter(barn => !workerFilter || barn.workers.some(worker => worker.id === workerFilter)
-    || barn.tasks.some(task => task.assignee.id === workerFilter));
+  const ofWorker = barn => !workerFilter || barn.workers.some(worker => worker.id === workerFilter)
+    || barn.tasks.some(task => task.assignee.id === workerFilter);
+  const areas = board ? groupAreas(board.barns) : [];
+  const area = areas.find(item => item.areaId === areaId);
+  const barns = !board || !area ? [] : area.barns.filter(ofWorker);
+  const shownAreas = areas.filter(item => item.barns.some(ofWorker));
   const allTasks = board ? board.barns.flatMap(barn => barn.tasks) : [];
   const unassigned = board ? board.barns.filter(barn => barn.activeCycleId && barn.workers.length === 0).length : 0;
 
@@ -145,8 +175,43 @@ export function WorkAssignmentPanel({ date }) {
             </button>)}
           </aside>
 
+          {!area ? <div className={styles.areaMap} aria-label="Sơ đồ khu nuôi">
+            {shownAreas.length === 0 ? <p className={styles.state}>Công nhân này chưa phụ trách chuồng nào.</p> : shownAreas.map(item => <button
+              key={item.areaId} type="button" className={styles.areaCard} onClick={() => setAreaId(item.areaId)} aria-label={`Mở khu ${item.areaName}`}>
+              <span className={styles.areaHead}>
+                <span className={styles.areaIcon}><MapPinned size={20} /></span>
+                <span className={styles.areaTitle}><strong>{item.areaName}</strong>
+                  <small>{item.barns.length} chuồng · {formatAmount(item.headcount)} con đang nuôi</small></span>
+                <ChevronRight size={20} className={styles.areaChevron} />
+              </span>
+              <span className={styles.plan}>{item.barns.map(barn => {
+                const status = barnState(barn);
+                return <span key={barn.barnId} className={`${styles.tile} ${styles[`tile_${status}`]} ${ofWorker(barn) ? '' : styles.tileDim}`}
+                  title={`${barn.barnName}: ${STATE_LABELS[status]}`}>
+                  <span className={styles.tileName}>{barn.barnName}</span>
+                  <span className={styles.tileFoot}>
+                    <span className={styles.tileWorkers}>{barn.workers.length ? barn.workers.map(worker => <i key={worker.id}>{initial(worker.fullName)}</i>) : '—'}</span>
+                    {barn.tasks.length > 0 && <span className={styles.tileTasks}>{barn.tasks.filter(task => task.done).length}/{barn.tasks.length}</span>}
+                  </span>
+                </span>;
+              })}</span>
+              <span className={styles.areaFoot}>
+                <span>{item.workers.length ? item.workers.map(worker => worker.fullName).join(', ') : 'Chưa phân công'}</span>
+                <span className={styles.areaStats}>{item.unassigned > 0 && <em>{item.unassigned} chuồng chưa có người</em>}
+                  việc giao {item.doneCount}/{item.taskCount}</span>
+              </span>
+            </button>)}
+            <p className={styles.legend}>
+              {Object.entries(STATE_LABELS).map(([key, label]) => <span key={key}><i className={styles[`tile_${key}`]} />{label}</span>)}
+            </p>
+          </div> : <div className={styles.areaView}>
+          <div className={styles.areaBar}>
+            <button type="button" className={styles.ghost} onClick={() => setAreaId(null)}><ArrowLeft size={16} />Sơ đồ khu</button>
+            <h3>{area.areaName}</h3>
+            <small>{area.barns.length} chuồng · việc giao {area.doneCount}/{area.taskCount}</small>
+          </div>
           <div className={styles.barns}>
-            {barns.length === 0 ? <p className={styles.state}>Công nhân này chưa phụ trách chuồng nào.</p> : barns.map(barn => <section key={barn.barnId} className={styles.barn}
+            {barns.length === 0 ? <p className={styles.state}>Công nhân này không phụ trách chuồng nào trong khu.</p> : barns.map(barn => <section key={barn.barnId} className={styles.barn}
               aria-label={`Phân công ${barn.barnName}`}>
               <header className={styles.barnHead}>
                 <span className={styles.barnIcon}><Warehouse size={18} /></span>
@@ -188,6 +253,7 @@ export function WorkAssignmentPanel({ date }) {
                 </li>)}</ul>}
             </section>)}
           </div>
+          </div>}
         </div>}
 
     {modal?.kind === 'workers' && <BarnWorkersDialog barn={modal.barn} workers={board.workers} onClose={() => setModal(null)} onSaved={done} />}

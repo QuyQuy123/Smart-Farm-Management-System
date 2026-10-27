@@ -50,6 +50,46 @@
 .danger:hover { background: #fff0f0; color: #c63030; border-color: #f2bcbc; }
 .empty { margin: 4px 0; font-size: 14px; color: #4b5563; }
 
+/* Sơ đồ khu: mỗi khu một thẻ, chuồng vẽ thành ô như mặt bằng */
+.areaMap { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; align-content: start; }
+.areaCard { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid #d7ecdc; border-radius: 16px; background: #fff;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
+.areaCard:hover { border-color: #95d5b2; box-shadow: 0 10px 24px rgba(27, 67, 50, 0.1); transform: translateY(-2px); }
+.areaCard:focus-visible { outline: 2px solid #2d6a4f; outline-offset: 2px; }
+.areaHead { display: flex; align-items: center; gap: 12px; }
+.areaIcon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; background: #1b4332; color: #fff; }
+.areaTitle { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.areaTitle strong { font-size: 18px; color: #1b4332; }
+.areaTitle small { font-size: 14px; color: #4b5563; }
+.areaChevron { color: #95d5b2; }
+.plan { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; padding: 12px; border-radius: 12px;
+  background: repeating-linear-gradient(45deg, #f6faf7, #f6faf7 10px, #f0f7f2 10px, #f0f7f2 20px); border: 1px dashed #c9e4d2; }
+.tile { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; min-height: 72px; padding: 8px 10px;
+  border-radius: 10px; border: 2px solid; background: #fff; }
+.tileName { font-size: 14px; font-weight: 700; color: #1f2933; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tileWorkers { display: flex; gap: 4px; font-size: 13px; color: #9aa7ae; }
+.tileWorkers i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #1b4332; color: #fff;
+  font-size: 12px; font-style: normal; font-weight: 700; }
+.tileFoot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.tileTasks { padding: 1px 7px; border-radius: 999px; background: #fff; border: 1px solid currentColor;
+  font-size: 12px; font-weight: 700; }
+.tile_done { border-color: #52b788; background: #e9f6ec; color: #2d6a4f; }
+.tile_pending { border-color: #f4b740; background: #fff8e6; color: #8a5a00; }
+.tile_unassigned { border-color: #e57373; background: #fff1f0; color: #b42318; }
+.tile_idle { border-color: #c9d6dc; background: #fff; color: #607781; }
+.tileDim { opacity: 0.35; }
+.areaFoot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; color: #2d6a4f; font-weight: 600; }
+.areaStats { display: inline-flex; align-items: center; gap: 10px; color: #4b5563; font-weight: 500; }
+.areaStats em { font-style: normal; color: #b42318; font-weight: 600; }
+.legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 16px; margin: 0; font-size: 14px; color: #4b5563; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 16px; height: 16px; border-radius: 4px; border: 2px solid; }
+
+.areaView { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.areaBar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.areaBar h3 { margin: 0; font-size: 20px; color: #1b4332; }
+.areaBar small { font-size: 14.5px; color: #4b5563; }
+
 /* Dialog phân công */
 .dialogBody { padding: 20px 24px; }
 .dialogIntro { margin: 0 0 12px; font-size: 14.5px; color: #4b5563; }
@@ -64,6 +104,7 @@
 .dialogFooter { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #f8fbfa; border-top: 1px solid #edf1f0; }
 
 @media (max-width: 1000px) {
+  .areaMap { grid-template-columns: 1fr; }
   .layout { grid-template-columns: 1fr; }
   .workers { position: static; }
   .barns { grid-template-columns: 1fr; }
