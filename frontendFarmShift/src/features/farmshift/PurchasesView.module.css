@@ -96,3 +96,4 @@
 .supplierFormGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .supplierModal :global(.farmshift-form-group) { min-width: 0; }
 @media (max-width: 640px) { .supplierFormGrid { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+.purchaseInvoiceBody { background: #f4f6f5; }

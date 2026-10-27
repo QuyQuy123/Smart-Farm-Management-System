@@ -6,7 +6,7 @@ import {
   DollarSign, Upload, Tag, Printer,
   Trash2, Pencil, AlertTriangle, PackageCheck, Loader2,
   ZoomIn, ZoomOut, RotateCw, ExternalLink, FileText,
-  Camera, RefreshCw, Smartphone, Check, ArrowLeft
+  Camera, RefreshCw, Smartphone, ArrowLeft
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -31,6 +31,7 @@ import styles from './PurchasesView.module.css';
 import { PurchaseRowActions } from './PurchaseRowActions';
 import { ConfirmStockImport } from './ConfirmStockImport';
 import { PrintablePurchaseVoucher } from './PrintablePurchaseVoucher';
+import { PurchaseInvoiceTemplate } from './PurchaseInvoiceTemplate';
 
 export const PurchasesView = () => {
   const { showToast } = useNotification();
@@ -73,6 +74,7 @@ export const PurchasesView = () => {
   const [ocrRotation, setOcrRotation] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
+  const purchaseInvoiceRef = useRef(null);
   const cameraInputRef = useRef(null);
   const videoRef = useRef(null);
   const [ocrTab, setOcrTab] = useState('upload'); // 'upload' | 'camera'
@@ -777,6 +779,7 @@ export const PurchasesView = () => {
 
   // In chứng từ Phiếu nhập kho chuẩn A4 (Mẫu 01-VT)
   const handlePrintVoucher = () => {
+    if (orderViewTab === 'info') { purchaseInvoiceRef.current?.print(); return; }
     document.body.classList.add('farmshift-printing');
     const cleanup = () => {
       document.body.classList.remove('farmshift-printing');
@@ -1345,11 +1348,8 @@ export const PurchasesView = () => {
           }}
         >
           <div className={`farmshift-modal ${styles.detailModal}`} onClick={(e) => e.stopPropagation()}>
-            <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className={styles.detailHeading}>
-                <h3 className="farmshift-modal-title" style={{ margin: 0 }}>
-                  Chi tiết hóa đơn {selectedOrder.code}
-                </h3>
                 <div className={styles.detailTopActions}>
                 {selectedOrder.stockStatus !== 'Đã nhập kho' && selectedOrder.stockStatus !== 'Đã hủy' && (
                   <button
@@ -1371,42 +1371,6 @@ export const PurchasesView = () => {
                     <DollarSign size={15} /> Thanh toán nợ
                   </button>
                 )}
-                <div className={styles.detailViewTabs}>
-                  <button
-                    type="button"
-                    onClick={() => setOrderViewTab('info')}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      border: 'none',
-                      borderRadius: 'var(--rounded-sm)',
-                      cursor: 'pointer',
-                      backgroundColor: orderViewTab === 'info' ? 'var(--color-surface)' : 'transparent',
-                      color: orderViewTab === 'info' ? 'var(--color-primary)' : 'var(--color-muted)',
-                      boxShadow: orderViewTab === 'info' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
-                    }}
-                  >
-                    Xem chi tiết
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderViewTab('voucher')}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      border: 'none',
-                      borderRadius: 'var(--rounded-sm)',
-                      cursor: 'pointer',
-                      backgroundColor: orderViewTab === 'voucher' ? 'var(--color-surface)' : 'transparent',
-                      color: orderViewTab === 'voucher' ? 'var(--color-primary)' : 'var(--color-muted)',
-                      boxShadow: orderViewTab === 'voucher' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
-                    }}
-                  >
-                    Mẫu in A4
-                  </button>
-                </div>
                 </div>
               </div>
               <button
@@ -1421,128 +1385,14 @@ export const PurchasesView = () => {
                 ✕
               </button>
             </div>
-            <div className="farmshift-modal-body">
+            <div className={`farmshift-modal-body ${styles.purchaseInvoiceBody}`}>
               {orderViewTab === 'voucher' ? (
                 <div style={{ padding: '8px 0' }}>
                   <PrintablePurchaseVoucher order={selectedOrder} onScreenPreview={true} />
                 </div>
               ) : (
                 <>
-                  <div className={styles.workflowSteps} aria-label="Tiến độ hóa đơn">
-                    {[
-                      { label: 'Đã lưu đơn', done: true },
-                      { label: `Nhập kho ${selectedOrder.stockStatus === 'Đã nhập kho' ? 'hoàn tất' : 'chưa hoàn tất'}`, done: selectedOrder.stockStatus === 'Đã nhập kho' },
-                      { label: `Thanh toán ${Number(selectedOrder.debtAmount || 0) <= 0 ? 'hoàn tất' : 'còn nợ'}`, done: Number(selectedOrder.debtAmount || 0) <= 0 },
-                    ].map(step => <div key={step.label} className={styles.workflowStep}>
-                      <span className={styles.workflowTick} aria-label={step.done ? 'Đã hoàn tất' : 'Chưa hoàn tất'}>{step.done && <Check size={17} strokeWidth={2.5} aria-hidden="true" />}</span>
-                      {step.label}
-                    </div>)}
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
-                    <div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Nhà cung cấp:</div>
-                      <strong style={{ fontSize: '14px', color: 'var(--color-ink)' }}>{selectedOrder.supplier}</strong>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Ngày lập đơn:</div>
-                      <strong style={{ fontSize: '14px', color: 'var(--color-ink)' }}>{selectedOrder.date}</strong>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Trạng thái thanh toán:</div>
-                      <span>
-                        {selectedOrder.paymentStatus}
-                      </span>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Trạng thái kho:</div>
-                      <span>{selectedOrder.stockStatus}</span>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Đã thanh toán:</div>
-                      <strong style={{ color: 'var(--color-success)' }}>{Number(selectedOrder.paidAmount || 0).toLocaleString('vi-VN')} đ</strong>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Còn nợ lại:</div>
-                      <strong style={{ color: Number(selectedOrder.debtAmount || 0) > 0 ? 'var(--color-danger)' : 'var(--color-muted)' }}>
-                        {Number(selectedOrder.debtAmount || 0).toLocaleString('vi-VN')} đ
-                      </strong>
-                    </div>
-                    {selectedOrder.referenceCode && (
-                      <div>
-                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Mã tham chiếu / Số HĐ:</div>
-                        <strong style={{ fontSize: '13px', color: 'var(--color-ink)' }}>{selectedOrder.referenceCode}</strong>
-                      </div>
-                    )}
-                    {(Number(selectedOrder.discountAmount || 0) > 0 || Number(selectedOrder.otherCost || 0) > 0) && (
-                      <div>
-                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Chiết khấu / Chi phí khác:</div>
-                        <span style={{ fontSize: '13px', color: 'var(--color-body)' }}>
-                          -{Number(selectedOrder.discountAmount || 0).toLocaleString('vi-VN')} đ / +{Number(selectedOrder.otherCost || 0).toLocaleString('vi-VN')} đ
-                        </span>
-                      </div>
-                    )}
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng tiền hóa đơn:</div>
-                      <strong style={{ fontSize: '18px', color: 'var(--color-primary)' }}>{Number(selectedOrder.totalAmount || 0).toLocaleString('vi-VN')} đ</strong>
-                    </div>
-                    {selectedOrder.note && (
-                      <div style={{ gridColumn: 'span 2', fontSize: '13px', color: 'var(--color-body)' }}>
-                        <strong>Ghi chú:</strong> {selectedOrder.note}
-                      </div>
-                    )}
-                    {selectedOrder.tags && selectedOrder.tags.length > 0 && (
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginBottom: '4px' }}>Thẻ Tag phân loại:</div>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          {selectedOrder.tags.map((t, idx) => (
-                            <span
-                              key={idx}
-                              style={{
-                                fontSize: '11.5px',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                backgroundColor: '#e1f4ef',
-                                color: '#008a7b',
-                                fontWeight: 500,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              <Tag size={11} /> {t}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>Danh sách mặt hàng nhập:</div>
-                  <div className="farmshift-table-container" style={{ border: '1px solid var(--color-hairline)' }}>
-                    <table className="farmshift-table">
-                      <thead>
-                        <tr>
-                          <th>Mặt hàng</th>
-                          <th>Số lượng</th>
-                          <th>Đơn giá</th>
-                          <th style={{ textAlign: 'right' }}>Thành tiền</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedOrder.items?.map((it, idx) => (
-                          <tr key={idx}>
-                            <td><strong>{it.name}</strong></td>
-                            <td>{it.qty} {it.unit}</td>
-                            <td>{Number(it.price).toLocaleString('vi-VN')} đ</td>
-                            <td style={{ textAlign: 'right' }}>
-                              <strong>{Number(it.amount || (it.qty * it.price)).toLocaleString('vi-VN')} đ</strong>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <PurchaseInvoiceTemplate ref={purchaseInvoiceRef} order={selectedOrder} supplier={suppliers.find(supplier => supplier.id === selectedOrder.supplierId)} />
                 </>
               )}
             </div>
