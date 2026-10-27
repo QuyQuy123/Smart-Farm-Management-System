@@ -76,7 +76,7 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
                 {USAGE_UNITS.map(unit => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
               </select>
             </div>
-            <small style={{ display: 'block', margin: '-4px 0 12px', color: '#607781', fontSize: 12 }}>
+            <small style={{ display: 'block', margin: '-4px 0 12px', color: '#607781', fontSize: 13.5 }}>
               Dùng để quy đổi định mức chương trình nuôi sang tồn kho, ví dụ Bao 25kg = 25 kg, Lọ 1000 liều = 1000 liều.</small>
             <label htmlFor="measurement-unit-description">Mô tả</label>
             <textarea id="measurement-unit-description" className="farmshift-form-control" rows={4} placeholder="Nhập mô tả đơn vị tính" value={description} onChange={event => setDescription(event.target.value)} maxLength={1000} readOnly={readOnly} disabled={saving} />

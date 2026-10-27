@@ -630,7 +630,7 @@ Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm só
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `program_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_programs.id` ON DELETE CASCADE. |
-| `category` | VARCHAR(20) | NOT NULL. `FEED` (cám), `VACCINE` (vắc-xin), `MEDICINE` (thuốc), `TEMPERATURE` (nhiệt độ úm), `WORK` (công việc). |
+| `category` | VARCHAR(20) | NOT NULL. `FEED` (cám), `VACCINE` (vắc-xin), `MEDICINE` (thuốc), `TEMPERATURE` (nhiệt độ úm). `WORK` (công việc) chỉ còn trong dữ liệu cũ: chương trình nuôi không nhận bước công việc (`PROGRAM_WORK_NOT_ALLOWED`), việc chăm sóc được giao riêng. |
 | `name` | VARCHAR(200) | NOT NULL. Tên thuốc / vắc-xin / loại cám / công việc. |
 | `day_from`, `day_to` | INT | NOT NULL. Giai đoạn ngày tuổi áp dụng (`day_from` ≤ `day_to`). |
 | `quantity` | NUMERIC(14,3) | Định mức cám (g/con/ngày) hoặc liều dùng thuốc/vắc-xin. |
@@ -652,8 +652,8 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. |
 | `task_date` | DATE | NOT NULL. Ngày làm việc (từ ngày bắt đầu lứa đến hôm nay). |
-| `task_key` | VARCHAR(120) | NOT NULL. Mã việc ổn định: `FEED:I{hàng hóa}:M{cữ}`, `VACCINE:I{hàng hóa}`, `MEDICINE:N{tên}`, `TEMPERATURE:N{tên}`, `WORK:N{tên}`. UNIQUE (`cycle_id`, `task_date`, `task_key`). |
-| `category` | VARCHAR(20) | NOT NULL. `FEED`, `VACCINE`, `MEDICINE`, `TEMPERATURE`, `WORK`. |
+| `task_key` | VARCHAR(120) | NOT NULL. Mã việc ổn định: `FEED:I{hàng hóa}:M{cữ}`, `VACCINE:I{hàng hóa}`, `MEDICINE:N{tên}`, `TEMPERATURE:N{tên}`. UNIQUE (`cycle_id`, `task_date`, `task_key`). |
+| `category` | VARCHAR(20) | NOT NULL. `FEED`, `VACCINE`, `MEDICINE`, `TEMPERATURE`. |
 | `task_name` | VARCHAR(200) | NOT NULL. Tên việc lúc xác nhận (giữ lịch sử khi chương trình bị sửa). |
 | `meal` | INT | Cữ thứ mấy trong ngày (chỉ với cám). |
 | `planned_quantity`, `actual_quantity` | NUMERIC(14,3) | Lượng theo kế hoạch và thực tế, cùng đơn vị `usage_unit`. |
@@ -676,6 +676,48 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 - Hàng hóa đang gắn vào chương trình nuôi hoặc phiếu việc không xóa được (`INVENTORY_IN_USE`).
 
 **API:** `GET /api/daily-plan?date=` (mọi chuồng đang nuôi), `GET /api/cycles/{id}/daily-plan?date=`, `POST /api/cycles/{id}/daily-plan/tasks` `{date, taskKey, actualQuantity?, note?}` và `DELETE /api/cycles/{id}/daily-plan/tasks?date=&taskKey=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Tiền chỉ trả về cho chủ trại và kế toán.
+
+### 6.11 Bảng `barn_workers`, `work_tasks`, `work_task_checks` — Phân công công việc
+
+Entity: `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Màn **Phân công công việc** (`/work-assignments`, chỉ chủ trại).
+
+**Bảng `barn_workers`** — công nhân phụ trách chuồng:
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `barn_id` | BIGINT | NOT NULL, FOREIGN KEY → `barns.id`. |
+| `account_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id` (tài khoản `ROLE_FARM_WORKER` đang hoạt động). UNIQUE (`barn_id`, `account_id`). |
+| `assigned_by` | VARCHAR(150) | Email người phân công. |
+| `assigned_at` | TIMESTAMP | Thời điểm phân công. |
+
+**Bảng `work_tasks`** — việc chủ trại giao thêm (ngoài chương trình nuôi), lặp mỗi ngày từ `start_date` đến `end_date`:
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `barn_id` | BIGINT | NOT NULL, FOREIGN KEY → `barns.id`. |
+| `assignee_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id`. Phải là công nhân phụ trách chuồng (`WORK_ASSIGNEE_NOT_IN_BARN`). |
+| `title` | VARCHAR(200) | NOT NULL. Tên việc (VD: `Rửa máng uống`). |
+| `note` | VARCHAR(1000) | Hướng dẫn thêm. |
+| `start_date`, `end_date` | DATE | NOT NULL. `end_date` ≥ `start_date`, tối đa 183 ngày, `end_date` không trước hôm nay. |
+| `due_time` | TIME | Giờ nên làm (không bắt buộc). |
+| `created_by`, `created_at` | VARCHAR / TIMESTAMP | Người và thời điểm giao. |
+
+**Bảng `work_task_checks`** — ngày việc được làm xong:
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `task_id` | BIGINT | NOT NULL, FOREIGN KEY → `work_tasks.id`. UNIQUE (`task_id`, `check_date`). |
+| `check_date` | DATE | NOT NULL. Ngày làm (trong khoảng ngày của việc, không sau hôm nay). |
+| `note` | VARCHAR(1000) | Ghi chú của người làm. |
+| `done_by`, `done_at` | VARCHAR(150) / TIMESTAMP | NOT NULL. Người xác nhận và thời điểm. |
+
+**Quy tắc:**
+- Công nhân chỉ thấy phiếu việc (`/api/daily-plan`) của chuồng mình phụ trách và chỉ việc giao cho mình; xem / xác nhận phiếu việc chuồng khác bị chặn (`BARN_NOT_ASSIGNED`). Chủ trại và kế toán xem mọi chuồng.
+- Chỉ người được giao (hoặc chủ trại) xác nhận việc (`WORK_TASK_NOT_YOURS`). Công nhân chỉ hoàn tác việc mình xác nhận trong hôm nay.
+- Không bỏ phân công công nhân còn việc được giao ở chuồng đó (`WORKER_HAS_TASKS`). Việc đã có ngày làm xong không đổi được chuồng, người làm, ngày bắt đầu (`WORK_TASK_HAS_CHECKS`).
+- Xóa chuồng thì xóa luôn phân công và việc giao của chuồng.
+
+**API:** `GET /api/work-assignments?date=`, `PUT /api/barns/{id}/workers` `{workerIds}`, `POST /api/work-tasks`, `PUT /api/work-tasks/{id}`, `DELETE /api/work-tasks/{id}` (`ROLE_FARM_OWNER`); `POST /api/work-tasks/{id}/checks` `{date, note}`, `DELETE /api/work-tasks/{id}/checks?date=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Phiếu việc của chuồng trả thêm `workers` và `assignedTasks`.
 
 ---
 

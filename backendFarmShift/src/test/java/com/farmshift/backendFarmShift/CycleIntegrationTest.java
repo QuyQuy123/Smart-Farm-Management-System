@@ -277,6 +277,16 @@ class CycleIntegrationTest {
     }
 
     @Test
+    void showsAFreshlyDeclaredCycleBeforeAnyFlockArrives() throws Exception {
+        long cycle = startCycle(barnId, TODAY);
+        mvc.perform(get("/api/cycles/" + cycle))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.flocks.length()").value(0))
+            .andExpect(jsonPath("$.data.metrics.currentQuantity").value(0))
+            .andExpect(jsonPath("$.data.finance.totalCost").value(0));
+    }
+
+    @Test
     void ownerAssignsOrChangesTheProgramOfARunningFlock() throws Exception {
         long cycle = startCycle(barnId, START);
         long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 100);

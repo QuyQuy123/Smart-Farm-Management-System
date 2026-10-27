@@ -274,7 +274,7 @@ export const TransfersView = () => {
                       <td style={{ textAlign: 'right' }}>
                         <button
                           className="farmshift-btn farmshift-btn-secondary"
-                          style={{ fontSize: '12px', padding: '4px 10px' }}
+                          style={{ fontSize: '13.5px', padding: '4px 10px' }}
                           onClick={() => setSelectedSlipDetail(s)}
                         >
                           Xem
@@ -360,12 +360,12 @@ export const TransfersView = () => {
                 {/* Line items table */}
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <strong style={{ fontSize: '13px', color: 'var(--color-ink)' }}>Danh sách hàng hóa trong phiếu</strong>
+                    <strong style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>Danh sách hàng hóa trong phiếu</strong>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button
                         type="button"
                         className="farmshift-btn farmshift-btn-secondary"
-                        style={{ fontSize: '12px', padding: '4px 10px' }}
+                        style={{ fontSize: '13.5px', padding: '4px 10px' }}
                         onClick={() => showToast('Đã sẵn sàng tải file Excel mẫu để nhập hàng loạt!', 'info')}
                       >
                         Nhập từ Excel
@@ -373,7 +373,7 @@ export const TransfersView = () => {
                       <button
                         type="button"
                         className="farmshift-btn farmshift-btn-primary"
-                        style={{ fontSize: '12px', padding: '4px 10px' }}
+                        style={{ fontSize: '13.5px', padding: '4px 10px' }}
                         onClick={handleAddItemRow}
                       >
                         <Plus size={13} /> Thêm dòng
@@ -448,7 +448,7 @@ export const TransfersView = () => {
                             />
                           </td>
                           <td>
-                            <strong style={{ fontSize: '13px' }}>
+                            <strong style={{ fontSize: '14.5px' }}>
                               {((it.qty || 0) * (it.price || 0)).toLocaleString('vi-VN')} đ
                             </strong>
                           </td>
@@ -522,8 +522,8 @@ export const TransfersView = () => {
                 <div>• Trạng thái: <span className="farmshift-badge farmshift-badge-success">{selectedSlipDetail.status}</span></div>
               </div>
               <div>
-                <strong style={{ fontSize: '13px', color: 'var(--color-ink)' }}>Ghi chú điều chuyển:</strong>
-                <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--color-body)' }}>
+                <strong style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>Ghi chú điều chuyển:</strong>
+                <p style={{ margin: '6px 0 0', fontSize: '14.5px', color: 'var(--color-body)' }}>
                   {selectedSlipDetail.note}
                 </p>
               </div>

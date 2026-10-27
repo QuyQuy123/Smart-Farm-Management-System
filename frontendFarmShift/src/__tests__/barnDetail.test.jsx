@@ -115,10 +115,15 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
   it('shows technical indicators, flocks, programs and accounting for the running cycle', async () => {
     renderAt('/barns/2');
     expect(await screen.findByText(/Lứa nuôi thứ 1, từ/)).toBeInTheDocument();
-    expect(screen.getByText('30 con/m²')).toBeInTheDocument();
+    // Key indicators are always visible; the rest open with "Xem thêm chỉ số".
     expect(screen.getByText('1,59')).toBeInTheDocument();
+    expect(screen.getByText('Hao hụt 0 con (0%)')).toBeInTheDocument();
+    expect(screen.queryByText('30 con/m²')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Xem thêm chỉ số/ }));
+    expect(screen.getByText('30 con/m²')).toBeInTheDocument();
     expect(screen.getByText('5.786đ/kg')).toBeInTheDocument();
     expect(screen.getByText('11.167đ/con')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Thu gọn/ })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('MÍA-DABACO TRỐNG')).toBeInTheDocument();
     expect(screen.getByText('-335.000.000đ')).toBeInTheDocument();
     expect(screen.getByText('Sắp tới')).toBeInTheDocument();

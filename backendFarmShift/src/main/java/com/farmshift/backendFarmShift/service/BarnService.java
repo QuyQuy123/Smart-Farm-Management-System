@@ -7,7 +7,10 @@ import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.BarnRepository;
+import com.farmshift.backendFarmShift.repository.BarnWorkerRepository;
 import com.farmshift.backendFarmShift.repository.FarmingCycleRepository;
+import com.farmshift.backendFarmShift.repository.WorkTaskCheckRepository;
+import com.farmshift.backendFarmShift.repository.WorkTaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -24,6 +27,9 @@ public class BarnService {
     private final BarnRepository repository;
     private final FarmAreaService areaService;
     private final FarmingCycleRepository cycleRepository;
+    private final BarnWorkerRepository barnWorkerRepository;
+    private final WorkTaskRepository workTaskRepository;
+    private final WorkTaskCheckRepository workTaskCheckRepository;
 
     public List<BarnResponse> list(Long areaId) {
         List<Barn> barns = areaId == null ? repository.findAllByOrderByCreatedAtAscIdAsc()
@@ -59,6 +65,10 @@ public class BarnService {
             throw new ConflictException("Chuồng " + barn.getName() + " đã có lịch sử lứa nuôi nên không thể xóa để giữ số liệu các lứa đã nuôi.",
                     "BARN_HAS_CYCLES", null);
         }
+        // Phân công và việc giao của chuồng chỉ có nghĩa khi chuồng còn tồn tại.
+        workTaskCheckRepository.deleteAllByTaskBarnId(id);
+        workTaskRepository.deleteAllByBarnId(id);
+        barnWorkerRepository.deleteAllByBarnId(id);
         repository.delete(barn);
     }
 

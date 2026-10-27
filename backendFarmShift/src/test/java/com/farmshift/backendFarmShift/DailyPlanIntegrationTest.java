@@ -42,6 +42,8 @@ class DailyPlanIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired InventoryItemRepository inventory;
+    @Autowired com.farmshift.backendFarmShift.repository.AccountRepository accounts;
+    @Autowired com.farmshift.backendFarmShift.repository.RoleRepository roles;
 
     long feedItem, vaccineItem, medicineItem, bagUnit, vialUnit, plainUnit, plainItem, programId, barnId, cycleId, maleFlock, femaleFlock;
 
@@ -99,14 +101,24 @@ class DailyPlanIntegrationTest {
                         "quantity", 1, "unit", "liều/con", "inventoryItemId", vaccineItem),
                 Map.of("category", "MEDICINE", "name", "Men tiêu hóa", "dayFrom", 10, "dayTo", 12, "method", "MIX_FEED",
                         "quantity", 2, "unit", "g/kg cám", "inventoryItemId", medicineItem),
-                Map.of("category", "TEMPERATURE", "name", "Úm tuần 2", "dayFrom", 8, "dayTo", 14, "tempMin", 29, "tempMax", 31),
-                Map.of("category", "WORK", "name", "Vệ sinh máng uống", "dayFrom", 1, "dayTo", 90)));
+                Map.of("category", "TEMPERATURE", "name", "Úm tuần 2", "dayFrom", 8, "dayTo", 14, "tempMin", 29, "tempMax", 31)));
     }
 
     private long importFlock(String name, String gender, int quantity) throws Exception {
         Map<String, Object> body = new HashMap<>(Map.of("name", name, "programId", programId, "gender", gender, "importDate", START.toString(),
                 "ageAtImport", 1, "quantity", quantity, "avgWeight", 0.04, "unitPrice", 11000));
         return id(send(post("/api/cycles/" + cycleId + "/flocks"), body));
+    }
+
+    private long workerAccount(String email) {
+        var role = roles.findByName("ROLE_FARM_WORKER").orElseGet(() -> roles.save(new com.farmshift.backendFarmShift.entity.Role(null, "ROLE_FARM_WORKER", "Công nhân")));
+        var account = new com.farmshift.backendFarmShift.entity.Account();
+        account.setEmail(email);
+        account.setPassword("x");
+        account.setFullName(email);
+        account.setRole(role);
+        account.setIsActive(true);
+        return accounts.save(account).getId();
     }
 
     private String plan() { return "/api/cycles/" + cycleId + "/daily-plan"; }
@@ -145,7 +157,7 @@ class DailyPlanIntegrationTest {
             .andExpect(jsonPath("$.data.tasks[?(@.category == 'MEDICINE')].plannedQuantity").value(400.0))
             .andExpect(jsonPath("$.data.tasks[?(@.category == 'MEDICINE')].plannedStock").value(0.4))
             .andExpect(jsonPath("$.data.tasks[?(@.category == 'TEMPERATURE')].tempMin").value(29))
-            .andExpect(jsonPath("$.data.tasks[?(@.category == 'WORK')].name").value("Vệ sinh máng uống"))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'WORK')]").isEmpty())
             .andExpect(jsonPath("$.data.warnings", hasItem(containsString("Kho chỉ còn 1 Lọ 1000 liều test Lasota test"))));
 
         mvc.perform(get("/api/daily-plan")).andExpect(status().isOk())
@@ -235,6 +247,9 @@ class DailyPlanIntegrationTest {
         var worker = user("worker@farm.test").authorities(() -> "ROLE_FARM_WORKER");
         var other = user("other@farm.test").authorities(() -> "ROLE_FARM_WORKER");
         var accountant = user("ketoan@farm.test").authorities(() -> "ROLE_ACCOUNTANT");
+        // Workers only work in the barns they are assigned to.
+        send(put("/api/barns/" + barnId + "/workers"), Map.of("workerIds", List.of(workerAccount("worker@farm.test"), workerAccount("other@farm.test"))))
+            .andExpect(status().isOk());
         String medicine = "MEDICINE:I" + medicineItem;
         mvc.perform(post(plan() + "/tasks").with(worker).contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("date", TODAY.toString(), "taskKey", medicine))))
@@ -247,7 +262,7 @@ class DailyPlanIntegrationTest {
         mvc.perform(delete(plan() + "/tasks").with(other).param("date", TODAY.toString()).param("taskKey", medicine))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("DAILY_TASK_UNDO_FORBIDDEN"));
         mvc.perform(post(plan() + "/tasks").with(accountant).contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(Map.of("date", TODAY.toString(), "taskKey", "WORK:Nvệ sinh máng uống"))))
+                .content(mapper.writeValueAsString(Map.of("date", TODAY.toString(), "taskKey", "TEMPERATURE:Núm tuần 2"))))
             .andExpect(status().isForbidden());
         mvc.perform(get(plan()).with(accountant)).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.tasks[?(@.key == '" + medicine + "')].done.cost").value(34000));
@@ -257,11 +272,10 @@ class DailyPlanIntegrationTest {
     }
 
     @Test
-    void temperatureAndWorkAreSimpleCheckmarks() throws Exception {
-        confirm("WORK:Nvệ sinh máng uống", null, null).andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.tasks[?(@.category == 'WORK')].done.actualQuantity").value(contains(nullValue())));
+    void temperatureIsASimpleCheckmark() throws Exception {
         confirm("TEMPERATURE:Núm tuần 2", null, "31 độ lúc trưa").andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.doneCount").value(2));
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'TEMPERATURE')].done.actualQuantity").value(contains(nullValue())))
+            .andExpect(jsonPath("$.data.doneCount").value(1));
     }
 
     @Test

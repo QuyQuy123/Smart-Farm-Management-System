@@ -73,7 +73,7 @@ function SupplierDialog({ mode, supplier, onClose, onSaved }) {
             <input id="supplier-phone" type="tel" inputMode="numeric" className="farmshift-form-control" placeholder="0912345678" required maxLength={11} value={phone}
               onChange={event => { setPhone(event.target.value.replace(/[^0-9]/g, '')); setPhoneTouched(true); }} onBlur={() => setPhoneTouched(true)}
               aria-invalid={!readOnly && phoneTouched && !!phoneError} aria-describedby={!readOnly && phoneTouched && phoneError ? 'supplier-phone-error' : undefined} readOnly={readOnly} disabled={saving} />
-            {!readOnly && phoneTouched && phoneError && <p id="supplier-phone-error" role="alert" style={{ color: '#dc2626', fontSize: '12px', margin: '-12px 0 16px' }}>{phoneError}</p>}
+            {!readOnly && phoneTouched && phoneError && <p id="supplier-phone-error" role="alert" style={{ color: '#dc2626', fontSize: '13.5px', margin: '-12px 0 16px' }}>{phoneError}</p>}
             <label htmlFor="supplier-group">Nhóm nhà cung cấp {!readOnly && <span className={styles.required}>*</span>}</label>
             {readOnly ? <input id="supplier-group" className="farmshift-form-control" value={supplier.productTypeName} readOnly /> : <>
               <select id="supplier-group" className="farmshift-form-control" required value={productTypeId} onChange={event => setProductTypeId(event.target.value)} disabled={saving || loading || !!groupError}>

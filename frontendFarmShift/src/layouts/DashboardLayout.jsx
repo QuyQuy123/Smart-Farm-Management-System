@@ -181,7 +181,7 @@ export const DashboardLayout = ({
           <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <Link
               to="/profile"
-              style={{ color: '#bed3c5', fontSize: 11, textDecoration: 'underline' }}
+              style={{ color: '#bed3c5', fontSize: 12.5, textDecoration: 'underline' }}
               onClick={closeSidebar}
             >
               Hồ sơ
@@ -189,7 +189,7 @@ export const DashboardLayout = ({
             <span style={{ color: '#42624e' }}>·</span>
             <Link
               to="/catalog"
-              style={{ color: '#bed3c5', fontSize: 11, textDecoration: 'underline' }}
+              style={{ color: '#bed3c5', fontSize: 12.5, textDecoration: 'underline' }}
               onClick={closeSidebar}
             >
               Danh mục màn hình
@@ -197,7 +197,7 @@ export const DashboardLayout = ({
             <span style={{ color: '#42624e' }}>·</span>
             <button
               onClick={handleLogout}
-              style={{ background: 'none', border: 'none', color: '#ffb3a7', padding: 0, font: 'inherit', fontSize: 11, cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: '#ffb3a7', padding: 0, font: 'inherit', fontSize: 12.5, cursor: 'pointer' }}
             >
               Đăng xuất
             </button>
@@ -257,7 +257,7 @@ export const DashboardLayout = ({
                         padding: '10px 16px',
                         borderBottom: '1px solid var(--line)',
                         color: 'var(--ink)',
-                        fontSize: 13,
+                        fontSize: 14.5,
                         textDecoration: 'none',
                         transition: 'background 0.15s ease',
                       }}
@@ -265,13 +265,13 @@ export const DashboardLayout = ({
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
                       <strong style={{ color: 'var(--green)' }}>{item.title}</strong>
-                      <small style={{ color: 'var(--muted)', fontSize: 11, marginTop: 2 }}>
+                      <small style={{ color: 'var(--muted)', fontSize: 12.5, marginTop: 2 }}>
                         {item.group ? `Phân hệ: ${item.group}` : 'Hệ thống'} · Mã: {item.id}
                       </small>
                     </Link>
                   ))
                 ) : (
-                  <div style={{ padding: '14px 16px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
+                  <div style={{ padding: '14px 16px', color: 'var(--muted)', fontSize: 14.5, textAlign: 'center' }}>
                     Không tìm thấy màn hình phù hợp với "{searchQuery}"
                   </div>
                 )}
@@ -315,17 +315,17 @@ export const DashboardLayout = ({
                   zIndex: 50,
                   marginTop: 8
                 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ fontWeight: 600, fontSize: 14.5, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
                     <span>Thông báo</span>
                     <span className="badge warn">2 mới</span>
                   </div>
-                  <div style={{ fontSize: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: 13.5, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
                     <b>Vitamin bổ sung sắp hết hạn</b>
-                    <p style={{ margin: '2px 0 0', color: 'var(--muted)', fontSize: 11 }}>Lô BS-0926 · HSD 05/11/2026</p>
+                    <p style={{ margin: '2px 0 0', color: 'var(--muted)', fontSize: 12.5 }}>Lô BS-0926 · HSD 05/11/2026</p>
                   </div>
-                  <div style={{ fontSize: 12, padding: '8px 0' }}>
+                  <div style={{ fontSize: 13.5, padding: '8px 0' }}>
                     <b>Tồn dung dịch vệ sinh thấp</b>
-                    <p style={{ margin: '2px 0 0', color: 'var(--muted)', fontSize: 11 }}>20 lít / mức tối thiểu 30 lít</p>
+                    <p style={{ margin: '2px 0 0', color: 'var(--muted)', fontSize: 12.5 }}>20 lít / mức tối thiểu 30 lít</p>
                   </div>
                 </div>
               )}
@@ -351,7 +351,7 @@ export const DashboardLayout = ({
             <span
               className="role-label"
               onClick={() => navigate('/profile')}
-              style={{ cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}
+              style={{ cursor: 'pointer', fontSize: 14.5, fontWeight: 500, color: 'var(--ink)' }}
             >
               {roleTitle}
             </span>
