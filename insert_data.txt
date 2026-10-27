@@ -620,30 +620,16 @@ JOIN inventory_items i ON i.product_id = pc.id
 WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.inventory_item_id IS NULL;
 
 -- ---------------------------------------------------------------------
--- 25. Phân công công việc: công nhân phụ trách chuồng và việc giao mẫu
---     (chạy sau khi backend đã khởi động để Hibernate tạo bảng barn_workers, work_tasks, work_task_checks)
---     Chia theo khu: Khu Mía Thịt → Nguyễn Văn Ba, Khu J Thịt → Dương Văn Hùng, khu khác → Nông Thị Hằng.
+-- 25. Danh mục xuất nhập nội bộ mặc định của hệ thống
 -- ---------------------------------------------------------------------
-INSERT INTO barn_workers (barn_id, account_id, assigned_by, assigned_at)
-SELECT b.id, a.id, 'seed', NOW()
-FROM barns b
-JOIN farm_areas fa ON fa.id = b.area_id
-JOIN farming_cycles c ON c.barn_id = b.id AND c.status = 'ACTIVE'
-JOIN accounts a ON a.email = CASE fa.name_key WHEN 'khu mía thịt' THEN 'congnhan@smartfarm.com'
-                                              WHEN 'khu j thịt' THEN 'hung@smartfarm.com'
-                                              ELSE 'hang@smartfarm.com' END
-WHERE NOT EXISTS (SELECT 1 FROM barn_workers w WHERE w.barn_id = b.id)
-ON CONFLICT (barn_id, account_id) DO NOTHING;
-
--- Việc giao mẫu lặp 7 ngày kể từ hôm nay cho từng công nhân ở các chuồng họ phụ trách
-INSERT INTO work_tasks (barn_id, assignee_id, title, note, start_date, end_date, due_time, created_by, created_at)
-SELECT w.barn_id, w.account_id, v.title, v.note, CURRENT_DATE, CURRENT_DATE + 6, v.due_time, 'mienbinh@smartfarm.com', NOW()
-FROM barn_workers w
-JOIN accounts a ON a.id = w.account_id
-JOIN (VALUES
-  ('congnhan@smartfarm.com', 'Rửa máng uống', 'Rửa sạch, pha nước sát trùng theo hướng dẫn', TIME '07:00'),
-  ('congnhan@smartfarm.com', 'Kiểm tra quạt, đèn sưởi', 'Báo ngay chủ trại nếu quạt hoặc đèn hỏng', TIME '16:30'),
-  ('hung@smartfarm.com', 'Sát trùng lối đi, hố sát trùng', 'Thay nước hố sát trùng ở cửa chuồng', TIME '15:00'),
-  ('hang@smartfarm.com', 'Thay trấu ướt quanh máng', 'Rắc thêm trấu khô, gom trấu ướt ra ngoài', TIME '08:00')
-) AS v(email, title, note, due_time) ON v.email = a.email
-WHERE NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.barn_id = w.barn_id AND t.assignee_id = w.account_id AND t.title = v.title);
+INSERT INTO internal_stock_categories (movement_type, name, name_key, description, is_system, created_at, updated_at)
+VALUES
+  ('IMPORT', 'Nhập đầu kì', 'nhập đầu kì', 'Nhập số dư tồn kho ban đầu khi bắt đầu đưa phần mềm vào sử dụng hoặc khởi đầu lứa mới', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('EXPORT', 'Xuất hủy', 'xuất hủy', 'Xuất hủy hàng hóa ẩm mốc, quá hạn hoặc hư hỏng trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('TRANSFER', 'Chuyển kho nội bộ', 'chuyển kho nội bộ', 'Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('IMPORT', 'Nhập thừa sau kiểm kê', 'nhập thừa sau kiểm kê', 'Cân bằng kho khi số lượng thực tế thừa so với sổ sách sau kiểm kê định kỳ', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('IMPORT', 'Nhập hoàn lại từ chuồng', 'nhập hoàn lại từ chuồng', 'Thu hồi thức ăn hoặc thuốc, vắc-xin, vật tư thừa từ chuồng nuôi trả về kho', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('EXPORT', 'Xuất hao hụt kiểm kê', 'xuất hao hụt kiểm kê', 'Cân bằng kho khi phát hiện thiếu hụt, rơi vãi sau kiểm kê định kỳ', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('EXPORT', 'Xuất vật tư tiêu hao', 'xuất vật tư tiêu hao', 'Xuất bóng sưởi, chất sát trùng, vôi bột, đệm lót dùng cho chuồng nuôi', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('TRANSFER', 'Chuyển sang kho đệm chuồng', 'chuyển sang kho đệm chuồng', 'Chuyển cám, thuốc từ kho tổng sang kho đệm tại từng khu chuồng nuôi', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;

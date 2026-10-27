@@ -20,12 +20,12 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     /**
      * Trừ tồn kho nguyên tử, chỉ khi còn đủ: trả về 0 nếu kho không đủ. Hai người xác nhận cùng lúc không thể làm âm kho.
      */
-    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
     @org.springframework.data.jpa.repository.Query("update InventoryItem i set i.stock = i.stock - :quantity where i.id = :id and i.stock >= :quantity")
     int takeStock(@org.springframework.data.repository.query.Param("id") Long id,
                   @org.springframework.data.repository.query.Param("quantity") java.math.BigDecimal quantity);
 
-    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
     @org.springframework.data.jpa.repository.Query("update InventoryItem i set i.stock = i.stock + :quantity where i.id = :id")
     int returnStock(@org.springframework.data.repository.query.Param("id") Long id,
                     @org.springframework.data.repository.query.Param("quantity") java.math.BigDecimal quantity);
