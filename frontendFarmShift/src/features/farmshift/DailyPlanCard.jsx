@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Check, RotateCcw, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill, ClipboardCheck } from 'lucide-react';
+import { AlertTriangle, Check, RotateCcw, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
 import { METHODS, formatAmount, labelOf, todayIso } from './farmAreaOptions';
 import styles from './DailyPlanCard.module.css';
 
@@ -8,7 +8,6 @@ const SECTIONS = [
   { category: 'VACCINE', label: 'Vắc-xin', icon: Syringe },
   { category: 'MEDICINE', label: 'Thuốc', icon: Pill },
   { category: 'TEMPERATURE', label: 'Nhiệt độ', icon: Thermometer },
-  { category: 'WORK', label: 'Công việc', icon: ClipboardCheck },
 ];
 const MEASURED = ['FEED', 'VACCINE', 'MEDICINE'];
 const money = value => `${Number(value || 0).toLocaleString('vi-VN')}đ`;

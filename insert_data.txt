@@ -214,9 +214,6 @@ FROM (VALUES
   ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 2', 8, 14, NULL, NULL, NULL, NULL, 28, 30, ''),
   ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 3', 15, 21, NULL, NULL, NULL, NULL, 26, 28, 'Giảm dần đèn sưởi'),
   ('gà ta thả vườn', 'TEMPERATURE', 'Gà lớn', 22, 105, NULL, NULL, NULL, NULL, 22, 30, 'Mở bạt thông thoáng'),
-  ('gà ta thả vườn', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 105, NULL, NULL, NULL, NULL, NULL, NULL, 'Mỗi sáng'),
-  ('gà ta thả vườn', 'WORK', 'Kiểm tra quây úm, đèn sưởi', 1, 21, NULL, NULL, NULL, NULL, NULL, NULL, ''),
-  ('gà ta thả vườn', 'WORK', 'Thả vườn ban ngày, nhốt chuồng ban đêm', 36, 105, NULL, NULL, NULL, NULL, NULL, NULL, ''),
   -- Gà Mía thương phẩm (90 ngày)
   ('gà mía thương phẩm', 'FEED', 'Higro 01', 1, 14, 20.0, 'g/con/ngày', 5, NULL, NULL, NULL, ''),
   ('gà mía thương phẩm', 'FEED', 'Higro 02', 15, 35, 60.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
@@ -229,7 +226,6 @@ FROM (VALUES
   ('gà mía thương phẩm', 'MEDICINE', 'Men tiêu hóa', 15, 19, 2, 'g/kg cám', NULL, 'MIX_FEED', NULL, NULL, ''),
   ('gà mía thương phẩm', 'TEMPERATURE', 'Úm', 1, 14, NULL, NULL, NULL, NULL, 29, 33, ''),
   ('gà mía thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 90, NULL, NULL, NULL, NULL, 24, 30, ''),
-  ('gà mía thương phẩm', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 90, NULL, NULL, NULL, NULL, NULL, NULL, ''),
   -- Gà J-Dabaco thương phẩm (75 ngày)
   ('gà j-dabaco thương phẩm', 'FEED', 'Higro 01', 1, 14, 22.0, 'g/con/ngày', 5, NULL, NULL, NULL, ''),
   ('gà j-dabaco thương phẩm', 'FEED', 'Higro 02', 15, 42, 75.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
@@ -238,11 +234,14 @@ FROM (VALUES
   ('gà j-dabaco thương phẩm', 'VACCINE', 'Gumboro lần 1', 10, 10, 1, 'giọt/con', NULL, 'MOUTH', NULL, NULL, ''),
   ('gà j-dabaco thương phẩm', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'giọt/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
   ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Úm', 1, 14, NULL, NULL, NULL, NULL, 29, 33, ''),
-  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 75, NULL, NULL, NULL, NULL, 22, 28, ''),
-  ('gà j-dabaco thương phẩm', 'WORK', 'Vệ sinh máng ăn, máng uống', 1, 75, NULL, NULL, NULL, NULL, NULL, NULL, ''))
+  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 75, NULL, NULL, NULL, NULL, 22, 28, ''))
   AS v(program_key, category, name, day_from, day_to, quantity, unit, meals, method, temp_min, temp_max, note)
 JOIN farming_programs p ON p.name_key = v.program_key
 WHERE NOT EXISTS (SELECT 1 FROM farming_program_steps s WHERE s.program_id = p.id AND s.category = v.category AND s.name = v.name AND s.day_from = v.day_from);
+
+-- Chương trình nuôi không còn bước Công việc (WORK): việc chăm sóc được giao riêng. Xóa dữ liệu cũ nếu có.
+DELETE FROM daily_task_logs WHERE category = 'WORK';
+DELETE FROM farming_program_steps WHERE category = 'WORK';
 
 UPDATE flocks f SET program_id = p.id
 FROM farming_programs p

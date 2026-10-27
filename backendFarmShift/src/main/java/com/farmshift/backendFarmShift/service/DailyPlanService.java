@@ -222,7 +222,9 @@ public class DailyPlanService {
         for (FlockDay flockDay : present) {
             FarmingProgram program = flockDay.flock().getProgram();
             if (program == null) continue;
+            // Công việc (WORK) không thuộc chương trình nuôi nữa; bỏ qua nếu còn sót trong dữ liệu cũ.
             List<FarmingProgramStep> steps = program.getSteps().stream()
+                    .filter(step -> step.getCategory() != ProgramStepCategory.WORK)
                     .filter(step -> flockDay.age() >= step.getDayFrom() && flockDay.age() <= step.getDayTo()).toList();
             BigDecimal feedKg = steps.stream().filter(step -> step.getCategory() == ProgramStepCategory.FEED && step.getQuantity() != null)
                     .map(step -> grams(step.getQuantity(), flockDay.heads()).divide(BigDecimal.valueOf(1000), 3, RoundingMode.HALF_UP))

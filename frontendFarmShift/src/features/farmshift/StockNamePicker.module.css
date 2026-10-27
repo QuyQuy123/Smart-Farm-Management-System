@@ -1,0 +1,12 @@
+.picker { position: relative; min-width: 220px; }
+.input { padding-right: 34px !important; }
+.invalid { border-color: #e11d48 !important; }
+.caret { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #52796f; pointer-events: none; }
+.list { position: fixed; z-index: 2000; max-height: 280px; margin: 0; padding: 6px; overflow-y: auto; list-style: none;
+  background: #fff; border: 1px solid #cfd8d3; border-radius: 10px; box-shadow: 0 12px 28px rgba(27, 67, 50, 0.16); }
+.option { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 8px;
+  font-size: 15px; font-weight: 500; color: #1f2933; cursor: pointer; }
+.option small { flex-shrink: 0; font-size: 13.5px; color: #52796f; }
+.active { background: #e9f6ec; }
+.option[aria-selected="true"] { font-weight: 700; color: #1b4332; }
+.empty { padding: 10px 12px; font-size: 14px; color: #607781; }

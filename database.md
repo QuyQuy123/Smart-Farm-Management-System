@@ -549,7 +549,7 @@ Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm só
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `program_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_programs.id` ON DELETE CASCADE. |
-| `category` | VARCHAR(20) | NOT NULL. `FEED` (cám), `VACCINE` (vắc-xin), `MEDICINE` (thuốc), `TEMPERATURE` (nhiệt độ úm), `WORK` (công việc). |
+| `category` | VARCHAR(20) | NOT NULL. `FEED` (cám), `VACCINE` (vắc-xin), `MEDICINE` (thuốc), `TEMPERATURE` (nhiệt độ úm). `WORK` (công việc) chỉ còn trong dữ liệu cũ: chương trình nuôi không nhận bước công việc (`PROGRAM_WORK_NOT_ALLOWED`), việc chăm sóc được giao riêng. |
 | `name` | VARCHAR(200) | NOT NULL. Tên thuốc / vắc-xin / loại cám / công việc. |
 | `day_from`, `day_to` | INT | NOT NULL. Giai đoạn ngày tuổi áp dụng (`day_from` ≤ `day_to`). |
 | `quantity` | NUMERIC(14,3) | Định mức cám (g/con/ngày) hoặc liều dùng thuốc/vắc-xin. |
@@ -571,8 +571,8 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. |
 | `task_date` | DATE | NOT NULL. Ngày làm việc (từ ngày bắt đầu lứa đến hôm nay). |
-| `task_key` | VARCHAR(120) | NOT NULL. Mã việc ổn định: `FEED:I{hàng hóa}:M{cữ}`, `VACCINE:I{hàng hóa}`, `MEDICINE:N{tên}`, `TEMPERATURE:N{tên}`, `WORK:N{tên}`. UNIQUE (`cycle_id`, `task_date`, `task_key`). |
-| `category` | VARCHAR(20) | NOT NULL. `FEED`, `VACCINE`, `MEDICINE`, `TEMPERATURE`, `WORK`. |
+| `task_key` | VARCHAR(120) | NOT NULL. Mã việc ổn định: `FEED:I{hàng hóa}:M{cữ}`, `VACCINE:I{hàng hóa}`, `MEDICINE:N{tên}`, `TEMPERATURE:N{tên}`. UNIQUE (`cycle_id`, `task_date`, `task_key`). |
+| `category` | VARCHAR(20) | NOT NULL. `FEED`, `VACCINE`, `MEDICINE`, `TEMPERATURE`. |
 | `task_name` | VARCHAR(200) | NOT NULL. Tên việc lúc xác nhận (giữ lịch sử khi chương trình bị sửa). |
 | `meal` | INT | Cữ thứ mấy trong ngày (chỉ với cám). |
 | `planned_quantity`, `actual_quantity` | NUMERIC(14,3) | Lượng theo kế hoạch và thực tế, cùng đơn vị `usage_unit`. |

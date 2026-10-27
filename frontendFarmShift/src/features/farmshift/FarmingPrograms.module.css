@@ -74,7 +74,6 @@
 .stepTable td { padding: 6px; border-top: 1px solid #edf1f0; vertical-align: middle; }
 .stepTable td input, .stepTable td select { min-width: 70px; padding: 7px 8px; font-size: 14.5px; }
 .stepTable td:first-child input, .stepTable td:nth-child(2) input { width: 74px; }
-.itemSelect { min-width: 220px !important; }
 .itemHint { margin: 0 0 10px; font-size: 14px; color: #52796f; }
 .rowError td { background: #fff7f7; }
 .rowMessageRow td { padding: 2px 10px 8px; border-top: 0; background: #fff7f7; color: #e11d48; font-size: 13.5px; }
