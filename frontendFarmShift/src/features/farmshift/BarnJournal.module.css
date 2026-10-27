@@ -1,25 +1,24 @@
 /* Ghi nhật ký theo chuồng: sơ đồ khu -> trang một chuồng (số liệu, form ghi, lịch sử). */
 .state { margin: 0; padding: 40px 20px; text-align: center; color: #4b5563; background: #fff; border: 1px solid #e3ebe8; border-radius: 14px; }
-.intro { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 15.5px; color: #2d6a4f; }
+.intro { margin: 0 0 14px; font-size: 15.5px; color: #7a5c2e; }
 
-/* Sơ đồ khu: các khu xếp cạnh nhau và co theo số chuồng; nhãn khu ở góc, ô chuồng bên trong. */
-.map { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 26px 16px; padding-top: 12px; }
-.area { position: relative; flex: 1 1 0; min-width: min(100%, 300px); padding: 28px 14px 14px; background: #fff; border: 2px solid #b7e4c7; border-radius: 20px; }
-.areaLabel { position: absolute; top: -14px; left: 18px; display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 14px; border-radius: 999px;
-  background: #1b4332; color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
-.areaLabel small { font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: #b7e4c7; }
-.tiles { display: flex; flex-wrap: wrap; gap: 10px; }
-.tile { flex: 1 1 120px; max-width: 220px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
-  min-height: 82px; padding: 12px 14px;
-  border: 2px solid #95d5b2; border-radius: 16px; background: #f3faf4; color: inherit; font: inherit; text-align: left; cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease; }
-.tile:hover:not(:disabled) { transform: translateY(-2px); border-color: #2d6a4f; box-shadow: 0 8px 18px rgba(27, 67, 50, 0.12); }
-.tile:focus-visible { outline: 3px solid #52b788; outline-offset: 2px; }
-.tile strong { font-size: 17px; color: #1b4332; }
-.tile span { font-size: 15px; font-weight: 600; color: #2d6a4f; }
-.tile small { font-size: 13.5px; color: #4b5563; }
-.tileEmpty { border-style: dashed; border-color: #cfd8d3; background: #f8faf9; cursor: default; }
-.tileEmpty strong, .tileEmpty span { color: #8a9a93; }
+/* Thẻ chuồng gọn, nền vàng kiểu vintage (giấy cũ). */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px 14px; padding: 16px 18px;
+  border: 1px solid #e2cc94; border-radius: 14px; background: linear-gradient(160deg, #fbf3dc 0%, #f4e4b8 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); color: inherit; font: inherit; text-align: left; cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s; }
+.card:hover { border-color: #c9a55a; box-shadow: 0 8px 18px rgba(122, 92, 46, 0.16); transform: translateY(-1px); }
+.card:focus-visible { outline: 2px solid #a8782f; outline-offset: 2px; }
+.cardIcon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #ead39b; color: #6b4a1b; }
+.cardName { display: flex; flex-direction: column; min-width: 0; }
+.cardName strong { font-size: 17px; color: #4a3413; }
+.cardName small { font-size: 14px; color: #8a6a3a; }
+.cardCount { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 6px; padding-top: 10px; border-top: 1px dashed #dcc386;
+  font-size: 14.5px; color: #7a5c2e; white-space: nowrap; }
+.cardCount strong { font-size: 18px; color: #4a3413; }
+.cardCount small { margin-left: auto; font-size: 14px; color: #8a6a3a; }
+.chevron { color: #b8955a; }
 
 /* Trang một chuồng */
 .main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -94,7 +93,3 @@
 .death { background: #fde8e8; color: #9b1c1c; }
 .cull { background: #fff4e0; color: #8a5a00; }
 
-@media (max-width: 640px) {
-  .area { flex-basis: 100%; }
-  .tile { flex-basis: calc(50% - 5px); max-width: none; }
-}

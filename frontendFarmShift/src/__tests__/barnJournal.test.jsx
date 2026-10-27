@@ -4,14 +4,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { BarnJournal } from '../features/farmshift/BarnJournal';
 import * as plans from '../services/dailyPlanService';
 import * as cycles from '../services/cycleService';
-import * as areas from '../services/farmAreaService';
 import { fileService } from '../services/fileService';
 
 const mocks = vi.hoisted(() => ({ showToast: vi.fn(), role: 'ROLE_FARM_OWNER' }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'u@farm.test', role: mocks.role } }) }));
 vi.mock('../services/dailyPlanService', () => ({ getFarmDailyPlan: vi.fn() }));
-vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn() }));
 vi.mock('../services/fileService', () => ({ fileService: { uploadFile: vi.fn() } }));
 vi.mock('../services/cycleService', () => ({ getCycle: vi.fn(), recordLoss: vi.fn(), addWeightSample: vi.fn() }));
 
@@ -25,10 +23,9 @@ const daysAgo = days => {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 };
 
-const barns = [
-  { id: 1, name: 'Nhà A1', areaName: 'Khu A', currentQuantity: 5000, activeCycleId: 11 },
-  { id: 2, name: 'Nhà A2', areaName: 'Khu A', currentQuantity: 0, activeCycleId: null },
-  { id: 3, name: 'Nhà B1', areaName: 'Khu B', currentQuantity: 3000, activeCycleId: 12 },
+const plans_ = [
+  { cycleId: 11, cycleCode: 'L01', barnId: 1, barnName: 'Nhà A1', areaName: 'Khu A', headcount: 5000, flocks: [{ ageDays: 20 }] },
+  { cycleId: 12, cycleCode: 'L02', barnId: 3, barnName: 'Nhà B1', areaName: 'Khu B', headcount: 3000, flocks: [{ ageDays: 30 }, { ageDays: 28 }] },
 ];
 const cycle = (quantity = 5000, deaths = 0) => ({
   cycle: { id: 11, code: 'L01' }, barn: { id: 1, name: 'Nhà A1', areaName: 'Khu A' },
@@ -46,33 +43,30 @@ describe('Ghi nhật ký theo chuồng', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.role = 'ROLE_FARM_OWNER';
-    areas.listBarns.mockResolvedValue(barns);
+    plans.getFarmDailyPlan.mockResolvedValue(plans_);
     cycles.getCycle.mockResolvedValue(cycle());
   });
 
-  it('opens on the area map; the owner sees every barn and opens a running one', async () => {
+  it('lists running barns as simple cards and opens one', async () => {
     const onSelect = vi.fn();
     render(<BarnJournal mode="loss" selectedCycleId={null} onSelect={onSelect} />);
-    const areaA = await screen.findByRole('region', { name: 'Khu Khu A' });
-    expect(within(areaA).getByRole('button', { name: 'Nhà A2: chuồng trống' })).toBeDisabled();
-    expect(screen.getByRole('region', { name: 'Khu Khu B' })).toBeInTheDocument();
-    expect(screen.getByText(/2\/3 chuồng đang nuôi/)).toBeInTheDocument();
+    const a1 = await screen.findByRole('button', { name: 'Ghi nhật ký Nhà A1' });
+    expect(a1).toHaveTextContent('Khu A');
+    expect(a1).toHaveTextContent('5.000 con');
+    expect(a1).toHaveTextContent('20 ngày tuổi');
+    expect(screen.getByRole('button', { name: 'Ghi nhật ký Nhà B1' })).toHaveTextContent('3.000 con');
+    expect(cycles.getCycle).not.toHaveBeenCalled();
 
-    fireEvent.click(within(areaA).getByRole('button', { name: 'Ghi nhật ký Nhà A1' }));
+    fireEvent.click(a1);
     expect(onSelect).toHaveBeenCalledWith(11);
-    expect(plans.getFarmDailyPlan).not.toHaveBeenCalled();
   });
 
   it('shows a worker only the barns assigned to them', async () => {
     mocks.role = 'ROLE_FARM_WORKER';
-    plans.getFarmDailyPlan.mockResolvedValue([
-      { cycleId: 12, barnId: 3, barnName: 'Nhà B1', areaName: 'Khu B', headcount: 3000, flocks: [{ ageDays: 30 }] },
-    ]);
+    plans.getFarmDailyPlan.mockResolvedValue([plans_[1]]);
     render(<BarnJournal mode="loss" selectedCycleId={null} onSelect={vi.fn()} />);
-    expect(await screen.findByRole('button', { name: 'Ghi nhật ký Nhà B1' })).toHaveTextContent('30 ngày tuổi');
+    expect(await screen.findByRole('button', { name: 'Ghi nhật ký Nhà B1' })).toBeInTheDocument();
     expect(screen.queryByText('Nhà A1')).not.toBeInTheDocument();
-    expect(screen.getByText(/Bạn phụ trách 1 chuồng/)).toBeInTheDocument();
-    expect(areas.listBarns).not.toHaveBeenCalled();
   });
 
   it('tells a worker with no barns to ask for an assignment', async () => {
@@ -113,7 +107,7 @@ describe('Ghi nhật ký theo chuồng', () => {
     expect(within(history).getByAltText('Ảnh 1')).toHaveAttribute('src', '/img/losses/a.jpg');
     expect(mocks.showToast).toHaveBeenCalledWith(expect.stringContaining('Đã ghi 5 con chết ở Nhà A1'), 'success');
 
-    fireEvent.click(screen.getByRole('button', { name: /Sơ đồ khu/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Tất cả chuồng/ }));
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 

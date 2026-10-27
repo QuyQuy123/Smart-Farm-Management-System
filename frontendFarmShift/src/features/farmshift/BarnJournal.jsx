@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Camera, HeartCrack, History, MapPinned, Scale, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { ArrowLeft, Camera, ChevronRight, HeartCrack, History, Scale, TrendingDown, TrendingUp, Warehouse, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { getFarmDailyPlan } from '../../services/dailyPlanService';
 import { addWeightSample, getCycle, recordLoss } from '../../services/cycleService';
-import { listBarns } from '../../services/farmAreaService';
 import { fileService } from '../../services/fileService';
 import { apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import styles from './BarnJournal.module.css';
@@ -38,48 +37,29 @@ const weighings = samples => {
   });
 };
 
-/** Gom chuồng theo khu, giữ thứ tự khu như danh sách. */
-const groupAreas = barns => {
-  const areas = new Map();
-  barns.forEach(barn => {
-    if (!areas.has(barn.areaName)) areas.set(barn.areaName, []);
-    areas.get(barn.areaName).push(barn);
-  });
-  return [...areas.entries()];
+/** Chuồng đang nuôi; công nhân chỉ nhận về chuồng mình được phân công. */
+const loadBarns = async () => {
+  const plans = await getFarmDailyPlan(todayIso());
+  return (Array.isArray(plans) ? plans : []).map(plan => ({ barnId: plan.barnId, name: plan.barnName, areaName: plan.areaName,
+    cycleId: plan.cycleId, headcount: plan.headcount, ageDays: plan.flocks?.[0]?.ageDays ?? null }));
 };
 
-/**
- * Chuồng hiện trên sơ đồ. Chủ trại / kế toán thấy mọi chuồng (chuồng trống để mờ);
- * công nhân chỉ thấy chuồng đang nuôi mình được phân công.
- */
-const loadBarns = async worker => {
-  if (worker) {
-    const plans = await getFarmDailyPlan(todayIso());
-    return (Array.isArray(plans) ? plans : []).map(plan => ({ barnId: plan.barnId, name: plan.barnName, areaName: plan.areaName,
-      cycleId: plan.cycleId, headcount: plan.headcount, ageDays: plan.flocks?.[0]?.ageDays ?? null }));
-  }
-  const barns = await listBarns();
-  return (Array.isArray(barns) ? barns : []).map(barn => ({ barnId: barn.id, name: barn.name, areaName: barn.areaName,
-    cycleId: barn.activeCycleId || null, headcount: barn.currentQuantity, ageDays: null }));
-};
-
-/** Sơ đồ khu: mỗi khu một khung, bên trong là các ô chuồng. Bấm chuồng đang nuôi để ghi nhật ký. */
-function AreaMap({ barns, onOpen }) {
-  return <div className={styles.map}>
-    {groupAreas(barns).map(([areaName, list]) => <section key={areaName} className={styles.area} aria-label={`Khu ${areaName}`} style={{ flexGrow: list.length }}>
-      <span className={styles.areaLabel}>{areaName}<small>· {list.length} chuồng</small></span>
-      <div className={styles.tiles}>
-        {list.map(barn => {
-          const running = Boolean(barn.cycleId);
-          return <button key={barn.barnId} type="button" disabled={!running} onClick={() => onOpen(barn.cycleId)}
-            className={`${styles.tile} ${running ? '' : styles.tileEmpty}`} aria-label={running ? `Ghi nhật ký ${barn.name}` : `${barn.name}: chuồng trống`}>
-            <strong>{barn.name}</strong>
-            <span>{running ? `${num(barn.headcount)} con` : 'Chuồng trống'}</span>
-            {running && barn.ageDays != null && <small>{barn.ageDays} ngày tuổi</small>}
-          </button>;
-        })}
-      </div>
-    </section>)}
+/** Thẻ chuồng gọn: tên, khu, số con, ngày tuổi. Bấm để ghi nhật ký chuồng đó. */
+function BarnCards({ barns, onOpen }) {
+  return <div className={styles.grid}>
+    {barns.map(barn => <button key={barn.cycleId} type="button" className={styles.card} onClick={() => onOpen(barn.cycleId)}
+      aria-label={`Ghi nhật ký ${barn.name}`}>
+      <span className={styles.cardIcon}><Warehouse size={20} /></span>
+      <span className={styles.cardName}>
+        <strong>{barn.name}</strong>
+        <small>{barn.areaName}</small>
+      </span>
+      <ChevronRight size={18} className={styles.chevron} />
+      <span className={styles.cardCount}>
+        <strong>{num(barn.headcount)}</strong> con
+        {barn.ageDays != null && <small>{barn.ageDays} ngày tuổi</small>}
+      </span>
+    </button>)}
   </div>;
 }
 
@@ -353,7 +333,7 @@ function BarnPage({ cycleId, barn, initialMode, canRecord, onBack }) {
 
   return <div className={styles.main}>
     <header className={styles.head}>
-      <button type="button" className={styles.back} onClick={onBack}><ArrowLeft size={16} /> Sơ đồ khu</button>
+      <button type="button" className={styles.back} onClick={onBack}><ArrowLeft size={16} /> Tất cả chuồng</button>
       <div className={styles.title}>
         <h2>{barnName}</h2>
         <small>{data?.barn?.areaName || barn?.areaName}{data ? ` · Lứa ${data.cycle.code}` : ''}
@@ -377,7 +357,7 @@ function BarnPage({ cycleId, barn, initialMode, canRecord, onBack }) {
 }
 
 /**
- * Ghi nhật ký theo chuồng: mở ra là sơ đồ khu (chủ trại thấy cả trại, công nhân chỉ thấy chuồng được phân công),
+ * Ghi nhật ký theo chuồng: mở ra là thẻ các chuồng đang nuôi (công nhân chỉ thấy chuồng được phân công),
  * bấm một chuồng để ghi chết / loại thải (trừ thẳng vào số con) hoặc cân mẫu (cập nhật cân nặng trung bình).
  */
 export function BarnJournal({ mode, selectedCycleId, onSelect }) {
@@ -386,28 +366,28 @@ export function BarnJournal({ mode, selectedCycleId, onSelect }) {
   const canRecord = worker || user?.role === 'ROLE_FARM_OWNER';
   const [barns, setBarns] = useState({ loading: true, list: [], error: '' });
 
+  // Quay lại danh sách thì tải lại để số con trên thẻ là mới nhất.
   useEffect(() => {
+    if (selectedCycleId) return undefined;
     let active = true;
-    loadBarns(worker)
+    loadBarns()
       .then(list => { if (active) setBarns({ loading: false, list, error: '' }); })
       .catch(error => { if (active) setBarns({ loading: false, list: [], error: apiErrorMessage(error) }); });
     return () => { active = false; };
-  }, [worker, selectedCycleId]);
+  }, [selectedCycleId]);
 
   if (selectedCycleId) {
     return <BarnPage key={selectedCycleId} cycleId={selectedCycleId} barn={barns.list.find(barn => barn.cycleId === selectedCycleId)}
       initialMode={mode} canRecord={canRecord} onBack={() => onSelect(null)} />;
   }
-  if (barns.loading) return <p className={styles.state} role="status">Đang tải sơ đồ khu...</p>;
+  if (barns.loading) return <p className={styles.state} role="status">Đang tải danh sách chuồng...</p>;
   if (barns.error) return <p className={styles.state} role="alert">{barns.error}</p>;
   if (!barns.list.length) {
     return <p className={styles.state}>{worker ? 'Bạn chưa được phân công chuồng nào đang nuôi. Liên hệ chủ trại để được phân công.'
-      : 'Chưa có chuồng nào. Tạo khu và chuồng ở mục Khu nuôi.'}</p>;
+      : 'Chưa có chuồng nào đang nuôi.'}</p>;
   }
-  const running = barns.list.filter(barn => barn.cycleId);
   return <>
-    <p className={styles.intro}><MapPinned size={18} />
-      {worker ? `Bạn phụ trách ${running.length} chuồng.` : `${running.length}/${barns.list.length} chuồng đang nuôi.`} Bấm vào chuồng để ghi chết, loại thải hoặc cân mẫu.</p>
-    <AreaMap barns={barns.list} onOpen={onSelect} />
+    <p className={styles.intro}>Chọn chuồng để ghi chết, loại thải hoặc cân mẫu.</p>
+    <BarnCards barns={barns.list} onOpen={onSelect} />
   </>;
 }
