@@ -11,7 +11,7 @@ vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ sho
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: mocks.role, email: mocks.email } }) }));
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ pageTitle, children }) => <main><h1>{pageTitle}</h1>{children}</main> }));
 vi.mock('../services/dailyPlanService', () => ({ getFarmDailyPlan: vi.fn(), confirmDailyTask: vi.fn(), undoDailyTask: vi.fn() }));
-vi.mock('../services/workAssignmentService', () => ({ checkWorkTask: vi.fn(), uncheckWorkTask: vi.fn() }));
+vi.mock('../services/workAssignmentService', () => ({ checkWorkTask: vi.fn(), uncheckWorkTask: vi.fn(), getWorkBoard: vi.fn() }));
 
 const today = (() => {
   const now = new Date();
@@ -112,6 +112,22 @@ describe('Việc hôm nay: workers follow the plan and only tick tasks', () => {
     await waitFor(() => expect(workService.checkWorkTask).toHaveBeenCalledWith(31, today));
     expect(await within(card).findByText(/Xong lúc 07:40 · worker@farm.test/)).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Hoàn tác Rửa máng uống' })).toBeInTheDocument();
+  });
+
+  it('gives the owner a Phân công tab inside Việc hôm nay, and workers do not see it', async () => {
+    const { unmount } = renderView();
+    await screen.findByRole('button', { name: 'Mở việc chuồng Chuồng 1' });
+    expect(screen.queryByRole('tab', { name: /Phân công/ })).not.toBeInTheDocument();
+    unmount();
+
+    mocks.role = 'ROLE_FARM_OWNER';
+    workService.getWorkBoard.mockResolvedValue({ date: today, workers: [], barns: [] });
+    renderView();
+    fireEvent.click(await screen.findByRole('tab', { name: /Phân công/ }));
+    await waitFor(() => expect(workService.getWorkBoard).toHaveBeenCalledWith(today));
+    expect(screen.getByRole('tab', { name: /Phân công/ })).toHaveAttribute('aria-selected', 'true');
+    // Assignments can be planned ahead, unlike the work sheet.
+    expect(screen.getByRole('button', { name: 'Ngày sau' })).not.toBeDisabled();
   });
 
   it('goes back a day to catch up and cannot go into the future', async () => {

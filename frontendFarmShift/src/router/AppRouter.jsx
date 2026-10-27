@@ -17,7 +17,6 @@ const BarnsView = lazy(() => import('../features/farmshift/BarnsView').then(m =>
 const AreasView = lazy(() => import('../features/farmshift/AreasView').then(m => ({ default: m.AreasView })));
 const BarnDetailView = lazy(() => import('../features/farmshift/BarnDetailView').then(m => ({ default: m.BarnDetailView })));
 const TodayTasksView = lazy(() => import('../features/farmshift/TodayTasksView').then(m => ({ default: m.TodayTasksView })));
-const WorkAssignmentView = lazy(() => import('../features/farmshift/WorkAssignmentView').then(m => ({ default: m.WorkAssignmentView })));
 const JournalView = lazy(() => import('../features/farmshift/JournalView').then(m => ({ default: m.JournalView })));
 const InventoryView = lazy(() => import('../features/farmshift/InventoryView').then(m => ({ default: m.InventoryView })));
 const PurchasesView = lazy(() => import('../features/farmshift/PurchasesView').then(m => ({ default: m.PurchasesView })));
@@ -65,7 +64,8 @@ export const AppRouter = () => {
         <Route path="/barns" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
         <Route path="/barns/:id" element={<ProtectedRoute><BarnDetailView /></ProtectedRoute>} />
         <Route path="/today-tasks" element={<ProtectedRoute><TodayTasksView /></ProtectedRoute>} />
-        <Route path="/work-assignments" element={<ProtectedRoute><WorkAssignmentView /></ProtectedRoute>} />
+        {/* Phân công công việc nằm trong Việc hôm nay (tab Phân công). */}
+        <Route path="/work-assignments" element={<Navigate to="/today-tasks?view=assign" replace />} />
         <Route path="/journal" element={<ProtectedRoute><JournalView /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><InventoryView /></ProtectedRoute>} />
         <Route path="/transfers" element={<ProtectedRoute><TransfersView /></ProtectedRoute>} />

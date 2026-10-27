@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, Pencil, Plus, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
-import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
+import { CheckCircle2, Circle, Clock, Pencil, Plus, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import { deleteWorkTask, getWorkBoard, setBarnWorkers, createWorkTask, updateWorkTask } from '../../services/workAssignmentService';
 import { FormDialog } from './CycleDialogs';
 import { Dialog } from './FarmAreaDialogs';
-import { addDaysIso, apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
+import { apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import styles from './WorkAssignmentView.module.css';
 
 /** Việc chăm sóc hay giao, để chủ trại bấm chọn nhanh khi giao việc. */
@@ -54,13 +53,12 @@ function BarnWorkersDialog({ barn, workers, onClose, onSaved }) {
 }
 
 /**
- * Phân công công việc (chủ trại): công nhân phụ trách từng chuồng và việc giao thêm hằng ngày.
- * Công nhân chỉ thấy phiếu việc và việc được giao của chuồng mình phụ trách ở mục Việc hôm nay.
+ * Tab "Phân công" trong màn Việc hôm nay (chủ trại): công nhân phụ trách từng chuồng và việc giao thêm hằng ngày.
+ * Ngày do màn Việc hôm nay chọn. Công nhân chỉ thấy phiếu việc và việc được giao của chuồng mình phụ trách.
  */
-export const WorkAssignmentView = () => {
+export function WorkAssignmentPanel({ date }) {
   const { showToast } = useNotification();
   const today = todayIso();
-  const [date, setDate] = useState(today);
   const [revision, setRevision] = useState(0);
   const [workerFilter, setWorkerFilter] = useState(null);
   const [state, setState] = useState({ key: null, board: null, error: '' });
@@ -124,19 +122,11 @@ export const WorkAssignmentView = () => {
     onSubmit: async () => { await deleteWorkTask(task.id); return `Đã xóa việc "${task.title}".`; },
   });
 
-  return <FarmShiftLayout pageTitle="Phân công công việc" breadcrumbs={[{ label: 'Quản lý khu nuôi', path: '/areas' }]}>
-    <div className={styles.toolbar}>
-      <div className={styles.dateNav}>
-        <button type="button" className={styles.navButton} aria-label="Ngày trước" onClick={() => setDate(addDaysIso(date, -1))}><ChevronLeft size={18} /></button>
-        <input type="date" aria-label="Ngày phân công" className="farmshift-form-control" value={date} onChange={event => event.target.value && setDate(event.target.value)} />
-        <button type="button" className={styles.navButton} aria-label="Ngày sau" onClick={() => setDate(addDaysIso(date, 1))}><ChevronRight size={18} /></button>
-        {date !== today && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setDate(today)}>Hôm nay</button>}
-      </div>
-      {board && <div className={styles.stats}>
-        <span><strong>{allTasks.filter(task => task.done).length}/{allTasks.length}</strong> việc giao đã xong · {formatDay(date)}</span>
-        {unassigned > 0 && <span className={styles.alert}>{unassigned} chuồng đang nuôi chưa có người phụ trách</span>}
-      </div>}
-    </div>
+  return <>
+    {board && <div className={styles.stats}>
+      <span><strong>{allTasks.filter(task => task.done).length}/{allTasks.length}</strong> việc giao đã xong · {formatDay(date)}</span>
+      {unassigned > 0 && <span className={styles.alert}>{unassigned} chuồng đang nuôi chưa có người phụ trách</span>}
+    </div>}
 
     {loading ? <p className={styles.state} role="status">Đang tải phân công...</p>
       : state.error ? <div className={styles.state} role="alert"><p>{state.error}</p>
@@ -202,5 +192,5 @@ export const WorkAssignmentView = () => {
 
     {modal?.kind === 'workers' && <BarnWorkersDialog barn={modal.barn} workers={board.workers} onClose={() => setModal(null)} onSaved={done} />}
     {modal?.kind === 'form' && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
-  </FarmShiftLayout>;
-};
+  </>;
+}

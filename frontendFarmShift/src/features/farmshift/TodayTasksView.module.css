@@ -1,3 +1,9 @@
+/* Tab Việc hôm nay / Phân công (chủ trại) */
+.viewTabs { display: inline-flex; gap: 4px; margin-bottom: 16px; padding: 4px; border-radius: 12px; background: #f3faf4; border: 1px solid #d7ecdc; }
+.viewTabs button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border: 0; border-radius: 9px; background: transparent;
+  color: #2d6a4f; font: inherit; font-size: 15.5px; font-weight: 600; cursor: pointer; }
+.viewTabs button:hover { background: #e9f6ec; }
+.viewTabs .viewActive, .viewTabs .viewActive:hover { background: #1b4332; color: #fff; box-shadow: 0 4px 10px rgba(27, 67, 50, 0.2); }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .dateNav { display: flex; align-items: center; gap: 8px; }
 .dateNav input { width: 170px; }

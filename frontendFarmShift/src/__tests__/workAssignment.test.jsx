@@ -2,12 +2,11 @@ import React from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { WorkAssignmentView } from '../features/farmshift/WorkAssignmentView';
+import { WorkAssignmentPanel } from '../features/farmshift/WorkAssignmentView';
 import * as service from '../services/workAssignmentService';
 
 const mocks = vi.hoisted(() => ({ showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
-vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ pageTitle, children }) => <main><h1>{pageTitle}</h1>{children}</main> }));
 vi.mock('../services/workAssignmentService', () => ({
   getWorkBoard: vi.fn(), setBarnWorkers: vi.fn(), createWorkTask: vi.fn(), updateWorkTask: vi.fn(), deleteWorkTask: vi.fn(),
 }));
@@ -41,7 +40,7 @@ const board = () => ({
     { barnId: 2, barnName: 'Nhà A2', areaId: 1, areaName: 'Khu Mía', activeCycleId: 12, headcount: 4000, workers: [], tasks: [] },
   ],
 });
-const renderView = () => render(<MemoryRouter><WorkAssignmentView /></MemoryRouter>);
+const renderView = () => render(<MemoryRouter><WorkAssignmentPanel date={today} /></MemoryRouter>);
 
 describe('Phân công công việc (chủ trại)', () => {
   beforeEach(() => {

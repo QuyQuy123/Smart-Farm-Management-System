@@ -8,7 +8,7 @@ import {
     ArrowLeftRight, FileText, ShoppingCart, DollarSign,
     Users, BarChart3, Layers, Settings, Sliders,
     Utensils, HeartPulse, Thermometer, CheckSquare, X,
-    CheckCircle, AlertTriangle, AlertCircle, ListChecks, UserCog
+    CheckCircle, AlertTriangle, AlertCircle, ListChecks
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification, formatNotificationTime, renderNotificationContent } from '../context/NotificationContext';
@@ -248,8 +248,6 @@ export const FarmShiftLayout = ({
         { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard },
         { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse },
         { id: 'today-tasks', label: 'Việc hôm nay', path: '/today-tasks', icon: ListChecks },
-        // Chỉ chủ trại phân công công nhân và giao việc.
-        ...(user?.role === 'ROLE_FARM_OWNER' ? [{ id: 'work-assignments', label: 'Phân công công việc', path: '/work-assignments', icon: UserCog }] : []),
         { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList },
         { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package },
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight },

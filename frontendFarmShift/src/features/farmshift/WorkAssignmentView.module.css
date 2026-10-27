@@ -1,10 +1,5 @@
 /* Phân công công việc: cột công nhân bên trái, thẻ từng chuồng bên phải. */
-.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.dateNav { display: flex; align-items: center; gap: 8px; }
-.dateNav input { width: 180px; }
-.navButton { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #d7ecdc; border-radius: 10px; background: #fff; color: #2d6a4f; cursor: pointer; }
-.navButton:hover { background: #e9f6ec; }
-.stats { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 15px; color: #2d6a4f; }
+.stats { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; font-size: 15px; color: #2d6a4f; }
 .stats strong { font-size: 17px; color: #1b4332; }
 .alert { padding: 4px 12px; border-radius: 999px; background: #fff4e0; color: #8a5a00; font-size: 14px; font-weight: 600; }
 .state { margin: 0; padding: 40px 20px; text-align: center; color: #4b5563; background: #fff; border: 1px solid #e3ebe8; border-radius: 14px; }

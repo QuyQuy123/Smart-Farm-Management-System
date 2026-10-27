@@ -22,7 +22,9 @@ INSERT INTO accounts (email, password, role_id, full_name, is_active)
 VALUES ('hiepgacute1989@gmail.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Admin', TRUE),
        ('mienbinh@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 1, 'Miền Bính', TRUE),
        ('ketoan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 2, 'Trần Kế Toán', TRUE),
-       ('congnhan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 3, 'Lê Công Nhân', TRUE)
+       ('congnhan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 3, 'Nguyễn Văn Ba', TRUE),
+       ('hung@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 3, 'Dương Văn Hùng', TRUE),
+       ('hang@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 3, 'Nông Thị Hằng', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
 -- ---------------------------------------------------------------------
@@ -32,8 +34,23 @@ INSERT INTO customers (account_id, full_name, phone, citizen_id, address)
 VALUES (1, 'Admin', '0989149421', '001000000000', 'Hà Nội'),
        (2, 'Miền Bính', '0988111222', '001204000001', 'Vĩnh Phúc'),
        (3, 'Trần Kế Toán', '0977222333', '001204000002', 'Vĩnh Phúc'),
-       (4, 'Lê Công Nhân', '0966333444', '001204000003', 'Vĩnh Phúc')
+       (4, 'Nguyễn Văn Ba', '0966333444', '001204000003', 'Vĩnh Phúc')
 ON CONFLICT (account_id) DO NOTHING;
+
+-- Hai công nhân thêm (id tài khoản tự tăng nên nối theo email)
+INSERT INTO customers (account_id, full_name, phone, citizen_id, address)
+SELECT a.id, v.full_name, v.phone, v.citizen_id, 'Vĩnh Phúc'
+FROM (VALUES
+  ('hung@smartfarm.com', 'Dương Văn Hùng', '0966333555', '001204000004'),
+  ('hang@smartfarm.com', 'Nông Thị Hằng', '0966333666', '001304000005')
+) AS v(email, full_name, phone, citizen_id)
+JOIN accounts a ON a.email = v.email
+ON CONFLICT (account_id) DO NOTHING;
+
+-- Đổi tên công nhân mẫu cũ "Lê Công Nhân" thành "Nguyễn Văn Ba" cho các database đã seed trước đó
+UPDATE accounts SET full_name = 'Nguyễn Văn Ba' WHERE email = 'congnhan@smartfarm.com' AND full_name = 'Lê Công Nhân';
+UPDATE customers SET full_name = 'Nguyễn Văn Ba'
+WHERE account_id = (SELECT id FROM accounts WHERE email = 'congnhan@smartfarm.com') AND full_name = 'Lê Công Nhân';
 
 -- Sửa tên chủ trang trại cho các database đã seed tên cũ "Miến Bình"
 UPDATE accounts SET full_name = 'Miền Bính' WHERE email = 'mienbinh@smartfarm.com' AND full_name <> 'Miền Bính';
@@ -605,25 +622,28 @@ WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.invent
 -- ---------------------------------------------------------------------
 -- 25. Phân công công việc: công nhân phụ trách chuồng và việc giao mẫu
 --     (chạy sau khi backend đã khởi động để Hibernate tạo bảng barn_workers, work_tasks, work_task_checks)
+--     Chia theo khu: Khu Mía Thịt → Nguyễn Văn Ba, Khu J Thịt → Dương Văn Hùng, khu khác → Nông Thị Hằng.
 -- ---------------------------------------------------------------------
--- Công nhân mẫu phụ trách mọi chuồng đang có lứa nuôi mà chưa có ai phụ trách
 INSERT INTO barn_workers (barn_id, account_id, assigned_by, assigned_at)
-SELECT b.id, a.id, 'mienbinh@smartfarm.com', NOW()
+SELECT b.id, a.id, 'seed', NOW()
 FROM barns b
+JOIN farm_areas fa ON fa.id = b.area_id
 JOIN farming_cycles c ON c.barn_id = b.id AND c.status = 'ACTIVE'
-JOIN accounts a ON a.email = 'congnhan@smartfarm.com'
+JOIN accounts a ON a.email = CASE fa.name_key WHEN 'khu mía thịt' THEN 'congnhan@smartfarm.com'
+                                              WHEN 'khu j thịt' THEN 'hung@smartfarm.com'
+                                              ELSE 'hang@smartfarm.com' END
 WHERE NOT EXISTS (SELECT 1 FROM barn_workers w WHERE w.barn_id = b.id)
 ON CONFLICT (barn_id, account_id) DO NOTHING;
 
--- Việc giao mẫu lặp 7 ngày kể từ hôm nay cho công nhân mẫu ở các chuồng của khu Mía Thịt
+-- Việc giao mẫu lặp 7 ngày kể từ hôm nay cho từng công nhân ở các chuồng họ phụ trách
 INSERT INTO work_tasks (barn_id, assignee_id, title, note, start_date, end_date, due_time, created_by, created_at)
 SELECT w.barn_id, w.account_id, v.title, v.note, CURRENT_DATE, CURRENT_DATE + 6, v.due_time, 'mienbinh@smartfarm.com', NOW()
 FROM barn_workers w
-JOIN accounts a ON a.id = w.account_id AND a.email = 'congnhan@smartfarm.com'
-JOIN barns b ON b.id = w.barn_id
-JOIN farm_areas fa ON fa.id = b.area_id AND fa.name_key = 'khu mía thịt'
-CROSS JOIN (VALUES
-  ('Rửa máng uống', 'Rửa sạch, pha nước sát trùng theo hướng dẫn', TIME '07:00'),
-  ('Kiểm tra quạt, đèn sưởi', 'Báo ngay chủ trại nếu quạt hoặc đèn hỏng', TIME '16:30')
-) AS v(title, note, due_time)
+JOIN accounts a ON a.id = w.account_id
+JOIN (VALUES
+  ('congnhan@smartfarm.com', 'Rửa máng uống', 'Rửa sạch, pha nước sát trùng theo hướng dẫn', TIME '07:00'),
+  ('congnhan@smartfarm.com', 'Kiểm tra quạt, đèn sưởi', 'Báo ngay chủ trại nếu quạt hoặc đèn hỏng', TIME '16:30'),
+  ('hung@smartfarm.com', 'Sát trùng lối đi, hố sát trùng', 'Thay nước hố sát trùng ở cửa chuồng', TIME '15:00'),
+  ('hang@smartfarm.com', 'Thay trấu ướt quanh máng', 'Rắc thêm trấu khô, gom trấu ướt ra ngoài', TIME '08:00')
+) AS v(email, title, note, due_time) ON v.email = a.email
 WHERE NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.barn_id = w.barn_id AND t.assignee_id = w.account_id AND t.title = v.title);
