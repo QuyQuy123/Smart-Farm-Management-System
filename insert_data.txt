@@ -602,3 +602,18 @@ FROM (VALUES
 JOIN product_categories pc ON pc.name_key = v.product_key
 JOIN inventory_items i ON i.product_id = pc.id
 WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.inventory_item_id IS NULL;
+
+-- ---------------------------------------------------------------------
+-- 25. Danh mục xuất nhập nội bộ mặc định của hệ thống
+-- ---------------------------------------------------------------------
+INSERT INTO internal_stock_categories (movement_type, name, name_key, description, is_system, created_at, updated_at)
+VALUES
+  ('IMPORT', 'Nhập đầu kì', 'nhập đầu kì', 'Nhập số dư tồn kho ban đầu khi bắt đầu đưa phần mềm vào sử dụng hoặc khởi đầu lứa mới', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('EXPORT', 'Xuất hủy', 'xuất hủy', 'Xuất hủy hàng hóa ẩm mốc, quá hạn hoặc hư hỏng trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('TRANSFER', 'Chuyển kho nội bộ', 'chuyển kho nội bộ', 'Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('IMPORT', 'Nhập thừa sau kiểm kê', 'nhập thừa sau kiểm kê', 'Cân bằng kho khi số lượng thực tế thừa so với sổ sách sau kiểm kê định kỳ', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('IMPORT', 'Nhập hoàn lại từ chuồng', 'nhập hoàn lại từ chuồng', 'Thu hồi thức ăn hoặc thuốc, vắc-xin, vật tư thừa từ chuồng nuôi trả về kho', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('EXPORT', 'Xuất hao hụt kiểm kê', 'xuất hao hụt kiểm kê', 'Cân bằng kho khi phát hiện thiếu hụt, rơi vãi sau kiểm kê định kỳ', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('EXPORT', 'Xuất vật tư tiêu hao', 'xuất vật tư tiêu hao', 'Xuất bóng sưởi, chất sát trùng, vôi bột, đệm lót dùng cho chuồng nuôi', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('TRANSFER', 'Chuyển sang kho đệm chuồng', 'chuyển sang kho đệm chuồng', 'Chuyển cám, thuốc từ kho tổng sang kho đệm tại từng khu chuồng nuôi', FALSE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00')
+ON CONFLICT (name_key) DO NOTHING;
