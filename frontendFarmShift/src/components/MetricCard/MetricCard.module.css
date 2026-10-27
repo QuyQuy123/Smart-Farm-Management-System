@@ -9,11 +9,11 @@
 
 .top { display: flex; align-items: center; gap: 8px; }
 
-.label { font-size: 13px; color: var(--color-muted); font-weight: 400; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.label { font-size: 14.5px; color: var(--color-muted); font-weight: 400; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .value { font-family: var(--font-display); font-size: 26px; font-weight: 400; line-height: 1.2; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.sub { font-size: 12px; color: var(--color-muted); margin-top: 2px; }
+.sub { font-size: 13.5px; color: var(--color-muted); margin-top: 2px; }
 
 /* Icon color variants (icon only - card stays white) */
 .default .iconWrap { background: var(--color-surface-soft); color: var(--color-muted); }

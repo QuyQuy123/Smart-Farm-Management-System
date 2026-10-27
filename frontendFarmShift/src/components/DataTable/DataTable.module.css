@@ -32,7 +32,7 @@
 
 .th {
   padding:          10px var(--sp-md);
-  font-size:        12px;
+  font-size:        13.5px;
   font-weight:      var(--fw-semibold);
   text-transform:   uppercase;
   letter-spacing:   0.4px;
@@ -92,7 +92,7 @@
 }
 
 .pageInfo {
-  font-size: 13px;
+  font-size: 14.5px;
   color:     var(--color-muted);
 }
 
@@ -128,7 +128,7 @@
 
 .pageCurrent {
   padding:   0 var(--sp-xs);
-  font-size: 13px;
+  font-size: 14.5px;
   color:     var(--color-ink);
   font-weight: var(--fw-medium);
   white-space: nowrap;
@@ -145,7 +145,7 @@
 
   .th, .td {
     padding: 8px 10px;
-    font-size: 12.5px;
+    font-size: 14px;
   }
 
   .pagination {

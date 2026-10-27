@@ -11,8 +11,8 @@
   --color-primary: #181d26;
   --color-primary-active: #0d1218;
   --color-ink: #181d26;
-  --color-body: #333840;
-  --color-muted: #64748b;
+  --color-body: #1f242c;
+  --color-muted: #3f4a59;
   --color-hairline: #dddddd;
   --color-border-strong: #9297a0;
   --color-canvas: #ffffff;
@@ -114,8 +114,9 @@ body {
   font-family: var(--font-family);
   background-color: var(--color-surface-soft);
   color: var(--color-body);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   scrollbar-gutter: stable;
@@ -205,7 +206,7 @@ h6 {
   border-radius: var(--rounded-pill);
   background-color: var(--fs-teal-soft);
   color: var(--fs-teal-dark);
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 500;
   border: 1px solid rgba(1, 151, 136, 0.15);
 }
@@ -252,7 +253,7 @@ h6 {
   right: -2px;
   background-color: var(--color-signature-coral);
   color: #ffffff;
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 600;
   border-radius: var(--rounded-pill);
   padding: 1px 6px;
@@ -289,7 +290,7 @@ h6 {
   align-items: center;
   justify-content: center;
   font-weight: 500;
-  font-size: 13.5px;
+  font-size: 15px;
 }
 
 /* ── Secondary Sidebar ───────────────────────────────────── */
@@ -439,7 +440,7 @@ h6 {
   color: #ffffff;
   padding: 7px 14px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 500;
   white-space: nowrap;
   pointer-events: none;
@@ -521,7 +522,7 @@ h6 {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--color-muted);
   text-decoration: none;
   padding: 3px 6px;
@@ -557,7 +558,7 @@ h6 {
   border-radius: var(--rounded-md);
   color: var(--color-body);
   text-decoration: none;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 475;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -667,7 +668,7 @@ h6 {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 14.5px;
   color: var(--color-muted);
   margin-top: 4px;
 }
@@ -800,7 +801,7 @@ h6 {
 
 .farmshift-shortcut-sub,
 .farmgo-shortcut-sub {
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--color-muted);
   margin-top: 2px;
 }
@@ -880,7 +881,7 @@ h6 {
   border: none;
   outline: none;
   width: 100%;
-  font-size: 13.5px;
+  font-size: 15px;
   color: var(--color-ink);
   background: transparent;
 }
@@ -894,10 +895,11 @@ h6 {
 
 .farmshift-select,
 .farmgo-select {
-  padding: 8px 14px;
-  border: 1px solid var(--color-hairline);
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #cfd8d3;
   border-radius: var(--rounded-md);
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-ink);
   background-color: var(--color-canvas);
   outline: none;
@@ -916,10 +918,12 @@ h6 {
 .farmgo-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 9px 18px;
-  font-size: 14px;
-  font-weight: 500;
+  min-height: 44px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
   border-radius: var(--rounded-lg);
   border: 1px solid transparent;
   cursor: pointer;
@@ -1106,24 +1110,24 @@ h6 {
 .farmgo-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 15px;
   text-align: left;
 }
 
 .farmshift-table th,
 .farmgo-table th {
   background-color: var(--color-surface-soft);
-  color: var(--color-muted);
-  font-weight: 500;
-  padding: 12px 16px;
+  color: #1f2933;
+  font-weight: 600;
+  padding: 13px 16px;
   border-bottom: 1px solid var(--color-hairline);
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14.5px;
 }
 
 .farmshift-table td,
 .farmgo-table td {
-  padding: 13px 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--color-hairline);
   color: var(--color-body);
   vertical-align: middle;
@@ -1147,7 +1151,7 @@ h6 {
   gap: 4px;
   padding: 3px 9px;
   border-radius: var(--rounded-pill);
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1217,7 +1221,7 @@ h6 {
   background: transparent;
   border: none;
   padding: 10px 18px;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 475;
   color: var(--color-muted);
   cursor: pointer;
@@ -1257,7 +1261,7 @@ h6 {
   cursor: pointer;
   z-index: 1050;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 15px;
   transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
@@ -1354,19 +1358,20 @@ h6 {
 .farmshift-form-label,
 .farmgo-form-label {
   display: block;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .farmshift-form-control,
 .farmgo-form-control {
   width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--rounded-sm);
-  font-size: 13.5px;
+  min-height: 44px;
+  padding: 11px 14px;
+  border: 1px solid #cfd8d3;
+  border-radius: var(--rounded-md);
+  font-size: 15px;
   color: var(--color-ink);
   background-color: var(--color-canvas);
   box-sizing: border-box;
@@ -1376,9 +1381,19 @@ h6 {
 
 .farmshift-form-control:focus,
 .farmgo-form-control:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(24, 29, 38, 0.08);
+  border-color: #2d6a4f;
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
 }
+
+/* Đồng bộ mọi ô nhập / select / textarea: chữ to, dễ đọc, placeholder đủ đậm */
+textarea.farmshift-form-control,
+textarea.farmgo-form-control { min-height: 88px; line-height: 1.5; }
+.farmshift-form-control::placeholder,
+.farmgo-form-control::placeholder { color: #7b8794; font-weight: 400; }
+/* Form controls and buttons inherit the heavier body weight (browsers reset them to 400). */
+input, select, textarea, button { font-family: inherit; font-weight: inherit; }
+.farmshift-form-control, .farmgo-form-control, .farmshift-select, .farmgo-select { font-weight: 500; }
+input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
 
 /* ═════════════════════════════════════════════════════════════════
    ── FARM SHIFT COMPREHENSIVE RESPONSIVE DESIGN SYSTEM ──────────
@@ -1593,7 +1608,7 @@ h6 {
 
   .farmshift-shortcut-title,
   .farmgo-shortcut-title {
-    font-size: 13.5px;
+    font-size: 15px;
   }
 
   /* Modals inside 768px */
@@ -1678,7 +1693,7 @@ h6 {
   .farmgo-user-avatar {
     width: 32px;
     height: 32px;
-    font-size: 13px;
+    font-size: 14.5px;
   }
 
   .farmshift-header-icon-btn,
@@ -1723,7 +1738,7 @@ h6 {
 
   .farmshift-breadcrumbs,
   .farmgo-breadcrumbs {
-    font-size: 12px;
+    font-size: 13.5px;
     flex-wrap: wrap;
   }
 
@@ -1836,13 +1851,13 @@ h6 {
   .farmshift-table th,
   .farmgo-table th {
     padding: 10px 12px;
-    font-size: 12px;
+    font-size: 13.5px;
   }
 
   .farmshift-table td,
   .farmgo-table td {
     padding: 10px 12px;
-    font-size: 12.5px;
+    font-size: 14px;
   }
 
   /* System map nodes */
@@ -1866,7 +1881,7 @@ h6 {
     bottom: 16px;
     right: 16px;
     padding: 9px 16px;
-    font-size: 13px;
+    font-size: 14.5px;
   }
 
   /* Signature Cards */
@@ -1887,7 +1902,7 @@ h6 {
   .farmshift-header-brand-tag,
   .farmgo-header-brand-tag {
     padding: 4px 8px;
-    font-size: 11.5px;
+    font-size: 13px;
   }
 
   .farmshift-header-brand-tag span:last-child,
@@ -1927,13 +1942,13 @@ h6 {
   .farmshift-btn,
   .farmgo-btn {
     padding: 8px 12px;
-    font-size: 12.5px;
+    font-size: 14px;
   }
 
   .farmshift-tab-btn,
   .farmgo-tab-btn {
     padding: 8px 10px;
-    font-size: 12px;
+    font-size: 13.5px;
   }
 
   .farmshift-card-header,
@@ -2150,7 +2165,7 @@ h6 {
 }
 
 .farmshift-toast-badge {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 4px;
@@ -2161,7 +2176,7 @@ h6 {
 }
 
 .farmshift-toast-type {
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 600;
   color: #0f172a;
   white-space: nowrap;
@@ -2170,7 +2185,7 @@ h6 {
 }
 
 .farmshift-toast-time {
-  font-size: 11px;
+  font-size: 12.5px;
   color: #94a3b8;
   margin-left: auto;
   white-space: nowrap;
@@ -2180,13 +2195,13 @@ h6 {
 }
 
 .farmshift-toast-text {
-  font-size: 13px;
+  font-size: 14.5px;
   color: #334155;
   line-height: 1.4;
 }
 
 .farmshift-toast-status {
-  font-size: 11.5px;
+  font-size: 13px;
   color: #64748b;
   margin-top: 3px;
 }
@@ -2236,7 +2251,7 @@ h6 {
 
 .farmshift-wordmark small {
   margin-left: 3px;
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.4px;
   color: #64728a;
@@ -2259,7 +2274,7 @@ h6 {
   border-radius: 0;
   border-right: 3px solid transparent;
   color: #62738a;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 400;
 }
 
@@ -2433,7 +2448,7 @@ h6 {
   padding: 10px 14px;
   background-color: #f1f5f9;
   border-bottom: 1px solid var(--color-hairline);
-  font-size: 12.5px;
+  font-size: 14px;
   flex-shrink: 0;
 }
 
@@ -2503,7 +2518,7 @@ h6 {
 /* ── Inline Field Validation States ────────────────────────── */
 .farmshift-field-error {
   color: #b91c1c;
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 500;
   margin-top: 4px;
   display: flex;

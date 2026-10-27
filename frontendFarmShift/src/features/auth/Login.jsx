@@ -68,7 +68,7 @@ export const Login = () => {
         <h2 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 8px', letterSpacing: '-0.01em' }}>
           Đăng nhập tài khoản
         </h2>
-        <p style={{ fontSize: '14px', color: 'var(--color-muted)', margin: 0 }}>
+        <p style={{ fontSize: '15px', color: 'var(--color-muted)', margin: 0 }}>
           Vui lòng nhập thông tin xác thực để truy cập hệ thống
         </p>
       </div>
@@ -83,7 +83,7 @@ export const Login = () => {
           backgroundColor: '#fef2f2',
           border: '1px solid #fecaca',
           color: '#b91c1c',
-          fontSize: '13.5px',
+          fontSize: '15px',
           marginBottom: '20px'
         }}>
           <AlertCircle size={18} style={{ flexShrink: 0 }} />
@@ -118,7 +118,7 @@ export const Login = () => {
             <label className="farmshift-form-label">Mật khẩu *</label>
             <Link
               to="/forgot-password"
-              style={{ fontSize: '13px', color: 'var(--color-link)', textDecoration: 'none' }}
+              style={{ fontSize: '14.5px', color: 'var(--color-link)', textDecoration: 'none' }}
             >
               Quên mật khẩu?
             </Link>
@@ -164,7 +164,7 @@ export const Login = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', color: 'var(--color-body)', cursor: 'pointer', userSelect: 'none' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: 'var(--color-body)', cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
               checked={rememberMe}

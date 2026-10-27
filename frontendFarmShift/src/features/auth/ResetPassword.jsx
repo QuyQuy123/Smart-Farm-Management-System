@@ -162,13 +162,13 @@ export const ResetPassword = () => {
   return (
     <AuthLayout>
       <div style={{ marginBottom: '24px' }}>
-        <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-muted)', textDecoration: 'none', marginBottom: '16px' }}>
+        <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '14.5px', color: 'var(--color-muted)', textDecoration: 'none', marginBottom: '16px' }}>
           <ArrowLeft size={14} /> Quay lại đăng nhập
         </Link>
         <h2 style={{ fontSize: '24px', fontWeight: 500, color: 'var(--color-ink)', margin: '0 0 6px' }}>
           {step === 1 ? 'Nhập mã xác thực' : 'Tạo mật khẩu mới'}
         </h2>
-        <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: 0 }}>
+        <p style={{ fontSize: '15px', color: 'var(--color-muted)', margin: 0 }}>
           {step === 1 
             ? <>Chúng tôi đã gửi 6 số xác thực tới <strong style={{ color: 'var(--color-ink)' }}>{email}</strong></>
             : 'Vui lòng nhập mật khẩu mới và bảo mật.'
@@ -186,7 +186,7 @@ export const ResetPassword = () => {
           backgroundColor: '#fef2f2',
           border: '1px solid #fecaca',
           color: '#b91c1c',
-          fontSize: '13px',
+          fontSize: '14.5px',
           marginBottom: '20px'
         }}>
           <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -204,7 +204,7 @@ export const ResetPassword = () => {
           backgroundColor: '#e6f4ea',
           border: '1px solid #ceead6',
           color: '#137333',
-          fontSize: '13px',
+          fontSize: '14.5px',
           marginBottom: '20px'
         }}>
           <CheckCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -215,7 +215,7 @@ export const ResetPassword = () => {
       {step === 1 && (
         <form onSubmit={handleVerifyOtp}>
           <div style={{ marginBottom: '24px' }}>
-            <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-ink)', display: 'block', marginBottom: '12px', textAlign: 'center' }}>
+            <label style={{ fontSize: '15px', fontWeight: 500, color: 'var(--color-ink)', display: 'block', marginBottom: '12px', textAlign: 'center' }}>
               Mã xác thực
             </label>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
@@ -268,7 +268,7 @@ export const ResetPassword = () => {
               )}
             </button>
             
-            <div style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
+            <div style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>
               Không nhận được mã?{' '}
               {timer > 0 ? (
                 <span style={{ fontWeight: 600 }}>Gửi lại sau {timer}s</span>

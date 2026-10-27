@@ -114,7 +114,7 @@ export const CatalogSettingsView = () => {
         <div className="farmshift-card" style={{ minHeight: '520px' }}>
           <div className="farmshift-card-header">
             <h3 className="farmshift-card-title">Quy cách đóng gói & tỷ lệ quy đổi</h3>
-            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '12.5px', padding: '5px 12px' }}>
+            <button type="button" className="farmshift-btn farmshift-btn-primary" style={{ fontSize: '14px', padding: '5px 12px' }}>
               + Thêm quy cách
             </button>
           </div>

@@ -1016,7 +1016,7 @@ export const AIChatbot = () => {
 
             {/* Advisory Banner (MSG38) */}
             <div style={{
-              fontSize: '11px',
+              fontSize: '12.5px',
               color: '#92400e',
               backgroundColor: '#fffbeb',
               borderTop: '1px solid #fef3c7',
