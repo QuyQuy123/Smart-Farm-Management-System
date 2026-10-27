@@ -172,6 +172,9 @@ public class FlockService {
         checkNotBeforeImport(flock, request.movementDate());
         FlockMovement movement = record(flock, request.type(), request.movementDate(), request.quantity(), request.weightKg(), null, null,
                 clean(request.note()), user);
+        if (request.photoUrls() != null && !request.photoUrls().isEmpty()) {
+            movement.setPhotoUrls(String.join("\n", request.photoUrls().stream().map(String::trim).toList()));
+        }
         decrease(flock, request.quantity());
         return movementResponse(movement, false);
     }

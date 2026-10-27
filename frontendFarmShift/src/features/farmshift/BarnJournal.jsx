@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { HeartCrack, History, Scale, TrendingDown, TrendingUp, Warehouse } from 'lucide-react';
+import { ArrowLeft, Camera, HeartCrack, History, MapPinned, Scale, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { getFarmDailyPlan } from '../../services/dailyPlanService';
 import { addWeightSample, getCycle, recordLoss } from '../../services/cycleService';
+import { listBarns } from '../../services/farmAreaService';
+import { fileService } from '../../services/fileService';
 import { apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import styles from './BarnJournal.module.css';
 
 /** Nguyên nhân hay gặp, bấm để ghi nhanh vào ghi chú. */
 const LOSS_CAUSES = ['Bệnh', 'Đè / ngạt', 'Nóng', 'Cắn mổ', 'Yếu, còi', 'Không rõ'];
 const LOSS_TYPES = [{ value: 'DEATH', label: 'Chết' }, { value: 'CULL', label: 'Loại thải' }];
+const MODES = [{ value: 'loss', label: 'Hao hụt (chết / loại thải)', icon: HeartCrack }, { value: 'weight', label: 'Cân mẫu', icon: Scale }];
 /** Nhắc cân lại khi lần cân gần nhất đã quá số ngày này. */
 const WEIGH_EVERY_DAYS = 7;
 const DEFAULT_SAMPLE_SIZE = 30;
+const MAX_PHOTOS = 3;
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 const num = value => Number(value || 0).toLocaleString('vi-VN');
 const daysBetween = (from, to) => Math.round((new Date(`${to}T00:00:00`) - new Date(`${from}T00:00:00`)) / 86400000);
@@ -32,28 +38,49 @@ const weighings = samples => {
   });
 };
 
-/** Chuồng đang nuôi (công nhân chỉ thấy chuồng mình phụ trách), gom theo khu. */
-function BarnPicker({ barns, selectedId, onSelect, mode }) {
-  const areas = useMemo(() => {
-    const groups = new Map();
-    barns.forEach(barn => {
-      if (!groups.has(barn.areaName)) groups.set(barn.areaName, []);
-      groups.get(barn.areaName).push(barn);
-    });
-    return [...groups.entries()];
-  }, [barns]);
+/** Gom chuồng theo khu, giữ thứ tự khu như danh sách. */
+const groupAreas = barns => {
+  const areas = new Map();
+  barns.forEach(barn => {
+    if (!areas.has(barn.areaName)) areas.set(barn.areaName, []);
+    areas.get(barn.areaName).push(barn);
+  });
+  return [...areas.entries()];
+};
 
-  return <nav className={styles.picker} aria-label="Chọn chuồng">
-    <h3><Warehouse size={18} /> Chọn chuồng</h3>
-    {areas.map(([areaName, list]) => <div key={areaName} className={styles.area}>
-      <span className={styles.areaName}>{areaName}</span>
-      {list.map(barn => <button key={barn.cycleId} type="button" aria-pressed={barn.cycleId === selectedId}
-        className={`${styles.barnRow} ${barn.cycleId === selectedId ? styles.barnActive : ''}`} onClick={() => onSelect(barn.cycleId)}>
-        <strong>{barn.barnName}</strong>
-        <small>{num(barn.headcount)} con{mode === 'weight' && barn.flocks?.[0] ? ` · ${barn.flocks[0].ageDays} ngày tuổi` : ''}</small>
-      </button>)}
-    </div>)}
-  </nav>;
+/**
+ * Chuồng hiện trên sơ đồ. Chủ trại / kế toán thấy mọi chuồng (chuồng trống để mờ);
+ * công nhân chỉ thấy chuồng đang nuôi mình được phân công.
+ */
+const loadBarns = async worker => {
+  if (worker) {
+    const plans = await getFarmDailyPlan(todayIso());
+    return (Array.isArray(plans) ? plans : []).map(plan => ({ barnId: plan.barnId, name: plan.barnName, areaName: plan.areaName,
+      cycleId: plan.cycleId, headcount: plan.headcount, ageDays: plan.flocks?.[0]?.ageDays ?? null }));
+  }
+  const barns = await listBarns();
+  return (Array.isArray(barns) ? barns : []).map(barn => ({ barnId: barn.id, name: barn.name, areaName: barn.areaName,
+    cycleId: barn.activeCycleId || null, headcount: barn.currentQuantity, ageDays: null }));
+};
+
+/** Sơ đồ khu: mỗi khu một khung, bên trong là các ô chuồng. Bấm chuồng đang nuôi để ghi nhật ký. */
+function AreaMap({ barns, onOpen }) {
+  return <div className={styles.map}>
+    {groupAreas(barns).map(([areaName, list]) => <section key={areaName} className={styles.area} aria-label={`Khu ${areaName}`} style={{ flexGrow: list.length }}>
+      <span className={styles.areaLabel}>{areaName}<small>· {list.length} chuồng</small></span>
+      <div className={styles.tiles}>
+        {list.map(barn => {
+          const running = Boolean(barn.cycleId);
+          return <button key={barn.barnId} type="button" disabled={!running} onClick={() => onOpen(barn.cycleId)}
+            className={`${styles.tile} ${running ? '' : styles.tileEmpty}`} aria-label={running ? `Ghi nhật ký ${barn.name}` : `${barn.name}: chuồng trống`}>
+            <strong>{barn.name}</strong>
+            <span>{running ? `${num(barn.headcount)} con` : 'Chuồng trống'}</span>
+            {running && barn.ageDays != null && <small>{barn.ageDays} ngày tuổi</small>}
+          </button>;
+        })}
+      </div>
+    </section>)}
+  </div>;
 }
 
 /** Số liệu chính của chuồng sau mỗi lần ghi. */
@@ -68,12 +95,51 @@ function BarnKpis({ metrics, latest }) {
   </div>;
 }
 
-function LossForm({ detail, onSaved }) {
+const readAsDataUrl = file => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(file);
+});
+
+/** Chọn tối đa 3 ảnh (con chết, bệnh tích...) kèm xem trước; ảnh chỉ được tải lên khi bấm ghi. */
+function PhotoPicker({ photos, onChange, disabled }) {
+  const { showToast } = useNotification();
+  const add = async event => {
+    const files = [...event.target.files];
+    event.target.value = '';
+    const images = files.filter(file => file.type.startsWith('image/') && file.size <= MAX_PHOTO_BYTES);
+    if (images.length < files.length) showToast('Chỉ nhận ảnh, mỗi ảnh không quá 5MB.', 'error');
+    const room = MAX_PHOTOS - photos.length;
+    if (images.length > room) showToast(`Đính kèm tối đa ${MAX_PHOTOS} ảnh.`, 'error');
+    const picked = images.slice(0, Math.max(room, 0));
+    if (picked.length) onChange([...photos, ...await Promise.all(picked.map(async file => ({ file, preview: await readAsDataUrl(file) })))]);
+  };
+  const remove = index => onChange(photos.filter((_, i) => i !== index));
+
+  return <div className={styles.photos}>
+    <span className="farmshift-form-label">Ảnh đính kèm <small>(không bắt buộc, tối đa {MAX_PHOTOS} ảnh)</small></span>
+    <div>
+      {photos.map((photo, index) => <figure key={`${index}-${photo.file.name}`} className={styles.thumb}>
+        <img src={photo.preview} alt={`Ảnh ${index + 1}`} />
+        <button type="button" aria-label={`Bỏ ảnh ${index + 1}`} onClick={() => remove(index)} disabled={disabled}><X size={14} /></button>
+      </figure>)}
+      {photos.length < MAX_PHOTOS && <label className={styles.addPhoto}>
+        <Camera size={20} /><span>Thêm ảnh</span>
+        <input type="file" accept="image/png,image/jpeg,image/gif" multiple capture="environment" onChange={add} disabled={disabled}
+          aria-label="Thêm ảnh đính kèm" />
+      </label>}
+    </div>
+  </div>;
+}
+
+function LossForm({ detail, barnName, onSaved }) {
   const { showToast } = useNotification();
   const flocks = detail.flocks.filter(flock => flock.status === 'ACTIVE' && flock.quantity > 0);
   const [form, setForm] = useState({ flockId: flocks[0]?.id || '', type: 'DEATH', date: todayIso(), quantity: '', causes: [], note: '' });
+  const [photos, setPhotos] = useState([]);
   const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState('');
   const flock = flocks.find(item => item.id === Number(form.flockId));
   const set = (key, value) => { setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
   const toggleCause = cause => set('causes', form.causes.includes(cause) ? form.causes.filter(item => item !== cause) : [...form.causes, cause]);
@@ -90,22 +156,25 @@ function LossForm({ detail, onSaved }) {
     setErrors(next);
     if (Object.keys(next).length) return;
     const note = [form.causes.join(', '), form.note.trim()].filter(Boolean).join(' — ');
-    setSaving(true);
     try {
-      await recordLoss(flock.id, { type: form.type, movementDate: form.date, quantity, note: note || null });
-      showToast(`Đã ghi ${num(quantity)} con ${form.type === 'DEATH' ? 'chết' : 'loại thải'} ở ${detail.barn?.name || 'chuồng'}. Đã trừ vào số con của chuồng.`, 'success');
+      setSaving(photos.length ? 'Đang tải ảnh...' : 'Đang ghi...');
+      const photoUrls = [];
+      for (const photo of photos) photoUrls.push(await fileService.uploadFile(photo.file, 'losses'));
+      setSaving('Đang ghi...');
+      await recordLoss(flock.id, { type: form.type, movementDate: form.date, quantity, note: note || null, photoUrls });
+      showToast(`Đã ghi ${num(quantity)} con ${form.type === 'DEATH' ? 'chết' : 'loại thải'} ở ${barnName}. Đã trừ vào số con của chuồng.`, 'success');
       setForm(current => ({ ...current, quantity: '', causes: [], note: '' }));
+      setPhotos([]);
       onSaved();
     } catch (error) {
       showToast(apiErrorMessage(error), 'error');
     } finally {
-      setSaving(false);
+      setSaving('');
     }
   };
 
   if (!flocks.length) return <p className={styles.empty}>Chuồng không còn đàn nào đang nuôi.</p>;
   return <form className={styles.form} onSubmit={submit} noValidate>
-    <h3><HeartCrack size={18} /> Ghi chết / loại thải</h3>
     <div className={styles.segment} role="radiogroup" aria-label="Loại ghi nhận">
       {LOSS_TYPES.map(type => <button key={type.value} type="button" role="radio" aria-checked={form.type === type.value}
         className={form.type === type.value ? styles.segmentActive : ''} onClick={() => set('type', type.value)}>{type.label}</button>)}
@@ -141,21 +210,23 @@ function LossForm({ detail, onSaved }) {
       <input className="farmshift-form-control" maxLength={500} placeholder="Triệu chứng, vị trí trong chuồng..." value={form.note}
         onChange={event => set('note', event.target.value)} />
     </label>
-    <button type="submit" className="farmshift-btn farmshift-btn-primary" disabled={saving}>{saving ? 'Đang ghi...' : 'Ghi và trừ số con'}</button>
+    <PhotoPicker photos={photos} onChange={setPhotos} disabled={Boolean(saving)} />
+    <button type="submit" className="farmshift-btn farmshift-btn-primary" disabled={Boolean(saving)}>{saving || 'Ghi và trừ số con'}</button>
   </form>;
 }
 
+/** Cân đại diện một số con, nhập tổng khối lượng; trung bình = tổng ÷ số con cân. */
 function WeightForm({ detail, latest, onSaved }) {
   const { showToast } = useNotification();
-  const [form, setForm] = useState({ date: todayIso(), sampleSize: String(DEFAULT_SAMPLE_SIZE), mode: 'total', totalKg: '', avgKg: '', note: '' });
+  const [form, setForm] = useState({ date: todayIso(), sampleSize: String(DEFAULT_SAMPLE_SIZE), totalKg: '', note: '' });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const set = (key, value) => { setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
   const sampleSize = Number(form.sampleSize);
-  const avg = form.mode === 'total'
-    ? (positiveNumber(form.totalKg) && Number.isInteger(sampleSize) && sampleSize > 0 ? positiveNumber(form.totalKg) / sampleSize : null)
-    : positiveNumber(form.avgKg);
+  const totalKg = positiveNumber(form.totalKg);
+  const avg = totalKg && Number.isInteger(sampleSize) && sampleSize > 0 ? Math.round((totalKg / sampleSize) * 1000) / 1000 : null;
   const previous = latest && latest.date <= form.date ? latest : null;
+  const gainKg = avg != null && previous ? avg - Number(previous.quantity) : null;
   const gainDays = previous ? daysBetween(previous.date, form.date) : 0;
 
   const submit = async event => {
@@ -164,17 +235,15 @@ function WeightForm({ detail, latest, onSaved }) {
     if (!form.date) next.date = 'Chọn ngày cân.';
     else if (form.date > todayIso()) next.date = 'Không ghi trước cho ngày mai.';
     if (!Number.isInteger(sampleSize) || sampleSize < 1) next.sampleSize = 'Nhập số con cân là số nguyên lớn hơn 0.';
-    if (form.mode === 'total' && !positiveNumber(form.totalKg)) next.totalKg = 'Nhập tổng khối lượng cân được (kg).';
-    if (form.mode === 'avg' && !positiveNumber(form.avgKg)) next.avgKg = 'Nhập cân nặng trung bình (kg/con).';
-    if (!next.totalKg && !next.avgKg && avg != null && avg > 500) next[form.mode === 'total' ? 'totalKg' : 'avgKg'] = 'Trung bình không quá 500 kg/con.';
+    if (!totalKg) next.totalKg = 'Nhập tổng khối lượng cân được (kg).';
+    else if (avg != null && avg > 500) next.totalKg = 'Trung bình không quá 500 kg/con.';
     setErrors(next);
     if (Object.keys(next).length) return;
-    const avgWeightKg = Math.round(avg * 1000) / 1000;
     setSaving(true);
     try {
-      await addWeightSample(detail.cycle.id, { sampleDate: form.date, avgWeightKg, sampleSize, note: form.note.trim() || null });
-      showToast(`Đã ghi cân mẫu: trung bình ${formatAmount(avgWeightKg)} kg/con.`, 'success');
-      setForm(current => ({ ...current, totalKg: '', avgKg: '', note: '' }));
+      await addWeightSample(detail.cycle.id, { sampleDate: form.date, avgWeightKg: avg, sampleSize, note: form.note.trim() || null });
+      showToast(`Đã ghi cân mẫu: trung bình ${formatAmount(avg)} kg/con.`, 'success');
+      setForm(current => ({ ...current, totalKg: '', note: '' }));
       onSaved();
     } catch (error) {
       showToast(apiErrorMessage(error), 'error');
@@ -184,14 +253,8 @@ function WeightForm({ detail, latest, onSaved }) {
   };
 
   return <form className={styles.form} onSubmit={submit} noValidate>
-    <h3><Scale size={18} /> Cân mẫu</h3>
-    <p className={styles.tip}>Bắt ngẫu nhiên khoảng {DEFAULT_SAMPLE_SIZE} con ở nhiều góc chuồng, cân cùng giờ, trước bữa ăn sáng. Nên cân mỗi tuần một lần.</p>
-    <div className={styles.segment} role="radiogroup" aria-label="Cách nhập">
-      <button type="button" role="radio" aria-checked={form.mode === 'total'} className={form.mode === 'total' ? styles.segmentActive : ''}
-        onClick={() => set('mode', 'total')}>Nhập tổng số cân</button>
-      <button type="button" role="radio" aria-checked={form.mode === 'avg'} className={form.mode === 'avg' ? styles.segmentActive : ''}
-        onClick={() => set('mode', 'avg')}>Nhập cân nặng TB</button>
-    </div>
+    <p className={styles.tip}>Bắt ngẫu nhiên khoảng {DEFAULT_SAMPLE_SIZE} con ở nhiều góc chuồng, cân chung rồi nhập tổng khối lượng — hệ thống tự chia
+      ra cân nặng trung bình. Nên cân mỗi tuần một lần, cùng giờ, trước bữa ăn sáng.</p>
     <div className={styles.fields}>
       <label className="farmshift-form-group">
         <span className="farmshift-form-label">Ngày cân</span>
@@ -204,25 +267,20 @@ function WeightForm({ detail, latest, onSaved }) {
           onChange={event => set('sampleSize', event.target.value)} />
         {errors.sampleSize && <small className={styles.error}>{errors.sampleSize}</small>}
       </label>
-      {form.mode === 'total' ? <label className="farmshift-form-group">
+      <label className="farmshift-form-group">
         <span className="farmshift-form-label">Tổng khối lượng (kg)</span>
         <input className="farmshift-form-control" type="number" min="0" step="0.01" inputMode="decimal" placeholder="VD: 13,5"
           value={form.totalKg} onChange={event => set('totalKg', event.target.value)} />
         {errors.totalKg && <small className={styles.error}>{errors.totalKg}</small>}
-      </label> : <label className="farmshift-form-group">
-        <span className="farmshift-form-label">Cân nặng TB (kg/con)</span>
-        <input className="farmshift-form-control" type="number" min="0" step="0.001" inputMode="decimal" placeholder="VD: 0,45"
-          value={form.avgKg} onChange={event => set('avgKg', event.target.value)} />
-        {errors.avgKg && <small className={styles.error}>{errors.avgKg}</small>}
-      </label>}
+      </label>
     </div>
     <div className={styles.result} aria-live="polite">
-      <span>Trung bình</span>
-      <strong>{avg != null ? `${formatAmount(Math.round(avg * 1000) / 1000)} kg/con` : '—'}</strong>
-      {avg != null && previous && <small className={avg >= Number(previous.quantity) ? styles.up : styles.down}>
-        {avg >= Number(previous.quantity) ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
-        {' '}{avg >= Number(previous.quantity) ? '+' : '−'}{grams(Math.abs(avg - Number(previous.quantity)))} so với lần cân {formatDay(previous.date)}
-        {gainDays > 0 ? ` (${Math.round(((avg - Number(previous.quantity)) * 1000) / gainDays).toLocaleString('vi-VN')} g/con/ngày)` : ''}
+      <span>Cân nặng trung bình</span>
+      <strong>{avg != null ? `${formatAmount(avg)} kg/con` : '—'}</strong>
+      {gainKg != null && <small className={gainKg >= 0 ? styles.up : styles.down}>
+        {gainKg >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+        {' '}{gainKg >= 0 ? '+' : '−'}{grams(Math.abs(gainKg))} so với lần cân {formatDay(previous.date)}
+        {gainDays > 0 ? ` (${Math.round((gainKg * 1000) / gainDays).toLocaleString('vi-VN')} g/con/ngày)` : ''}
       </small>}
     </div>
     <label className="farmshift-form-group">
@@ -241,11 +299,14 @@ function LossHistory({ movements }) {
     <h3><History size={18} /> Lịch sử chết / loại thải</h3>
     {rows.length === 0 ? <p className={styles.empty}>Chưa ghi nhận con chết hay loại thải nào.</p>
       : <div className="farmshift-table-container"><table className="farmshift-table">
-        <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Ghi chú</th><th>Người ghi</th></tr></thead>
+        <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Ghi chú</th><th>Ảnh</th><th>Người ghi</th></tr></thead>
         <tbody>{rows.map(row => <tr key={row.id}>
           <td>{formatDay(row.movementDate)}</td><td>{row.flockCode}</td>
           <td><span className={row.type === 'DEATH' ? styles.death : styles.cull}>{row.type === 'DEATH' ? 'Chết' : 'Loại thải'}</span></td>
-          <td><strong>{num(row.quantity)}</strong></td><td>{row.note || '—'}</td><td>{row.createdBy || '—'}</td>
+          <td><strong>{num(row.quantity)}</strong></td><td>{row.note || '—'}</td>
+          <td>{row.photoUrls?.length ? <span className={styles.rowPhotos}>{row.photoUrls.map((url, index) =>
+            <a key={url} href={url} target="_blank" rel="noreferrer" title={`Xem ảnh ${index + 1}`}><img src={url} alt={`Ảnh ${index + 1}`} /></a>)}</span> : '—'}</td>
+          <td>{row.createdBy || '—'}</td>
         </tr>)}</tbody>
       </table></div>}
   </section>;
@@ -268,29 +329,13 @@ function WeightHistory({ rows }) {
   </section>;
 }
 
-/**
- * Nhật ký theo chuồng: mode 'loss' ghi chết / loại thải (trừ thẳng vào số con của đàn và chuồng),
- * mode 'weight' ghi cân mẫu (cập nhật cân nặng trung bình của chuồng). Chuồng chọn ở đây dùng chung cho cả hai tab.
- */
-export function BarnJournal({ mode, selectedCycleId, onSelect }) {
-  const [barns, setBarns] = useState({ loading: true, list: [], error: '' });
-  // Số liệu của lứa cycleId; đổi chuồng thì hiện "đang tải" đến khi số liệu chuồng mới về.
+/** Nhật ký một chuồng: số liệu, ghi hao hụt hoặc cân mẫu, lịch sử. */
+function BarnPage({ cycleId, barn, initialMode, canRecord, onBack }) {
+  const [mode, setMode] = useState(initialMode === 'weight' ? 'weight' : 'loss');
   const [detail, setDetail] = useState({ cycleId: null, data: null, error: '' });
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    let active = true;
-    getFarmDailyPlan(todayIso())
-      .then(list => { if (active) setBarns({ loading: false, list: Array.isArray(list) ? list : [], error: '' }); })
-      .catch(error => { if (active) setBarns({ loading: false, list: [], error: apiErrorMessage(error) }); });
-    return () => { active = false; };
-  }, [revision]);
-
-  const selected = barns.list.find(barn => barn.cycleId === selectedCycleId) || barns.list[0];
-  const cycleId = selected?.cycleId;
-
-  useEffect(() => {
-    if (!cycleId) return undefined;
     let active = true;
     getCycle(cycleId)
       .then(data => { if (active) setDetail({ cycleId, data, error: '' }); })
@@ -300,35 +345,69 @@ export function BarnJournal({ mode, selectedCycleId, onSelect }) {
 
   const current = detail.cycleId === cycleId ? detail : { data: null, error: '' };
   const samples = useMemo(() => weighings(current.data?.weightSamples), [current.data]);
-
-  if (barns.loading) return <p className={styles.state} role="status">Đang tải danh sách chuồng...</p>;
-  if (barns.error) return <p className={styles.state} role="alert">{barns.error}</p>;
-  if (!barns.list.length) return <p className={styles.state}>Chưa có chuồng nào đang nuôi{' '}
-    (công nhân chỉ thấy chuồng được chủ trại phân công).</p>;
-
   const { data } = current;
   const latest = samples[0];
   const overdue = mode === 'weight' && data && (!latest || daysBetween(latest.date, todayIso()) >= WEIGH_EVERY_DAYS);
+  const barnName = data?.barn?.name || barn?.name || 'Chuồng';
+  const saved = () => setRevision(value => value + 1);
 
-  return <div className={styles.layout}>
-    <BarnPicker barns={barns.list} selectedId={cycleId} onSelect={onSelect} mode={mode} />
-    <div className={styles.main}>
-      <header className={styles.head}>
-        <div>
-          <h2>{selected.barnName}</h2>
-          <small>{selected.areaName} · Lứa {selected.cycleCode}{selected.flocks?.[0] ? ` · ${selected.flocks[0].ageDays} ngày tuổi` : ''}</small>
-        </div>
-        {overdue && <span className={styles.alert}>
-          {latest ? `Đã ${daysBetween(latest.date, todayIso())} ngày chưa cân` : 'Chưa cân mẫu lần nào'}</span>}
-      </header>
-      {current.error ? <p className={styles.state} role="alert">{current.error}</p>
-        : !data ? <p className={styles.state} role="status">Đang tải số liệu chuồng...</p>
-          : <>
-            <BarnKpis metrics={data.metrics} latest={latest} />
-            {mode === 'loss'
-              ? <><LossForm key={cycleId} detail={data} onSaved={() => setRevision(value => value + 1)} /><LossHistory movements={data.movements || []} /></>
-              : <><WeightForm key={cycleId} detail={data} latest={latest} onSaved={() => setRevision(value => value + 1)} /><WeightHistory rows={samples} /></>}
-          </>}
-    </div>
+  return <div className={styles.main}>
+    <header className={styles.head}>
+      <button type="button" className={styles.back} onClick={onBack}><ArrowLeft size={16} /> Sơ đồ khu</button>
+      <div className={styles.title}>
+        <h2>{barnName}</h2>
+        <small>{data?.barn?.areaName || barn?.areaName}{data ? ` · Lứa ${data.cycle.code}` : ''}
+          {data?.metrics?.ageDays != null ? ` · ${data.metrics.ageDays} ngày tuổi` : ''}</small>
+      </div>
+      {overdue && <span className={styles.alert}>{latest ? `Đã ${daysBetween(latest.date, todayIso())} ngày chưa cân` : 'Chưa cân mẫu lần nào'}</span>}
+    </header>
+    {current.error ? <p className={styles.state} role="alert">{current.error}</p>
+      : !data ? <p className={styles.state} role="status">Đang tải số liệu chuồng...</p>
+        : <>
+          <BarnKpis metrics={data.metrics} latest={latest} />
+          <div className={styles.modes} role="tablist" aria-label="Loại nhật ký">
+            {MODES.map(({ value, label, icon: Icon }) => <button key={value} type="button" role="tab" aria-selected={mode === value}
+              className={mode === value ? styles.modeActive : ''} onClick={() => setMode(value)}><Icon size={17} /> {label}</button>)}
+          </div>
+          {mode === 'loss'
+            ? <>{canRecord && <LossForm key={cycleId} detail={data} barnName={barnName} onSaved={saved} />}<LossHistory movements={data.movements || []} /></>
+            : <>{canRecord && <WeightForm key={cycleId} detail={data} latest={latest} onSaved={saved} />}<WeightHistory rows={samples} /></>}
+        </>}
   </div>;
+}
+
+/**
+ * Ghi nhật ký theo chuồng: mở ra là sơ đồ khu (chủ trại thấy cả trại, công nhân chỉ thấy chuồng được phân công),
+ * bấm một chuồng để ghi chết / loại thải (trừ thẳng vào số con) hoặc cân mẫu (cập nhật cân nặng trung bình).
+ */
+export function BarnJournal({ mode, selectedCycleId, onSelect }) {
+  const { user } = useAuth();
+  const worker = user?.role === 'ROLE_FARM_WORKER';
+  const canRecord = worker || user?.role === 'ROLE_FARM_OWNER';
+  const [barns, setBarns] = useState({ loading: true, list: [], error: '' });
+
+  useEffect(() => {
+    let active = true;
+    loadBarns(worker)
+      .then(list => { if (active) setBarns({ loading: false, list, error: '' }); })
+      .catch(error => { if (active) setBarns({ loading: false, list: [], error: apiErrorMessage(error) }); });
+    return () => { active = false; };
+  }, [worker, selectedCycleId]);
+
+  if (selectedCycleId) {
+    return <BarnPage key={selectedCycleId} cycleId={selectedCycleId} barn={barns.list.find(barn => barn.cycleId === selectedCycleId)}
+      initialMode={mode} canRecord={canRecord} onBack={() => onSelect(null)} />;
+  }
+  if (barns.loading) return <p className={styles.state} role="status">Đang tải sơ đồ khu...</p>;
+  if (barns.error) return <p className={styles.state} role="alert">{barns.error}</p>;
+  if (!barns.list.length) {
+    return <p className={styles.state}>{worker ? 'Bạn chưa được phân công chuồng nào đang nuôi. Liên hệ chủ trại để được phân công.'
+      : 'Chưa có chuồng nào. Tạo khu và chuồng ở mục Khu nuôi.'}</p>;
+  }
+  const running = barns.list.filter(barn => barn.cycleId);
+  return <>
+    <p className={styles.intro}><MapPinned size={18} />
+      {worker ? `Bạn phụ trách ${running.length} chuồng.` : `${running.length}/${barns.list.length} chuồng đang nuôi.`} Bấm vào chuồng để ghi chết, loại thải hoặc cân mẫu.</p>
+    <AreaMap barns={barns.list} onOpen={onSelect} />
+  </>;
 }

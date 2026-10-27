@@ -209,8 +209,18 @@ class CycleIntegrationTest {
     void recordsLossesAndHarvestThenClosesCycleAndStartsTheNextOne() throws Exception {
         long cycle = startCycle(barnId, START);
         long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 100);
-        post("/api/flocks/" + flockId + "/losses", Map.of("type", "DEATH", "movementDate", TODAY.toString(), "quantity", 3))
-            .andExpect(status().isCreated());
+        post("/api/flocks/" + flockId + "/losses", Map.of("type", "DEATH", "movementDate", TODAY.toString(), "quantity", 3,
+                "photoUrls", List.of("/img/losses/a.jpg", "https://cdn.farm.test/losses/b.jpg")))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.data.photoUrls.length()").value(2));
+        post("/api/flocks/" + flockId + "/losses", Map.of("type", "DEATH", "movementDate", TODAY.toString(), "quantity", 1,
+                "photoUrls", List.of("javascript:alert(1)")))
+            .andExpect(status().isBadRequest());
+        post("/api/flocks/" + flockId + "/losses", Map.of("type", "DEATH", "movementDate", TODAY.toString(), "quantity", 1,
+                "photoUrls", List.of("/img/1.jpg", "/img/2.jpg", "/img/3.jpg", "/img/4.jpg")))
+            .andExpect(status().isBadRequest());
+        JsonNode death = null;
+        for (JsonNode movement : detail(cycle).path("movements")) if ("DEATH".equals(movement.path("type").asText())) death = movement;
+        org.junit.jupiter.api.Assertions.assertEquals("/img/losses/a.jpg", death.path("photoUrls").get(0).asText());
         post("/api/flocks/" + flockId + "/losses", Map.of("type", "CULL", "movementDate", TODAY.toString(), "quantity", 2, "weightKg", 2))
             .andExpect(status().isCreated());
         post("/api/flocks/" + flockId + "/losses", Map.of("type", "HARVEST", "movementDate", TODAY.toString(), "quantity", 1))

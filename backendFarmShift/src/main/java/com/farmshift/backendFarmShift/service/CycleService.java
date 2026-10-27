@@ -284,6 +284,7 @@ public class CycleService {
         boolean sale = m.getType() == FlockMovementType.HARVEST && canSeeFinance;
         return new FlockMovementResponse(m.getId(), m.getFlock().getId(), flockCode(m.getFlock()), m.getFlock().getName(), m.getType(),
                 m.getMovementDate(), m.getQuantity(), m.getWeightKg(), sale ? m.getUnitPrice() : null,
-                sale ? money(m.getWeightKg().multiply(m.getUnitPrice())) : null, flockCode(m.getRelatedFlock()), m.getNote(), m.getCreatedBy());
+                sale ? money(m.getWeightKg().multiply(m.getUnitPrice())) : null, flockCode(m.getRelatedFlock()), m.getNote(), m.getCreatedBy(),
+                m.getPhotoUrls() == null ? List.of() : List.of(m.getPhotoUrls().split("\n")));
     }
 }
