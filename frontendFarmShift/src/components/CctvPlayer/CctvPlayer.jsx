@@ -739,7 +739,7 @@ export const CctvPlayer = ({
             className={styles.ptzArrowBtn}
             onClick={() => handlePan('reset')}
             title="Đặt lại góc trung tâm"
-            style={{ fontSize: '11px', fontWeight: 600 }}
+            style={{ fontSize: '12.5px', fontWeight: 600 }}
           >
             ⟲
           </button>
@@ -834,7 +834,7 @@ export const CctvPlayer = ({
           <button
             type="button"
             className="farmshift-btn farmshift-btn-primary"
-            style={{ fontSize: '11px', padding: '3px 10px', height: '26px' }}
+            style={{ fontSize: '12.5px', padding: '3px 10px', height: '26px' }}
             onClick={() => {
               setToastMessage('Đã đồng bộ cấu hình camera!');
               setTimeout(() => setToastMessage(''), 2500);

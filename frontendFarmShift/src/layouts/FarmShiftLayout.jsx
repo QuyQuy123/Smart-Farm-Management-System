@@ -281,7 +281,7 @@ export const FarmShiftLayout = ({
                             }
                         }}
                     >
-                        <Menu size={18} />
+                        <Menu size={20} />
                     </button>
 
                     <div className="farmshift-header-brand-tag">
@@ -301,7 +301,7 @@ export const FarmShiftLayout = ({
                         title="Toàn màn hình"
                         onClick={toggleFullscreen}
                     >
-                        {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                        {isFullscreen ? <Minimize size={19} /> : <Maximize size={19} />}
                     </button>
 
                     {/* Notifications Dropdown */}
@@ -311,7 +311,7 @@ export const FarmShiftLayout = ({
                             title="Thông báo hệ thống"
                             onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }}
                         >
-                            <Bell size={16} />
+                            <Bell size={19} />
                             {unreadCount > 0 && (
                                 <span className="farmshift-badge-counter farmshift-badge-bounce">{unreadCount}</span>
                             )}
@@ -335,13 +335,13 @@ export const FarmShiftLayout = ({
                             >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-hairline)', paddingBottom: '10px', marginBottom: '10px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <strong style={{ fontSize: '14px', color: 'var(--color-ink)' }}>Thông báo & Cảnh báo</strong>
+                                        <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Thông báo & Cảnh báo</strong>
                                         {unreadCount > 0 ? (
-                                            <span style={{ fontSize: '11px', background: 'var(--color-signature-coral)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontWeight: 600 }}>
+                                            <span style={{ fontSize: '12.5px', background: 'var(--color-signature-coral)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontWeight: 600 }}>
                                                 {unreadCount} mới
                                             </span>
                                         ) : alerts.length > 0 ? (
-                                            <span style={{ fontSize: '11px', background: 'var(--color-surface-soft)', color: 'var(--color-muted)', borderRadius: '10px', padding: '1px 6px', fontWeight: 500 }}>
+                                            <span style={{ fontSize: '12.5px', background: 'var(--color-surface-soft)', color: 'var(--color-muted)', borderRadius: '10px', padding: '1px 6px', fontWeight: 500 }}>
                                                 0 mới
                                             </span>
                                         ) : null}
@@ -349,7 +349,7 @@ export const FarmShiftLayout = ({
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         {unreadCount > 0 ? (
                                             <span
-                                                style={{ fontSize: '12px', color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
+                                                style={{ fontSize: '13.5px', color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
                                                 onClick={markAllAsRead}
                                                 title="Đánh dấu tất cả đã đọc"
                                             >
@@ -357,7 +357,7 @@ export const FarmShiftLayout = ({
                                             </span>
                                         ) : alerts.length > 0 ? (
                                             <span
-                                                style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 400 }}
+                                                style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 400 }}
                                                 title="Đã đọc tất cả thông báo"
                                             >
                                                 Đã đọc tất cả
@@ -365,7 +365,7 @@ export const FarmShiftLayout = ({
                                         ) : null}
                                         {alerts.length > 0 && (
                                             <span
-                                                style={{ fontSize: '12px', color: 'var(--color-muted)', cursor: 'pointer', fontWeight: 500 }}
+                                                style={{ fontSize: '13.5px', color: 'var(--color-muted)', cursor: 'pointer', fontWeight: 500 }}
                                                 onClick={clearAllAlerts}
                                                 title="Xóa toàn bộ lịch sử thông báo"
                                             >
@@ -376,7 +376,7 @@ export const FarmShiftLayout = ({
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '340px', overflowY: 'auto' }}>
                                     {alerts.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--color-muted)', fontSize: '13px' }}>
+                                        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--color-muted)', fontSize: '14.5px' }}>
                                             Chưa có thông báo nào
                                         </div>
                                     ) : (
@@ -402,7 +402,7 @@ export const FarmShiftLayout = ({
                                                             : isSuccess
                                                             ? '#f0fdf4'
                                                             : 'var(--color-surface-soft)',
-                                                        fontSize: '13px',
+                                                        fontSize: '14.5px',
                                                         border: isRead
                                                             ? '1px solid #e2e8f0'
                                                             : isSuccess
@@ -439,7 +439,7 @@ export const FarmShiftLayout = ({
                                                             )}
                                                             {al.type}
                                                         </span>
-                                                        <span style={{ fontSize: '11px', color: isRead ? '#94a3b8' : 'var(--color-muted)', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                                        <span style={{ fontSize: '12.5px', color: isRead ? '#94a3b8' : 'var(--color-muted)', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                             {formattedTime}
                                                         </span>
                                                     </div>
@@ -447,7 +447,7 @@ export const FarmShiftLayout = ({
                                                         {renderNotificationContent(al.barn, al.value, isSuccess, isRead)}
                                                     </div>
                                                     {al.status && (
-                                                        <div style={{ fontSize: '11.5px', color: isRead ? '#94a3b8' : isSuccess ? '#16a34a' : 'var(--color-muted)' }}>
+                                                        <div style={{ fontSize: '13px', color: isRead ? '#94a3b8' : isSuccess ? '#16a34a' : 'var(--color-muted)' }}>
                                                             {al.status}
                                                         </div>
                                                     )}
@@ -477,7 +477,7 @@ export const FarmShiftLayout = ({
                                     user?.name ? user.name.charAt(0).toUpperCase() : 'A'
                                 )}
                             </div>
-                            <span className="farmshift-user-name" style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--color-ink)' }}>
+                            <span className="farmshift-user-name" style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-ink)' }}>
                                 {user?.name || farmInfo.owner}
                             </span>
                         </div>
@@ -511,31 +511,31 @@ export const FarmShiftLayout = ({
                                         )}
                                     </div>
                                     <div style={{ overflow: 'hidden' }}>
-                                        <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--color-ink)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                        <div style={{ fontSize: '15px', fontWeight: 500, color: 'var(--color-ink)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                             {user?.name || farmInfo.owner}
                                         </div>
-                                        <div style={{ fontSize: '12px', color: 'var(--color-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                                             {user?.email || 'admin@farmshift.local'}
                                         </div>
                                     </div>
                                 </div>
                                 <Link
                                     to="/account?tab=profile"
-                                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '13.5px', color: 'var(--color-body)', textDecoration: 'none' }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '15px', color: 'var(--color-body)', textDecoration: 'none' }}
                                     onClick={() => setUserMenuOpen(false)}
                                 >
                                     <User size={15} /> Hồ sơ cá nhân
                                 </Link>
                                 <Link
                                     to="/general-settings"
-                                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '13.5px', color: 'var(--color-body)', textDecoration: 'none' }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '15px', color: 'var(--color-body)', textDecoration: 'none' }}
                                     onClick={() => setUserMenuOpen(false)}
                                 >
                                     <Sliders size={15} /> Thiết lập trang trại
                                 </Link>
                                 <div style={{ height: '1px', backgroundColor: 'var(--color-hairline)', margin: '4px 0' }} />
                                 <button
-                                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '13.5px', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '15px', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
                                     onClick={() => {
                                         logout();
                                         navigate('/login');
@@ -610,7 +610,7 @@ export const FarmShiftLayout = ({
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
-                                        <Icon size={16} />
+                                        <Icon size={19} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (
@@ -638,7 +638,7 @@ export const FarmShiftLayout = ({
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
-                                        <Icon size={16} />
+                                        <Icon size={19} />
                                     </span>
                                     {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
                                     {collapsed && (

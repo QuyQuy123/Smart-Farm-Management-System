@@ -19,7 +19,7 @@
   flex-shrink: 0; border-radius: 13px; background: #e8f6f3; color: #008577;
 }
 .title { font-size: 20px; font-weight: 600; line-height: 1.35; color: #182b31; margin: 0; }
-.subtitle { font-size: 13px; line-height: 1.5; color: #71818a; margin: 4px 0 0; }
+.subtitle { font-size: 14.5px; line-height: 1.5; color: #71818a; margin: 4px 0 0; }
 .closeBtn {
   background: transparent; border: none; color: #71818a; cursor: pointer;
   padding: 9px; display: flex; align-items: center; justify-content: center;
@@ -41,7 +41,7 @@
 .cropContainer :global(.ReactCrop) { max-width: 100%; flex-shrink: 0; }
 .cropContainer :global(.ReactCrop__drag-handle)::after { background-color: #008577; border-color: #fff; }
 .image { display: block; max-width: 100%; max-height: min(45dvh, 400px); width: auto; height: auto; object-fit: contain; }
-.hint { display: flex; align-items: flex-start; justify-content: center; gap: 8px; font-size: 13px; line-height: 1.6; color: #657b83; margin: 0; }
+.hint { display: flex; align-items: flex-start; justify-content: center; gap: 8px; font-size: 14.5px; line-height: 1.6; color: #657b83; margin: 0; }
 .hint svg { flex-shrink: 0; margin-top: 3px; color: #008577; }
 .footer {
   padding: 18px 24px; border-top: 1px solid #edf2f0; display: flex;

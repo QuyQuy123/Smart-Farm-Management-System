@@ -75,14 +75,14 @@ export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved })
       <form onSubmit={submit}><div className={styles.modalBody}>
         {error && <p role="alert" className={styles.error}>{error}</p>}
         {deleting ? <p>Bạn muốn xóa hàng hóa <strong>{item.name}</strong> khỏi kho {warehouse.name}?</p> : <>
-          <p style={{ marginBottom: '16px', color: '#71818a', fontSize: '13px' }}>{warehouse.name}</p>
+          <p style={{ marginBottom: '16px', color: '#71818a', fontSize: '14.5px' }}>{warehouse.name}</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
             <div style={{ width: '84px', height: '84px', borderRadius: '12px', background: '#edf7f4', display: 'grid', placeItems: 'center', overflow: 'hidden', flexShrink: 0 }}>
               {preview || imageUrl ? <img src={preview || imageUrl} alt="Ảnh hàng hóa" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <Package size={30} color="#008577" />}
             </div>
-            {!readOnly && <div><label htmlFor="inventory-image" className="farmshift-btn farmshift-btn-mint" style={{ cursor: 'pointer', fontSize: '12px', padding: '6px 10px' }}><Camera size={15} />Chọn ảnh</label><input id="inventory-image" type="file" accept="image/jpeg,image/png,image/gif" onChange={selectFile} disabled={saving} style={{ display: 'none' }} />
-              {(file || imageUrl) && <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving} style={{ marginLeft: '6px', fontSize: '12px' }} onClick={() => { setFile(null); setImageUrl(''); }}>Bỏ ảnh</button>}
-              <p style={{ fontSize: '11px', color: '#71818a', marginTop: '6px' }}>JPEG, PNG, GIF · tối đa 5MB</p></div>}
+            {!readOnly && <div><label htmlFor="inventory-image" className="farmshift-btn farmshift-btn-mint" style={{ cursor: 'pointer', fontSize: '13.5px', padding: '6px 10px' }}><Camera size={15} />Chọn ảnh</label><input id="inventory-image" type="file" accept="image/jpeg,image/png,image/gif" onChange={selectFile} disabled={saving} style={{ display: 'none' }} />
+              {(file || imageUrl) && <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving} style={{ marginLeft: '6px', fontSize: '13.5px' }} onClick={() => { setFile(null); setImageUrl(''); }}>Bỏ ảnh</button>}
+              <p style={{ fontSize: '12.5px', color: '#71818a', marginTop: '6px' }}>JPEG, PNG, GIF · tối đa 5MB</p></div>}
           </div>
           <div className={styles.formGrid}>
           <div className={styles.formField}>

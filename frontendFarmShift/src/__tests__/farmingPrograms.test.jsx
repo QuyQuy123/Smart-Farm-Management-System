@@ -9,9 +9,11 @@ vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ sho
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: mocks.role } }) }));
 vi.mock('../services/farmingProgramService', () => ({ listPrograms: vi.fn(), createProgram: vi.fn(), updateProgram: vi.fn(), deleteProgram: vi.fn() }));
 vi.mock('../services/inventoryItemService', () => ({ listAllInventoryItems: vi.fn(async () => [
-  { id: 7, name: 'Higro 01', unitName: 'Bao 25kg', unitContentQuantity: 25, unitContentUnit: 'KG', stock: 200 },
-  { id: 8, name: 'Lasota', unitName: 'Lọ 1000 liều', unitContentQuantity: 1000, unitContentUnit: 'DOSE', stock: 5 },
-  { id: 9, name: 'Thùng carton', unitName: 'Thùng', unitContentQuantity: null, unitContentUnit: null, stock: 3 },
+  { id: 7, name: 'Higro 01', warehouseName: 'Kho cám', productType: 'Thức ăn chăn nuôi', unitName: 'Bao 25kg', unitContentQuantity: 25, unitContentUnit: 'KG', stock: 200 },
+  { id: 6, name: 'Higro 02', warehouseName: 'Kho cám', productType: 'Thức ăn chăn nuôi', unitName: 'Bao 25kg', unitContentQuantity: 25, unitContentUnit: 'KG', stock: 90 },
+  { id: 10, name: 'Men tiêu hóa', warehouseName: 'Kho thuốc', productType: 'Thuốc thú y', unitName: 'Gói 1kg', unitContentQuantity: 1, unitContentUnit: 'KG', stock: 9 },
+  { id: 8, name: 'Lasota', warehouseName: 'Kho thuốc', productType: 'Thuốc thú y', unitName: 'Lọ 1000 liều', unitContentQuantity: 1000, unitContentUnit: 'DOSE', stock: 5 },
+  { id: 9, name: 'Thùng carton', warehouseName: 'Kho vật tư', productType: '', unitName: 'Thùng', unitContentQuantity: null, unitContentUnit: null, stock: 3 },
 ]) }));
 
 const originalShow = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
@@ -77,9 +79,15 @@ describe('Farming programs by breed', () => {
     fireEvent.change(within(dialog).getByLabelText('g/con/ngày dòng 1'), { target: { value: '15' } });
     fireEvent.change(within(dialog).getByLabelText('Số cữ/ngày dòng 1'), { target: { value: '6' } });
     // Only stock items whose pack size converts to the ration (kg for feed) can be linked.
-    await waitFor(() => expect(within(within(dialog).getByLabelText('Hàng hóa kho dòng 1')).getAllByRole('option')).toHaveLength(2));
-    expect(within(within(dialog).getByLabelText('Hàng hóa kho dòng 1')).getAllByRole('option')[1]).toHaveTextContent('Higro 01 · Bao 25kg (25 kg) · tồn 200');
-    fireEvent.change(within(dialog).getByLabelText('Hàng hóa kho dòng 1'), { target: { value: '7' } });
+    // The feed name is picked from stock: only feed items are suggested, filtered by what is typed, without stock levels.
+    const feedName = within(dialog).getByLabelText('Loại cám dòng 1');
+    fireEvent.change(feedName, { target: { value: 'higro' } });
+    const suggestions = await screen.findByRole('listbox', { name: 'Gợi ý Loại cám dòng 1' });
+    expect(within(suggestions).getAllByRole('option').map(option => option.textContent)).toEqual(['Higro 01Bao 25kg', 'Higro 02Bao 25kg']);
+    expect(suggestions).not.toHaveTextContent(/tồn/);
+    fireEvent.change(feedName, { target: { value: 'higro 01' } });
+    fireEvent.mouseDown(within(screen.getByRole('listbox')).getByRole('option', { name: /Higro 01/ }));
+    expect(feedName).toHaveValue('Higro 01');
 
     fireEvent.click(within(dialog).getByRole('tab', { name: /Lịch vắc-xin/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Thêm dòng' }));
@@ -105,7 +113,7 @@ describe('Farming programs by breed', () => {
     const body = service.createProgram.mock.calls[0][0];
     expect(body).toMatchObject({ name: 'Gà ta thả vườn', breed: 'Gà ta', durationDays: 105, targetWeightMin: null });
     expect(body.steps).toEqual([
-      expect.objectContaining({ category: 'FEED', name: 'Cám gà con', dayFrom: 1, dayTo: 21, quantity: 15, mealsPerDay: 6, inventoryItemId: 7 }),
+      expect.objectContaining({ category: 'FEED', name: 'Higro 01', dayFrom: 1, dayTo: 21, quantity: 15, mealsPerDay: 6, inventoryItemId: 7 }),
       expect.objectContaining({ category: 'VACCINE', name: 'Đậu gà', dayFrom: 8, dayTo: 8, method: 'WING_WEB', inventoryItemId: null }),
       expect.objectContaining({ category: 'TEMPERATURE', name: 'Úm tuần 1', dayFrom: 1, dayTo: 7, tempMin: 31, tempMax: 33 }),
     ]);

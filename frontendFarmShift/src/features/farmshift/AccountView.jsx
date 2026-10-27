@@ -974,7 +974,7 @@ export const AccountView = () => {
                     <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
                       <AlertCircle size={24} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--color-muted)' }} />
                       <p style={{ margin: 0, fontWeight: 500 }}>{getSystemMessage('MSG01')}</p>
-                      <p style={{ margin: '4px 0 0', fontSize: '13px' }}>Thử thay đổi từ khóa tìm kiếm hoặc bỏ bớt bộ lọc.</p>
+                      <p style={{ margin: '4px 0 0', fontSize: '14.5px' }}>Thử thay đổi từ khóa tìm kiếm hoặc bỏ bớt bộ lọc.</p>
                     </td>
                   </tr>
                 ) : (
@@ -1004,7 +1004,7 @@ export const AccountView = () => {
                               overflow: 'hidden',
                               fontWeight: 600,
                               color: 'var(--color-ink)',
-                              fontSize: '13px'
+                              fontSize: '14.5px'
                             }}>
                               {st.avatarUrl ? (
                                 <img src={st.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1013,20 +1013,20 @@ export const AccountView = () => {
                               )}
                             </div>
                             <div>
-                              <strong style={{ color: 'var(--color-ink)', fontSize: '13.5px', display: 'block' }}>
+                              <strong style={{ color: 'var(--color-ink)', fontSize: '15px', display: 'block' }}>
                                 {st.fullName || 'Chưa đặt tên'}
                               </strong>
                             </div>
                           </div>
                         </td>
-                        <td style={{ color: 'var(--color-body)', fontSize: '13px' }}>{st.email}</td>
-                        <td style={{ color: 'var(--color-body)', fontSize: '13px' }}>{st.phone || '—'}</td>
+                        <td style={{ color: 'var(--color-body)', fontSize: '14.5px' }}>{st.email}</td>
+                        <td style={{ color: 'var(--color-body)', fontSize: '14.5px' }}>{st.phone || '—'}</td>
                         <td>
                           <span className={`farmshift-badge ${roleInfo.badgeClass}`}>
                             {roleInfo.label}
                           </span>
                         </td>
-                        <td style={{ color: 'var(--color-muted)', fontSize: '13px' }}>
+                        <td style={{ color: 'var(--color-muted)', fontSize: '14.5px' }}>
                           {st.barnAssigned || roleInfo.barn}
                         </td>
                         <td>
@@ -1102,11 +1102,11 @@ export const AccountView = () => {
                     )}
                     {uploadingAvatar && (
                       <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', color: 'var(--color-primary)', fontWeight: 500 }}>Đang tải...</span>
+                        <span style={{ fontSize: '13.5px', color: 'var(--color-primary)', fontWeight: 500 }}>Đang tải...</span>
                       </div>
                     )}
                   </button>
-                  <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-primary)', fontWeight: 500 }}>
+                  <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14.5px', color: 'var(--color-primary)', fontWeight: 500 }}>
                     <Camera size={14} /> Thay đổi ảnh
                     <input
                       ref={fileInputRef}
@@ -1126,7 +1126,7 @@ export const AccountView = () => {
                         Họ và tên *
                       </label>
                       {profileTouched.fullName && !profileErrors.fullName && profileForm.fullName && (
-                        <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <span style={{ fontSize: '13px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
                           <CheckCircle size={12} /> Hợp lệ
                         </span>
                       )}
@@ -1177,7 +1177,7 @@ export const AccountView = () => {
                       </label>
                       {profileForm.phone && (
                         <span style={{
-                          fontSize: '11px',
+                          fontSize: '12.5px',
                           color: profileTouched.phone && profileErrors.phone ? '#dc2626' : 'var(--color-muted)',
                           fontWeight: 500
                         }}>
@@ -1217,7 +1217,7 @@ export const AccountView = () => {
                       </label>
                       {profileForm.citizenId && (
                         <span style={{
-                          fontSize: '11px',
+                          fontSize: '12.5px',
                           color: profileTouched.citizenId && profileErrors.citizenId ? '#dc2626' : 'var(--color-muted)',
                           fontWeight: 500
                         }}>
@@ -1259,7 +1259,7 @@ export const AccountView = () => {
                       Ngày sinh (dd/mm/yyyy)
                     </label>
                     {profileTouched.dateOfBirth && !profileErrors.dateOfBirth && profileForm.dateOfBirth && (
-                      <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span style={{ fontSize: '13px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
                         <CheckCircle size={12} /> Hợp lệ
                       </span>
                     )}
@@ -1294,7 +1294,7 @@ export const AccountView = () => {
                       Địa chỉ hiện tại
                     </label>
                     {profileForm.address && (
-                      <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                      <span style={{ fontSize: '12.5px', color: 'var(--color-muted)' }}>
                         {profileForm.address.length}/255
                       </span>
                     )}
@@ -1363,7 +1363,7 @@ export const AccountView = () => {
                     Mật khẩu hiện tại <span style={{ color: '#dc2626' }}>*</span>
                   </label>
                   {passwordTouched.currentPassword && !passwordErrors.currentPassword && passwordForm.currentPassword && (
-                    <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <span style={{ fontSize: '13px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
                       <CheckCircle size={12} /> Đã nhập
                     </span>
                   )}
@@ -1401,7 +1401,7 @@ export const AccountView = () => {
                   </label>
                   {passwordForm.newPassword && (
                     <span style={{
-                      fontSize: '11px',
+                      fontSize: '12.5px',
                       color: passwordTouched.newPassword && passwordErrors.newPassword ? '#dc2626' : 'var(--color-muted)',
                       fontWeight: 500
                     }}>
@@ -1442,7 +1442,7 @@ export const AccountView = () => {
                     Xác nhận mật khẩu mới <span style={{ color: '#dc2626' }}>*</span>
                   </label>
                   {passwordTouched.confirmPassword && !passwordErrors.confirmPassword && passwordForm.confirmPassword && (
-                    <span style={{ fontSize: '11.5px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <span style={{ fontSize: '13px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
                       <CheckCircle size={12} /> Khớp
                     </span>
                   )}
@@ -1522,7 +1522,7 @@ export const AccountView = () => {
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fce8e6',
                     color: '#c5221f',
-                    fontSize: '13.5px',
+                    fontSize: '15px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
@@ -1557,7 +1557,7 @@ export const AccountView = () => {
                             border: 'none',
                             cursor: 'pointer',
                             color: 'var(--color-primary)',
-                            fontSize: '11.5px',
+                            fontSize: '13px',
                             fontWeight: 500,
                             padding: 0
                           }}
@@ -1576,7 +1576,7 @@ export const AccountView = () => {
                       onChange={e => handleEmailChange(e.target.value)}
                     />
                     {!isEmailCustomized && newStaff.email && (
-                      <span style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
                         ✨ Đề xuất tự động (sửa tùy ý)
                       </span>
                     )}
@@ -1719,7 +1719,7 @@ export const AccountView = () => {
                       <h4 style={{ margin: 0, fontSize: '18px', color: 'var(--color-ink)' }}>
                         {selectedEmployee.fullName || 'Chưa đặt tên'}
                       </h4>
-                      <p style={{ margin: '4px 0 0', color: 'var(--color-muted)', fontSize: '13.5px' }}>
+                      <p style={{ margin: '4px 0 0', color: 'var(--color-muted)', fontSize: '15px' }}>
                         {selectedEmployee.email}
                       </p>
                       <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
@@ -1733,29 +1733,29 @@ export const AccountView = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '13.5px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '15px' }}>
                     <div>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Mã nhân viên (ID):</span>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '13.5px' }}>Mã nhân viên (ID):</span>
                       <strong style={{ color: 'var(--color-ink)' }}>#{selectedEmployee.id}</strong>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Số điện thoại:</span>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '13.5px' }}>Số điện thoại:</span>
                       <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.phone || 'Chưa cập nhật'}</strong>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Số CMND / Căn cước:</span>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '13.5px' }}>Số CMND / Căn cước:</span>
                       <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.citizenId || 'Chưa cập nhật'}</strong>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Ngày sinh:</span>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '13.5px' }}>Ngày sinh:</span>
                       <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.dateOfBirth || 'Chưa cập nhật'}</strong>
                     </div>
                     <div style={{ gridColumn: 'span 2' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Địa chỉ cư trú:</span>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '13.5px' }}>Địa chỉ cư trú:</span>
                       <strong style={{ color: 'var(--color-ink)' }}>{selectedEmployee.address || 'Chưa cập nhật'}</strong>
                     </div>
                     <div style={{ gridColumn: 'span 2' }}>
-                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '12px' }}>Mô tả vai trò & phạm vi:</span>
+                      <span style={{ color: 'var(--color-muted)', display: 'block', fontSize: '13.5px' }}>Mô tả vai trò & phạm vi:</span>
                       <p style={{ margin: '4px 0 0', color: 'var(--color-body)', backgroundColor: 'var(--color-surface-soft)', padding: '10px', borderRadius: 'var(--rounded-sm)', border: '1px solid var(--color-hairline)' }}>
                         {selectedEmployee.roleDescription || (ROLE_DISPLAY[selectedEmployee.roleName] || {}).barn || 'Nhân sự thực hiện các nghiệp vụ được phân công trong phân hệ.'}
                       </p>
@@ -1810,11 +1810,11 @@ export const AccountView = () => {
                     {editStaff.avatarUrl ? <img src={editStaff.avatarUrl} alt="Ảnh đại diện nhân viên" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserCheck size={30} color="#008577" />}
                   </div>
                   <div>
-                    <label htmlFor="edit-employee-avatar" className="farmshift-btn farmshift-btn-secondary" style={{ display: 'inline-flex', width: 'fit-content', minHeight: 'auto', padding: '6px 10px', gap: '6px', fontSize: '12px', lineHeight: 1.4, borderRadius: '8px', background: '#e0f5ef', color: '#007968', borderColor: '#a7dfcf', cursor: isSubmitting ? 'wait' : 'pointer' }}>
+                    <label htmlFor="edit-employee-avatar" className="farmshift-btn farmshift-btn-secondary" style={{ display: 'inline-flex', width: 'fit-content', minHeight: 'auto', padding: '6px 10px', gap: '6px', fontSize: '13.5px', lineHeight: 1.4, borderRadius: '8px', background: '#e0f5ef', color: '#007968', borderColor: '#a7dfcf', cursor: isSubmitting ? 'wait' : 'pointer' }}>
                       <Camera size={15} /> Thay đổi ảnh nhân viên
                     </label>
                     <input id="edit-employee-avatar" type="file" accept="image/*" disabled={isSubmitting} onChange={handleEditAvatarFile} style={{ display: 'none' }} />
-                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--color-muted)' }}>Ảnh tối đa 5MB. Bấm Lưu thay đổi để cập nhật.</p>
+                    <p style={{ margin: '6px 0 0', fontSize: '13.5px', color: 'var(--color-muted)' }}>Ảnh tối đa 5MB. Bấm Lưu thay đổi để cập nhật.</p>
                   </div>
                 </div>
                 {formError && (
@@ -1824,7 +1824,7 @@ export const AccountView = () => {
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fce8e6',
                     color: '#c5221f',
-                    fontSize: '13.5px',
+                    fontSize: '15px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
@@ -1841,7 +1841,7 @@ export const AccountView = () => {
                     borderRadius: 'var(--rounded-md)',
                     backgroundColor: '#fef3c7',
                     color: '#b45309',
-                    fontSize: '13px',
+                    fontSize: '14.5px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'

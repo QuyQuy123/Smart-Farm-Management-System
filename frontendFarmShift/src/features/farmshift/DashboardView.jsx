@@ -80,49 +80,49 @@ export const DashboardView = () => {
           {/* Energy KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px', marginBottom: '24px' }}>
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
                 ĐIỆN NĂNG TIÊU THỤ DỰ TÍNH / NGÀY
               </div>
               <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '8px', lineHeight: 1 }}>
-                144.0 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>kWh</span>
+                144.0 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>kWh</span>
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
                 5 chuồng nuôi đang vận hành
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
                 ĐƠN GIÁ ĐIỆN THAM CHIẾU
               </div>
               <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-                2.500 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>đ / kWh</span>
+                2.500 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>đ / kWh</span>
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
                 Biểu giá điện sản xuất kinh doanh
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
                 CHI PHÍ TIỀN ĐIỆN / NGÀY
               </div>
               <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '8px', lineHeight: 1 }}>
-                360.000 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>đ</span>
+                360.000 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>đ</span>
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
                 Ước tính: ~10.800.000 đ / tháng
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
                 THIẾT BỊ ĐANG TIÊU THỤ ĐIỆN
               </div>
               <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-                10 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>thiết bị</span>
+                10 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>thiết bị</span>
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--color-success)', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-success)', marginTop: '8px' }}>
                 ✓ 5 quạt thông gió + 5 hệ giàn đèn
               </div>
             </div>
@@ -167,7 +167,7 @@ export const DashboardView = () => {
                     <tr key={idx}>
                       <td>
                         <strong style={{ color: 'var(--color-ink)' }}>{row.barn}</strong>
-                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{row.area}</div>
+                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>{row.area}</div>
                       </td>
                       <td>{row.device}</td>
                       <td><strong>{row.power}</strong></td>
@@ -222,7 +222,7 @@ export const DashboardView = () => {
                   border: `1px solid ${step.done ? 'var(--color-hairline)' : 'transparent'}`,
                   textDecoration: 'none',
                   color: step.done ? 'var(--color-ink)' : 'var(--color-muted)',
-                  fontSize: '13px',
+                  fontSize: '14.5px',
                   fontWeight: 500
                 }}
               >
@@ -236,7 +236,7 @@ export const DashboardView = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '11px',
+                    fontSize: '12.5px',
                     flexShrink: 0
                   }}
                 >
@@ -252,49 +252,49 @@ export const DashboardView = () => {
       {/* ── KPI Summary Cards (DESIGN.md Editorial Clean) ─── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
             TỔNG ĐÀN HIỆN TẠI
           </div>
           <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-            {data.farmInfo.currentFlockTotal.toLocaleString('vi-VN')} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
+            {data.farmInfo.currentFlockTotal.toLocaleString('vi-VN')} <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
           </div>
-          <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Warehouse size={14} /> {activeBarns.length} chuồng đang nuôi ({data.areas.length} khu trại)
           </div>
         </div>
 
         <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
             CÁM TIÊU THỤ HÔM NAY
           </div>
           <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-            711 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>kg</span>
+            711 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>kg</span>
           </div>
-          <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+          <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
             Định mức 57.1g / con / ngày
           </div>
         </div>
 
         <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
             HAO HỤT TRONG NGÀY
           </div>
           <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-            3 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>con (0.02%)</span>
+            3 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>con (0.02%)</span>
           </div>
-          <div style={{ fontSize: '12.5px', color: 'var(--color-success)', marginTop: '8px' }}>
+          <div style={{ fontSize: '14px', color: 'var(--color-success)', marginTop: '8px' }}>
             ✓ Tỷ lệ an toàn trong ngưỡng &lt; 0.05%
           </div>
         </div>
 
         <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
             SỐ DƯ QUỸ RÒNG
           </div>
           <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-            282,120,000 <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>đ</span>
+            282,120,000 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>đ</span>
           </div>
-          <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+          <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
             MB Bank + Tiền mặt tại quỹ
           </div>
         </div>
@@ -307,7 +307,7 @@ export const DashboardView = () => {
             <Activity size={18} color="var(--color-primary)" />
             Giám sát các chuồng đang nuôi (Real-time IoT & Nhật ký)
           </h3>
-          <Link to="/areas" className="farmshift-btn farmshift-btn-secondary" style={{ fontSize: '13px', padding: '6px 14px' }}>
+          <Link to="/areas" className="farmshift-btn farmshift-btn-secondary" style={{ fontSize: '14.5px', padding: '6px 14px' }}>
             Xem tất cả khu nuôi ›
           </Link>
         </div>
@@ -352,7 +352,7 @@ export const DashboardView = () => {
                     <Link
                       to="/journal"
                       className="farmshift-btn farmshift-btn-primary"
-                      style={{ fontSize: '12px', padding: '5px 12px' }}
+                      style={{ fontSize: '13.5px', padding: '5px 12px' }}
                     >
                       Ghi nhật ký
                     </Link>
@@ -373,7 +373,7 @@ export const DashboardView = () => {
               <FileText size={18} color="var(--color-primary)" />
               Hóa đơn nhập hàng gần nhất
             </h3>
-            <Link to="/purchases" style={{ fontSize: '13px', color: 'var(--color-link)', textDecoration: 'none' }}>
+            <Link to="/purchases" style={{ fontSize: '14.5px', color: 'var(--color-link)', textDecoration: 'none' }}>
               Tất cả ›
             </Link>
           </div>
@@ -412,7 +412,7 @@ export const DashboardView = () => {
               <Package size={18} color="var(--color-primary)" />
               Tồn kho thức ăn & vật tư thiết yếu
             </h3>
-            <Link to="/inventory" style={{ fontSize: '13px', color: 'var(--color-link)', textDecoration: 'none' }}>
+            <Link to="/inventory" style={{ fontSize: '14.5px', color: 'var(--color-link)', textDecoration: 'none' }}>
               Kho hàng ›
             </Link>
           </div>

@@ -99,13 +99,13 @@ export const FarmSystemMap = ({ onSelectNode }) => {
         gap: '16px'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-primary)', fontWeight: 600, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-primary)', fontWeight: 600, fontSize: '14.5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             <Sparkles size={16} /> Kiến trúc hệ thống chăn nuôi khép kín
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: 500, color: 'var(--color-ink)', margin: '6px 0 4px', lineHeight: 1.2 }}>
             Sơ đồ Hệ thống Quản lý Chăn nuôi Trang trại Miền Bính
           </h2>
-          <p style={{ margin: 0, color: 'var(--color-body)', fontSize: '14px', maxWidth: '720px' }}>
+          <p style={{ margin: 0, color: 'var(--color-body)', fontSize: '15px', maxWidth: '720px' }}>
             Tổng quan luồng dữ liệu 5 phân hệ cốt lõi: từ hạ tầng nuôi, nhật ký hàng ngày, quản lý kho hàng, hóa đơn chứng từ đến dòng tiền sổ quỹ. Bấm vào bất kỳ thẻ nào để mở trực tiếp màn hình nghiệp vụ tương ứng.
           </p>
         </div>
@@ -115,7 +115,7 @@ export const FarmSystemMap = ({ onSelectNode }) => {
           padding: '12px 18px',
           borderRadius: 'var(--rounded-md)',
           border: '1px solid var(--color-hairline)',
-          fontSize: '13px',
+          fontSize: '14.5px',
           color: 'var(--color-ink)',
           display: 'flex',
           alignItems: 'center',
@@ -170,13 +170,13 @@ export const FarmSystemMap = ({ onSelectNode }) => {
                   }}>
                     {bandIdx + 1}. {band.title}
                   </h3>
-                  <span style={{ fontSize: '12.5px', color: 'var(--color-muted)' }}>
+                  <span style={{ fontSize: '14px', color: 'var(--color-muted)' }}>
                     {band.description}
                   </span>
                 </div>
               </div>
 
-              <span className="farmshift-badge farmshift-badge-neutral" style={{ fontSize: '11px' }}>
+              <span className="farmshift-badge farmshift-badge-neutral" style={{ fontSize: '12.5px' }}>
                 {band.nodes.length} phân hệ
               </span>
             </div>
@@ -235,7 +235,7 @@ export const FarmSystemMap = ({ onSelectNode }) => {
                       {node.icon}
                     </div>
                     <span style={{
-                      fontSize: '11.5px',
+                      fontSize: '13px',
                       fontWeight: 600,
                       color: 'var(--color-primary)',
                       backgroundColor: 'rgba(0, 155, 139, 0.08)',
@@ -247,10 +247,10 @@ export const FarmSystemMap = ({ onSelectNode }) => {
                   </div>
 
                   <div>
-                    <strong style={{ fontSize: '14px', color: 'var(--color-ink)', display: 'block', marginBottom: '3px' }}>
+                    <strong style={{ fontSize: '15px', color: 'var(--color-ink)', display: 'block', marginBottom: '3px' }}>
                       {node.title}
                     </strong>
-                    <span style={{ fontSize: '12px', color: 'var(--color-muted)', lineHeight: 1.4, display: 'block' }}>
+                    <span style={{ fontSize: '13.5px', color: 'var(--color-muted)', lineHeight: 1.4, display: 'block' }}>
                       {node.desc}
                     </span>
                   </div>
@@ -262,7 +262,7 @@ export const FarmSystemMap = ({ onSelectNode }) => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    fontSize: '11.5px',
+                    fontSize: '13px',
                     color: 'var(--color-link)',
                     fontWeight: 500
                   }}>

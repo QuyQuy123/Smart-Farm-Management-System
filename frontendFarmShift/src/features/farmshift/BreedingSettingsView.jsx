@@ -190,7 +190,7 @@ export const BreedingSettingsView = () => {
           <div className="farmshift-card-header">
             <div>
               <h3 className="farmshift-card-title">Mục tiêu tăng trọng & Định mức cám theo tuần tuổi</h3>
-              <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
+              <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
                 Định mức kỹ thuật làm căn cứ so sánh chỉ số FCR thực tế và cảnh báo hao hụt cám
               </p>
             </div>
@@ -228,11 +228,11 @@ export const BreedingSettingsView = () => {
                     <td>
                       <span className="farmshift-badge farmshift-badge-success">{target.fcr}</span>
                     </td>
-                    <td style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{target.notes}</td>
+                    <td style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>{target.notes}</td>
                     <td style={{ textAlign: 'center' }}>
                       <button
                         className="farmshift-btn farmshift-btn-secondary"
-                        style={{ padding: '3px 8px', fontSize: '12px' }}
+                        style={{ padding: '3px 8px', fontSize: '13.5px' }}
                         onClick={() => showToast(`Chỉnh sửa định mức ${target.id}`, 'info')}
                       >
                         <Edit3 size={13} /> Sửa
@@ -252,7 +252,7 @@ export const BreedingSettingsView = () => {
           <div className="farmshift-card-header">
             <div>
               <h3 className="farmshift-card-title">Tiêu chuẩn phân loại gà xuất chuồng & Sản phẩm thu hoạch</h3>
-              <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
+              <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
                 Phục vụ tạo phiếu xuất bán hàng, phân loại biểu cân và định giá xuất trại
               </p>
             </div>
@@ -286,11 +286,11 @@ export const BreedingSettingsView = () => {
                     <td><strong>{h.name}</strong></td>
                     <td><strong style={{ color: 'var(--color-signature-coral)' }}>{h.weightSpec}</strong></td>
                     <td style={{ fontWeight: 600, color: 'var(--color-success)' }}>{h.price}</td>
-                    <td style={{ fontSize: '12px', color: 'var(--color-body)' }}>{h.notes}</td>
+                    <td style={{ fontSize: '13.5px', color: 'var(--color-body)' }}>{h.notes}</td>
                     <td style={{ textAlign: 'center' }}>
                       <button
                         className="farmshift-btn farmshift-btn-secondary"
-                        style={{ padding: '3px 8px', fontSize: '12px' }}
+                        style={{ padding: '3px 8px', fontSize: '13.5px' }}
                         onClick={() => showToast(`Cập nhật tiêu chuẩn ${h.name}`, 'info')}
                       >
                         <Edit3 size={13} /> Sửa
@@ -373,7 +373,7 @@ export const BreedingSettingsView = () => {
                       <td style={{ textAlign: 'center' }}>
                         <button
                           className={`farmshift-btn ${t.status === 'Đã hoàn thành' ? 'farmshift-btn-secondary' : 'farmshift-btn-primary'}`}
-                          style={{ padding: '4px 10px', fontSize: '12px' }}
+                          style={{ padding: '4px 10px', fontSize: '13.5px' }}
                           onClick={() => toggleTaskStatus(t.id)}
                         >
                           {t.status === 'Đã hoàn thành' ? 'Mở lại' : '✓ Hoàn thành'}
@@ -456,8 +456,8 @@ export const BreedingSettingsView = () => {
           <div className="farmshift-card-body">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
               <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '16px' }}>
-                <strong style={{ fontSize: '14px', color: 'var(--color-ink)' }}>Nhiệt độ môi trường</strong>
-                <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--color-body)', lineHeight: 1.6 }}>
+                <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Nhiệt độ môi trường</strong>
+                <div style={{ marginTop: '10px', fontSize: '14.5px', color: 'var(--color-body)', lineHeight: 1.6 }}>
                   • Ngưỡng lý tưởng: <strong>25.0°C - 28.5°C</strong><br />
                   • Cảnh báo cao: <strong>&gt; 29.5°C</strong> (Kích hoạt giàn quạt hút & cooling pad)<br />
                   • Nguy hiểm khẩn cấp: <strong>&gt; 32.0°C</strong> (Báo động còi & tin nhắn cho chủ trại)
@@ -465,8 +465,8 @@ export const BreedingSettingsView = () => {
               </div>
 
               <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '16px' }}>
-                <strong style={{ fontSize: '14px', color: 'var(--color-ink)' }}>Độ ẩm không khí</strong>
-                <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--color-body)', lineHeight: 1.6 }}>
+                <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Độ ẩm không khí</strong>
+                <div style={{ marginTop: '10px', fontSize: '14.5px', color: 'var(--color-body)', lineHeight: 1.6 }}>
                   • Ngưỡng lý tưởng: <strong>60% - 70%</strong><br />
                   • Cảnh báo ẩm ướt: <strong>&gt; 78%</strong> (Yêu cầu tăng thông gió, rải thêm đệm lót trấu)
                 </div>

@@ -343,7 +343,7 @@ export const GlobalSearch = () => {
         </span>
         <div className={styles.shortcutBadge}>
           <kbd className={styles.kbd}>Ctrl</kbd>
-          <span style={{ fontSize: '10px', color: '#94a3b8' }}>+</span>
+          <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>+</span>
           <kbd className={styles.kbd}>K</kbd>
         </div>
       </div>

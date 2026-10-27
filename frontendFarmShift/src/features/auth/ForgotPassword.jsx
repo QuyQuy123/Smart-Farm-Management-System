@@ -34,13 +34,13 @@ export const ForgotPassword = () => {
   return (
     <AuthLayout>
       <div style={{ marginBottom: '24px' }}>
-        <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-muted)', textDecoration: 'none', marginBottom: '16px' }}>
+        <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '14.5px', color: 'var(--color-muted)', textDecoration: 'none', marginBottom: '16px' }}>
           <ArrowLeft size={14} /> Quay lại đăng nhập
         </Link>
         <h2 style={{ fontSize: '24px', fontWeight: 500, color: 'var(--color-ink)', margin: '0 0 6px' }}>
           Khôi phục mật khẩu
         </h2>
-        <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: 0 }}>
+        <p style={{ fontSize: '15px', color: 'var(--color-muted)', margin: 0 }}>
           Nhập email của bạn, chúng tôi sẽ gửi mã xác thực 6 số.
         </p>
       </div>
@@ -55,7 +55,7 @@ export const ForgotPassword = () => {
           backgroundColor: '#fef2f2',
           border: '1px solid #fecaca',
           color: '#b91c1c',
-          fontSize: '13px',
+          fontSize: '14.5px',
           marginBottom: '20px'
         }}>
           <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />

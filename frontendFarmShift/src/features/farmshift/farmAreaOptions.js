@@ -86,7 +86,6 @@ export const STEP_CATEGORIES = [
   { value: 'VACCINE', label: 'Lịch vắc-xin', item: 'mũi vắc-xin' },
   { value: 'MEDICINE', label: 'Thuốc trộn', item: 'đợt thuốc' },
   { value: 'TEMPERATURE', label: 'Nhiệt độ', item: 'mức nhiệt' },
-  { value: 'WORK', label: 'Công việc', item: 'công việc' },
 ];
 
 export const VACCINE_METHODS = [
@@ -130,6 +129,21 @@ export const doseDimension = (category, unit) => {
   if (['liều', 'lieu', 'giọt', 'giot', 'dose'].includes(head)) return 'DOSE';
   return null;
 };
+
+const lowerVi = value => String(value || '').toLocaleLowerCase('vi');
+
+/** Phân loại hàng hóa kho: cám (thức ăn), vắc-xin hoặc thuốc, theo tên, loại hàng và kho chứa. */
+export const stockKind = item => {
+  const name = lowerVi(item.name);
+  if (/vắc|vac-?xin|vaccin/.test(name)) return 'VACCINE';
+  const text = `${name} ${lowerVi(item.productType)} ${lowerVi(item.warehouseName)}`;
+  if (/thức ăn|cám|ngô|bắp/.test(text)) return 'FEED';
+  if (/thuốc|thú y|vitamin|kháng sinh|men|điện giải/.test(text)) return 'MEDICINE';
+  return null;
+};
+
+/** Hàng hóa gợi ý cho một dòng chương trình: đúng nhóm (cám / vắc-xin / thuốc) và quy đổi được đơn vị. */
+export const itemsForStep = (items, category, unit) => items.filter(item => stockKind(item) === category && itemFitsStep(item, category, unit));
 
 /** Hàng hóa dùng được cho một nội dung khi có quy cách và cùng loại đại lượng với định mức. */
 export const itemFitsStep = (item, category, unit) => {
