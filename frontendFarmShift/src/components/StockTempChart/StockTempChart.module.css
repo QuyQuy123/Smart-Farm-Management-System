@@ -40,7 +40,7 @@
 }
 
 .tickerSymbol {
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.8px;
   color: #38bdf8;
@@ -52,7 +52,7 @@
 }
 
 .tickerBarnName {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: #e2e8f0;
 }
@@ -98,7 +98,7 @@
   background-color: rgba(220, 38, 38, 0.2);
   border: 1px solid rgba(239, 68, 68, 0.4);
   color: #f87171;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 4px;
@@ -124,7 +124,7 @@
   gap: 4px;
   padding: 3px 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 600;
   font-family: monospace;
 }
@@ -147,7 +147,7 @@
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: 13.5px;
   color: #94a3b8;
 }
 
@@ -158,14 +158,14 @@
 }
 
 .metricLabel {
-  font-size: 10.5px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: #64748b;
 }
 
 .metricVal {
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   color: #f1f5f9;
   font-family: monospace;
@@ -191,7 +191,7 @@
   background: none;
   border: none;
   color: #94a3b8;
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 500;
   padding: 4px 10px;
   border-radius: 4px;
@@ -255,7 +255,7 @@
   border: 1px solid #38bdf8;
   border-radius: 6px;
   padding: 8px 12px;
-  font-size: 11.5px;
+  font-size: 13px;
   color: #f8fafc;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   z-index: 50;
@@ -266,20 +266,20 @@
 
 .tooltipTime {
   color: #94a3b8;
-  font-size: 10.5px;
+  font-size: 12px;
   margin-bottom: 2px;
   font-family: monospace;
 }
 
 .tooltipValue {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: #38bdf8;
   font-family: monospace;
 }
 
 .tooltipAction {
-  font-size: 11px;
+  font-size: 12.5px;
   color: #4ade80;
   margin-top: 2px;
 }
@@ -294,7 +294,7 @@
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid #1e293b;
-  font-size: 11.5px;
+  font-size: 13px;
   color: #94a3b8;
 }
 
@@ -336,7 +336,7 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
-    font-size: 11px;
+    font-size: 12.5px;
   }
 }
 

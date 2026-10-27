@@ -48,7 +48,7 @@ function CustomerDialog({ mode, customer, onClose, onSaved }) {
           <input id="customer-phone" type="tel" inputMode="numeric" className="farmshift-form-control" placeholder="0912345678" value={phone}
             onChange={event => { setPhone(event.target.value.replace(/[^0-9]/g, '')); setPhoneTouched(true); }} onBlur={() => setPhoneTouched(true)}
             aria-invalid={!readOnly && phoneTouched && !!phoneError} aria-describedby={!readOnly && phoneTouched && phoneError ? 'customer-phone-error' : undefined} required maxLength={11} readOnly={readOnly} disabled={saving} />
-          {!readOnly && phoneTouched && phoneError && <p id="customer-phone-error" role="alert" style={{ color: '#dc2626', fontSize: '12px', margin: '-12px 0 16px' }}>{phoneError}</p>}
+          {!readOnly && phoneTouched && phoneError && <p id="customer-phone-error" role="alert" style={{ color: '#dc2626', fontSize: '13.5px', margin: '-12px 0 16px' }}>{phoneError}</p>}
         </>}
       </div><footer className={styles.footer}>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose} disabled={saving}>{readOnly ? 'Đóng' : 'Hủy bỏ'}</button>

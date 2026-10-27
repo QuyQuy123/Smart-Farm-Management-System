@@ -202,21 +202,21 @@ export const CashbookView = () => {
       {/* ── Summary Stats (DESIGN.md Editorial Cards) ──────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG THU VÀO</div>
+          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG THU VÀO</div>
           <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-success)', marginTop: '6px' }}>
             +{totalRevenue.toLocaleString('vi-VN')} đ
           </div>
         </div>
 
         <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG CHI RA</div>
+          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG CHI RA</div>
           <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '6px' }}>
             -{totalExpense.toLocaleString('vi-VN')} đ
           </div>
         </div>
 
         <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG TỒN TẤT CẢ QUỸ</div>
+          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG TỒN TẤT CẢ QUỸ</div>
           <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
             {totalFundsBalance.toLocaleString('vi-VN')} đ
           </div>
@@ -319,7 +319,7 @@ export const CashbookView = () => {
                   {filteredTx.map(t => (
                     <tr key={t.id}>
                       <td>
-                        <strong style={{ color: 'var(--color-ink)', fontFamily: 'monospace', fontSize: '14px' }}>
+                        <strong style={{ color: 'var(--color-ink)', fontFamily: 'monospace', fontSize: '15px' }}>
                           {t.code}
                         </strong>
                       </td>
@@ -348,7 +348,7 @@ export const CashbookView = () => {
                         <span className="farmshift-badge farmshift-badge-neutral">{t.fund}</span>
                       </td>
                       <td style={{ color: 'var(--color-muted)' }}>{t.creator}</td>
-                      <td style={{ color: 'var(--color-muted)', fontSize: '13px' }}>{t.note}</td>
+                      <td style={{ color: 'var(--color-muted)', fontSize: '14.5px' }}>{t.note}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -475,7 +475,7 @@ export const CashbookView = () => {
             borderRadius: 'var(--rounded-md)',
             backgroundColor: 'var(--color-surface-soft)',
             border: '1px solid var(--color-hairline)',
-            fontSize: '13.5px',
+            fontSize: '15px',
             color: 'var(--color-body)'
           }}>
             💡 <strong>Quy tắc hạch toán:</strong> Gắn khoản chi thực tế với từng chuồng và lứa nuôi. Giúp trang trại tính toán chính xác giá thành sản xuất trên mỗi kg thành phẩm khi xuất bán.
@@ -515,7 +515,7 @@ export const CashbookView = () => {
                       <td><strong style={{ color: 'var(--color-signature-coral)' }}>{c.amount.toLocaleString('vi-VN')} đ</strong></td>
                       <td><span style={{ fontFamily: 'monospace' }}>{c.source}</span></td>
                       <td>{c.date}</td>
-                      <td style={{ fontSize: '13px', color: 'var(--color-muted)' }}>{c.notes}</td>
+                      <td style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>{c.notes}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -531,21 +531,21 @@ export const CashbookView = () => {
           {/* Asset Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG NGUYÊN GIÁ TÀI SẢN</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG NGUYÊN GIÁ TÀI SẢN</div>
               <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
                 {assets.reduce((s, a) => s + a.cost, 0).toLocaleString('vi-VN')} đ
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TRÍCH KHẤU HAO / THÁNG</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TRÍCH KHẤU HAO / THÁNG</div>
               <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '6px' }}>
                 {Math.round(assets.reduce((s, a) => s + a.monthlyDep, 0)).toLocaleString('vi-VN')} đ
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>SỐ LƯỢNG TÀI SẢN CỐ ĐỊNH</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>SỐ LƯỢNG TÀI SẢN CỐ ĐỊNH</div>
               <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
                 {assets.length} thiết bị
               </div>
@@ -598,21 +598,21 @@ export const CashbookView = () => {
           {/* Payroll Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG TIỀN CÔNG THÁNG 10/2026</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG TIỀN CÔNG THÁNG 10/2026</div>
               <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
                 {payrolls.reduce((s, p) => s + p.total, 0).toLocaleString('vi-VN')} đ
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐÃ THANH TOÁN</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐÃ THANH TOÁN</div>
               <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-success)', marginTop: '6px' }}>
                 {payrolls.reduce((s, p) => s + p.paid, 0).toLocaleString('vi-VN')} đ
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>CÒN PHẢI TRẢ</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>CÒN PHẢI TRẢ</div>
               <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '6px' }}>
                 {payrolls.reduce((s, p) => s + p.remain, 0).toLocaleString('vi-VN')} đ
               </div>
@@ -669,7 +669,7 @@ export const CashbookView = () => {
                         {p.remain > 0 ? (
                           <button
                             className="farmshift-btn farmshift-btn-primary"
-                            style={{ fontSize: '11.5px', padding: '3px 8px' }}
+                            style={{ fontSize: '13px', padding: '3px 8px' }}
                             onClick={() => {
                               setPayrolls(payrolls.map(row => row.id === p.id ? { ...row, paid: row.total, remain: 0, status: 'Đã thanh toán' } : row));
                             }}
@@ -677,7 +677,7 @@ export const CashbookView = () => {
                             Thanh toán
                           </button>
                         ) : (
-                          <span style={{ fontSize: '12px', color: 'var(--color-success)' }}>✓ Đã tất toán</span>
+                          <span style={{ fontSize: '13.5px', color: 'var(--color-success)' }}>✓ Đã tất toán</span>
                         )}
                       </td>
                     </tr>

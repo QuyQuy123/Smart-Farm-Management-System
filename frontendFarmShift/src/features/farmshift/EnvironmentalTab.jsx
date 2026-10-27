@@ -17,14 +17,14 @@ export const EnvironmentalTab = ({
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
-        <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
+        <span style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>
           Đồng bộ dữ liệu cảm biến IoT tự động (Nhiệt độ & Độ ẩm) cho phép theo dõi và hiệu chỉnh vi khí hậu chuồng nuôi
         </span>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             type="button"
             className="farmshift-btn farmshift-btn-secondary"
-            style={{ fontSize: '12.5px', padding: '6px 14px' }}
+            style={{ fontSize: '14px', padding: '6px 14px' }}
             onClick={() => setActiveTab('iot_devices')}
           >
             <Fan size={14} /> Chuyển đến Điều khiển Quạt IoT →
@@ -32,7 +32,7 @@ export const EnvironmentalTab = ({
           <button
             type="button"
             className="farmshift-btn farmshift-btn-primary"
-            style={{ fontSize: '12.5px', padding: '6px 14px' }}
+            style={{ fontSize: '14px', padding: '6px 14px' }}
             onClick={() => showToast('MSG03')}
           >
             <CheckCircle size={14} /> Lưu thay đổi
@@ -101,7 +101,7 @@ export const EnvironmentalTab = ({
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13.5px' }}>
                             <Fan
                               size={15}
                               color={device.fan?.on ? '#019788' : '#94a3b8'}
@@ -111,7 +111,7 @@ export const EnvironmentalTab = ({
                               {device.fan?.on ? `Quạt (Cấp ${device.fan?.speed})` : 'Quạt tắt'}
                             </span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13.5px' }}>
                             <Lightbulb
                               size={15}
                               color={device.light?.on ? '#f59e0b' : '#94a3b8'}
@@ -123,7 +123,7 @@ export const EnvironmentalTab = ({
                           <button
                             type="button"
                             className="farmshift-btn farmshift-btn-secondary"
-                            style={{ fontSize: '11.5px', padding: '3px 8px', height: '26px' }}
+                            style={{ fontSize: '13px', padding: '3px 8px', height: '26px' }}
                             onClick={() => { setSelectedIotBarnFilter(row.barn); setActiveTab('iot_devices'); }}
                             title="Mở bảng điều khiển quạt và đèn chuồng này"
                           >
@@ -132,7 +132,7 @@ export const EnvironmentalTab = ({
                           <button
                             type="button"
                             className="farmshift-btn farmshift-btn-secondary"
-                            style={{ fontSize: '11.5px', padding: '3px 8px', height: '26px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                            style={{ fontSize: '13px', padding: '3px 8px', height: '26px', display: 'flex', alignItems: 'center', gap: '3px' }}
                             onClick={() => setViewingCctvBarn({
                               name: row.barn,
                               areaName: row.area,
@@ -167,7 +167,7 @@ export const EnvironmentalTab = ({
             </div>
             <div>
               <strong style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>Trung tâm điều khiển Quạt thông gió & Giàn mát IoT</strong>
-              <div style={{ fontSize: '13px', color: 'var(--color-muted)', marginTop: '2px' }}>
+              <div style={{ fontSize: '14.5px', color: 'var(--color-muted)', marginTop: '2px' }}>
                 Dữ liệu cảm biến nhiệt độ và độ ẩm được kết nối trực tiếp với cụm quạt hút. Bạn có thể bật/tắt thủ công hoặc cài đặt tự động kích hoạt.
               </div>
             </div>
@@ -175,7 +175,7 @@ export const EnvironmentalTab = ({
           <button
             type="button"
             className="farmshift-btn farmshift-btn-primary"
-            style={{ fontSize: '13px', padding: '8px 16px' }}
+            style={{ fontSize: '14.5px', padding: '8px 16px' }}
             onClick={() => setActiveTab('iot_devices')}
           >
             <Sliders size={14} /> Chuyển sang Điều khiển Quạt IoT →

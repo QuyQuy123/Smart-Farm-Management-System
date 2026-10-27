@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpecificationExecutor<Account> {
 
     Optional<Account> findByEmail(String email);
+    /** Tài khoản đang hoạt động theo vai trò, ví dụ công nhân để phân công chuồng. */
+    java.util.List<Account> findAllByRole_NameAndIsActiveTrueOrderByFullNameAsc(String roleName);
 
     boolean existsByEmail(String email);
 

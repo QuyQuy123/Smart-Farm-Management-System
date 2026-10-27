@@ -12,14 +12,14 @@ export const FeedDiaryTab = ({
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-        <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
+        <span style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>
           Nhập số lượng cám cho ăn thực tế từng cữ theo từng khu và chuồng nuôi
         </span>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             type="button"
             className="farmshift-btn farmshift-btn-secondary"
-            style={{ fontSize: '12.5px', padding: '6px 12px' }}
+            style={{ fontSize: '14px', padding: '6px 12px' }}
             onClick={() => setShowFeedMeal3(!showFeedMeal3)}
           >
             <Plus size={14} /> {showFeedMeal3 ? 'Ẩn Cữ 3' : 'Thêm 1 cữ ăn (Cữ 3)'}
@@ -59,7 +59,7 @@ export const FeedDiaryTab = ({
                       <td>
                         <span className="farmshift-badge farmshift-badge-neutral">Ngày {row.dayAge}</span>
                       </td>
-                      <td style={{ fontSize: '13px', color: 'var(--color-ink)' }}>{row.feedType}</td>
+                      <td style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>{row.feedType}</td>
                       <td>
                         <input
                           type="number"
@@ -98,7 +98,7 @@ export const FeedDiaryTab = ({
                         <button
                           type="button"
                           className="farmshift-btn farmshift-btn-primary"
-                          style={{ fontSize: '12px', padding: '5px 12px' }}
+                          style={{ fontSize: '13.5px', padding: '5px 12px' }}
                           onClick={() => showToast(`Đã ghi nhận cho ăn ${totalMeal}kg ${row.feedType} tại ${row.barn} và tự động trừ tồn kho!`, 'success')}
                         >
                           Cho ăn ({totalMeal} Kg)

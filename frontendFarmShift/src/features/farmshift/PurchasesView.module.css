@@ -51,14 +51,14 @@
 .editBody input { margin-bottom: 0; }
 .editBody.editBody textarea { min-height: 64px; }
 .editTags { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; align-content: start; gap: 8px; min-width: 0; }
-.editTags legend { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+.editTags legend { font-size: 14.5px; font-weight: 500; margin-bottom: 8px; }
 .editTags label { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 6px 10px; border: 1px solid #dce8e3; background: #f6faf8; border-radius: 8px; }
 .editTags input { width: auto; margin: 0; accent-color: #008577; }
 .invoiceItems { grid-column: 1 / -1; border: 1px solid #e1ebe6; border-radius: 10px; padding: 12px; }
-.invoiceItems summary { cursor: pointer; color: #438e80; font-size: 13px; font-weight: 500; }
+.invoiceItems summary { cursor: pointer; color: #438e80; font-size: 14.5px; font-weight: 500; }
 .itemTable { overflow: auto; max-height: 180px; margin-top: 12px; }
-.invoiceTotals { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 12px 0; font-size: 13px; }
-.editBody .editHint { color: #71818a; font-size: 12px; }
+.invoiceTotals { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 12px 0; font-size: 14.5px; }
+.editBody .editHint { color: #71818a; font-size: 13.5px; }
 @media (max-width: 700px) {
   .editBody.editBody { grid-template-columns: 1fr; padding: 16px; }
   .editGrid { grid-template-columns: 1fr; gap: 14px; }
@@ -67,21 +67,21 @@
 .editItemsSection { min-width: 0; }
 .editItemsHeading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .editItemRow { display: grid; grid-template-columns: minmax(130px, 2fr) minmax(64px, .8fr) minmax(64px, .8fr) minmax(88px, 1fr) minmax(85px, 1fr) 32px; align-items: end; gap: 8px; margin-bottom: 12px; }
-.editBody .editItemRow label { min-width: 0; margin: 0; font-size: 12px; color: #637887; }
+.editBody .editItemRow label { min-width: 0; margin: 0; font-size: 13.5px; color: #637887; }
 .editItemRow input { margin-top: 6px; padding: 8px; }
 .editItemRow output { display: flex; align-items: center; justify-content: flex-end; min-height: 44px; margin-top: 6px; font-weight: 600; background: #f6f9f8; border-radius: 8px; padding: 6px; overflow-wrap: anywhere; }
 .editTotal { padding: 14px; background: #edf7f4; border-radius: 10px; text-align: right; color: #357c6e; }
 @media(max-width: 700px) { .editStatuses { grid-template-columns: 1fr; } .editItemRow { grid-template-columns: 1fr 1fr; padding-bottom: 14px; border-bottom: 1px solid #edf1f0; } .editItemRow > :first-child { grid-column: 1 / -1; } }
 .workflowSteps { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-bottom: 16px; padding: 8px 0; }
-.workflowStep { display: flex; align-items: center; gap: 6px; color: #008a7b; font-size: 12px; font-weight: 600; }
+.workflowStep { display: flex; align-items: center; gap: 6px; color: #008a7b; font-size: 13.5px; font-weight: 600; }
 .workflowTick { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; color: #008a7b; }
 .requiredMark { color: #dc2626; }
-.formErrors { flex-shrink: 0; margin: 14px 24px 0; padding: 12px 16px; border: 1px solid #f0caca; border-radius: 10px; background: #fff5f5; color: #b83a3a; font-size: 13px; max-height: 130px; overflow-y: auto; }
+.formErrors { flex-shrink: 0; margin: 14px 24px 0; padding: 12px 16px; border: 1px solid #f0caca; border-radius: 10px; background: #fff5f5; color: #b83a3a; font-size: 14.5px; max-height: 130px; overflow-y: auto; }
 .formErrors ul { margin: 6px 0 0; padding-left: 20px; }
 .detailHeading { display: flex; flex-direction: column; gap: 14px; min-width: 0; flex: 1; }
 .detailTopActions { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow-x: auto; padding: 2px 0; }
 .detailTopActions > :global(.farmshift-btn), .detailBottomActions > :global(.farmshift-btn) { height: 40px; min-height: 40px; margin: 0; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; flex-shrink: 0; }
-.detailTopActions > :global(.farmshift-btn) { height: 32px; min-height: 32px; padding: 5px 10px; font-size: 12px; line-height: 1.3; gap: 6px; border-radius: 8px; }
+.detailTopActions > :global(.farmshift-btn) { height: 32px; min-height: 32px; padding: 5px 10px; font-size: 13.5px; line-height: 1.3; gap: 6px; border-radius: 8px; }
 .detailTopActions > :global(.farmshift-btn) svg { width: 14px; height: 14px; }
 .detailViewTabs { display: inline-flex; align-items: stretch; flex-shrink: 0; height: 32px; padding: 2px; border: 1px solid var(--color-hairline); border-radius: var(--rounded-md); background: var(--color-surface-soft); box-sizing: border-box; }
 .detailViewTabs > button { white-space: nowrap; }

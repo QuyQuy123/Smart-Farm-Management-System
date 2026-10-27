@@ -171,8 +171,9 @@ public class CycleService {
                                  List<FeedRecord> feeds, List<WeightSample> samples) {
         LocalDate reference = reference(cycle);
         int dayOfCycle = (int) ChronoUnit.DAYS.between(cycle.getStartDate(), reference) + 1;
-        Integer ageDays = cycle.getHatchDate() != null ? (int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1
-                : flocks.isEmpty() ? null : ageOn(flocks.get(0), reference);
+        // Integer.valueOf keeps the whole conditional boxed: with (int) a fresh cycle without hatch date or flocks unboxed null (NPE).
+        Integer ageDays = cycle.getHatchDate() != null ? Integer.valueOf((int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1)
+                : flocks.isEmpty() ? null : Integer.valueOf(ageOn(flocks.get(0), reference));
 
         int totalIn = 0, deaths = 0, culls = 0, harvested = 0, transferredOut = 0;
         BigDecimal inWeight = BigDecimal.ZERO, outWeight = BigDecimal.ZERO, harvestedWeight = BigDecimal.ZERO;

@@ -259,8 +259,8 @@ export const ProfilePage = ({ initialTab = 'info' }) => {
               </div>
 
               <div>
-                <b style={{ display: 'block', fontSize: 14, marginBottom: 4 }}>Ảnh đại diện</b>
-                <p className="muted" style={{ margin: '0 0 10px', fontSize: 12 }}>
+                <b style={{ display: 'block', fontSize: 15, marginBottom: 4 }}>Ảnh đại diện</b>
+                <p className="muted" style={{ margin: '0 0 10px', fontSize: 13.5 }}>
                   PNG, JPG hoặc WEBP. Nhấn nút bên dưới để chọn và căn chỉnh ảnh.
                 </p>
 
@@ -462,7 +462,7 @@ export const ProfilePage = ({ initialTab = 'info' }) => {
         <div>
           <section className="card">
             <h2>Kiểm tra trước khi lưu</h2>
-            <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+            <div style={{ fontSize: 14.5, lineHeight: 1.8 }}>
               <p>Lứa hiện hành: <b>MB-2026-08</b></p>
               <p>Ngày nghiệp vụ mẫu: <b>21/10/2026</b></p>
               <p>Người thực hiện: <b>{roleTitle}</b></p>

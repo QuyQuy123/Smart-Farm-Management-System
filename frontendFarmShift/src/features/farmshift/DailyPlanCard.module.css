@@ -3,31 +3,33 @@
 .header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 20px; background: #f3faf4; border-bottom: 1px solid #d7ecdc; flex-wrap: wrap; }
 .header h3 { margin: 0; font-size: 16px; color: #1b4332; }
 .header h3 span { font-weight: 500; color: #52796f; }
-.header p { margin: 4px 0 0; font-size: 13px; color: #52796f; }
+.header p { margin: 4px 0 0; font-size: 14.5px; color: #52796f; }
+.header .workers { font-weight: 600; color: #2d6a4f; }
+.assignedMeta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .progress { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 2px 6px; min-width: 200px; }
 .progress strong { font-size: 20px; color: #1b4332; }
-.progress span { font-size: 12px; color: #52796f; }
-.progress small { grid-column: 1 / -1; font-size: 12px; color: #2d6a4f; }
+.progress span { font-size: 13.5px; color: #52796f; }
+.progress small { grid-column: 1 / -1; font-size: 13.5px; color: #2d6a4f; }
 .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: #e3efe6; overflow: hidden; }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, #2d6a4f, #74c69d); transition: width 0.2s ease; }
 
 .warnings { list-style: none; margin: 0; padding: 10px 20px; display: flex; flex-direction: column; gap: 6px; background: #fff9e6; border-bottom: 1px solid #f5e3a6; }
-.warnings li { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: #8a5a00; }
+.warnings li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; color: #8a5a00; }
 .warnings svg { flex-shrink: 0; margin-top: 2px; }
-.empty { margin: 0; padding: 24px 20px; text-align: center; font-size: 13px; color: #71818a; }
+.empty { margin: 0; padding: 24px 20px; text-align: center; font-size: 14.5px; color: #71818a; }
 
 .section { padding: 12px 20px 4px; border-top: 1px solid #edf4ef; }
 .section:first-of-type { border-top: 0; }
-.section h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #2d6a4f; }
+.section h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #2d6a4f; }
 .section ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 
 .task { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 14px; margin-bottom: 8px; border: 1px solid #e3efe6; border-radius: 12px; background: #fff; }
 .task.done { background: #f3faf4; border-color: #b7e4c7; }
 .task.deviated { background: #fffbeb; border-color: #f5e3a6; }
 .info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-.info strong { font-size: 14px; color: #1b4332; }
+.info strong { font-size: 15px; color: #1b4332; }
 .amount { font-size: 15px; font-weight: 700; color: #2d6a4f; }
-.info small { font-size: 12.5px; color: #607781; }
+.info small { font-size: 14px; color: #607781; }
 .short { color: #b42318 !important; font-weight: 600; }
 .doneLine { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; color: #2d6a4f !important; }
 .error { color: #b42318 !important; }
@@ -36,11 +38,11 @@
 .doneButton { background: #1b4332; border-color: #1b4332; color: #fff; min-width: 96px; justify-content: center; }
 .doneButton:hover:not(:disabled) { background: #2d6a4f; border-color: #2d6a4f; }
 .otherButton, .undoButton { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent;
-  color: #52796f; font: inherit; font-size: 12.5px; cursor: pointer; }
+  color: #52796f; font: inherit; font-size: 14px; cursor: pointer; }
 .otherButton:hover:not(:disabled), .undoButton:hover:not(:disabled) { background: #e9f6ec; color: #1b4332; }
 
 .editor { display: grid; grid-template-columns: 180px 1fr; gap: 10px; margin-top: 8px; padding: 10px; border-radius: 10px; background: #f3faf4; }
-.editor label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: #1b4332; }
+.editor label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 600; color: #1b4332; }
 .editorActions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 640px) {

@@ -186,7 +186,8 @@ public class FarmingProgramService {
                         throw new BadRequestException(label + ": nhiệt độ thấp nhất phải nhỏ hơn nhiệt độ cao nhất.", "PROGRAM_TEMPERATURE_RANGE");
                     }
                 }
-                case WORK -> { }
+                case WORK -> throw new BadRequestException("Chương trình nuôi chỉ gồm cám, vắc-xin, thuốc và nhiệt độ. "
+                        + "Công việc chăm sóc được giao riêng, không khai báo trong chương trình.", "PROGRAM_WORK_NOT_ALLOWED");
             }
             byCategory.computeIfAbsent(step.category(), key -> new ArrayList<>()).add(step);
         }

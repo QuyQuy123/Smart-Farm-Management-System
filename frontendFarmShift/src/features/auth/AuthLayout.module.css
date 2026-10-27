@@ -47,7 +47,7 @@
 }
 
 .visualBrand strong { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-.visualBrand small { display: block; margin-top: 2px; font-size: 13px; font-weight: 400; color: #e3f6dc; }
+.visualBrand small { display: block; margin-top: 2px; font-size: 14.5px; font-weight: 400; color: #e3f6dc; }
 
 .visualBody { max-width: 520px; }
 
@@ -58,7 +58,7 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.35);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -80,7 +80,7 @@
   padding: 7px 14px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
-  font-size: 13px;
+  font-size: 14.5px;
   backdrop-filter: blur(4px);
 }
 
@@ -114,7 +114,7 @@
 
 .cardLogo { width: 132px; height: 132px; object-fit: contain; }
 
-.cardBrand small { font-size: 12.5px; color: #5f7d6b; }
+.cardBrand small { font-size: 14px; color: #5f7d6b; }
 
 /* Shared farmshift form bits, greened inside the card */
 .card :global(.farmshift-form-control:focus) {

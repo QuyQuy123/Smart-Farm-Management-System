@@ -3,9 +3,8 @@ import { AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { createProgram, updateProgram } from '../../services/farmingProgramService';
 import { listAllInventoryItems } from '../../services/inventoryItemService';
 import { Dialog, FieldError } from './FarmAreaDialogs';
-import {
-  MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS, apiErrorMessage, contentText, formatAmount, itemFitsStep, validateProgram,
-} from './farmAreaOptions';
+import { MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS, apiErrorMessage, itemsForStep, validateProgram } from './farmAreaOptions';
+import { StockNamePicker } from './StockNamePicker';
 import styles from './FarmingPrograms.module.css';
 
 const text = value => (value == null ? '' : String(value));
@@ -22,16 +21,15 @@ const emptyStep = (category, dayFrom) => ({
 const numberOrNull = value => (value === '' ? null : Number(value));
 
 // Columns per category: [key, header, kind, extra]. Day columns are shared by every category.
-// "Hàng hóa kho" links feed, vaccine and medicine to a stock item so confirming the daily task takes it out of stock and books its cost.
+// Feed, vaccine and medicine names are picked from stock ("pick"): choosing one links the stock item, so confirming the daily task
+// takes it out of stock and books its cost; a name typed by hand is still saved, it just is not tracked in stock.
 const COLUMNS = {
-  FEED: [['name', 'Loại cám', 'text', 'Ví dụ: Cám gà con 511'], ['quantity', 'g/con/ngày', 'number', '0.1'], ['mealsPerDay', 'Số cữ/ngày', 'number', '1'],
-    ['inventoryItemId', 'Hàng hóa kho', 'item']],
-  VACCINE: [['name', 'Tên vắc-xin', 'text', 'Ví dụ: Gumboro lần 1'], ['method', 'Cách dùng', 'select', VACCINE_METHODS], ['quantity', 'Liều', 'number', '0.01'],
-    ['unit', 'Đơn vị', 'text', 'liều/con'], ['inventoryItemId', 'Hàng hóa kho', 'item']],
-  MEDICINE: [['name', 'Tên thuốc', 'text', 'Ví dụ: Men tiêu hóa'], ['method', 'Cách dùng', 'select', MEDICINE_METHODS], ['quantity', 'Liều lượng', 'number', '0.01'],
-    ['unit', 'Đơn vị', 'unit', MEDICINE_UNITS], ['inventoryItemId', 'Hàng hóa kho', 'item']],
+  FEED: [['name', 'Loại cám', 'pick', 'Chọn hoặc gõ loại cám'], ['quantity', 'g/con/ngày', 'number', '0.1'], ['mealsPerDay', 'Số cữ/ngày', 'number', '1']],
+  VACCINE: [['name', 'Tên vắc-xin', 'pick', 'Chọn hoặc gõ vắc-xin'], ['method', 'Cách dùng', 'select', VACCINE_METHODS], ['quantity', 'Liều', 'number', '0.01'],
+    ['unit', 'Đơn vị', 'text', 'liều/con']],
+  MEDICINE: [['name', 'Tên thuốc', 'pick', 'Chọn hoặc gõ tên thuốc'], ['method', 'Cách dùng', 'select', MEDICINE_METHODS], ['quantity', 'Liều lượng', 'number', '0.01'],
+    ['unit', 'Đơn vị', 'unit', MEDICINE_UNITS]],
   TEMPERATURE: [['name', 'Giai đoạn', 'text', 'Ví dụ: Úm tuần 1'], ['tempMin', 'Thấp nhất °C', 'number', '0.1'], ['tempMax', 'Cao nhất °C', 'number', '0.1']],
-  WORK: [['name', 'Công việc', 'text', 'Ví dụ: Vệ sinh máng ăn']],
 };
 
 export function FarmingProgramDialog({ program, onClose, onSaved }) {
@@ -39,7 +37,8 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
   const [draft, setDraft] = useState(() => ({
     name: program?.name || '', breed: program?.breed || '', durationDays: text(program?.durationDays ?? ''),
     targetWeightMin: text(program?.targetWeightMin), targetWeightMax: text(program?.targetWeightMax), description: program?.description || '',
-    steps: program ? program.steps.map(toDraftStep) : [emptyStep('FEED', 1)],
+    // Công việc không còn thuộc chương trình nuôi: bước WORK cũ (nếu có) bị bỏ khi sửa và lưu lại.
+    steps: program ? program.steps.filter(step => step.category !== 'WORK').map(toDraftStep) : [emptyStep('FEED', 1)],
   }));
   const [tab, setTab] = useState('FEED');
   const [errors, setErrors] = useState({ fields: {}, steps: {} });
@@ -116,21 +115,13 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     const common = { 'aria-label': `${label} dòng ${row.index + 1}`, value: row.step[key], disabled: saving, className: 'farmshift-form-control',
       onChange: event => setStep(row.index, key, event.target.value) };
     if (kind === 'select') return <select {...common}>{extra.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
-    if (kind === 'item') {
-      const fits = items.filter(item => itemFitsStep(item, row.step.category, row.step.unit));
-      const chosen = items.find(item => String(item.id) === String(row.step.inventoryItemId));
-      return <select {...common} className={`farmshift-form-control ${styles.itemSelect}`}
-        onChange={event => {
-          const picked = items.find(item => String(item.id) === event.target.value);
-          setStep(row.index, 'inventoryItemId', event.target.value);
-          if (picked && !row.step.name.trim()) setStep(row.index, 'name', picked.name);
-        }}>
-        <option value="">Không trừ kho</option>
-        {chosen && !fits.includes(chosen) && <option value={chosen.id}>{chosen.name} (không khớp đơn vị)</option>}
-        {fits.map(item => <option key={item.id} value={item.id}>
-          {item.name} · {item.unitName} ({contentText(item.unitContentQuantity, item.unitContentUnit)}) · tồn {formatAmount(item.stock)}
-        </option>)}
-      </select>;
+    if (kind === 'pick') {
+      return <StockNamePicker label={common['aria-label']} value={row.step.name} itemId={row.step.inventoryItemId} placeholder={extra}
+        options={itemsForStep(items, row.step.category, row.step.unit)} disabled={saving} invalid={Boolean(errors.steps[row.index])}
+        onChange={({ name, inventoryItemId }) => {
+          setStep(row.index, 'name', name);
+          setStep(row.index, 'inventoryItemId', inventoryItemId);
+        }} />;
     }
     if (kind === 'unit') return <><input {...common} list="program-medicine-units" /></>;
     if (kind === 'number') return <input {...common} type="number" min="0" step={extra} inputMode="decimal" />;
@@ -172,8 +163,8 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
         </div>
         <FieldError message={errors.fields.steps} />
         {['FEED', 'VACCINE', 'MEDICINE'].includes(tab) && <p className={styles.itemHint}>
-          Chọn hàng hóa kho để khi công nhân xác nhận việc trong ngày, hệ thống tự trừ tồn kho và cộng chi phí vào lứa.
-          Chỉ hiện hàng hóa có quy cách đơn vị phù hợp (khai báo ở Thiết lập danh mục → Đơn vị tính).</p>}
+          Gõ để lọc và chọn {tab === 'FEED' ? 'loại cám' : tab === 'VACCINE' ? 'vắc-xin' : 'thuốc'} có trong kho: khi công nhân xác nhận việc,
+          hệ thống tự trừ kho và cộng chi phí vào lứa. Tên gõ tay vẫn lưu được nhưng không trừ kho.</p>}
         {itemsError && <p className={styles.itemHint} role="status">{itemsError}</p>}
 
         <div className={styles.stepTableWrap}>

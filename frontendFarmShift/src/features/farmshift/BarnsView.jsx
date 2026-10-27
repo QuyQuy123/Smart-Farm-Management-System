@@ -325,49 +325,49 @@ export const BarnsView = () => {
           {/* KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
                 LỨA ĐANG NUÔI
               </div>
               <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '8px', lineHeight: 1 }}>
-                {cycles.length} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>lứa</span>
+                {cycles.length} <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>lứa</span>
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
                 Tổng quy mô 12.500 con giống
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
                 TỒN ĐÀN HIỆN TẠI
               </div>
               <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-                {cycles.reduce((s, c) => s + c.currentQty, 0).toLocaleString()} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
+                {cycles.reduce((s, c) => s + c.currentQty, 0).toLocaleString()} <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--color-success)', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-success)', marginTop: '8px' }}>
                 ✓ Tỷ lệ sống trung bình: 99.4%
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
                 HAO HỤT LŨY KẾ
               </div>
               <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '8px', lineHeight: 1 }}>
-                {cycles.reduce((s, c) => s + c.lossQty, 0)} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
+                {cycles.reduce((s, c) => s + c.lossQty, 0)} <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
                 Trong ngưỡng kỹ thuật an toàn
               </div>
             </div>
 
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
                 LỨA ĐÃ HOÀN THÀNH
               </div>
               <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-                {closedCycles.length} <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--color-muted)' }}>lứa xuất bán</span>
+                {closedCycles.length} <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>lứa xuất bán</span>
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
                 Doanh thu: 1.42 tỷ đồng
               </div>
             </div>
@@ -382,7 +382,7 @@ export const BarnsView = () => {
               </h3>
               <button
                 className="farmshift-btn farmshift-btn-primary"
-                style={{ fontSize: '12.5px', padding: '6px 14px' }}
+                style={{ fontSize: '14px', padding: '6px 14px' }}
                 onClick={() => setShowAddCycleModal(true)}
               >
                 <Plus size={14} /> Bắt đầu lứa mới
@@ -416,11 +416,11 @@ export const BarnsView = () => {
                       </td>
                       <td>
                         <strong style={{ color: 'var(--color-ink)' }}>{c.name}</strong>
-                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{c.notes}</div>
+                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>{c.notes}</div>
                       </td>
                       <td>
                         <strong>{c.barn}</strong>
-                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{c.area}</div>
+                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>{c.area}</div>
                       </td>
                       <td>{c.breed}</td>
                       <td>{c.startDate}</td>
@@ -444,7 +444,7 @@ export const BarnsView = () => {
                         <Link
                           to="/journal"
                           className="farmshift-btn farmshift-btn-secondary"
-                          style={{ fontSize: '12px', padding: '4px 10px' }}
+                          style={{ fontSize: '13.5px', padding: '4px 10px' }}
                         >
                           Nhật ký →
                         </Link>
@@ -517,7 +517,7 @@ export const BarnsView = () => {
             </h3>
             <button
               className="farmshift-btn farmshift-btn-primary"
-              style={{ fontSize: '12.5px', padding: '6px 14px' }}
+              style={{ fontSize: '14px', padding: '6px 14px' }}
               onClick={() => setShowAddAreaModal(true)}
             >
               <Plus size={14} /> Thêm khu nuôi
@@ -540,7 +540,7 @@ export const BarnsView = () => {
                 {areas.map(a => (
                   <tr key={a.id}>
                     <td><strong style={{ fontFamily: 'monospace' }}>{a.id}</strong></td>
-                    <td><strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>{a.name}</strong></td>
+                    <td><strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>{a.name}</strong></td>
                     <td>{a.livestockType}</td>
                     <td><strong>{a.barns.length}</strong> chuồng</td>
                     <td>
@@ -552,7 +552,7 @@ export const BarnsView = () => {
                     <td style={{ textAlign: 'right' }}>
                       <button
                         className="farmshift-btn farmshift-btn-secondary"
-                        style={{ fontSize: '12px', padding: '4px 10px' }}
+                        style={{ fontSize: '13.5px', padding: '4px 10px' }}
                         onClick={() => {
                           setSelectedAreaTab(a.name);
                           setMainTab('barns');
@@ -623,7 +623,7 @@ export const BarnsView = () => {
           <button
             type="button"
             className={`farmshift-btn ${viewMode === 'list' ? 'farmshift-btn-secondary' : 'farmshift-btn-ghost'}`}
-            style={{ fontSize: '12.5px', padding: '6px 12px' }}
+            style={{ fontSize: '14px', padding: '6px 12px' }}
             onClick={() => setViewMode('list')}
             title="Xem danh sách bảng dữ liệu khu nuôi"
           >
@@ -632,7 +632,7 @@ export const BarnsView = () => {
           <button
             type="button"
             className={`farmshift-btn ${viewMode === 'cctv_wall' ? 'farmshift-btn-primary' : 'farmshift-btn-secondary'}`}
-            style={{ fontSize: '12.5px', padding: '6px 12px' }}
+            style={{ fontSize: '14px', padding: '6px 12px' }}
             onClick={() => setViewMode('cctv_wall')}
             title="Mở tường camera giám sát trực tiếp toàn bộ chuồng trại"
           >
@@ -665,7 +665,7 @@ export const BarnsView = () => {
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc' }}>
                   Trung Tâm Giám Sát Camera An Ninh Sinh Học Toàn Trại
                 </h3>
-                <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+                <span style={{ fontSize: '14.5px', color: '#94a3b8' }}>
                   Truyền hình trực tiếp đồng bộ thời gian thực từ camera chuồng nuôi · Tích hợp chỉ số vi khí hậu IoT
                 </span>
               </div>
@@ -680,7 +680,7 @@ export const BarnsView = () => {
                 border: '1px solid rgba(220, 38, 38, 0.4)',
                 padding: '4px 10px',
                 borderRadius: '4px',
-                fontSize: '12px',
+                fontSize: '13.5px',
                 fontWeight: 600
               }}>
                 <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
@@ -689,7 +689,7 @@ export const BarnsView = () => {
               <button
                 type="button"
                 className="farmshift-btn farmshift-btn-secondary"
-                style={{ fontSize: '12px', padding: '6px 12px', backgroundColor: '#1e293b', color: '#f8fafc', border: '1px solid #334155' }}
+                style={{ fontSize: '13.5px', padding: '6px 12px', backgroundColor: '#1e293b', color: '#f8fafc', border: '1px solid #334155' }}
                 onClick={() => setViewMode('list')}
               >
                 ← Quay lại danh sách
@@ -734,14 +734,14 @@ export const BarnsView = () => {
                     <span style={{
                       backgroundColor: '#019788',
                       color: '#ffffff',
-                      fontSize: '10.5px',
+                      fontSize: '12px',
                       fontWeight: 700,
                       padding: '2px 6px',
                       borderRadius: '3px'
                     }}>
                       CAM 0{idx + 1}
                     </span>
-                    <strong style={{ fontSize: '13.5px', color: '#f8fafc' }}>
+                    <strong style={{ fontSize: '15px', color: '#f8fafc' }}>
                       {barn.name} ({barn.areaName})
                     </strong>
                   </div>
@@ -749,7 +749,7 @@ export const BarnsView = () => {
                     type="button"
                     className="farmshift-btn"
                     style={{
-                      fontSize: '11.5px',
+                      fontSize: '13px',
                       padding: '3px 8px',
                       backgroundColor: '#1e293b',
                       color: '#38bdf8',
@@ -779,7 +779,7 @@ export const BarnsView = () => {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  fontSize: '12px'
+                  fontSize: '13.5px'
                 }}>
                   <div style={{ display: 'flex', gap: '14px', color: 'var(--color-body)' }}>
                     <span>Đang nuôi: <strong>{barn.current.toLocaleString()} con</strong></span>
@@ -789,7 +789,7 @@ export const BarnsView = () => {
                   <button
                     type="button"
                     className="farmshift-btn farmshift-btn-secondary"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                    style={{ fontSize: '12.5px', padding: '3px 8px' }}
                     onClick={() => setSelectedBarnDetail(barn)}
                   >
                     Xem chi tiết →
@@ -825,7 +825,7 @@ export const BarnsView = () => {
                     <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 500, color: 'var(--color-ink)' }}>
                       {area.name}
                     </h3>
-                    <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '2px' }}>
                       {area.livestockType} · {area.barns.length} chuồng trại · {area.description}
                     </div>
                   </div>
@@ -837,7 +837,7 @@ export const BarnsView = () => {
                   </span>
                   <button
                     className="farmshift-btn farmshift-btn-secondary"
-                    style={{ fontSize: '12px', padding: '4px 10px' }}
+                    style={{ fontSize: '13.5px', padding: '4px 10px' }}
                     onClick={() => {
                       setNewBarn({ ...newBarn, areaId: area.id });
                       setShowAddBarnModal(true);
@@ -885,10 +885,10 @@ export const BarnsView = () => {
                         <td>{barn.avgWeight > 0 ? `${barn.avgWeight} kg` : '—'}</td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12.5px' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px' }}>
                               <Thermometer size={14} color="var(--color-info)" /> {barn.temp}°C
                             </span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12.5px' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px' }}>
                               <Droplets size={14} color="var(--fg-teal)" /> {barn.humidity}%
                             </span>
                           </div>
@@ -904,7 +904,7 @@ export const BarnsView = () => {
                         <td style={{ textAlign: 'right' }}>
                           <button
                             className="farmshift-btn farmshift-btn-secondary"
-                            style={{ fontSize: '12px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                            style={{ fontSize: '13.5px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                             onClick={() => setSelectedBarnDetail({ ...barn, areaName: area.name, livestockType: area.livestockType })}
                           >
                             <Video size={13} color="#019788" /> Xem Camera & Chi tiết
@@ -935,7 +935,7 @@ export const BarnsView = () => {
                   <h3 className="farmshift-modal-title" style={{ margin: 0, fontSize: '16px' }}>
                     Chi tiết & Giám sát Chuồng: {selectedBarnDetail.name} ({selectedBarnDetail.areaName})
                   </h3>
-                  <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>
                     Giống: {selectedBarnDetail.livestockType} · Trạng thái: {selectedBarnDetail.status}
                   </div>
                 </div>
@@ -952,11 +952,11 @@ export const BarnsView = () => {
               {/* 📹 CCTV Live Video Player Section */}
               <div style={{ marginBottom: '22px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', fontWeight: 600, color: 'var(--color-ink)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 600, color: 'var(--color-ink)' }}>
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444', display: 'inline-block' }} />
                     <span>Camera Giám Sát Trực Tiếp (1080p HD Live Stream)</span>
                   </div>
-                  <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                  <span style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>
                     Góc quay điều chỉnh PTZ · Hồng ngoại nhìn đêm · Đo nhiệt độ & quạt
                   </span>
                 </div>
@@ -980,31 +980,31 @@ export const BarnsView = () => {
               {/* Quick Summary Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
                 <div style={{ padding: '12px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                  <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Số lượng đang nuôi</div>
+                  <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Số lượng đang nuôi</div>
                   <div style={{ fontSize: '20px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>
                     {selectedBarnDetail.current.toLocaleString()} con
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '2px' }}>
                     Sức chứa: {selectedBarnDetail.capacity.toLocaleString()}
                   </div>
                 </div>
 
                 <div style={{ padding: '12px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                  <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Ngày tuổi & Cân nặng</div>
+                  <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Ngày tuổi & Cân nặng</div>
                   <div style={{ fontSize: '20px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>
                     {selectedBarnDetail.ageDays} ngày ({selectedBarnDetail.avgWeight} kg)
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-success)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '12.5px', color: 'var(--color-success)', marginTop: '2px' }}>
                     Tăng trưởng chuẩn
                   </div>
                 </div>
 
                 <div style={{ padding: '12px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                  <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Cảm biến môi trường (IoT)</div>
+                  <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Cảm biến môi trường (IoT)</div>
                   <div style={{ fontSize: '20px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>
                     {selectedBarnDetail.temp}°C · {selectedBarnDetail.humidity}%
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-info)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '12.5px', color: 'var(--color-info)', marginTop: '2px' }}>
                     Quạt thông gió: Đang hoạt động
                   </div>
                 </div>
@@ -1027,8 +1027,8 @@ export const BarnsView = () => {
 
               {/* Livestock flock info */}
               <div style={{ marginBottom: '18px', padding: '14px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                <strong style={{ fontSize: '13.5px', color: 'var(--color-ink)' }}>Thông tin lứa nuôi & Giống</strong>
-                <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--color-body)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Thông tin lứa nuôi & Giống</strong>
+                <div style={{ marginTop: '8px', fontSize: '14.5px', color: 'var(--color-body)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <div>• Giống vật nuôi: <strong>{selectedBarnDetail.livestockType}</strong></div>
                   <div>• Nguồn gốc giống: <strong>Tập đoàn Dabaco</strong></div>
                   <div>• Ngày vào giống: <strong>01/09/2026</strong></div>
@@ -1041,14 +1041,14 @@ export const BarnsView = () => {
                 <Link
                   to="/journal"
                   className="farmshift-btn farmshift-btn-primary"
-                  style={{ fontSize: '13px', padding: '8px 16px' }}
+                  style={{ fontSize: '14.5px', padding: '8px 16px' }}
                 >
                   <Utensils size={14} /> Ghi nhật ký chuồng này
                 </Link>
                 <Link
                   to="/sales"
                   className="farmshift-btn farmshift-btn-secondary"
-                  style={{ fontSize: '13px', padding: '8px 16px' }}
+                  style={{ fontSize: '14.5px', padding: '8px 16px' }}
                 >
                   <ShoppingCart size={14} /> Lập phiếu xuất bán
                 </Link>

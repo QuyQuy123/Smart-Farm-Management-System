@@ -435,7 +435,7 @@ export const GeneralSettingsView = () => {
           <div className="farmshift-card-header">
             <div>
               <h3 className="farmshift-card-title">Cấu hình kênh & Loại thông báo hệ thống</h3>
-              <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
+              <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
                 Áp dụng cho tài khoản đang đăng nhập: <strong>{user?.name || 'Chủ trang trại'}</strong>
               </p>
             </div>
@@ -450,8 +450,8 @@ export const GeneralSettingsView = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--color-hairline)' }}>
                   <div>
-                    <strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>Thông báo trong ứng dụng (Push notification)</strong>
-                    <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Hiển thị chuông thông báo góc trên màn hình khi có sự kiện mới</p>
+                    <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Thông báo trong ứng dụng (Push notification)</strong>
+                    <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Hiển thị chuông thông báo góc trên màn hình khi có sự kiện mới</p>
                   </div>
                   <input
                     type="checkbox"
@@ -463,8 +463,8 @@ export const GeneralSettingsView = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--color-hairline)' }}>
                   <div>
-                    <strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>Thông báo qua Email</strong>
-                    <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Gửi thư tổng hợp tình hình kinh doanh và báo cáo tuần</p>
+                    <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Thông báo qua Email</strong>
+                    <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Gửi thư tổng hợp tình hình kinh doanh và báo cáo tuần</p>
                   </div>
                   <input
                     type="checkbox"
@@ -476,8 +476,8 @@ export const GeneralSettingsView = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--color-hairline)' }}>
                   <div>
-                    <strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>Thông báo tin nhắn SMS</strong>
-                    <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Chỉ gửi khi có sự cố khẩn cấp (mất điện, đứt quạt gió)</p>
+                    <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Thông báo tin nhắn SMS</strong>
+                    <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Chỉ gửi khi có sự cố khẩn cấp (mất điện, đứt quạt gió)</p>
                   </div>
                   <input
                     type="checkbox"
@@ -489,8 +489,8 @@ export const GeneralSettingsView = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--color-hairline)' }}>
                   <div>
-                    <strong style={{ color: 'var(--color-signature-coral)', fontSize: '14px' }}>Cảnh báo môi trường / Thiết bị IoT</strong>
-                    <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Báo động ngay lập tức khi nhiệt độ chuồng vượt ngưỡng &gt; 30°C</p>
+                    <strong style={{ color: 'var(--color-signature-coral)', fontSize: '15px' }}>Cảnh báo môi trường / Thiết bị IoT</strong>
+                    <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Báo động ngay lập tức khi nhiệt độ chuồng vượt ngưỡng &gt; 30°C</p>
                   </div>
                   <input
                     type="checkbox"
@@ -502,8 +502,8 @@ export const GeneralSettingsView = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--color-hairline)' }}>
                   <div>
-                    <strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>Nhắc lịch tiêm phòng vắc-xin & Công việc</strong>
-                    <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Nhắc nhở ca làm trước 30 phút theo lịch nuôi chuẩn</p>
+                    <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Nhắc lịch tiêm phòng vắc-xin & Công việc</strong>
+                    <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Nhắc nhở ca làm trước 30 phút theo lịch nuôi chuẩn</p>
                   </div>
                   <input
                     type="checkbox"
@@ -515,8 +515,8 @@ export const GeneralSettingsView = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
                   <div>
-                    <strong style={{ color: 'var(--color-ink)', fontSize: '14px' }}>Nhắc công nợ & Đến hạn thanh toán</strong>
-                    <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Cảnh báo các khoản nợ tiền cám hoặc tiền bán gà quá hạn 7 ngày</p>
+                    <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Nhắc công nợ & Đến hạn thanh toán</strong>
+                    <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Cảnh báo các khoản nợ tiền cám hoặc tiền bán gà quá hạn 7 ngày</p>
                   </div>
                   <input
                     type="checkbox"
@@ -546,7 +546,7 @@ export const GeneralSettingsView = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
               <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '20px' }}>
                 <h4 style={{ margin: '0 0 8px', fontSize: '15px', color: 'var(--color-ink)' }}>Sao lưu dữ liệu JSON</h4>
-                <p style={{ fontSize: '13px', color: 'var(--color-body)', lineHeight: 1.5, margin: '0 0 16px' }}>
+                <p style={{ fontSize: '14.5px', color: 'var(--color-body)', lineHeight: 1.5, margin: '0 0 16px' }}>
                   Xuất toàn bộ dữ liệu đàn, chuồng trại, hóa đơn, tồn kho và sổ quỹ hiện tại thành tệp tin JSON an toàn.
                 </p>
                 <button
@@ -559,7 +559,7 @@ export const GeneralSettingsView = () => {
 
               <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '20px' }}>
                 <h4 style={{ margin: '0 0 8px', fontSize: '15px', color: 'var(--color-ink)' }}>Khôi phục từ tệp tin</h4>
-                <p style={{ fontSize: '13px', color: 'var(--color-body)', lineHeight: 1.5, margin: '0 0 16px' }}>
+                <p style={{ fontSize: '14.5px', color: 'var(--color-body)', lineHeight: 1.5, margin: '0 0 16px' }}>
                   Chọn tệp sao lưu FarmShift (*.json) để khôi phục toàn bộ cấu hình và sổ sách chăn nuôi.
                 </p>
                 <button
@@ -572,7 +572,7 @@ export const GeneralSettingsView = () => {
 
               <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '20px' }}>
                 <h4 style={{ margin: '0 0 8px', fontSize: '15px', color: 'var(--color-ink)' }}>Dữ liệu minh họa Miền Bính</h4>
-                <p style={{ fontSize: '13px', color: 'var(--color-body)', lineHeight: 1.5, margin: '0 0 16px' }}>
+                <p style={{ fontSize: '14.5px', color: 'var(--color-body)', lineHeight: 1.5, margin: '0 0 16px' }}>
                   Đặt lại toàn bộ trạng thái hệ thống về bộ dữ liệu mẫu chuẩn của Trang trại Miền Bính.
                 </p>
                 <button
@@ -595,7 +595,7 @@ export const GeneralSettingsView = () => {
               <h3 className="farmshift-card-title">
                 Ma trận 73 màn hình chức năng hệ thống FarmShift
               </h3>
-              <p style={{ fontSize: '12px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
+              <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
                 Đầy đủ 14 nhóm chức năng theo nguyên bản thiết kế prototype FarmShift_MienBinh_Full.html
               </p>
             </div>
@@ -619,7 +619,7 @@ export const GeneralSettingsView = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Nhóm:</span>
+              <span style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Nhóm:</span>
               <select
                 className="farmshift-form-control"
                 style={{ width: '180px' }}
@@ -634,7 +634,7 @@ export const GeneralSettingsView = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Vai trò:</span>
+              <span style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Vai trò:</span>
               <select
                 className="farmshift-form-control"
                 style={{ width: '150px' }}
@@ -671,9 +671,9 @@ export const GeneralSettingsView = () => {
                     <td>
                       <span className="farmshift-badge farmshift-badge-neutral">{screen.group}</span>
                     </td>
-                    <td><code style={{ fontSize: '12px', color: 'var(--color-primary)' }}>{screen.id}</code></td>
+                    <td><code style={{ fontSize: '13.5px', color: 'var(--color-primary)' }}>{screen.id}</code></td>
                     <td><strong>{screen.title}</strong></td>
-                    <td style={{ fontSize: '12px', color: 'var(--color-body)' }}>{screen.notes}</td>
+                    <td style={{ fontSize: '13.5px', color: 'var(--color-body)' }}>{screen.notes}</td>
                     <td style={{ textAlign: 'center' }}>
                       <span className={`farmshift-badge ${screen.roles.includes('owner') ? 'farmshift-badge-success' : 'farmshift-badge-neutral'}`}>
                         {screen.roles.includes('owner') ? 'Có' : '—'}
@@ -692,7 +692,7 @@ export const GeneralSettingsView = () => {
                     <td style={{ textAlign: 'center' }}>
                       <button
                         className="farmshift-btn farmshift-btn-primary"
-                        style={{ padding: '3px 9px', fontSize: '12px' }}
+                        style={{ padding: '3px 9px', fontSize: '13.5px' }}
                         onClick={() => navigate(screen.route)}
                         title={`Mở màn hình ${screen.title}`}
                       >

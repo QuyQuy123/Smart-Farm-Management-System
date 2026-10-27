@@ -26,7 +26,7 @@
 }
 .dragging { cursor: grabbing; }
 .image { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; transform-origin: center; }
-.hint { margin: 14px 0 12px; text-align: center; font-size: 12px; line-height: 1.5; color: #71818a; }
+.hint { margin: 14px 0 12px; text-align: center; font-size: 13.5px; line-height: 1.5; color: #71818a; }
 .controls { display: flex; align-items: center; gap: 10px; }
 .controls input { min-width: 0; flex: 1; accent-color: #008577; cursor: pointer; }
 .controls button { flex-shrink: 0; min-width: 36px; min-height: 36px; }
