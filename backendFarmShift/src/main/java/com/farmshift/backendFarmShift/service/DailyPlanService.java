@@ -42,28 +42,45 @@ public class DailyPlanService {
     private final FeedRecordRepository feedRepository;
     private final CycleExpenseRepository expenseRepository;
     private final jakarta.persistence.EntityManager entityManager;
+    private final WorkAssignmentService workAssignment;
 
     /** Phiếu việc của mọi chuồng đang có lứa nuôi trong một ngày (mặc định hôm nay). */
     public List<BarnDayPlan> farm(LocalDate date, boolean canSeeFinance) {
+        return farm(date, canSeeFinance, null);
+    }
+
+    /** workerEmail khác null: chỉ những chuồng công nhân đó phụ trách, và chỉ việc được giao cho họ. */
+    public List<BarnDayPlan> farm(LocalDate date, boolean canSeeFinance, String workerEmail) {
         LocalDate day = date == null ? today() : date;
         if (day.isAfter(today())) throw new BadRequestException("Chỉ xem được phiếu việc đến hôm nay.", "DAILY_PLAN_FUTURE");
+        Set<Long> barns = workerEmail == null ? null : workAssignment.barnIdsOf(workerEmail);
         return cycleRepository.findAllByStatus(CycleStatus.ACTIVE).stream()
                 .filter(cycle -> !day.isBefore(cycle.getStartDate()))
+                .filter(cycle -> barns == null || barns.contains(cycle.getBarn().getId()))
                 .sorted(Comparator.comparing((FarmingCycle cycle) -> cycle.getBarn().getArea().getName())
                         .thenComparing(cycle -> cycle.getBarn().getName()))
-                .map(cycle -> response(cycle, day, compute(cycle, day), canSeeFinance))
-                .filter(plan -> !plan.flocks().isEmpty() || !plan.tasks().isEmpty())
+                .map(cycle -> response(cycle, day, compute(cycle, day), canSeeFinance, workerEmail))
+                .filter(plan -> !plan.flocks().isEmpty() || !plan.tasks().isEmpty() || !plan.assignedTasks().isEmpty())
                 .toList();
     }
 
     public BarnDayPlan barn(Long cycleId, LocalDate date, boolean canSeeFinance) {
+        return barn(cycleId, date, canSeeFinance, null);
+    }
+
+    public BarnDayPlan barn(Long cycleId, LocalDate date, boolean canSeeFinance, String workerEmail) {
         FarmingCycle cycle = cycleService.find(cycleId);
         LocalDate day = date == null ? (cycle.getEndDate() != null ? cycle.getEndDate() : today()) : date;
         LocalDate last = cycle.getEndDate() != null ? cycle.getEndDate() : today();
         if (day.isBefore(cycle.getStartDate()) || day.isAfter(last)) {
             throw new BadRequestException("Ngày xem phiếu việc phải từ " + format(cycle.getStartDate()) + " đến " + format(last) + ".", "CYCLE_DATE_OUT_OF_RANGE");
         }
-        return response(cycle, day, compute(cycle, day), canSeeFinance);
+        return response(cycle, day, compute(cycle, day), canSeeFinance, workerEmail);
+    }
+
+    /** Lứa nuôi thuộc chuồng nào (để kiểm tra công nhân có phụ trách chuồng không). */
+    public Long barnIdOf(Long cycleId) {
+        return cycleService.find(cycleId).getBarn().getId();
     }
 
     /**
@@ -72,6 +89,11 @@ public class DailyPlanService {
      */
     @Transactional
     public BarnDayPlan confirm(Long cycleId, DailyTaskConfirmRequest request, String user, boolean canSeeFinance) {
+        return confirm(cycleId, request, user, canSeeFinance, null);
+    }
+
+    @Transactional
+    public BarnDayPlan confirm(Long cycleId, DailyTaskConfirmRequest request, String user, boolean canSeeFinance, String workerEmail) {
         FarmingCycle cycle = cycleService.requireActive(cycleId);
         LocalDate day = request.date();
         checkDate(cycle, day, "Ngày làm việc");
@@ -147,12 +169,17 @@ public class DailyPlanService {
             log.setExpense(expenseRepository.save(expense));
         }
         logRepository.saveAndFlush(log);
-        return response(cycle, day, compute(cycle, day), canSeeFinance);
+        return response(cycle, day, compute(cycle, day), canSeeFinance, workerEmail);
     }
 
     /** Hoàn tác xác nhận nhầm: hoàn lại tồn kho, xóa nhật ký cám / khoản chi đã sinh ra. Công nhân chỉ hoàn tác việc của mình trong hôm nay. */
     @Transactional
     public BarnDayPlan undo(Long cycleId, LocalDate date, String taskKey, String user, boolean owner, boolean canSeeFinance) {
+        return undo(cycleId, date, taskKey, user, owner, canSeeFinance, null);
+    }
+
+    @Transactional
+    public BarnDayPlan undo(Long cycleId, LocalDate date, String taskKey, String user, boolean owner, boolean canSeeFinance, String workerEmail) {
         FarmingCycle cycle = cycleService.requireActive(cycleId);
         DailyTaskLog log = logRepository.findByCycleIdAndTaskDateAndTaskKey(cycleId, date, taskKey)
                 .orElseThrow(() -> new ResourceNotFoundException("Việc này chưa được xác nhận."));
@@ -169,7 +196,7 @@ public class DailyPlanService {
         logRepository.flush();
         if (record != null) feedRepository.delete(record);
         if (expense != null) expenseRepository.delete(expense);
-        return response(cycle, date, compute(cycle, date), canSeeFinance);
+        return response(cycle, date, compute(cycle, date), canSeeFinance, workerEmail);
     }
 
     // ---------------------------------------------------------------- plan
@@ -222,7 +249,9 @@ public class DailyPlanService {
         for (FlockDay flockDay : present) {
             FarmingProgram program = flockDay.flock().getProgram();
             if (program == null) continue;
+            // Công việc (WORK) không thuộc chương trình nuôi nữa; bỏ qua nếu còn sót trong dữ liệu cũ.
             List<FarmingProgramStep> steps = program.getSteps().stream()
+                    .filter(step -> step.getCategory() != ProgramStepCategory.WORK)
                     .filter(step -> flockDay.age() >= step.getDayFrom() && flockDay.age() <= step.getDayTo()).toList();
             BigDecimal feedKg = steps.stream().filter(step -> step.getCategory() == ProgramStepCategory.FEED && step.getQuantity() != null)
                     .map(step -> grams(step.getQuantity(), flockDay.heads()).divide(BigDecimal.valueOf(1000), 3, RoundingMode.HALF_UP))
@@ -377,7 +406,7 @@ public class DailyPlanService {
 
     // ---------------------------------------------------------------- response
 
-    private BarnDayPlan response(FarmingCycle cycle, LocalDate day, Plan plan, boolean canSeeFinance) {
+    private BarnDayPlan response(FarmingCycle cycle, LocalDate day, Plan plan, boolean canSeeFinance, String workerEmail) {
         Barn barn = cycle.getBarn();
         Map<Long, FlockDay> flocks = new LinkedHashMap<>();
         for (FlockDay flockDay : plan.flocks()) flocks.put(flockDay.flock().getId(), flockDay);
@@ -433,7 +462,8 @@ public class DailyPlanService {
                 plan.flocks().stream().mapToInt(FlockDay::heads).sum(),
                 plan.flocks().stream().map(f -> new BarnDayPlan.FlockLine(f.flock().getId(), flockCode(f.flock()), f.flock().getName(),
                         f.flock().getProgram() == null ? null : f.flock().getProgram().getName(), f.age(), f.heads())).toList(),
-                tasks, all.size(), cost, warnings);
+                tasks, all.size(), cost, warnings, workAssignment.workersOf(barn.getId()),
+                workAssignment.tasksOf(barn.getId(), day, workerEmail));
     }
 
     private static BarnDayPlan.Done done(DailyTaskLog log, boolean canSeeFinance) {

@@ -18,14 +18,14 @@ export const WorkDiaryTab = ({
         gap: '12px'
       }}>
         <div>
-          <span style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>
+          <span style={{ fontSize: '15px', color: 'var(--color-muted)' }}>
             Nhật ký theo dõi công việc hàng ngày: Dọn chuồng, phun sát trùng, thay trấu đệm lót, cân mẫu và bảo trì thiết bị
           </span>
         </div>
         <button
           type="button"
           className="farmshift-btn farmshift-btn-primary"
-          style={{ fontSize: '12.5px', padding: '6px 14px' }}
+          style={{ fontSize: '14px', padding: '6px 14px' }}
           onClick={() => setShowWorkModal(true)}
         >
           <Plus size={14} /> Giao việc mới hôm nay
@@ -70,13 +70,13 @@ export const WorkDiaryTab = ({
                   </td>
                   <td>
                     <strong>{task.barn}</strong>
-                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>{task.area}</div>
+                    <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>{task.area}</div>
                   </td>
                   <td>
                     <span style={{ fontWeight: 500 }}>{task.assignee}</span>
                   </td>
                   <td>
-                    <span className="farmshift-badge farmshift-badge-neutral" style={{ fontSize: '11.5px' }}>
+                    <span className="farmshift-badge farmshift-badge-neutral" style={{ fontSize: '13px' }}>
                       {task.priority}
                     </span>
                   </td>
@@ -85,7 +85,7 @@ export const WorkDiaryTab = ({
                       {task.status}
                     </span>
                   </td>
-                  <td style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
+                  <td style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>
                     {task.notes}
                   </td>
                   <td style={{ textAlign: 'right' }}>
@@ -93,7 +93,7 @@ export const WorkDiaryTab = ({
                       <button
                         type="button"
                         className="farmshift-btn farmshift-btn-primary"
-                        style={{ fontSize: '11.5px', padding: '3px 8px' }}
+                        style={{ fontSize: '13px', padding: '3px 8px' }}
                         onClick={() => {
                           setWorkTasks(workTasks.map(t => t.id === task.id ? { ...t, status: 'Đã hoàn thành' } : t));
                         }}
@@ -101,7 +101,7 @@ export const WorkDiaryTab = ({
                         ✓ Hoàn thành
                       </button>
                     ) : (
-                      <span style={{ fontSize: '12px', color: 'var(--color-success)', fontWeight: 600 }}>
+                      <span style={{ fontSize: '13.5px', color: 'var(--color-success)', fontWeight: 600 }}>
                         ✓ Đã xong
                       </span>
                     )}

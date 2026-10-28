@@ -1075,7 +1075,7 @@ export const JournalView = () => {
               </button>
             </div>
             <div className="farmshift-modal-body">
-              <p style={{ fontSize: '13px', color: 'var(--color-muted)' }}>
+              <p style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>
                 Dữ liệu có thể nhập trực tiếp ở bảng theo từng chuồng hoặc nhập biểu mẫu nhanh dưới đây:
               </p>
               <div className="farmshift-form-group">
@@ -1142,7 +1142,7 @@ export const JournalView = () => {
                   <h3 className="farmshift-modal-title" style={{ margin: 0, fontSize: '16px' }}>
                     Camera Giám Sát Trực Tiếp: {viewingCctvBarn.name} ({viewingCctvBarn.areaName})
                   </h3>
-                  <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>
                     Kết nối trực tiếp thiết bị IoT quạt, đèn và cảm biến vi khí hậu
                   </div>
                 </div>
@@ -1174,20 +1174,20 @@ export const JournalView = () => {
               {/* Status summary */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                 <div style={{ padding: '10px 14px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Nhiệt độ hiện tại</span>
+                  <span style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Nhiệt độ hiện tại</span>
                   <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--color-ink)', marginTop: '2px' }}>
                     {viewingCctvBarn.temp}°C
                   </div>
                 </div>
                 <div style={{ padding: '10px 14px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Độ ẩm chuồng</span>
+                  <span style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Độ ẩm chuồng</span>
                   <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--color-ink)', marginTop: '2px' }}>
                     {viewingCctvBarn.humidity}%
                   </div>
                 </div>
                 <div style={{ padding: '10px 14px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Trạng thái Quạt & Đèn</span>
-                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '4px' }}>
+                  <span style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Trạng thái Quạt & Đèn</span>
+                  <div style={{ fontSize: '14.5px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '4px' }}>
                     Quạt: {viewingCctvBarn.fan?.on ? `Bật (Cấp ${viewingCctvBarn.fan?.speed})` : 'Tắt'} · Đèn: {viewingCctvBarn.light?.on ? 'Bật' : 'Tắt'}
                   </div>
                 </div>

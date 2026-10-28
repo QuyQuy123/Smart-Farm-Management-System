@@ -88,24 +88,24 @@ export const ReportsView = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG NHẬP ĐÀN</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG NHẬP ĐÀN</div>
               <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>14,500 con</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '4px' }}>Lứa nuôi tháng 8 - 9/2026</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '4px' }}>Lứa nuôi tháng 8 - 9/2026</div>
             </div>
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐÃ XUẤT BÁN THỊT</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐÃ XUẤT BÁN THỊT</div>
               <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '6px' }}>2,000 con</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '4px' }}>4,180 kg thương phẩm</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '4px' }}>4,180 kg thương phẩm</div>
             </div>
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>HAO HỤT LŨY KẾ</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>HAO HỤT LŨY KẾ</div>
               <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-success)', marginTop: '6px' }}>50 con (0.34%)</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-success)', marginTop: '4px' }}>Tỷ lệ sống đạt 99.66%</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-success)', marginTop: '4px' }}>Tỷ lệ sống đạt 99.66%</div>
             </div>
             <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐANG NUÔI HIỆN TẠI</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐANG NUÔI HIỆN TẠI</div>
               <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>12,450 con</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '4px' }}>5 chuồng đang nuôi</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '4px' }}>5 chuồng đang nuôi</div>
             </div>
           </div>
 
@@ -197,14 +197,14 @@ export const ReportsView = () => {
           <div className="farmshift-card-body">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                <div style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Tổng doanh thu thực tế</div>
+                <div style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Tổng doanh thu thực tế</div>
                 <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>336,360,000 đ</div>
-                <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>Đã thu tiền: 291,880,000 đ · Còn nợ: 44,480,000 đ</div>
+                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Đã thu tiền: 291,880,000 đ · Còn nợ: 44,480,000 đ</div>
               </div>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                <div style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Tổng khối lượng xuất bán</div>
+                <div style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Tổng khối lượng xuất bán</div>
                 <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '4px' }}>4,180 kg</div>
-                <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>Đơn giá trung bình: 80,468 đ/kg</div>
+                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Đơn giá trung bình: 80,468 đ/kg</div>
               </div>
             </div>
 
@@ -252,9 +252,9 @@ export const ReportsView = () => {
           </div>
           <div className="farmshift-card-body">
             <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)', marginBottom: '16px' }}>
-              <div style={{ fontSize: '13px', color: 'var(--color-muted)' }}>Tổng giá trị vật tư đã mua</div>
+              <div style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Tổng giá trị vật tư đã mua</div>
               <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>281,810,000 đ</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>Gồm: Cám (180.75 tr) + Con giống (92.5 tr) + Thuốc thú y (8.56 tr)</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Gồm: Cám (180.75 tr) + Con giống (92.5 tr) + Thuốc thú y (8.56 tr)</div>
             </div>
 
             <div className="farmshift-table-container" style={{ border: 'none' }}>
@@ -307,7 +307,7 @@ export const ReportsView = () => {
             <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginBottom: '8px' }}>
               184,520,000 đ
             </div>
-            <div style={{ fontSize: '13px', color: 'var(--color-muted)', marginBottom: '16px' }}>
+            <div style={{ fontSize: '14.5px', color: 'var(--color-muted)', marginBottom: '16px' }}>
               Ước tính giá trị tồn kho cám các loại (455 bao), vắc-xin bảo quản lạnh, thuốc dự phòng và hóa chất
             </div>
 
@@ -368,15 +368,15 @@ export const ReportsView = () => {
           <div className="farmshift-card-body">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Dòng tiền vào</div>
+                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Dòng tiền vào</div>
                 <div style={{ fontSize: '22px', fontWeight: 500, color: 'var(--color-success)', marginTop: '4px' }}>+291,880,000 đ</div>
               </div>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Dòng tiền ra</div>
+                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Dòng tiền ra</div>
                 <div style={{ fontSize: '22px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '4px' }}>-34,760,000 đ</div>
               </div>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Dòng tiền thuần</div>
+                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Dòng tiền thuần</div>
                 <div style={{ fontSize: '22px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '4px' }}>+257,120,000 đ</div>
               </div>
             </div>
@@ -464,10 +464,10 @@ export const ReportsView = () => {
           <div className="farmshift-card-body">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
               <div style={{ border: '1px solid var(--color-hairline)', padding: '20px', borderRadius: 'var(--rounded-lg)' }}>
-                <div style={{ fontSize: '13px', color: 'var(--color-muted)', fontWeight: 500 }}>LỨA J-DABACO (45 NGÀY TUỔI)</div>
+                <div style={{ fontSize: '14.5px', color: 'var(--color-muted)', fontWeight: 500 }}>LỨA J-DABACO (45 NGÀY TUỔI)</div>
                 <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '8px' }}>FCR: 2.15</div>
-                <div style={{ fontSize: '13px', color: 'var(--color-success)', marginTop: '4px' }}>✓ Đạt chuẩn giống (Chuẩn Dabaco: 2.20)</div>
-                <div style={{ fontSize: '13px', color: 'var(--color-body)', marginTop: '12px', lineHeight: 1.6 }}>
+                <div style={{ fontSize: '14.5px', color: 'var(--color-success)', marginTop: '4px' }}>✓ Đạt chuẩn giống (Chuẩn Dabaco: 2.20)</div>
+                <div style={{ fontSize: '14.5px', color: 'var(--color-body)', marginTop: '12px', lineHeight: 1.6 }}>
                   • Trọng lượng TB: <strong>1.65 kg / con</strong><br />
                   • Tiêu thụ cám lũy kế: <strong>3.55 kg / con</strong><br />
                   • Tăng trọng bình quân ngày (ADG): <strong>36.6 g / ngày</strong>
@@ -475,10 +475,10 @@ export const ReportsView = () => {
               </div>
 
               <div style={{ border: '1px solid var(--color-hairline)', padding: '20px', borderRadius: 'var(--rounded-lg)' }}>
-                <div style={{ fontSize: '13px', color: 'var(--color-muted)', fontWeight: 500 }}>LỨA GÀ MÍA (60 NGÀY TUỔI)</div>
+                <div style={{ fontSize: '14.5px', color: 'var(--color-muted)', fontWeight: 500 }}>LỨA GÀ MÍA (60 NGÀY TUỔI)</div>
                 <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '8px' }}>FCR: 2.38</div>
-                <div style={{ fontSize: '13px', color: 'var(--color-success)', marginTop: '4px' }}>✓ Đạt chuẩn gà thịt đặc sản</div>
-                <div style={{ fontSize: '13px', color: 'var(--color-body)', marginTop: '12px', lineHeight: 1.6 }}>
+                <div style={{ fontSize: '14.5px', color: 'var(--color-success)', marginTop: '4px' }}>✓ Đạt chuẩn gà thịt đặc sản</div>
+                <div style={{ fontSize: '14.5px', color: 'var(--color-body)', marginTop: '12px', lineHeight: 1.6 }}>
                   • Trọng lượng TB: <strong>2.08 kg / con</strong><br />
                   • Tiêu thụ cám lũy kế: <strong>4.95 kg / con</strong><br />
                   • Tăng trọng bình quân ngày (ADG): <strong>34.6 g / ngày</strong>

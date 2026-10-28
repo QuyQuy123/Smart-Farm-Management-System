@@ -3,7 +3,7 @@
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
   gap: 8px; padding: 9px 15px;
-  font-family: var(--font-sans); font-size: 14px; font-weight: 500;
+  font-family: var(--font-sans); font-size: 15px; font-weight: 500;
   line-height: 1.4; border-radius: 6px; border: 1px solid transparent;
   cursor: pointer; text-decoration: none; white-space: nowrap;
   transition: background var(--transition-fast), border-color var(--transition-fast),
@@ -50,11 +50,11 @@
 .danger { background-color: var(--color-farm-red); color: var(--color-on-primary); border-color: var(--color-farm-red); }
 
 /* Link-style */
-.link { background: none; border: none; color: var(--color-link); padding: 0; font-size: 14px; font-weight: 500; }
+.link { background: none; border: none; color: var(--color-link); padding: 0; font-size: 15px; font-weight: 500; }
 .link:active { color: var(--color-link-active); }
 
 /* Sizes */
-.sm { padding: 5px 10px; font-size: 13px; border-radius: 5px; }
+.sm { padding: 5px 10px; font-size: 14.5px; border-radius: 5px; }
 .lg { padding: 12px 24px; font-size: 16px; border-radius: 12px; }
 
 /* Full Width */

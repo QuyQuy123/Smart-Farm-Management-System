@@ -18,39 +18,26 @@ import java.time.Duration;
 
 /**
  * Service providing Speech-To-Text (STT) capabilities.
- * Delegates audio transcription to the dedicated {@code aiServiceFarmShift} microservice,
- * with secondary fallback to direct Groq Whisper or browser Web Speech API.
+ * Delegates all audio transcription to the dedicated {@code aiServiceFarmShift} microservice,
+ * with fallback to browser Web Speech API if the AI microservice is unreachable.
  */
 @Slf4j
 @Service
 public class GroqWhisperService {
 
-    private static final String DOMAIN_PROMPT =
-            "Hệ thống quản lý trang trại gà thịt FarmShift: Chuồng A1, Nhà A2, Nhà B1, cám Higro 01, Higro 02, " +
-            "C.P. Việt Nam, Dabaco, Hanvet, vắc-xin Lasota, Gumboro, Newcastle, cân mẫu, hao hụt, nhập kho, NH000001.";
-
     private final String aiServiceUrl;
-    private final String groqApiKey;
-    private final String groqSttUrl;
-    private final String groqSttModel;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
     public GroqWhisperService(
             @Value("${ai-service.url:http://localhost:8000}") String aiServiceUrl,
-            @Value("${app.ai.groq-api-key:}") String groqApiKey,
-            @Value("${app.ai.groq-stt-url:https://api.groq.com/openai/v1/audio/transcriptions}") String groqSttUrl,
-            @Value("${app.ai.groq-stt-model:whisper-large-v3}") String groqSttModel,
             ObjectMapper objectMapper
     ) {
         this.aiServiceUrl = aiServiceUrl != null ? aiServiceUrl.strip().replaceAll("/+$", "") : "http://localhost:8000";
-        this.groqApiKey = groqApiKey != null ? groqApiKey.strip() : "";
-        this.groqSttUrl = groqSttUrl != null && !groqSttUrl.isBlank() ? groqSttUrl.strip() : "https://api.groq.com/openai/v1/audio/transcriptions";
-        this.groqSttModel = groqSttModel != null && !groqSttModel.isBlank() ? groqSttModel.strip() : "whisper-large-v3";
         this.objectMapper = objectMapper;
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setConnectTimeout(Duration.ofSeconds(5));
         requestFactory.setReadTimeout(Duration.ofSeconds(30));
         this.restTemplate = new RestTemplate(requestFactory);
     }
@@ -105,7 +92,8 @@ public class GroqWhisperService {
             ResponseEntity<String> response = restTemplate.postForEntity(targetUrl, requestEntity, String.class);
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 JsonNode root = objectMapper.readTree(response.getBody());
-                String transcribedText = root.path("text").asText("").trim();
+                String rawText = root.path("text").asText("").trim();
+                String transcribedText = VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawText);
                 boolean fallback = root.path("fallback").asBoolean(false);
                 String provider = root.path("provider").asText("AI_SERVICE_WHISPER");
                 long duration = root.has("durationMs") ? root.path("durationMs").asLong()
@@ -123,50 +111,7 @@ public class GroqWhisperService {
             log.warn("aiServiceFarmShift unavailable for voice STT ({}/api/voice/transcribe): {}", aiServiceUrl, ex.getMessage());
         }
 
-        // 2. Secondary fallback: Direct Groq Whisper API (if groqApiKey is configured directly in backend)
-        if (!groqApiKey.isBlank()) {
-            try {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-                headers.setBearerAuth(groqApiKey);
-
-                MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-                ByteArrayResource fileResource = new ByteArrayResource(fileBytes) {
-                    @Override
-                    public String getFilename() {
-                        return finalFilename;
-                    }
-                };
-
-                body.add("file", fileResource);
-                body.add("model", groqSttModel);
-                body.add("language", "vi");
-                body.add("temperature", "0");
-                body.add("response_format", "verbose_json");
-                body.add("prompt", DOMAIN_PROMPT);
-
-                HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-                ResponseEntity<String> response = restTemplate.postForEntity(groqSttUrl, requestEntity, String.class);
-
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    JsonNode root = objectMapper.readTree(response.getBody());
-                    String transcribedText = root.path("text").asText("").trim();
-                    long duration = System.currentTimeMillis() - startTime;
-                    log.info("Direct Groq Whisper STT succeeded in {}ms: '{}'", duration, transcribedText);
-
-                    return SpeechTranscribeResponse.builder()
-                            .text(transcribedText)
-                            .provider("GROQ_WHISPER_LARGE_V3")
-                            .fallback(false)
-                            .durationMs(duration)
-                            .build();
-                }
-            } catch (Exception ex) {
-                log.warn("Error calling direct Groq Whisper API: {}", ex.getMessage());
-            }
-        }
-
-        // 3. Final fallback: Browser Web Speech API
+        // Fallback: Browser Web Speech API
         return SpeechTranscribeResponse.builder()
                 .text("")
                 .provider("WEB_SPEECH_FALLBACK")

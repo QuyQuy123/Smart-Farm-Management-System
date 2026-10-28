@@ -171,8 +171,9 @@ public class CycleService {
                                  List<FeedRecord> feeds, List<WeightSample> samples) {
         LocalDate reference = reference(cycle);
         int dayOfCycle = (int) ChronoUnit.DAYS.between(cycle.getStartDate(), reference) + 1;
-        Integer ageDays = cycle.getHatchDate() != null ? (int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1
-                : flocks.isEmpty() ? null : ageOn(flocks.get(0), reference);
+        // Integer.valueOf keeps the whole conditional boxed: with (int) a fresh cycle without hatch date or flocks unboxed null (NPE).
+        Integer ageDays = cycle.getHatchDate() != null ? Integer.valueOf((int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1)
+                : flocks.isEmpty() ? null : Integer.valueOf(ageOn(flocks.get(0), reference));
 
         int totalIn = 0, deaths = 0, culls = 0, harvested = 0, transferredOut = 0;
         BigDecimal inWeight = BigDecimal.ZERO, outWeight = BigDecimal.ZERO, harvestedWeight = BigDecimal.ZERO;
@@ -209,11 +210,16 @@ public class CycleService {
     private CycleFinance finance(List<FlockMovement> movements, List<FeedRecord> feeds, List<CycleExpense> expenses, CycleMetrics metrics) {
         BigDecimal chicks = BigDecimal.ZERO, revenue = BigDecimal.ZERO;
         for (FlockMovement m : movements) {
-            BigDecimal value = m.getFlock().getUnitPrice().multiply(BigDecimal.valueOf(m.getQuantity()));
+            BigDecimal unitPrice = m.getFlock() != null && m.getFlock().getUnitPrice() != null ? m.getFlock().getUnitPrice() : BigDecimal.ZERO;
+            BigDecimal value = unitPrice.multiply(BigDecimal.valueOf(m.getQuantity()));
             switch (m.getType()) {
                 case IMPORT, TRANSFER_IN -> chicks = chicks.add(value);
                 case TRANSFER_OUT -> chicks = chicks.subtract(value);
-                case HARVEST -> revenue = revenue.add(m.getWeightKg().multiply(m.getUnitPrice()));
+                case HARVEST -> {
+                    if (m.getWeightKg() != null && m.getUnitPrice() != null) {
+                        revenue = revenue.add(m.getWeightKg().multiply(m.getUnitPrice()));
+                    }
+                }
                 default -> { }
             }
         }

@@ -56,8 +56,15 @@ class FarmingProgramIntegrationTest {
                 step("VACCINE", "Đậu gà", 8, 8, "method", "WING_WEB"),
                 step("MEDICINE", "Vitamin C + điện giải", 1, 7, "method", "MIX_WATER", "quantity", 2, "unit", "g/lít nước"),
                 step("TEMPERATURE", "Úm tuần 1", 1, 7, "tempMin", 31, "tempMax", 33),
-                step("TEMPERATURE", "Úm tuần 2", 8, 14, "tempMin", 28, "tempMax", 30),
-                step("WORK", "Vệ sinh máng ăn máng uống", 1, 105)));
+                step("TEMPERATURE", "Úm tuần 2", 8, 14, "tempMin", 28, "tempMax", 30)));
+    }
+
+    @Test
+    void rejectsWorkStepsBecauseCareWorkIsAssignedSeparately() throws Exception {
+        List<Map<String, Object>> steps = fullPlan();
+        steps.add(step("WORK", "Vệ sinh máng ăn máng uống", 1, 105));
+        send(post(API), gaTa(steps)).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("PROGRAM_WORK_NOT_ALLOWED"));
     }
 
     @Test
@@ -66,7 +73,7 @@ class FarmingProgramIntegrationTest {
             .andExpect(jsonPath("$.data.breed").value("Gà ta"))
             .andExpect(jsonPath("$.data.durationDays").value(105))
             .andExpect(jsonPath("$.data.targetWeightMax").value(2.2))
-            .andExpect(jsonPath("$.data.steps.length()").value(8))
+            .andExpect(jsonPath("$.data.steps.length()").value(7))
             .andExpect(jsonPath("$.data.steps[?(@.name == 'Cám gà con')].mealsPerDay").value(6))
             .andExpect(jsonPath("$.data.steps[?(@.name == 'Cám gà con')].unit").value("g/con/ngày"))
             .andExpect(jsonPath("$.data.steps[?(@.name == 'Đậu gà')].method").value("WING_WEB"))
