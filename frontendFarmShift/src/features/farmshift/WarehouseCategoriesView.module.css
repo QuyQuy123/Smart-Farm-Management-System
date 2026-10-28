@@ -77,3 +77,44 @@
 .formField textarea { min-height: 72px; resize: vertical; }
 @media (max-width: 640px) { .formGrid { grid-template-columns: 1fr; row-gap: 14px; } }
 @media (max-width: 480px) { .toolbar, .searchRow, .modalHeader, .modalBody { padding: 16px; } .dialog { padding: 12px; } .toolbar > button { width: 100%; } .search { width: 100%; } }
+
+.unitConversionRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 120px);
+  align-items: start;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.modalBody .unitConversionRow > input,
+.modalBody .unitConversionRow > select {
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.unitModal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 40px);
+  overflow: hidden;
+  border-radius: 18px;
+}
+.unitModal > .modalHeader { padding: 16px 24px; flex-shrink: 0; }
+.unitModal > form { display: flex; flex-direction: column; min-height: 0; }
+.unitModal .modalBody { padding: 18px 24px; min-height: 0; overflow-y: auto; }
+.unitModal .metadata { margin-bottom: 14px; }
+.unitModal .modalBody label { margin-bottom: 6px; }
+.unitModal .modalBody input { margin-bottom: 14px; }
+.unitModal .unitConversionRow { margin-bottom: 14px; }
+.unitModal .unitConversionRow > input { margin-bottom: 0; }
+.unitModal .modalBody textarea { height: 72px; min-height: 72px; resize: none; }
+.unitModal .footer { padding: 12px 24px; flex-shrink: 0; }
+@media (max-width: 480px), (max-height: 640px) {
+  .unitModal { max-height: calc(100dvh - 24px); }
+  .unitModal > .modalHeader, .unitModal .footer { padding: 12px 16px; }
+  .unitModal .modalBody { padding: 12px 16px; }
+  .unitModal .metadata, .unitModal .modalBody input, .unitModal .unitConversionRow { margin-bottom: 10px; }
+  .unitModal .unitConversionRow > input { margin-bottom: 0; }
+  .unitModal .modalBody textarea { height: 56px; min-height: 56px; }
+}

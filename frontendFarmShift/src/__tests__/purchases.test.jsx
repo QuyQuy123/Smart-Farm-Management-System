@@ -277,12 +277,8 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       expect(screen.getAllByText('Cám Giai đoạn 1 (Úm)').length).toBeGreaterThan(0);
       expect(screen.getAllByText('64.000.000 đ').length).toBeGreaterThan(0);
 
-      // Verify A4 voucher tab
-      const voucherTabBtn = screen.getByRole('button', { name: /^Mẫu in A4$/i });
-      fireEvent.click(voucherTabBtn);
-      expect(screen.getAllByText(/PHIẾU NHẬP KHO/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Mẫu số 01 - VT/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Thủ kho nhận hàng/i).length).toBeGreaterThan(0);
+      expect(screen.queryByRole('button', { name: /^Mẫu in A4$/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('article', { name: 'Hóa đơn nhập hàng' })).toBeInTheDocument();
 
       // Verify clicking "In phiếu" triggers window.print
       const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {});
