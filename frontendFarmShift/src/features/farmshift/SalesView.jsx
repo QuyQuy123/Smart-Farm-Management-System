@@ -4,12 +4,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { readLocalSales } from '../../services/localSalesStorage';
 import { useSearchParams } from 'react-router-dom';
-import { listSalesCustomers, listSalesOrders, createSalesOrder } from '../../services/salesCustomerService';
+import { listSalesCustomers, listSalesOrders, createSalesOrder, updateSalesOrder } from '../../services/salesCustomerService';
 import { listBarns } from '../../services/farmAreaService';
 import { listCycles } from '../../services/cycleService';
 import styles from './SalesView.module.css';
 import { SalesInvoiceTemplate } from './SalesInvoiceTemplate';
-import { Plus, Search, FileSpreadsheet, X, Printer } from 'lucide-react';
+import { Plus, Search, FileSpreadsheet, X, Printer, Pencil } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 
 export const SalesView = () => {
@@ -36,6 +36,7 @@ export const SalesView = () => {
     setSearchTerm('');
     setSearchParams({ tab: 'orders' });
   };
+  const [editingSale, setEditingSale] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [customerPage, setCustomerPage] = useState(0);
@@ -84,7 +85,25 @@ export const SalesView = () => {
   const [cycleOptions, setCycleOptions] = useState([]);
   const [cyclesLoading, setCyclesLoading] = useState(false);
   const [cyclesError, setCyclesError] = useState('');
-  const openSaleModal = async () => {
+  const openSaleModal = async (sale = null) => {
+    setEditingSale(sale);
+    setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }] : []);
+    setSaveError('');
+    requestId.current = null;
+    if (sale) {
+      const buyer = customers.find(customer => customer.name === sale.customer && customer.phone === sale.phone);
+      setNewSale({ customer: sale.customer, phone: sale.phone || '', address: sale.address || '',
+        taxCode: buyer?.taxCode || '', paymentMethod: buyer?.paymentMethod || 'Tiền mặt',
+        date: sale.date, flock: '__existing__', quantity: String(sale.quantity), totalWeight: String(sale.totalWeight),
+        unitPrice: String(sale.unitPrice), note: sale.note || '',
+        paymentStatus: sale.totalAmount <= sale.paidAmount ? 'PAID' : sale.paidAmount > 0 ? 'PARTIAL' : 'DEBT',
+        paidAmount: String(sale.paidAmount),
+      });
+    } else {
+      setNewSale({ customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt',
+        paymentStatus: 'PAID', paidAmount: '', date: new Date().toISOString().split('T')[0],
+        flock: '', quantity: '', totalWeight: '', unitPrice: '', note: '' });
+    }
     setShowAddModal(true);
     setCyclesLoading(true);
     setCyclesError('');
@@ -97,7 +116,7 @@ export const SalesView = () => {
           label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
         }));
       }));
-      setCycleOptions(options.flat());
+      setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }, ...options.flat()] : options.flat());
     } catch {
       setCycleOptions([]);
       setCyclesError('Không thể tải khu nuôi - chuồng - lứa. Vui lòng thử lại.');
@@ -119,20 +138,21 @@ export const SalesView = () => {
       setSaveError('Số tiền đã trả phải lớn hơn 0 và nhỏ hơn tổng doanh thu.');
       return;
     }
-    const flock = cycleOptions.find(option => option.id === newSale.flock)?.label;
+    const flock = newSale.flock === '__existing__' && editingSale ? editingSale.flock : cycleOptions.find(option => option.id === newSale.flock)?.label;
     if (!flock) { setSaveError('Vui lòng chọn khu nuôi - chuồng - lứa.'); return; }
     requestId.current ||= crypto.randomUUID();
     setSaving(true);
     setSaveError('');
     try {
-      const created = await createSalesOrder({
-        id: requestId.current, date: newSale.date, customer: newSale.customer.trim(),
+      const body = {
+        id: editingSale?.id || requestId.current, date: newSale.date, customer: newSale.customer.trim(),
         phone: newSale.phone.trim(), address: newSale.address.trim(), taxCode: newSale.taxCode.trim(), paymentMethod: newSale.paymentMethod, flock,
         quantity: qty, totalWeight: weight, unitPrice: price,
         status: newSale.paymentStatus, paidAmount, note: newSale.note,
-      });
+      };
+      const created = editingSale ? await updateSalesOrder(editingSale.id, body) : await createSalesOrder(body);
       requestId.current = null;
-      setSales(previous => [created, ...previous]);
+      setSales(previous => editingSale ? previous.map(sale => sale.id === created.id ? created : sale) : [created, ...previous]);
       setCustomerRevision(value => value + 1);
       setShowAddModal(false);
       setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '' }));
@@ -161,7 +181,7 @@ export const SalesView = () => {
           </button>
           <button
             className="farmshift-btn farmshift-btn-mint"
-            onClick={openSaleModal}
+            onClick={() => openSaleModal()}
           >
             <Plus size={16} /> Tạo đơn bán hàng
           </button>
@@ -222,12 +242,13 @@ export const SalesView = () => {
                     <th>Đơn giá</th>
                     <th>Tổng doanh thu</th>
                     <th>Trạng thái</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSales.length === 0 && (
                     <tr>
-                      <td colSpan={9} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--color-muted)' }}>
+                      <td colSpan={10} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--color-muted)' }}>
                         <strong style={{ display: 'block', color: 'var(--color-ink)', marginBottom: '8px' }}>
                           {(customerFilter || searchTerm) ? 'Không tìm thấy đơn bán phù hợp' : 'Chưa có đơn bán hàng'}
                         </strong>
@@ -258,6 +279,7 @@ export const SalesView = () => {
                           {s.totalAmount - s.paidAmount > 0 ? `Còn nợ ${formatMoney(s.totalAmount - s.paidAmount)}` : 'Đã thanh toán'}
                         </span>
                       </td>
+                      <td><button type="button" className={styles.editButton} onClick={() => openSaleModal(s)} title="Chỉnh sửa hóa đơn" aria-label={`Sửa hóa đơn ${s.code}`}><Pencil size={16} /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -332,7 +354,7 @@ export const SalesView = () => {
         <div className="farmshift-modal-backdrop" onClick={event => { if (event.target === event.currentTarget && !saving) setShowAddModal(false); }}>
           <div className={`farmshift-modal ${styles.modal}`} role="dialog" aria-modal="true" aria-labelledby="sale-modal-title">
             <div className="farmshift-modal-header">
-              <h3 id="sale-modal-title" className="farmshift-modal-title">Tạo đơn bán</h3>
+              <h3 id="sale-modal-title" className="farmshift-modal-title">{editingSale ? `Chỉnh sửa hóa đơn ${editingSale.code}` : 'Tạo đơn bán'}</h3>
               <button
                 disabled={saving}
                 onClick={() => setShowAddModal(false)}
@@ -400,7 +422,7 @@ export const SalesView = () => {
                     <option value="">{cyclesLoading ? 'Đang tải...' : 'Chọn khu nuôi - chuồng - lứa'}</option>
                     {cycleOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </select>
-                  {cyclesError && <p role="alert" className={styles.error}>{cyclesError} <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openSaleModal}>Thử lại</button></p>}
+                  {cyclesError && <p role="alert" className={styles.error}>{cyclesError} <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => openSaleModal(editingSale)}>Thử lại</button></p>}
                   {!cyclesLoading && !cyclesError && cycleOptions.length === 0 && <p className={styles.hint}>Chưa có lứa nuôi trong cơ sở dữ liệu.</p>}
                 </div>
 
@@ -480,7 +502,7 @@ export const SalesView = () => {
                   Hủy
                 </button>
                 <button type="submit" disabled={saving} className="farmshift-btn farmshift-btn-mint">
-                  {saving ? 'Đang lưu...' : 'Lưu đơn bán'}
+                  {saving ? 'Đang lưu...' : editingSale ? 'Lưu thay đổi' : 'Lưu đơn bán'}
                 </button>
               </div>
             </form>

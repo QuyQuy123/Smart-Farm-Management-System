@@ -6,7 +6,7 @@ import {
   DollarSign, Upload, Tag, Printer,
   Trash2, Pencil, AlertTriangle, PackageCheck, Loader2,
   ZoomIn, ZoomOut, RotateCw, ExternalLink, FileText,
-  Camera, RefreshCw, Smartphone, Check, ArrowLeft
+  Camera, RefreshCw, Smartphone, ArrowLeft
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -31,6 +31,7 @@ import styles from './PurchasesView.module.css';
 import { PurchaseRowActions } from './PurchaseRowActions';
 import { ConfirmStockImport } from './ConfirmStockImport';
 import { PrintablePurchaseVoucher } from './PrintablePurchaseVoucher';
+import { PurchaseInvoiceTemplate } from './PurchaseInvoiceTemplate';
 
 export const PurchasesView = () => {
   const { showToast } = useNotification();
@@ -73,6 +74,7 @@ export const PurchasesView = () => {
   const [ocrRotation, setOcrRotation] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
+  const purchaseInvoiceRef = useRef(null);
   const cameraInputRef = useRef(null);
   const videoRef = useRef(null);
   const [ocrTab, setOcrTab] = useState('upload'); // 'upload' | 'camera'
@@ -777,6 +779,7 @@ export const PurchasesView = () => {
 
   // In chứng từ Phiếu nhập kho chuẩn A4 (Mẫu 01-VT)
   const handlePrintVoucher = () => {
+    if (orderViewTab === 'info') { purchaseInvoiceRef.current?.print(); return; }
     document.body.classList.add('farmshift-printing');
     const cleanup = () => {
       document.body.classList.remove('farmshift-printing');
@@ -986,25 +989,25 @@ export const PurchasesView = () => {
           {/* Quick Metrics Cards (Đối chiếu chuẩn FarmShift_MienBinh_Full.html) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '16px' }}>
             <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Tổng giá trị nhập</div>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng giá trị nhập</div>
               <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
                 {purchases.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
             <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Tiền đã trả</div>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tiền đã trả</div>
               <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
                 {purchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
             <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Tiền chưa trả (Công nợ)</div>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tiền chưa trả (Công nợ)</div>
               <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
                 {purchases.reduce((sum, p) => sum + Number(p.debtAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
             <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Tổng số hóa đơn</div>
+              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng số hóa đơn</div>
               <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
                 {purchases.length} hóa đơn
               </strong>
@@ -1105,7 +1108,7 @@ export const PurchasesView = () => {
                               {Number(p.totalAmount || 0).toLocaleString('vi-VN')} đ
                             </strong>
                           </td>
-                          <td style={{ color: 'var(--color-muted)', fontSize: '14.5px', maxWidth: '220px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <td style={{ color: 'var(--color-muted)', fontSize: '13px', maxWidth: '220px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {p.note || '—'}
                           </td>
                           <td>{p.stockStatus === 'Đã nhập kho' && p.importedDate ? p.importedDate.split('-').reverse().join('/') : '—'}</td>
@@ -1168,14 +1171,14 @@ export const PurchasesView = () => {
                       <td>
                         <strong style={{ color: 'var(--color-ink)' }}>{sup.name}</strong>
                         {sup.productTypeName && (
-                          <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px' }}>
                             {sup.productTypeName}
                           </div>
                         )}
                         {sup.tagNames && sup.tagNames.length > 0 && (
                           <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
                             {sup.tagNames.map((t, idx) => (
-                              <span key={idx} style={{ fontSize: '12.5px', padding: '1px 6px', borderRadius: '12px', backgroundColor: '#e1ebff', color: '#387be8', fontWeight: 500 }}>
+                              <span key={idx} style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '12px', backgroundColor: '#e1ebff', color: '#387be8', fontWeight: 500 }}>
                                 {t}
                               </span>
                             ))}
@@ -1288,7 +1291,7 @@ export const PurchasesView = () => {
                             backgroundColor: `${t.color}20`,
                             color: t.color,
                             fontWeight: 600,
-                            fontSize: '14.5px'
+                            fontSize: '13px'
                           }}
                         >
                           <Tag size={13} /> {t.name}
@@ -1297,7 +1300,7 @@ export const PurchasesView = () => {
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: t.color, display: 'inline-block' }} />
-                          <code style={{ fontSize: '13.5px' }}>{t.color}</code>
+                          <code style={{ fontSize: '12px' }}>{t.color}</code>
                         </span>
                       </td>
                       <td style={{ color: 'var(--color-muted)' }}>{t.description || '—'}</td>
@@ -1345,11 +1348,8 @@ export const PurchasesView = () => {
           }}
         >
           <div className={`farmshift-modal ${styles.detailModal}`} onClick={(e) => e.stopPropagation()}>
-            <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className={styles.detailHeading}>
-                <h3 className="farmshift-modal-title" style={{ margin: 0 }}>
-                  Chi tiết hóa đơn {selectedOrder.code}
-                </h3>
                 <div className={styles.detailTopActions}>
                 {selectedOrder.stockStatus !== 'Đã nhập kho' && selectedOrder.stockStatus !== 'Đã hủy' && (
                   <button
@@ -1371,42 +1371,6 @@ export const PurchasesView = () => {
                     <DollarSign size={15} /> Thanh toán nợ
                   </button>
                 )}
-                <div className={styles.detailViewTabs}>
-                  <button
-                    type="button"
-                    onClick={() => setOrderViewTab('info')}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '13.5px',
-                      fontWeight: 500,
-                      border: 'none',
-                      borderRadius: 'var(--rounded-sm)',
-                      cursor: 'pointer',
-                      backgroundColor: orderViewTab === 'info' ? 'var(--color-surface)' : 'transparent',
-                      color: orderViewTab === 'info' ? 'var(--color-primary)' : 'var(--color-muted)',
-                      boxShadow: orderViewTab === 'info' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
-                    }}
-                  >
-                    Xem chi tiết
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderViewTab('voucher')}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '13.5px',
-                      fontWeight: 500,
-                      border: 'none',
-                      borderRadius: 'var(--rounded-sm)',
-                      cursor: 'pointer',
-                      backgroundColor: orderViewTab === 'voucher' ? 'var(--color-surface)' : 'transparent',
-                      color: orderViewTab === 'voucher' ? 'var(--color-primary)' : 'var(--color-muted)',
-                      boxShadow: orderViewTab === 'voucher' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
-                    }}
-                  >
-                    Mẫu in A4
-                  </button>
-                </div>
                 </div>
               </div>
               <button
@@ -1421,128 +1385,14 @@ export const PurchasesView = () => {
                 ✕
               </button>
             </div>
-            <div className="farmshift-modal-body">
+            <div className={`farmshift-modal-body ${styles.purchaseInvoiceBody}`}>
               {orderViewTab === 'voucher' ? (
                 <div style={{ padding: '8px 0' }}>
                   <PrintablePurchaseVoucher order={selectedOrder} onScreenPreview={true} />
                 </div>
               ) : (
                 <>
-                  <div className={styles.workflowSteps} aria-label="Tiến độ hóa đơn">
-                    {[
-                      { label: 'Đã lưu đơn', done: true },
-                      { label: `Nhập kho ${selectedOrder.stockStatus === 'Đã nhập kho' ? 'hoàn tất' : 'chưa hoàn tất'}`, done: selectedOrder.stockStatus === 'Đã nhập kho' },
-                      { label: `Thanh toán ${Number(selectedOrder.debtAmount || 0) <= 0 ? 'hoàn tất' : 'còn nợ'}`, done: Number(selectedOrder.debtAmount || 0) <= 0 },
-                    ].map(step => <div key={step.label} className={styles.workflowStep}>
-                      <span className={styles.workflowTick} aria-label={step.done ? 'Đã hoàn tất' : 'Chưa hoàn tất'}>{step.done && <Check size={17} strokeWidth={2.5} aria-hidden="true" />}</span>
-                      {step.label}
-                    </div>)}
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
-                    <div>
-                      <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Nhà cung cấp:</div>
-                      <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>{selectedOrder.supplier}</strong>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Ngày lập đơn:</div>
-                      <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>{selectedOrder.date}</strong>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Trạng thái thanh toán:</div>
-                      <span>
-                        {selectedOrder.paymentStatus}
-                      </span>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Trạng thái kho:</div>
-                      <span>{selectedOrder.stockStatus}</span>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Đã thanh toán:</div>
-                      <strong style={{ color: 'var(--color-success)' }}>{Number(selectedOrder.paidAmount || 0).toLocaleString('vi-VN')} đ</strong>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Còn nợ lại:</div>
-                      <strong style={{ color: Number(selectedOrder.debtAmount || 0) > 0 ? 'var(--color-danger)' : 'var(--color-muted)' }}>
-                        {Number(selectedOrder.debtAmount || 0).toLocaleString('vi-VN')} đ
-                      </strong>
-                    </div>
-                    {selectedOrder.referenceCode && (
-                      <div>
-                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Mã tham chiếu / Số HĐ:</div>
-                        <strong style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>{selectedOrder.referenceCode}</strong>
-                      </div>
-                    )}
-                    {(Number(selectedOrder.discountAmount || 0) > 0 || Number(selectedOrder.otherCost || 0) > 0) && (
-                      <div>
-                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Chiết khấu / Chi phí khác:</div>
-                        <span style={{ fontSize: '14.5px', color: 'var(--color-body)' }}>
-                          -{Number(selectedOrder.discountAmount || 0).toLocaleString('vi-VN')} đ / +{Number(selectedOrder.otherCost || 0).toLocaleString('vi-VN')} đ
-                        </span>
-                      </div>
-                    )}
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Tổng tiền hóa đơn:</div>
-                      <strong style={{ fontSize: '18px', color: 'var(--color-primary)' }}>{Number(selectedOrder.totalAmount || 0).toLocaleString('vi-VN')} đ</strong>
-                    </div>
-                    {selectedOrder.note && (
-                      <div style={{ gridColumn: 'span 2', fontSize: '14.5px', color: 'var(--color-body)' }}>
-                        <strong>Ghi chú:</strong> {selectedOrder.note}
-                      </div>
-                    )}
-                    {selectedOrder.tags && selectedOrder.tags.length > 0 && (
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginBottom: '4px' }}>Thẻ Tag phân loại:</div>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          {selectedOrder.tags.map((t, idx) => (
-                            <span
-                              key={idx}
-                              style={{
-                                fontSize: '13px',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                backgroundColor: '#e1f4ef',
-                                color: '#008a7b',
-                                fontWeight: 500,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              <Tag size={11} /> {t}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '8px' }}>Danh sách mặt hàng nhập:</div>
-                  <div className="farmshift-table-container" style={{ border: '1px solid var(--color-hairline)' }}>
-                    <table className="farmshift-table">
-                      <thead>
-                        <tr>
-                          <th>Mặt hàng</th>
-                          <th>Số lượng</th>
-                          <th>Đơn giá</th>
-                          <th style={{ textAlign: 'right' }}>Thành tiền</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedOrder.items?.map((it, idx) => (
-                          <tr key={idx}>
-                            <td><strong>{it.name}</strong></td>
-                            <td>{it.qty} {it.unit}</td>
-                            <td>{Number(it.price).toLocaleString('vi-VN')} đ</td>
-                            <td style={{ textAlign: 'right' }}>
-                              <strong>{Number(it.amount || (it.qty * it.price)).toLocaleString('vi-VN')} đ</strong>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <PurchaseInvoiceTemplate ref={purchaseInvoiceRef} order={selectedOrder} supplier={suppliers.find(supplier => supplier.id === selectedOrder.supplierId)} />
                 </>
               )}
             </div>
@@ -1609,7 +1459,7 @@ export const PurchasesView = () => {
             </div>
             <form noValidate onSubmit={handlePayOrder}>
               <div className="farmshift-modal-body">
-                <div style={{ marginBottom: '14px', fontSize: '14.5px' }}>
+                <div style={{ marginBottom: '14px', fontSize: '13px' }}>
                   Số tiền còn nợ: <strong style={{ color: 'var(--color-danger)' }}>{Number(selectedOrder.debtAmount).toLocaleString('vi-VN')} đ</strong>
                 </div>
                 <div className="farmshift-form-group">
@@ -1689,7 +1539,7 @@ export const PurchasesView = () => {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
-                      fontSize: '14px',
+                      fontSize: '12.5px',
                       padding: '4px 10px',
                       fontWeight: 600
                     }}
@@ -1765,7 +1615,7 @@ export const PurchasesView = () => {
                         <button
                           type="button"
                           className="farmshift-btn farmshift-btn-secondary"
-                          style={{ padding: '3px 8px', fontSize: '12.5px', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          style={{ padding: '3px 8px', fontSize: '11px', height: '26px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           onClick={handleRetakeOcr}
                           title="Tải ảnh khác hoặc chụp lại chứng từ"
                         >
@@ -1774,7 +1624,7 @@ export const PurchasesView = () => {
                         <button
                           type="button"
                           className="farmshift-btn farmshift-btn-secondary"
-                          style={{ padding: '3px 7px', fontSize: '12.5px', height: '26px' }}
+                          style={{ padding: '3px 7px', fontSize: '11px', height: '26px' }}
                           onClick={() => setOcrZoom(z => Math.max(0.5, +(z - 0.15).toFixed(2)))}
                           title="Thu nhỏ"
                         >
@@ -1782,7 +1632,7 @@ export const PurchasesView = () => {
                         </button>
                         <span
                           style={{
-                            fontSize: '13px',
+                            fontSize: '11.5px',
                             fontFamily: 'monospace',
                             minWidth: '40px',
                             textAlign: 'center',
@@ -1794,7 +1644,7 @@ export const PurchasesView = () => {
                         <button
                           type="button"
                           className="farmshift-btn farmshift-btn-secondary"
-                          style={{ padding: '3px 7px', fontSize: '12.5px', height: '26px' }}
+                          style={{ padding: '3px 7px', fontSize: '11px', height: '26px' }}
                           onClick={() => setOcrZoom(z => Math.min(2.5, +(z + 0.15).toFixed(2)))}
                           title="Phóng to"
                         >
@@ -1803,7 +1653,7 @@ export const PurchasesView = () => {
                         <button
                           type="button"
                           className="farmshift-btn farmshift-btn-secondary"
-                          style={{ padding: '3px 7px', fontSize: '12.5px', height: '26px' }}
+                          style={{ padding: '3px 7px', fontSize: '11px', height: '26px' }}
                           onClick={() => setOcrRotation(r => (r + 90) % 360)}
                           title="Xoay ảnh 90° (nhấp để xoay ảnh ngay ngắn)"
                         >
@@ -1816,7 +1666,7 @@ export const PurchasesView = () => {
                           className="farmshift-btn farmshift-btn-secondary"
                           style={{
                             padding: '3px 7px',
-                            fontSize: '12.5px',
+                            fontSize: '11px',
                             height: '26px',
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -1864,7 +1714,7 @@ export const PurchasesView = () => {
                         padding: '12px 16px',
                         borderRadius: 'var(--rounded-md)',
                         marginBottom: '16px',
-                        fontSize: '14.5px',
+                        fontSize: '13px',
                         color: '#ad6800'
                       }}
                     >
@@ -1873,7 +1723,7 @@ export const PurchasesView = () => {
                         <span><strong>MSG30:</strong> Dữ liệu trích xuất từ OCR chỉ là bản nháp. Vui lòng kiểm tra và xác nhận mọi trường trước khi lưu bản ghi chính thức.</span>
                       </div>
                       {ocrWarnings && ocrWarnings.length > 0 && (
-                        <ul style={{ margin: '8px 0 0 28px', padding: 0, fontSize: '14px', color: '#873800' }}>
+                        <ul style={{ margin: '8px 0 0 28px', padding: 0, fontSize: '12.5px', color: '#873800' }}>
                           {ocrWarnings.map((w, idx) => (
                             <li key={idx} style={{ marginTop: '2px' }}>{w}</li>
                           ))}
@@ -1895,7 +1745,7 @@ export const PurchasesView = () => {
                             background: 'none',
                             border: 'none',
                             color: 'var(--color-primary)',
-                            fontSize: '13px',
+                            fontSize: '11.5px',
                             fontWeight: 600,
                             cursor: 'pointer',
                             display: 'inline-flex',
@@ -1972,12 +1822,12 @@ export const PurchasesView = () => {
                     </div>
                   </div>
 
-                  <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Chi tiết các mặt hàng nhập:</span>
                     <button
                       type="button"
                       className="farmshift-btn farmshift-btn-secondary"
-                      style={{ fontSize: '13.5px', padding: '4px 10px' }}
+                      style={{ fontSize: '12px', padding: '4px 10px' }}
                       onClick={handleAddItemRow}
                     >
                       + Thêm dòng hàng
@@ -1987,7 +1837,7 @@ export const PurchasesView = () => {
                   {!isOcrDraft && !unitsLoading && !unitsError && !units.length && <p>Chưa có đơn vị tính. Vui lòng thêm tại Thiết lập danh mục → Đơn vị tính.</p>}
                   {!isOcrDraft && !productLoading && !productError && !productCategories.some(product => product.warehouseId) && <p>Chưa có hàng hóa thuộc kho. Vui lòng thêm hàng hóa trong Kho hàng hóa trước.</p>}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.9fr 0.9fr 1.3fr 1.3fr 30px', gap: '8px', marginBottom: '4px', fontSize: '13px', fontWeight: 600, color: 'var(--color-muted)', padding: '0 2px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.9fr 0.9fr 1.3fr 1.3fr 30px', gap: '8px', marginBottom: '4px', fontSize: '11.5px', fontWeight: 600, color: 'var(--color-muted)', padding: '0 2px' }}>
                     <span>Tên hàng hóa <span className={styles.requiredMark}>*</span></span>
                     <span>Số lượng <span className={styles.requiredMark}>*</span></span>
                     <span>Đơn vị <span className={styles.requiredMark}>*</span></span>
@@ -2111,7 +1961,7 @@ export const PurchasesView = () => {
                               justifyContent: 'flex-end',
                               fontWeight: 600,
                               color: 'var(--color-ink)',
-                              fontSize: '14.5px'
+                              fontSize: '13px'
                             }}
                             title="Thành tiền = Số lượng × Đơn giá"
                           >
@@ -2200,7 +2050,7 @@ export const PurchasesView = () => {
                         />
                       </div>
                       <div className="farmshift-form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <span style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Tính vào công nợ NCC:</span>
+                        <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tính vào công nợ NCC:</span>
                         <strong style={{ fontSize: '16px', color: '#ef4565', marginTop: '4px' }}>
                           {Math.max(
                             0,
@@ -2242,7 +2092,7 @@ export const PurchasesView = () => {
                             <button
                               type="button"
                               className="farmshift-btn farmshift-btn-secondary"
-                              style={{ fontSize: '12.5px', padding: '2px 8px', height: '24px' }}
+                              style={{ fontSize: '11px', padding: '2px 8px', height: '24px' }}
                               onClick={() => {
                                 const set = new Set([...(newPo.tagIds || []), ...curSup.tagIds]);
                                 setNewPo({ ...newPo, tagIds: Array.from(set) });
@@ -2259,7 +2109,7 @@ export const PurchasesView = () => {
 
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                       {tags.length === 0 ? (
-                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
                           Chưa có thẻ tag nào. Tạo thêm thẻ tại tab <strong>Thẻ Tags phân loại</strong>.
                         </div>
                       ) : (
@@ -2278,7 +2128,7 @@ export const PurchasesView = () => {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '6px',
-                                fontSize: '13.5px',
+                                fontSize: '12px',
                                 padding: '4px 10px',
                                 borderRadius: '16px',
                                 border: `1.5px solid ${isSelected ? t.color || 'var(--color-primary)' : 'var(--color-hairline)'}`,
@@ -2291,7 +2141,7 @@ export const PurchasesView = () => {
                             >
                               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: t.color || '#019788' }} />
                               {t.name}
-                              {isSelected && <span style={{ fontSize: '12.5px', marginLeft: '2px' }}>✓</span>}
+                              {isSelected && <span style={{ fontSize: '11px', marginLeft: '2px' }}>✓</span>}
                             </button>
                           );
                         })
@@ -2340,7 +2190,7 @@ export const PurchasesView = () => {
 
                   <div style={{ marginTop: '16px', padding: '12px 16px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-ink)' }}>Tổng tiền:</span>
+                      <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-ink)' }}>Tổng tiền:</span>
                       <strong style={{ fontSize: '18px', color: 'var(--color-primary)' }}>
                         {Math.max(
                           0,
@@ -2370,7 +2220,7 @@ export const PurchasesView = () => {
                     type="button"
                     className="farmshift-btn farmshift-btn-secondary"
                     onClick={handleRetakeOcr}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '14.5px' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
                   >
                     <ArrowLeft size={15} /> Chụp lại / Đổi ảnh khác
                   </button>
@@ -2480,7 +2330,7 @@ export const PurchasesView = () => {
                       borderRadius: 'var(--rounded-md)',
                       border: 'none',
                       fontWeight: 600,
-                      fontSize: '14.5px',
+                      fontSize: '13px',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       backgroundColor: ocrTab === 'upload' ? 'var(--color-surface)' : 'transparent',
@@ -2505,7 +2355,7 @@ export const PurchasesView = () => {
                       borderRadius: 'var(--rounded-md)',
                       border: 'none',
                       fontWeight: 600,
-                      fontSize: '14.5px',
+                      fontSize: '13px',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       backgroundColor: ocrTab === 'camera' ? 'var(--color-surface)' : 'transparent',
@@ -2588,7 +2438,7 @@ export const PurchasesView = () => {
                       <div style={{ fontWeight: 600, fontSize: '15.5px', color: '#ffffff', marginBottom: '4px' }}>
                         Đang bóc tách chứng từ bằng AI Vision...
                       </div>
-                      <div style={{ fontSize: '14px', color: '#9ca3af' }}>
+                      <div style={{ fontSize: '12.5px', color: '#9ca3af' }}>
                         {ocrPreviewName ? <span style={{ color: '#d1fae5', fontWeight: 500 }}>{ocrPreviewName} • </span> : null}
                         Đang căn chỉnh góc nghiêng và trích xuất bảng biểu
                       </div>
@@ -2632,7 +2482,7 @@ export const PurchasesView = () => {
                     Kéo thả hoặc bấm vào đây để chọn Hóa đơn / Phiếu xuất kho
                   </div>
                   <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                    <span className="farmshift-btn farmshift-btn-secondary" style={{ pointerEvents: 'none', fontSize: '13.5px', padding: '5px 12px' }}>
+                    <span className="farmshift-btn farmshift-btn-secondary" style={{ pointerEvents: 'none', fontSize: '12px', padding: '5px 12px' }}>
                       📁 Duyệt tệp từ thiết bị
                     </span>
                   </div>
@@ -2656,7 +2506,7 @@ export const PurchasesView = () => {
                       <div style={{ fontWeight: 600, color: 'var(--color-ink)', marginBottom: '6px' }}>
                         Không thể kết nối trực tiếp đến Camera
                       </div>
-                      <div style={{ fontSize: '14.5px', color: 'var(--color-muted)', marginBottom: '16px' }}>
+                      <div style={{ fontSize: '13px', color: 'var(--color-muted)', marginBottom: '16px' }}>
                         {cameraError}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -2732,7 +2582,7 @@ export const PurchasesView = () => {
                             style={{
                               backgroundColor: 'rgba(0,0,0,0.65)',
                               color: '#fff',
-                              fontSize: '13.5px',
+                              fontSize: '12px',
                               padding: '4px 10px',
                               borderRadius: '4px',
                               fontWeight: 500
@@ -2768,7 +2618,7 @@ export const PurchasesView = () => {
                             if (cameraInputRef.current) cameraInputRef.current.click();
                           }}
                           title="Chụp bằng ứng dụng máy ảnh trên điện thoại / tablet"
-                          style={{ fontSize: '14.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
                         >
                           <Smartphone size={15} /> App máy ảnh
                         </button>
@@ -2780,7 +2630,7 @@ export const PurchasesView = () => {
                           disabled={isCameraStarting}
                           style={{
                             padding: '9px 20px',
-                            fontSize: '14.5px',
+                            fontSize: '13px',
                             fontWeight: 600,
                             display: 'flex',
                             alignItems: 'center',
@@ -2796,7 +2646,7 @@ export const PurchasesView = () => {
                           className="farmshift-btn farmshift-btn-ghost"
                           onClick={handleSwitchFacing}
                           title="Đổi camera trước / sau"
-                          style={{ fontSize: '14.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
                         >
                           <RefreshCw size={15} /> Đổi camera
                         </button>
@@ -2806,7 +2656,7 @@ export const PurchasesView = () => {
                 </div>
               )}
 
-                            <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)', fontSize: '14.5px' }}>
+                            <div style={{ backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)', fontSize: '13px' }}>
                 <ul style={{ margin: '0 0 0 18px', padding: 0, color: 'var(--color-body)' }}>
                   <li>Nhận diện tên Nhà cung cấp, ngày lập đơn và số hóa đơn</li>
                   <li>Bóc tách bảng danh sách mặt hàng, số lượng bao/kg và đơn giá</li>
@@ -3030,7 +2880,7 @@ export const PurchasesView = () => {
                     </label>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                       {tags.length === 0 ? (
-                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
                           Chưa có thẻ tag nào. Tạo thêm thẻ tại tab <strong>Thẻ Tags phân loại</strong>.
                         </div>
                       ) : (
@@ -3049,7 +2899,7 @@ export const PurchasesView = () => {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '6px',
-                                fontSize: '13.5px',
+                                fontSize: '12px',
                                 padding: '4px 10px',
                                 borderRadius: '16px',
                                 border: `1.5px solid ${isSelected ? t.color || 'var(--color-primary)' : 'var(--color-hairline)'}`,
@@ -3062,7 +2912,7 @@ export const PurchasesView = () => {
                             >
                               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: t.color || '#019788' }} />
                               {t.name}
-                              {isSelected && <span style={{ fontSize: '12.5px', marginLeft: '2px' }}>✓</span>}
+                              {isSelected && <span style={{ fontSize: '11px', marginLeft: '2px' }}>✓</span>}
                             </button>
                           );
                         })
