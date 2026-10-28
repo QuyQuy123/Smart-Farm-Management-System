@@ -30,6 +30,10 @@ public class Flock {
     /** Nhà cung cấp / nơi nhập, hoặc mô tả chuồng nguồn khi chuyển đàn. */
     @Column(name = "source_note", length = 200)
     private String sourceNote;
+    /** Nhà cung cấp con giống (đàn nhập mua ngoài). Đàn cũ chỉ có source_note. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id", foreignKey = @ForeignKey(name = "fk_flock_supplier"))
+    private Supplier supplier;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_flock_id")
     private Flock sourceFlock;

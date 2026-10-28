@@ -33,6 +33,8 @@ public class FlockService {
     private final CycleService cycleService;
     private final BarnService barnService;
     private final FarmingProgramService programService;
+    private final SupplierRepository supplierRepository;
+    private final PurchaseService purchaseService;
 
     /** Nhập đàn con giống vào lứa đang nuôi. */
     @Transactional
@@ -43,6 +45,8 @@ public class FlockService {
         checkDate(cycle, date, "Ngày nhập đàn");
         checkImportWindow(cycle, date);
         checkCapacity(barn, request.quantity());
+        Supplier supplier = request.supplierId() == null ? null : supplierRepository.findById(request.supplierId())
+                .orElseThrow(() -> new ResourceNotFoundException("Nhà cung cấp đã chọn không tồn tại."));
 
         Flock flock = new Flock();
         flock.setCycle(cycle);
@@ -50,7 +54,10 @@ public class FlockService {
         flock.setProgram(programService.find(request.programId()));
         flock.setGender(request.gender());
         flock.setSourceType(FlockSource.PURCHASE);
-        flock.setSourceNote(request.sourceNote() == null || request.sourceNote().isBlank() ? "Khác" : request.sourceNote().strip());
+        flock.setSupplier(supplier);
+        // source_note giữ tên nguồn nhập dạng chữ cho dữ liệu cũ / báo cáo; có nhà cung cấp thì lấy tên nhà cung cấp.
+        flock.setSourceNote(supplier != null ? supplier.getName()
+                : request.sourceNote() == null || request.sourceNote().isBlank() ? "Khác" : request.sourceNote().strip());
         flock.setImportDate(date);
         flock.setAgeAtImport(request.ageAtImport());
         flock.setImportQuantity(request.quantity());
@@ -62,7 +69,10 @@ public class FlockService {
         repository.save(flock);
         record(flock, FlockMovementType.IMPORT, date, request.quantity(), weightOf(request.avgWeight(), request.quantity()), null, null, flock.getNote(), user);
         barn.setCurrentQuantity(barn.getCurrentQuantity() + request.quantity());
-        return flockResponse(flock, today(), true);
+        // Mua ngoài có nhà cung cấp và có tiền thì ghi luôn hóa đơn nhập hàng (công nợ nhà cung cấp, chi phí con giống).
+        PurchaseInvoice invoice = supplier != null && request.unitPrice().signum() > 0
+                ? purchaseService.createForFlock(flock, supplier, request.paymentStatus()) : null;
+        return flockResponse(flock, today(), true, invoice);
     }
 
     /** Tách / chuyển một phần đàn sang chuồng khác đang có lứa nuôi. Tổng số con toàn trại không đổi. */

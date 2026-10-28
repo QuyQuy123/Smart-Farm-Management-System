@@ -22,6 +22,9 @@ import java.util.*;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PurchaseService {
+    /** Trạng thái "kho" của hóa đơn con giống: gà vào thẳng chuồng, không cộng tồn kho. */
+    public static final String STOCK_TO_BARN = "Đã nhập chuồng";
+
     private final PurchaseInvoiceRepository invoiceRepository;
     private final SupplierRepository supplierRepository;
     private final ProductCategoryRepository productCategoryRepository;
@@ -42,6 +45,7 @@ public class PurchaseService {
     @Transactional
     public PurchaseInvoiceResponse update(Long id, com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceEditRequest request) {
         var invoice = find(id);
+        requireNotFlockInvoice(invoice);
         if ("Đã hủy".equals(invoice.getStockStatus()) || "Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus())
                 || invoice.getPaidAmount() > 0 || "Thanh toán hoàn tất".equalsIgnoreCase(invoice.getPaymentStatus()))
             throw new BadRequestException("Chỉ được sửa hóa đơn chưa thanh toán và chưa nhập kho.");
@@ -79,6 +83,7 @@ public class PurchaseService {
     @Transactional
     public void delete(Long id) {
         var invoice = find(id);
+        requireNotFlockInvoice(invoice);
         if ("Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus()) || invoice.getPaidAmount() > 0)
             throw new BadRequestException("Không thể xóa hóa đơn đã nhập kho hoặc đã thanh toán.", "MSG39");
         invoiceRepository.delete(invoice);
@@ -170,9 +175,42 @@ public class PurchaseService {
         return toResponse(saved);
     }
 
+    /**
+     * Hóa đơn nhập con giống tự tạo khi nhập đàn mua ngoài: một dòng "con giống" = số con × giá con giống.
+     * Gà vào thẳng chuồng nên không cộng tồn kho; số lượng / giá sửa ở đàn, không sửa trên hóa đơn.
+     */
+    @Transactional
+    public PurchaseInvoice createForFlock(Flock flock, Supplier supplier, String paymentStatus) {
+        long unitPrice;
+        long total;
+        try {
+            unitPrice = flock.getUnitPrice().setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+            total = Math.multiplyExact(unitPrice, (long) flock.getImportQuantity());
+        } catch (ArithmeticException e) { throw new BadRequestException("Giá trị hóa đơn vượt giới hạn cho phép."); }
+        FarmingCycle cycle = flock.getCycle();
+        PurchaseInvoice invoice = new PurchaseInvoice();
+        invoice.setCode(generateNextCode());
+        invoice.setSupplier(supplier);
+        invoice.setInvoiceDate(flock.getImportDate());
+        invoice.setFlock(flock);
+        String breed = flock.getProgram() == null ? null : flock.getProgram().getBreed();
+        String name = "Con giống " + (breed == null || breed.isBlank() ? flock.getName() : breed) + " (đàn " + CycleService.flockCode(flock) + ")";
+        invoice.addItem(new PurchaseInvoiceItem(invoice, null, name.length() > 200 ? name.substring(0, 200) : name,
+                (double) flock.getImportQuantity(), "Con", unitPrice, 0.0, total));
+        invoice.setTotalAmount(total);
+        boolean paid = "Thanh toán hoàn tất".equals(paymentStatus);
+        invoice.setPaidAmount(paid ? total : 0L);
+        invoice.setPaymentStatus(paid ? "Thanh toán hoàn tất" : "Trả sau");
+        invoice.setStockStatus(STOCK_TO_BARN);
+        invoice.setImportedDate(flock.getImportDate());
+        invoice.setNote("Nhập đàn " + flock.getName() + " vào " + cycle.getBarn().getName() + " · lứa " + cycle.getCycleNumber());
+        return invoiceRepository.saveAndFlush(invoice);
+    }
+
     @Transactional
     public PurchaseInvoiceResponse importStock(Long id) {
         PurchaseInvoice invoice = find(id);
+        requireNotFlockInvoice(invoice);
         if ("Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus())) {
             return toResponse(invoice);
         }
@@ -216,6 +254,7 @@ public class PurchaseService {
     @Transactional
     public void cancel(Long id) {
         PurchaseInvoice invoice = find(id);
+        requireNotFlockInvoice(invoice);
 
         // System rule: finalized/stocked or paid records cannot be cancelled/deleted
         if ("Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus()) || invoice.getPaidAmount() > 0) {
@@ -345,6 +384,13 @@ public class PurchaseService {
         return code;
     }
 
+    private static void requireNotFlockInvoice(PurchaseInvoice invoice) {
+        if (invoice.getFlock() != null) {
+            throw new BadRequestException("Hóa đơn này được tạo khi nhập đàn " + CycleService.flockCode(invoice.getFlock())
+                    + ". Số lượng và giá con giống được quản lý ở đàn, không sửa, hủy hay nhập kho trên hóa đơn.", "PURCHASE_FLOCK_LINKED");
+        }
+    }
+
     private PurchaseInvoice find(Long id) {
         return invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn nhập hàng."));
@@ -367,6 +413,8 @@ public class PurchaseService {
         List<Long> tagIds = invoice.getTags() == null ? List.of() : invoice.getTags().stream().map(PurchaseTag::getId).toList();
         List<String> tagNames = invoice.getTags() == null ? List.of() : invoice.getTags().stream().map(PurchaseTag::getName).toList();
         long debt = Math.max(0L, invoice.getTotalAmount() - invoice.getPaidAmount());
+        Flock flock = invoice.getFlock();
+        FarmingCycle cycle = flock == null ? null : flock.getCycle();
 
         return new PurchaseInvoiceResponse(
                 invoice.getId(),
@@ -389,7 +437,14 @@ public class PurchaseService {
                 tagNames,
                 items,
                 invoice.getCreatedAt(),
-                invoice.getImportedDate()
+                invoice.getImportedDate(),
+                flock == null ? null : flock.getId(),
+                CycleService.flockCode(flock),
+                flock == null ? null : flock.getName(),
+                cycle == null ? null : cycle.getId(),
+                cycle == null ? null : cycle.getCycleNumber(),
+                cycle == null ? null : cycle.getBarn().getId(),
+                cycle == null ? null : cycle.getBarn().getName()
         );
     }
 }

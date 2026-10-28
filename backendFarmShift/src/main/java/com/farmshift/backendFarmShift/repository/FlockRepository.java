@@ -12,5 +12,6 @@ import java.util.Optional;
 public interface FlockRepository extends JpaRepository<Flock, Long> {
     List<Flock> findAllByCycleIdOrderByImportDateAscIdAsc(Long cycleId);
     boolean existsByProgramId(Long programId);
+    boolean existsBySupplierId(Long supplierId);
     long countByProgramIdAndStatus(Long programId, FlockStatus status);
 }

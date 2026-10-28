@@ -10,7 +10,8 @@ import { validateContactPhone } from '../../utils/contactPhone';
 const date = value => value ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
 const message = error => error.response?.data?.message || 'Không thể kết nối máy chủ. Vui lòng thử lại.';
 
-function SupplierDialog({ mode, supplier, onClose, onSaved }) {
+/** Form thêm / sửa / xem / xóa nhà cung cấp; onSaved(message, savedSupplier) — savedSupplier khi thêm hoặc sửa. */
+export function SupplierDialog({ mode, supplier, onClose, onSaved }) {
   const dialog = useRef(null);
   const [name, setName] = useState(supplier?.name || '');
   const [representative, setRepresentative] = useState(supplier?.representative || '');
@@ -50,10 +51,11 @@ function SupplierDialog({ mode, supplier, onClose, onSaved }) {
     setSaving(true); setError('');
     try {
       const payload = { name: name.trim(), representative: representative.trim(), phone: phone.trim(), productTypeId: Number(productTypeId) };
+      let saved = null;
       if (deleting) await deleteSupplier(supplier.id);
-      else if (mode === 'edit') await updateSupplier(supplier.id, payload);
-      else await createSupplier(payload);
-      onSaved(deleting ? 'Đã xóa nhà cung cấp.' : 'Đã lưu nhà cung cấp thành công.');
+      else if (mode === 'edit') saved = await updateSupplier(supplier.id, payload);
+      else saved = await createSupplier(payload);
+      onSaved(deleting ? 'Đã xóa nhà cung cấp.' : 'Đã lưu nhà cung cấp thành công.', saved);
     } catch (error) { setError(message(error)); setSaving(false); }
   };
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="supplier-title"

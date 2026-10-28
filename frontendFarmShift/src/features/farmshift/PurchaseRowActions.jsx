@@ -75,7 +75,10 @@ export function PurchaseRowActions({ invoice, canEdit, suppliers, tags, onView, 
   const trigger = useRef(null), menu = useRef(null);
   const [position, setPosition] = useState(null), [mode, setMode] = useState(null);
   const { showToast } = useNotification();
-  const protectedInvoice = invoice.stockStatus === 'Đã nhập kho' || Number(invoice.paidAmount) > 0 || invoice.paymentStatus === 'Thanh toán hoàn tất';
+  // Hóa đơn con giống tự tạo khi nhập đàn: số lượng / giá thuộc về đàn nên không sửa, xóa trên hóa đơn.
+  const flockInvoice = Boolean(invoice.flockId);
+  const protectedInvoice = flockInvoice || invoice.stockStatus === 'Đã nhập kho' || Number(invoice.paidAmount) > 0 || invoice.paymentStatus === 'Thanh toán hoàn tất';
+  const protectedTitle = flockInvoice ? `Hóa đơn tạo khi nhập đàn ${invoice.flockCode}, sửa số lượng / giá ở đàn` : null;
   useEffect(() => {
     if (!position) return;
     const close = event => { if (!menu.current?.contains(event.target) && !trigger.current?.contains(event.target)) setPosition(null); };
@@ -91,7 +94,7 @@ export function PurchaseRowActions({ invoice, canEdit, suppliers, tags, onView, 
     <button ref={trigger} type="button" className={styles.iconButton} aria-label={`Thao tác hóa đơn ${invoice.code}`} aria-haspopup="menu" aria-expanded={!!position} onClick={() => { const rect = trigger.current.getBoundingClientRect(); setPosition(position ? null : { left: Math.max(8, Math.min(rect.right - 190, window.innerWidth - 198)), top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 150)) }); }}><MoreVertical size={18} /></button>
     {position && createPortal(<div ref={menu} role="menu" aria-label={`Thao tác ${invoice.code}`} className={purchaseStyles.rowMenu} style={position} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); const buttons = [...menu.current.querySelectorAll('button:not(:disabled)')]; const index = buttons.indexOf(document.activeElement); buttons[(index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus(); } }}>
       <button role="menuitem" onClick={() => choose('view')}><Eye size={16} />Xem chi tiết</button>
-      {canEdit && <><button role="menuitem" disabled={invoice.stockStatus === 'Đã hủy' || protectedInvoice} title={protectedInvoice ? 'Hóa đơn đã thanh toán hoặc nhập kho không được sửa' : 'Sửa hóa đơn'} onClick={() => choose('edit')}><Pencil size={16} />Sửa hóa đơn</button><button role="menuitem" className={purchaseStyles.deleteAction} disabled={protectedInvoice} title={protectedInvoice ? 'Hóa đơn đã nhập kho hoặc thanh toán không thể xóa' : 'Xóa hóa đơn'} onClick={() => choose('delete')}><Trash2 size={16} />Xóa hóa đơn</button></>}
+      {canEdit && <><button role="menuitem" disabled={invoice.stockStatus === 'Đã hủy' || protectedInvoice} title={protectedTitle || (protectedInvoice ? 'Hóa đơn đã thanh toán hoặc nhập kho không được sửa' : 'Sửa hóa đơn')} onClick={() => choose('edit')}><Pencil size={16} />Sửa hóa đơn</button><button role="menuitem" className={purchaseStyles.deleteAction} disabled={protectedInvoice} title={protectedTitle || (protectedInvoice ? 'Hóa đơn đã nhập kho hoặc thanh toán không thể xóa' : 'Xóa hóa đơn')} onClick={() => choose('delete')}><Trash2 size={16} />Xóa hóa đơn</button></>}
     </div>, document.body)}
     {mode && <InvoiceDialog mode={mode} invoice={invoice} suppliers={suppliers} tags={tags} onClose={() => setMode(null)} onSaved={text => { setMode(null); showToast(text, 'success'); onReload(); }} />}
   </>;

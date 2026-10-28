@@ -25,6 +25,14 @@ public record PurchaseInvoiceResponse(
     List<String> tags,
     List<PurchaseInvoiceItemResponse> items,
     LocalDateTime createdAt,
-    LocalDate importedDate
+    LocalDate importedDate,
+    /** Đàn / lứa / chuồng nhận con giống khi hóa đơn được tạo từ thao tác nhập đàn; null với hóa đơn thường. */
+    Long flockId,
+    String flockCode,
+    String flockName,
+    Long cycleId,
+    Integer cycleNumber,
+    Long barnId,
+    String barnName
 ) {
 }

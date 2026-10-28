@@ -15,6 +15,7 @@ import {
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
+import { SupplierPicker } from './SupplierPicker';
 import { AreaTabs } from './AreaTabs';
 import { DailyPlanCard } from './DailyPlanCard';
 import { useDailyPlanActions } from './useDailyPlanActions';
@@ -28,6 +29,7 @@ import styles from './BarnDetailView.module.css';
 const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
 const money = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN')}đ`;
 const isInt = value => value !== '' && Number.isInteger(Number(value));
+const IMPORT_PAYMENT_OPTIONS = [{ value: 'Trả sau', label: 'Trả sau (ghi công nợ)' }, { value: 'Thanh toán hoàn tất', label: 'Đã trả đủ tiền' }];
 
 const COST_COLORS = { chick: '#f59e0b', feed: '#06b6d4', ELECTRICITY: '#8b5cf6', WATER: '#3b82f6', LABOR: '#a8a29e', MEDICINE: '#ef4444', OTHER: '#ec4899' };
 
@@ -183,7 +185,7 @@ export const BarnDetailView = () => {
       intro: `${first ? `Đàn đầu tiên nhập ngày ${formatDay(first)}: các đàn tiếp theo phải nhập trong khoảng ${formatDay([addDaysIso(first, -MAX_IMPORT_SPREAD_DAYS), cycle.startDate].sort()[1])} – ${formatDay(windowEnd < today ? windowEnd : today)}. `
         : `Các đàn của lứa phải nhập cách nhau không quá ${MAX_IMPORT_SPREAD_DAYS} ngày. `}Chuồng còn chỗ cho ${num(room)} con (sức chứa ${num(barn.capacity)}).`,
       warning: programs.length ? null : 'Chưa có chương trình nuôi. Vào Thiết lập chăn nuôi → Chương trình nuôi để tạo chương trình cho giống gà trước khi nhập đàn.',
-      initial: { programId: programs[0] ? String(programs[0].id) : '', name: '', gender: 'MALE', importDate: windowEnd && windowEnd < today ? windowEnd : today, ageAtImport: '1', quantity: '', avgWeight: '0.04', unitPrice: '', sourceNote: '', note: '' },
+      initial: { programId: programs[0] ? String(programs[0].id) : '', name: '', gender: 'MALE', importDate: windowEnd && windowEnd < today ? windowEnd : today, ageAtImport: '1', quantity: '', avgWeight: '0.04', unitPrice: '', supplierId: '', paymentStatus: 'Trả sau', note: '' },
       fields: [
         { key: 'programId', label: 'Chương trình nuôi (giống)', type: 'select', required: true, full: true,
           hint: 'Cám định mức, lịch vắc-xin, thuốc và nhiệt độ của đàn sẽ theo chương trình này.',
@@ -195,8 +197,11 @@ export const BarnDetailView = () => {
         { key: 'ageAtImport', label: 'Ngày tuổi lúc nhập', type: 'number', required: true, min: 1, step: 1 },
         { key: 'quantity', label: 'Số lượng nhập (con)', type: 'number', required: true, min: 1, step: 1 },
         { key: 'avgWeight', label: 'Trọng lượng TB (kg/con)', type: 'number', required: true, min: 0, step: 0.001 },
+        { key: 'supplierId', label: 'Nhà cung cấp con giống', required: true, full: true,
+          hint: 'Lưu xong, hệ thống tự tạo hóa đơn nhập hàng (số con × giá con giống) cho nhà cung cấp này ở mục Nhập hàng, liên kết với đàn và lứa.',
+          render: (props, setValue) => <SupplierPicker props={props} onPick={setValue} canCreate={isOwner} /> },
         { key: 'unitPrice', label: 'Giá con giống (đ/con)', type: 'number', required: true, min: 0, step: 1 },
-        { key: 'sourceNote', label: 'Nguồn nhập', placeholder: 'Ví dụ: Dabaco' },
+        { key: 'paymentStatus', label: 'Thanh toán', type: 'select', required: true, options: IMPORT_PAYMENT_OPTIONS },
         { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
       ],
       validate: values => {
@@ -216,9 +221,9 @@ export const BarnDetailView = () => {
         return found;
       },
       onSubmit: async values => {
-        await importFlock(cycle.id, { ...values, programId: Number(values.programId), name: values.name.trim(), ageAtImport: Number(values.ageAtImport), quantity: Number(values.quantity),
-          avgWeight: Number(values.avgWeight), unitPrice: Number(values.unitPrice), sourceNote: values.sourceNote.trim(), note: values.note.trim() });
-        return `Đã nhập đàn ${values.name.trim()} (${num(values.quantity)} con).`;
+        const created = await importFlock(cycle.id, { ...values, programId: Number(values.programId), name: values.name.trim(), ageAtImport: Number(values.ageAtImport),
+          quantity: Number(values.quantity), avgWeight: Number(values.avgWeight), unitPrice: Number(values.unitPrice), supplierId: Number(values.supplierId), note: values.note.trim() });
+        return `Đã nhập đàn ${values.name.trim()} (${num(values.quantity)} con)${created?.purchaseInvoiceCode ? ` và tạo hóa đơn nhập hàng ${created.purchaseInvoiceCode}` : ''}.`;
       },
     });
   };
@@ -551,7 +556,9 @@ export const BarnDetailView = () => {
               <tbody>{flocks.map(flock => <tr key={flock.id}>
                 <td>{flock.code}</td><td>{flock.currentAgeDays}</td><td className={styles.upper}>{flock.name}{flock.programName && <small className={styles.programTag}>{flock.programName}</small>}</td>
                 <td>{num(flock.importQuantity)} con</td><td>{num(flock.importWeightKg, 1)} kg</td><td>{labelOf(FLOCK_GENDERS, flock.gender).split(' ')[0]}</td>
-                <td><strong>{num(flock.quantity)} con</strong></td><td>{flock.sourceNote}</td><td>{formatDay(flock.importDate)}</td>
+                <td><strong>{num(flock.quantity)} con</strong></td>
+                <td>{flock.supplierName || flock.sourceNote}{canFinance && flock.purchaseInvoiceId && <small className={styles.programTag}>
+                  <Link to={`/purchases?invoice=${flock.purchaseInvoiceId}`} title="Xem hóa đơn nhập con giống">HĐ {flock.purchaseInvoiceCode}</Link></small>}</td><td>{formatDay(flock.importDate)}</td>
                 <td className={styles.rowActions}>{active && flock.status === 'ACTIVE' && <>
                   {isOwner && <button type="button" className={styles.iconButton} title="Tách / chuyển đàn" aria-label={`Chuyển đàn ${flock.code}`} onClick={() => openTransfer(flock)}><ArrowLeftRight size={15} /></button>}
                   {canDaily && <button type="button" className={styles.iconButton} title="Ghi hao hụt / loại thải" aria-label={`Ghi hao hụt ${flock.code}`} onClick={() => openLoss(flock)}><Skull size={15} /></button>}

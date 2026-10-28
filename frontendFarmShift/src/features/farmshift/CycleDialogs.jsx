@@ -12,7 +12,8 @@ const apiFieldErrors = error => {
 
 /**
  * Generic form dialog driven by a field list. Each field: { key, label, type: text|number|date|select|textarea,
- * required, options: [{ value, label }], min, max, step, placeholder, hint, full }. validate(values) returns
+ * required, options: [{ value, label }], min, max, step, placeholder, hint, full, render }. render(props, setValue)
+ * draws a custom control (props carry id, value, className and aria attributes). validate(values) returns
  * { key: message }; onSubmit(values) performs the request and resolves to the success message.
  */
 export function FormDialog({ title, intro, warning, fields, initial, validate, onSubmit, submitLabel = 'Lưu và đóng lại', danger, onClose, onDone }) {
@@ -49,6 +50,7 @@ export function FormDialog({ title, intro, warning, fields, initial, validate, o
       className: `farmshift-form-control ${errors[field.key] ? styles.invalid : ''}`,
       'aria-invalid': Boolean(errors[field.key]), 'aria-describedby': errors[field.key] ? `${id}-error` : field.hint ? `${id}-hint` : undefined,
     };
+    if (field.render) return field.render(common, value => set(field.key, value));
     if (field.type === 'select') return <select {...common}>{field.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
     if (field.type === 'textarea') return <textarea {...common} rows={3} maxLength={1000} placeholder={field.placeholder} />;
     return <input {...common} type={field.type || 'text'} min={field.min} max={field.max} step={field.step} placeholder={field.placeholder}

@@ -351,6 +351,54 @@ WHERE (p.code IN ('NH000000', 'NH000003') AND t.name_key IN ('cám giai đoạn 
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------
+-- 17b. Đàn nhập mua ngoài: nhà cung cấp con giống & hóa đơn nhập con giống
+--      (flocks.supplier_id, purchase_invoices.flock_id; Hibernate cũng tự tạo khi chạy backend)
+-- ---------------------------------------------------------------------
+ALTER TABLE flocks ADD COLUMN IF NOT EXISTS supplier_id BIGINT;
+ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS flock_id BIGINT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_flock_supplier') THEN
+    ALTER TABLE flocks ADD CONSTRAINT fk_flock_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers (id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_flock') THEN
+    ALTER TABLE purchase_invoices ADD CONSTRAINT fk_purchase_flock FOREIGN KEY (flock_id) REFERENCES flocks (id);
+  END IF;
+END $$;
+
+-- Các đàn mẫu lứa 1 đều mua của Dabaco (dữ liệu cũ chỉ ghi source_note = 'Khác').
+UPDATE flocks f
+SET supplier_id = s.id, source_note = s.name
+FROM suppliers s
+WHERE s.name_key = 'tập đoàn dabaco việt nam' AND f.source_type = 'PURCHASE' AND f.supplier_id IS NULL
+  AND f.import_date = DATE '2026-10-01' AND f.name LIKE '%DABACO%';
+
+-- Mỗi đàn mua ngoài có một hóa đơn nhập con giống: số con × giá con giống, gà vào thẳng chuồng (không cộng tồn kho).
+INSERT INTO purchase_invoices (code, supplier_id, invoice_date, discount_amount, other_cost, total_amount, paid_amount, payment_status,
+                               stock_status, imported_date, reference_code, note, flock_id, created_at, updated_at)
+SELECT 'NHCG' || LPAD(f.id::text, 6, '0'), f.supplier_id, f.import_date, 0, 0,
+       ROUND(f.import_quantity * f.unit_price)::bigint,
+       CASE WHEN a.name_key = 'khu mía thịt' THEN ROUND(f.import_quantity * f.unit_price)::bigint ELSE 0 END,
+       CASE WHEN a.name_key = 'khu mía thịt' THEN 'Thanh toán hoàn tất' ELSE 'Trả sau' END,
+       'Đã nhập chuồng', f.import_date, NULL,
+       'Nhập đàn ' || f.name || ' vào ' || b.name || ' · lứa ' || c.cycle_number, f.id, f.created_at, f.created_at
+FROM flocks f
+JOIN farming_cycles c ON c.id = f.cycle_id
+JOIN barns b ON b.id = c.barn_id
+JOIN farm_areas a ON a.id = b.area_id
+WHERE f.supplier_id IS NOT NULL AND f.source_type = 'PURCHASE' AND f.unit_price > 0
+  AND NOT EXISTS (SELECT 1 FROM purchase_invoices p WHERE p.flock_id = f.id)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO purchase_invoice_items (invoice_id, product_name, quantity, unit, unit_price, vat_rate, amount)
+SELECT p.id, 'Con giống ' || COALESCE(fp.breed, f.name) || ' (đàn H' || LPAD(f.id::text, 4, '0') || ')',
+       f.import_quantity, 'Con', ROUND(f.unit_price)::bigint, 0, p.total_amount
+FROM purchase_invoices p
+JOIN flocks f ON f.id = p.flock_id
+LEFT JOIN farming_programs fp ON fp.id = f.program_id
+WHERE NOT EXISTS (SELECT 1 FROM purchase_invoice_items it WHERE it.invoice_id = p.id);
+
+-- ---------------------------------------------------------------------
 -- 18. Chèn dữ liệu Tên hàng hóa (Product Categories) & Gắn kho
 -- ---------------------------------------------------------------------
 INSERT INTO product_categories (name, name_key, warehouse_id, brand, specification, product_type, created_at, updated_at)

@@ -1,6 +1,7 @@
 // src/features/farmshift/PurchasesView.jsx
 // Quản lý Hóa đơn nhập hàng, Nhà cung cấp & Tags chuẩn FarmShift & DESIGN.md
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, FileSpreadsheet, Eye, ScanText,
   DollarSign, Upload, Tag, Printer,
@@ -59,6 +60,8 @@ export const PurchasesView = () => {
 
   // Modals state
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedInvoiceId = searchParams.get('invoice');
   const [orderViewTab, setOrderViewTab] = useState('info'); // 'info' | 'voucher'
   const [showAddModal, setShowAddModal] = useState(false);
   const [showOcrModal, setShowOcrModal] = useState(false);
@@ -156,6 +159,14 @@ export const PurchasesView = () => {
     })();
     return () => { cancelled = true; };
   }, [searchTerm, filterPayment, revision]);
+
+  // Mở thẳng một hóa đơn từ liên kết ?invoice=<id> (ví dụ hóa đơn con giống ở trang chuồng).
+  useEffect(() => {
+    if (!linkedInvoiceId || loading) return;
+    const linked = purchases.find(p => String(p.id) === linkedInvoiceId);
+    if (linked) setSelectedOrder(linked);
+    setSearchParams({}, { replace: true });
+  }, [linkedInvoiceId, loading, purchases, setSearchParams]);
 
   useEffect(() => {
     const handleAiAction = (event) => {
@@ -1042,6 +1053,7 @@ export const PurchasesView = () => {
                 <option value="ALL">Tất cả kho hàng</option>
                 <option value="Đã nhập kho">Đã nhập kho</option>
                 <option value="Chưa nhập kho">Chưa nhập kho</option>
+                <option value="Đã nhập chuồng">Đã nhập chuồng (con giống)</option>
               </select>
 
               <select
@@ -1351,7 +1363,7 @@ export const PurchasesView = () => {
                   Chi tiết hóa đơn {selectedOrder.code}
                 </h3>
                 <div className={styles.detailTopActions}>
-                {selectedOrder.stockStatus !== 'Đã nhập kho' && selectedOrder.stockStatus !== 'Đã hủy' && (
+                {!selectedOrder.flockId && selectedOrder.stockStatus !== 'Đã nhập kho' && selectedOrder.stockStatus !== 'Đã hủy' && (
                   <button
                     className="farmshift-btn farmshift-btn-mint"
                     onClick={() => setStockConfirmation({ id: selectedOrder.id, code: selectedOrder.code })}
@@ -1431,13 +1443,20 @@ export const PurchasesView = () => {
                   <div className={styles.workflowSteps} aria-label="Tiến độ hóa đơn">
                     {[
                       { label: 'Đã lưu đơn', done: true },
-                      { label: `Nhập kho ${selectedOrder.stockStatus === 'Đã nhập kho' ? 'hoàn tất' : 'chưa hoàn tất'}`, done: selectedOrder.stockStatus === 'Đã nhập kho' },
+                      selectedOrder.flockId ? { label: `Đã nhập chuồng · đàn ${selectedOrder.flockCode}`, done: true }
+                        : { label: `Nhập kho ${selectedOrder.stockStatus === 'Đã nhập kho' ? 'hoàn tất' : 'chưa hoàn tất'}`, done: selectedOrder.stockStatus === 'Đã nhập kho' },
                       { label: `Thanh toán ${Number(selectedOrder.debtAmount || 0) <= 0 ? 'hoàn tất' : 'còn nợ'}`, done: Number(selectedOrder.debtAmount || 0) <= 0 },
                     ].map(step => <div key={step.label} className={styles.workflowStep}>
                       <span className={styles.workflowTick} aria-label={step.done ? 'Đã hoàn tất' : 'Chưa hoàn tất'}>{step.done && <Check size={17} strokeWidth={2.5} aria-hidden="true" />}</span>
                       {step.label}
                     </div>)}
                   </div>
+                  {selectedOrder.flockId && (
+                    <p className={styles.flockLink}>
+                      Hóa đơn con giống của đàn <strong>{selectedOrder.flockCode} · {selectedOrder.flockName}</strong>, lứa {selectedOrder.cycleNumber} {selectedOrder.barnName}.{' '}
+                      <Link to={`/barns/${selectedOrder.barnId}`}>Xem chuồng</Link>
+                    </p>
+                  )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', backgroundColor: 'var(--color-surface-soft)', padding: '14px', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
                     <div>
@@ -1555,7 +1574,7 @@ export const PurchasesView = () => {
                 >
                   <Printer size={15} /> In phiếu
                 </button>
-                {selectedOrder.stockStatus !== 'Đã nhập kho' && Number(selectedOrder.paidAmount || 0) === 0 && (
+                {!selectedOrder.flockId && selectedOrder.stockStatus !== 'Đã nhập kho' && Number(selectedOrder.paidAmount || 0) === 0 && (
                   <button
                     className="farmshift-btn farmshift-btn-secondary"
                     style={{ color: 'var(--color-danger)' }}
