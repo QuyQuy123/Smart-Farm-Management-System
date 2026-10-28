@@ -92,13 +92,6 @@ export const InternalStockView = () => {
     ]
   });
 
-  // Load master data on mount
-  useEffect(() => {
-    loadCategories();
-    loadWarehouses();
-    loadActiveCycles();
-  }, []);
-
   const loadCategories = async () => {
     try {
       const data = await listInternalStockCategories();
@@ -133,6 +126,13 @@ export const InternalStockView = () => {
     }
   };
 
+  // Load master data on mount
+  useEffect(() => {
+    loadCategories();
+    loadWarehouses();
+    loadActiveCycles();
+  }, []);
+
   // Load available inventory items when sourceWarehouseId or movementType changes
   useEffect(() => {
     const fetchItems = async () => {
@@ -152,11 +152,6 @@ export const InternalStockView = () => {
     };
     fetchItems();
   }, [voucherForm.sourceWarehouseId, voucherForm.movementType]);
-
-  // Load vouchers when filters or pagination change
-  useEffect(() => {
-    loadVouchers();
-  }, [page, size, search, filterType, filterCategory, filterWarehouse, filterStatus, filterFrom, filterTo]);
 
   const loadVouchers = async () => {
     setVouchersLoading(true);
@@ -181,6 +176,11 @@ export const InternalStockView = () => {
       setVouchersLoading(false);
     }
   };
+
+  // Load vouchers when filters or pagination change
+  useEffect(() => {
+    loadVouchers();
+  }, [page, size, search, filterType, filterCategory, filterWarehouse, filterStatus, filterFrom, filterTo]);
 
   // ── Tab 1: Form Handlers ──────────────────────────────────────────
   const handleTypeChange = (type) => {

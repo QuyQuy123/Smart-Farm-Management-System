@@ -16,16 +16,37 @@ _FLAGS = re.IGNORECASE | re.UNICODE
 _B = r"(?<![^\W\d_])"  # không đứng sau chữ cái
 
 _RULES = [
-    # chính tả đồng âm
+    # chính tả đồng âm nghiệp vụ chăn nuôi
     (re.compile(_B + r"nhật\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)(?![^\W\d_])", _FLAGS), "nhật ký"),
     (re.compile(_B + r"(?:sổ|số|xổ)\s+(?:quỷ|quĩ|quý|quỹ|qũy|quỳ)(?![^\W\d_])", _FLAGS), "sổ quỹ"),
-    # tên thương hiệu / thuốc nói tách âm
-    (re.compile(_B + r"(?:hai|hi|hy)\s*(?:gờ\s*)?(?:rô|grô|gro)(?![^\W\d_])", _FLAGS), "Higro"),
-    (re.compile(_B + r"đa\s+ba\s+cô(?![^\W\d_])", _FLAGS), "Dabaco"),
-    (re.compile(_B + r"han\s+vét(?![^\W\d_])", _FLAGS), "Hanvet"),
-    (re.compile(_B + r"la\s+sô\s+ta(?![^\W\d_])", _FLAGS), "Lasota"),
-    (re.compile(_B + r"gum\s+bô\s+rô(?![^\W\d_])", _FLAGS), "Gumboro"),
-    (re.compile(_B + r"niu\s+cát\s+xơ(?![^\W\d_])", _FLAGS), "Newcastle"),
+    (re.compile(_B + r"(?:cần\s+mẫu|cân\s+mẩu)(?![^\W\d_])", _FLAGS), "cân mẫu"),
+    (re.compile(_B + r"hao\s+hục(?![^\W\d_])", _FLAGS), "hao hụt"),
+    (re.compile(_B + r"thải\s+lọai(?![^\W\d_])", _FLAGS), "thải loại"),
+    # tên thương hiệu / cám / thuốc nói tách âm
+    (re.compile(_B + r"(?:hai|hi|hy)\s*(?:gờ\s*|gơ\s*)?(?:rô|grô|gro)\s*0?1(?![^\W\d_])", _FLAGS), "Higro 01"),
+    (re.compile(_B + r"cám\s+số\s+1(?![^\W\d_])", _FLAGS), "Higro 01"),
+    (re.compile(_B + r"(?:hai|hi|hy)\s*(?:gờ\s*|gơ\s*)?(?:rô|grô|gro)\s*0?2(?![^\W\d_])", _FLAGS), "Higro 02"),
+    (re.compile(_B + r"cám\s+số\s+2(?![^\W\d_])", _FLAGS), "Higro 02"),
+    (re.compile(_B + r"(?:hai|hi|hy)\s*(?:gờ\s*|gơ\s*)?(?:rô|grô|gro)(?![^\W\d_])", _FLAGS), "Higro"),
+    (re.compile(_B + r"(?:xi\s*pi|si\s*pi|cp)\s*511(?![^\W\d_])", _FLAGS), "CP 511"),
+    (re.compile(_B + r"cám\s+(?:xi\s*pi|si\s*pi|cp)(?![^\W\d_])", _FLAGS), "Cám CP 511"),
+    (re.compile(_B + r"(?:đa\s+ba\s+cô|da\s+ba\s+co|đabacô)(?![^\W\d_])", _FLAGS), "Dabaco"),
+    (re.compile(_B + r"(?:ca\s+giu|ca\s+gin|các\s+giu)(?![^\W\d_])", _FLAGS), "Cargill"),
+    (re.compile(_B + r"(?:han\s+vét|hàn\s+vét)(?![^\W\d_])", _FLAGS), "Hanvet"),
+    (re.compile(_B + r"(?:la\s+sô\s+ta|la\s+xô\s+ta|lasôta)(?![^\W\d_])", _FLAGS), "Lasota"),
+    (re.compile(_B + r"(?:gum\s+bô\s+rô|găm\s+bô\s+rô)(?![^\W\d_])", _FLAGS), "Gumboro"),
+    (re.compile(_B + r"(?:niu\s+cát\s+xơ|niu\s+cát\s+xơn|niu\s+cat\s+xon)(?![^\W\d_])", _FLAGS), "Newcastle"),
+    (re.compile(_B + r"(?:ép\s+xê\s+rờ|ép\s+cờ\s+rờ|f\s+c\s+r|hệ\s+số\s+ép)(?![^\W\d_])", _FLAGS), "FCR"),
+    # khu vực & chuồng đọc chữ cái tiếng Việt ("nhà bê một" -> "Nhà B1", "khu di thịt" -> "Khu J Thịt")
+    (re.compile(_B + r"khu\s+(?:di|gi|j)\s+thịt(?![^\W\d_])", _FLAGS), "Khu J Thịt"),
+    (re.compile(_B + r"khu\s+mía(?:\s+thịt)?(?![^\W\d_])", _FLAGS), "Khu Mía Thịt"),
+    (re.compile(_B + r"nhà\s+bê\s+(?:một|1)(?![^\W\d_])", _FLAGS), "Nhà B1"),
+    (re.compile(_B + r"nhà\s+bê\s+(?:hai|2)(?![^\W\d_])", _FLAGS), "Nhà B2"),
+    (re.compile(_B + r"chuồng\s+bê\s+(?:một|1)(?![^\W\d_])", _FLAGS), "Chuồng B1"),
+    (re.compile(_B + r"chuồng\s+bê\s+(?:hai|2)(?![^\W\d_])", _FLAGS), "Chuồng B2"),
+    # mã đơn nhập / phiếu xuất nhập nội bộ đọc rời
+    (re.compile(_B + r"(?:n\s*h|nh)\s*(\d{3,8})(?![^\W\d_])", _FLAGS), r"NH\1"),
+    (re.compile(_B + r"(?:x\s*n\s*b|xnb)\s*(\d{3,8})(?![^\W\d_])", _FLAGS), r"XNB\1"),
 ]
 
 # "nhà a một" -> "Nhà A1", "chuồng b hai" -> "Chuồng B2"
