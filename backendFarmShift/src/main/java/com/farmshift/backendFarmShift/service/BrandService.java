@@ -54,14 +54,15 @@ public class BrandService {
 
     private BrandResponse save(Brand brand, BrandRequest request) {
         String name = Normalizer.normalize(request.name().strip(), Normalizer.Form.NFC);
-        String key = name.toLowerCase(Locale.ROOT);
+        String productType = Normalizer.normalize(request.productType() == null ? "" : request.productType().strip(), Normalizer.Form.NFC);
+        String key = nameKey(name, productType);
         boolean duplicate = brand.getId() == null ? repository.existsByNameKey(key)
                 : repository.existsByNameKeyAndIdNot(key, brand.getId());
         if (duplicate) throw duplicateName();
 
         brand.setName(name);
         brand.setNameKey(key);
-        brand.setProductType(request.productType() == null ? "" : request.productType().strip());
+        brand.setProductType(productType);
         brand.setQuantity(request.quantity() != null ? request.quantity() : 0);
         brand.setNote(request.note() == null ? "" : request.note().strip());
 
@@ -72,8 +73,21 @@ public class BrandService {
         }
     }
 
+    // The unique key represents the pair, rather than the brand name alone.
+    public static String nameKey(String name, String productType) {
+        String normalizedName = Normalizer.normalize(name.strip(), Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
+        String normalizedType = Normalizer.normalize(productType == null ? "" : productType.strip(), Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
+        String identity = normalizedName.length() + ":" + normalizedName + normalizedType;
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(identity.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
     private ConflictException duplicateName() {
-        return new ConflictException("Tên nhãn hiệu đã tồn tại.", "BRAND_DUPLICATE", "name");
+        return new ConflictException("Nhãn hiệu đã tồn tại trong loại hàng hóa này.", "BRAND_DUPLICATE", "name");
     }
 
     private BrandResponse response(Brand brand) {

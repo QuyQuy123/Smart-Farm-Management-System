@@ -27,39 +27,43 @@ public final class AssistantNavigationRouter {
     /** Thứ tự chỉ dùng để phá hòa điểm. */
     private static final List<Entry> ENTRIES = List.of(
             new Entry("/dashboard", "Bảng tin", List.of(
-                    "bang tin", "dashboard", "trang chu", "tong quan", "man hinh chinh")),
+                    "bang tin", "dashboard", "trang chu", "tong quan", "man hinh chinh", "bang dieu khien")),
             new Entry("/journal", "Ghi nhật ký chăn nuôi", List.of(
                     "ghi nhat ky", "nhat ky", "nhat ky cham soc", "nhat ky chan nuoi", "nhat ky cho an",
                     "nhat ky can mau", "nhat ky hao hut", "nhat ky vac xin", "ghi cam", "ghi can mau", "ghi hao hut",
-                    "so nhat ky", "nhat ki")),
+                    "so nhat ky", "so ghi chep", "nhat ki")),
             new Entry("/today-tasks", "Việc hôm nay", List.of(
-                    "viec hom nay", "cong viec hom nay", "cong viec", "nhiem vu hom nay", "danh sach viec")),
+                    "viec hom nay", "cong viec hom nay", "cong viec", "nhiem vu hom nay", "danh sach viec",
+                    "viec can lam", "phan cong cong viec", "lich phan cong", "phan cong", "giao viec")),
             new Entry("/barns", "Khu nuôi & Chuồng trại", List.of(
                     "khu nuoi chuong trai", "khu nuoi", "chuong trai", "danh sach chuong", "quan ly chuong",
                     "chuong nuoi", "danh sach nha", "khu vuc nuoi", "khu vuc", "chuong", "nha")),
             new Entry("/inventory", "Kho hàng hóa", List.of(
-                    "kho hang hoa", "kho hang", "hang hoa", "kho vat tu", "kho thuoc", "kho cam", "vat tu", "kho")),
+                    "kho hang hoa", "kho hang", "quan ly kho", "hang hoa", "kho vat tu", "kho thuoc", "kho cam", "vat tu", "kho")),
             new Entry("/transfers", "Xuất nhập nội bộ", List.of(
-                    "xuat nhap noi bo", "xuat nhap kho", "xuat nhap", "chuyen kho", "dieu chuyen kho",
-                    "xuat kho noi bo", "noi bo")),
+                    "xuat nhap noi bo", "phieu xuat nhap noi bo", "dieu chuyen noi bo", "chuyen kho noi bo",
+                    "xuat nhap kho", "xuat nhap", "chuyen kho", "dieu chuyen kho", "xuat kho noi bo", "xuat noi bo", "noi bo")),
             new Entry("/purchases", "Hóa đơn nhập hàng", List.of(
-                    "hoa don nhap hang", "hoa don nhap", "don nhap hang", "hoa don mua hang", "hoa don",
-                    "nhap hang", "mua hang", "nha cung cap", "cong no nha cung cap")),
+                    "hoa don nhap hang", "hoa don nhap", "don nhap hang", "quan ly nhap hang", "trang nhap hang",
+                    "hoa don mua hang", "hoa don", "nhap hang", "mua hang",
+                    "danh sach nha cung cap", "trang nha cung cap", "nha cung cap", "cong no nha cung cap")),
             new Entry("/sales", "Quản lý bán hàng", List.of(
-                    "quan ly ban hang", "ban hang", "xuat ban", "phieu xuat ban", "doanh thu ban hang")),
+                    "quan ly ban hang", "trang ban hang", "hoa don ban", "ban hang", "xuat ban", "phieu xuat ban", "doanh thu ban hang")),
             new Entry("/cashbook", "Sổ quỹ & Dòng tiền", List.of(
-                    "so quy dong tien", "so quy", "dong tien", "thu chi", "so thu chi", "quy tien")),
+                    "so quy dong tien", "so quy", "quy tien mat", "dong tien", "thu chi", "so thu chi", "quy tien")),
             new Entry("/account", "Tài khoản & Nhân sự", List.of(
-                    "tai khoan nhan su", "tai khoan", "nhan su", "nhan vien", "ho so ca nhan", "ho so")),
+                    "tai khoan nhan su", "quan ly nguoi dung", "phan quyen", "tai khoan", "nhan su", "nhan vien", "ho so ca nhan", "ho so")),
             new Entry("/reports", "Báo cáo & Thống kê", List.of(
-                    "bao cao thong ke", "bao cao", "thong ke")),
+                    "bao cao thong ke", "bieu do hieu suat", "bao cao lai lo", "bao cao", "thong ke")),
             new Entry("/catalog-settings", "Thiết lập danh mục", List.of(
-                    "thiet lap danh muc", "cai dat danh muc", "danh muc hang hoa", "danh muc", "catalog")),
+                    "thiet lap danh muc", "cai dat danh muc", "danh muc hang hoa", "danh muc", "catalog",
+                    "don vi tinh", "nhan hieu", "loai hang")),
             new Entry("/breeding-settings", "Thiết lập chăn nuôi", List.of(
                     "thiet lap chan nuoi", "cai dat chan nuoi", "chuong trinh nuoi", "quy trinh nuoi",
-                    "chi tieu tang truong", "loai thu hoach")),
+                    "chi tieu tang truong", "loai thu hoach", "lich vac xin")),
             new Entry("/general-settings", "Thiết lập chung", List.of(
-                    "thiet lap chung", "cai dat chung", "cai dat he thong", "cai dat", "thiet lap", "thong bao"))
+                    "thiet lap chung", "cai dat chung", "cai dat he thong", "thong tin trang trai", "thong tin co so",
+                    "cai dat", "thiet lap", "thong bao"))
     );
 
     /** Động từ mở đầu câu lệnh điều hướng (đã bỏ dấu). */

@@ -81,3 +81,8 @@
 @media (max-width: 640px) { .invoiceBody { padding: 10px; } }
 .customerInvoiceFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 640px) { .customerInvoiceFields { grid-template-columns: 1fr; gap: 0; } }
+
+.ordersTable th:last-child { width: 64px; }
+.editButton { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 1px solid #cfe5df; border-radius: 8px; background: #edf8f4; color: #008577; cursor: pointer; }
+.editButton:hover { background: #d8f0e8; }
+.editButton:focus-visible { outline: 2px solid #008577; outline-offset: 2px; }
