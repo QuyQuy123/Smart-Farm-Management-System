@@ -1109,8 +1109,8 @@ public class AiAssistantService {
             }
         }
 
-        // 3. VET_DIAGNOSIS (Bệnh thú y, chẩn đoán triệu chứng hô hấp/tiêu hóa cụ thể)
-        if (norm.contains("kho khe") || norm.contains("kho tho") || norm.matches(".*\\btho\\s+(?:kho|gap|nhanh|hoi|hon hen).*") || norm.contains("ngap") || norm.contains("phan sap") || norm.contains("phan trang") || norm.contains("cau trung") || norm.matches(".*\\bhen\\b.*") || norm.contains("crd")) {
+        // 3. VET_DIAGNOSIS (Bệnh thú y, chẩn đoán triệu chứng hô hấp, tiêu hóa, bỏ ăn, ủ rũ, liệt chân...)
+        if (isVetSymptomQuery(norm)) {
             return handleVetDiagnosis(norm, message);
         }
 
@@ -2891,14 +2891,66 @@ public class AiAssistantService {
         return null;
     }
 
+    private boolean isVetSymptomQuery(String norm) {
+        if (norm == null || norm.isBlank()) return false;
+        // Không bắt nhầm các lệnh ghi nhật ký cám/hao hụt có số lượng cụ thể
+        if (norm.matches(".*\\b\\d+(?:[.,]\\d+)?\\s*(?:kg|bao)\\b.*")) return false;
+        return norm.contains("kho khe") || norm.contains("kho tho")
+                || norm.matches(".*\\btho\\s+(?:kho|gap|nhanh|hoi|hon hen).*")
+                || norm.contains("ngap") || norm.contains("phan sap") || norm.contains("phan trang")
+                || norm.contains("phan xanh") || norm.contains("phan vang") || norm.contains("phan mau")
+                || norm.contains("tieu chay") || norm.contains("cau trung")
+                || norm.matches(".*\\bhen\\b.*") || norm.contains("crd")
+                || norm.contains("chan an") || norm.contains("bo an") || norm.contains("kem an")
+                || norm.contains("an it") || norm.contains("giam an") || norm.contains("khong an")
+                || norm.contains("u ru") || norm.contains("xu long") || norm.contains("sa canh")
+                || norm.contains("chuong dieu") || norm.contains("kho chan")
+                || norm.contains("sung dau") || norm.contains("phu dau") || norm.contains("coryza")
+                || norm.contains("chay nuoc mat") || norm.contains("chay nuoc mui")
+                || norm.contains("liet chan") || norm.contains("bai liet") || norm.contains("yeu chan")
+                || norm.contains("sung khop") || norm.contains("dau chan")
+                || norm.contains("mo nhau") || norm.contains("can mo") || norm.contains("rung long")
+                || norm.contains("gumboro") || norm.contains("newcastle") || norm.contains("dich ta")
+                || norm.contains("dau den") || norm.contains("ecoli") || norm.contains("thuong han");
+    }
+
     private AiAssistantResponse handleVetDiagnosis(String norm, String message) {
         StringBuilder reply = new StringBuilder();
         String disease = "Bệnh đường hô hấp phức hợp (CRD / Hen gà ghép E.coli)";
         String protocol = "1. Phun sát trùng chuồng bằng dung dịch Iod (1:200).\n2. Kháng sinh Doxycycline 50% kết hợp Tylosin liều 1g/4-5 lít nước trong 3-5 ngày.\n3. Giữ chuồng ấm và thông thoáng.";
 
-        if (norm.contains("phan sap") || norm.contains("cau trung") || norm.contains("mau")) {
-            disease = "Bệnh Cầu trùng (Coccidiosis manh tràng)";
+        if (norm.contains("phan sap") || norm.contains("cau trung") || norm.contains("phan mau") || norm.contains("mau")) {
+            disease = "Bệnh Cầu trùng (Coccidiosis manh tràng / ruột non)";
             protocol = "1. Uống Toltrazuril (Baycox) 2.5% liều 1ml/lít nước liên tục 2 ngày.\n2. Bổ sung Vitamin K chống xuất huyết và men vi sinh tiêu hóa.\n3. Rải thêm trấu khô độn chuồng để giảm độ ẩm lót chuồng.";
+        } else if (norm.contains("chan an") || norm.contains("bo an") || norm.contains("kem an") || norm.contains("an it")
+                || norm.contains("giam an") || norm.contains("khong an") || norm.contains("u ru") || norm.contains("xu long")
+                || norm.contains("sa canh") || norm.contains("chuong dieu") || norm.contains("kho chan")) {
+            disease = "Hội chứng gà giảm ăn / bỏ ăn, ủ rũ & rối loạn tiêu hóa (do Stress nhiệt, Chướng diều hoặc nhiễm khuẩn khởi phát)";
+            protocol = "1. **Cấp cứu & Hồi sức ngay:** Pha **Điện giải Gluco-K-C + Vitamin B-Complex** vào nước uống để chống mất nước, hạ sốt và kích thích thèm ăn.\n" +
+                    "2. **Hỗ trợ tiêu hóa & Giải độc:** Bổ sung **Men tiêu hóa sống (Probiotic)** và **Sorbitol (Giải độc gan thận)** liên tục 3 - 5 ngày.\n" +
+                    "3. **Kiểm tra môi trường & Máng ăn:** Đảm bảo nhiệt độ chuồng không quá nóng (>30°C), kiểm tra cám không bị ẩm mốc và giãn mật độ máng ăn.\n" +
+                    "4. **Theo dõi triệu chứng kế tiếp:** Nếu kèm sốt cao, phân xanh trắng hoặc khò khè thì dùng kháng sinh phổ rộng (Amox-Colistin hoặc Doxy-Florfenicol) theo phác đồ.";
+        } else if (norm.contains("tieu chay") || norm.contains("phan xanh") || norm.contains("phan trang") || norm.contains("phan vang")
+                || norm.contains("ecoli") || norm.contains("thuong han") || norm.contains("gumboro") || norm.contains("newcastle") || norm.contains("dich ta") || norm.contains("dau den")) {
+            disease = "Bệnh đường ruột & Tiêu chảy cấp (E.coli / Thương hàn / Viêm ruột hoại tử hoặc Gumboro)";
+            protocol = "1. Bù nước và điện giải ngay bằng **Điện giải Gluco-K-C + hạ sốt Paracetamol** (lưu ý: nếu nghi Gumboro tuyệt đối không dùng kháng sinh ngay trong 2 ngày đầu, ưu tiên hạ sốt + giải độc gan).\n" +
+                    "2. Khi xác định nhiễm khuẩn E.coli / Thương hàn: dùng **Amoxicillin 50%** hoặc **Colistin / Enrofloxacin** pha nước uống 3 - 5 ngày.\n" +
+                    "3. Kết hợp **Men tiêu hóa chịu kháng sinh** và giữ chất độn chuồng luôn khô ráo.";
+        } else if (norm.contains("sung dau") || norm.contains("phu dau") || norm.contains("coryza") || norm.contains("chay nuoc mat") || norm.contains("chay nuoc mui")) {
+            disease = "Bệnh Sổ mũi truyền nhiễm (Coryza / Sưng phù đầu gà)";
+            protocol = "1. Cách ly những cá thể sưng mặt nặng, vệ sinh thông thoáng chuồng nuôi giảm khí độc NH3.\n" +
+                    "2. Dùng kháng sinh đặc trị **Sulfamonomethoxine + Trimethoprim** hoặc **Flumequine / Amoxicillin** liên tục 4 - 5 ngày.\n" +
+                    "3. Kết hợp thuốc long đờm Bromhexin và hạ sốt, nâng cao sức đề kháng.";
+        } else if (norm.contains("liet chan") || norm.contains("bai liet") || norm.contains("yeu chan") || norm.contains("sung khop") || norm.contains("dau chan")) {
+            disease = "Chứng yếu chân, bại liệt & viêm khớp (Thiếu khoáng Ca-P-D3 hoặc Mycoplasma synoviae)";
+            protocol = "1. Bổ sung ngay **Canxi - Photpho + Vitamin ADE / D3** pha nước hoặc trộn cám.\n" +
+                    "2. Nếu khớp chân sưng nóng (viêm khớp truyền nhiễm): kết hợp kháng sinh **Linco-Spectin** hoặc **Tylosin / Doxycycline** trong 4 - 5 ngày.\n" +
+                    "3. Tách riêng gà yếu chân ra ô dưỡng bệnh để tránh bị đàn giẫm đạp.";
+        } else if (norm.contains("mo nhau") || norm.contains("can mo") || norm.contains("rung long")) {
+            disease = "Hiện tượng gà cắn mổ nhau (Cannibalism) do thiếu khoáng, ánh sáng gắt hoặc mật độ dày";
+            protocol = "1. Giảm cường độ ánh sáng trong chuồng, giãn mật độ nuôi và tăng số lượng máng ăn/uống.\n" +
+                    "2. Bổ sung ngay **Khoáng vi lượng, Methionine, Lysine, muối ăn (0.1%) và Điện giải**.\n" +
+                    "3. Bôi xanh Methylen vào vết thương của gà bị mổ để tránh kích thích đàn mổ tiếp.";
         }
 
         reply.append("🩺 **Chẩn đoán thú y sơ bộ: ").append(disease).append("**\n\n");

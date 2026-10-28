@@ -1005,16 +1005,16 @@ public class AiAssistantIntegrationTest {
     void testRetrainedVoicePhoneticAndRbacCapabilities() throws Exception {
         // 1. Phonetic normalizer: "cám số 1", "hi gơ rô 1", "nhà bê một", "cần mẫu", "hao hục"
         assertEquals(
-                "Cho Nhà B1 ăn 50 kg Higro 01",
-                VietnameseSpeechNormalizer.normalizeVietnameseCommand("Cho nhà bê một ăn hai bao cám số 1")
+                "Cho nhà B1 ăn 50 kg Higro 01",
+                com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer.normalizeVietnameseCommand("Cho nhà bê một ăn hai bao cám số 1")
         );
         assertEquals(
-                "cân mẫu Nhà A1 được 1.5 kg",
-                VietnameseSpeechNormalizer.normalizeVietnameseCommand("cần mẫu nhà a 1 được 1 ký rưỡi")
+                "cân mẫu nhà A1 được 1.5 kg",
+                com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer.normalizeVietnameseCommand("cần mẫu nhà a 1 được 1 ký rưỡi")
         );
         assertEquals(
-                "Ghi hao hụt Nhà A2 3 con",
-                VietnameseSpeechNormalizer.normalizeVietnameseCommand("Ghi hao hục nhà a hai ba con")
+                "Ghi hao hụt nhà A2 3 con",
+                com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer.normalizeVietnameseCommand("Ghi hao hục nhà a hai ba con")
         );
 
         // 2. Quick Modal Navigation commands ("quét hóa đơn ocr", "tạo phiếu xuất nội bộ", "mở phân công công việc")
@@ -1032,29 +1032,40 @@ public class AiAssistantIntegrationTest {
                 .andExpect(jsonPath("$.navigateTo").value("/today-tasks"));
 
         // 3. RBAC enforcement: Worker blocked from TRANSFER_FLOCK, START_OR_CLOSE_CYCLE, and debt queries
+        var workerAuth = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("worker@farm.test")
+                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_FARM_WORKER"));
+
         mvc.perform(post(ASSISTANT_API)
-                .header("Authorization", "Bearer " + workerToken)
+                .with(workerAuth)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("message", "Chuyển 50 con gà từ Nhà A1 sang Nhà A2"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(false))
-                .andExpect(jsonPath("$.reply", containsString("không có quyền")));
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("không có quyền")));
 
         mvc.perform(post(ASSISTANT_API)
-                .header("Authorization", "Bearer " + workerToken)
+                .with(workerAuth)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("message", "Kết thúc lứa nuôi tại Nhà A1"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(false))
-                .andExpect(jsonPath("$.reply", containsString("không có quyền")));
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("không có quyền")));
 
         mvc.perform(post(ASSISTANT_API)
-                .header("Authorization", "Bearer " + workerToken)
+                .with(workerAuth)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("message", "Kiểm tra công nợ nhà cung cấp hiện tại"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(false))
-                .andExpect(jsonPath("$.reply", containsString("không có quyền")));
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("không có quyền")));
+
+        // 4. Expanded Vet Diagnosis for outlier symptoms ("Gà chán ăn")
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Gà chán ăn"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("VET_DIAGNOSIS"))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Điện giải")));
     }
 }
 
