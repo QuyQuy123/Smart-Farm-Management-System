@@ -53,7 +53,6 @@ public class InventoryItemService {
             created.setName(name); created.setNameKey(key); created.setWarehouse(warehouse);
             return products.saveAndFlush(created);
         });
-        if (product.getWarehouse() == null || !product.getWarehouse().getId().equals(warehouse.getId())) throw new BadRequestException("Tên hàng hóa này đã thuộc kho khác. Vui lòng nhập tên khác.");
         var unit = units.findById(request.unitId()).orElseThrow(() -> new ResourceNotFoundException("Đơn vị tính đã chọn không tồn tại."));
         if (item.getId() != null && item.getStock().signum() != 0 && (item.getUnit() == null || !item.getUnit().getId().equals(unit.getId()))) {
             throw new ConflictException("Không thể đổi đơn vị của hàng hóa đang còn tồn kho.", "INVENTORY_IN_USE", "unitId");

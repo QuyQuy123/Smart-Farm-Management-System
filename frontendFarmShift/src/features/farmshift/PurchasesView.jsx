@@ -1350,6 +1350,9 @@ export const PurchasesView = () => {
           <div className={`farmshift-modal ${styles.detailModal}`} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className={styles.detailHeading}>
+                <h3 className="farmshift-modal-title" style={{ margin: 0 }}>
+                  Chi tiết hóa đơn {selectedOrder.code}
+                </h3>
                 <div className={styles.detailTopActions}>
                 {selectedOrder.stockStatus !== 'Đã nhập kho' && selectedOrder.stockStatus !== 'Đã hủy' && (
                   <button

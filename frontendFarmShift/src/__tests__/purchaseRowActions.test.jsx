@@ -19,7 +19,7 @@ function setup(overrides = {}) {
 function openMenu() { fireEvent.click(screen.getByRole('button', { name: 'Thao tác hóa đơn NH01' })); }
 it('views, edits metadata, and reloads after saving', async () => {
  const { onReload, onView } = setup(); openMenu();
- fireEvent.click(screen.getByRole('menuitem', { name: 'Xem chi tiết' })); expect(onView).toHaveBeenCalledWith(invoice);
+ fireEvent.click(screen.getByRole('menuitem', { name: /Chi tiết/ })); expect(onView).toHaveBeenCalledWith(invoice);
  openMenu(); fireEvent.click(screen.getByRole('menuitem', { name: 'Sửa hóa đơn' }));
  const dialog = screen.getByRole('dialog');
  expect(within(dialog).getByLabelText(/Nhà cung cấp/)).toHaveAttribute('readonly');
