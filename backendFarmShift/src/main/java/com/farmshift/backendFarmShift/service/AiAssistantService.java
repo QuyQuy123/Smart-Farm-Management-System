@@ -75,9 +75,7 @@ public class AiAssistantService {
     private final Map<String, Map<String, Object>> lastContextByUser = new ConcurrentHashMap<>();
     private static final long CONTEXT_TTL_MILLIS = 30L * 60L * 1000L;
 
-    private final String groqApiKey;
-    private final String groqChatUrl;
-    private final String groqChatModel;
+    private final String aiServiceUrl;
 
     public AiAssistantService(
             BarnRepository barnRepository,
@@ -101,9 +99,7 @@ public class AiAssistantService {
             FlockService flockService,
             PlatformTransactionManager txManager,
             ObjectMapper objectMapper,
-            @Value("${app.ai.groq-api-key:}") String groqApiKey,
-            @Value("${app.ai.groq-chat-url:https://api.groq.com/openai/v1/chat/completions}") String groqChatUrl,
-            @Value("${app.ai.groq-chat-model:llama-3.3-70b-versatile}") String groqChatModel
+            @Value("${ai-service.url:http://localhost:8000}") String aiServiceUrl
     ) {
         this.barnRepository = barnRepository;
         this.cycleRepository = cycleRepository;
@@ -126,12 +122,10 @@ public class AiAssistantService {
         this.flockService = flockService;
         this.txManager = txManager;
         this.objectMapper = objectMapper;
-        this.groqApiKey = groqApiKey != null ? groqApiKey.strip() : "";
-        this.groqChatUrl = groqChatUrl != null && !groqChatUrl.isBlank() ? groqChatUrl.strip() : "https://api.groq.com/openai/v1/chat/completions";
-        this.groqChatModel = groqChatModel != null && !groqChatModel.isBlank() ? groqChatModel.strip() : "llama-3.3-70b-versatile";
+        this.aiServiceUrl = aiServiceUrl != null ? aiServiceUrl.strip().replaceAll("/+$", "") : "";
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setConnectTimeout(Duration.ofSeconds(2));
         requestFactory.setReadTimeout(Duration.ofSeconds(25));
         this.restTemplate = new RestTemplate(requestFactory);
     }
@@ -197,8 +191,8 @@ public class AiAssistantService {
             return ruleResult;
         }
 
-        // GIAI ĐOẠN 2c: Groq LLM JSON Mode + Live Database Snapshot khi câu lệnh phức tạp hơn các luật cục bộ
-        if (!groqApiKey.isBlank()) {
+        // GIAI ĐOẠN 2c: Ủy quyền sang aiServiceFarmShift (/api/voice/chat) khi câu lệnh phức tạp hoặc câu hỏi mở
+        if (!aiServiceUrl.isBlank()) {
             try {
                 AiAssistantResponse llmResult = withDiffDetails(evaluateLlmEngine(message, request.getCurrentRoute(), request.getHistory(), env, ctx));
                 if (llmResult != null) {
@@ -206,7 +200,7 @@ public class AiAssistantService {
                     return llmResult;
                 }
             } catch (Exception e) {
-                log.warn("Groq LLM intent engine encountered error: {}", e.getMessage());
+                log.warn("aiServiceFarmShift chat engine encountered error: {}", e.getMessage());
             }
         }
 
@@ -3164,40 +3158,27 @@ public class AiAssistantService {
                     "  \"reply\": \"Câu trả lời hoặc giải thích bằng tiếng Việt chi tiết, chuẩn chuyên môn nông nghiệp, thân thiện\"\n" +
                     "}";
 
-            List<Map<String, Object>> chatMessages = new ArrayList<>();
-            chatMessages.add(Map.of("role", "system", "content", systemPrompt));
-
-            if (history != null && !history.isEmpty()) {
-                int start = Math.max(0, history.size() - 6);
-                for (int i = start; i < history.size(); i++) {
-                    Map<String, String> h = history.get(i);
-                    String role = h.get("role");
-                    String text = h.get("content");
-                    if (role != null && text != null && !text.isBlank()) {
-                        String mappedRole = "assistant".equalsIgnoreCase(role) || "bot".equalsIgnoreCase(role) ? "assistant" : "user";
-                        chatMessages.add(Map.of("role", mappedRole, "content", text));
-                    }
-                }
-            }
-            chatMessages.add(Map.of("role", "user", "content", message));
-
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(groqApiKey);
 
-            Map<String, Object> reqBody = Map.of(
-                    "model", groqChatModel,
-                    "temperature", 0.1,
-                    "response_format", Map.of("type", "json_object"),
-                    "messages", chatMessages
-            );
+            Map<String, Object> reqBody = new LinkedHashMap<>();
+            reqBody.put("message", message);
+            reqBody.put("systemPrompt", systemPrompt);
+            reqBody.put("history", history != null ? history : List.of());
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(reqBody, headers);
-            ResponseEntity<String> res = restTemplate.postForEntity(groqChatUrl, entity, String.class);
+            String targetUrl = aiServiceUrl + "/api/voice/chat";
+            ResponseEntity<String> res = restTemplate.postForEntity(targetUrl, entity, String.class);
 
             if (res.getStatusCode().is2xxSuccessful() && res.getBody() != null) {
                 JsonNode root = objectMapper.readTree(res.getBody());
-                String content = root.path("choices").path(0).path("message").path("content").asText();
+                if (root.path("fallback").asBoolean(false)) {
+                    return null;
+                }
+                String content = root.has("content") ? root.path("content").asText("") : root.path("choices").path(0).path("message").path("content").asText("");
+                if (content.isBlank()) {
+                    return null;
+                }
                 JsonNode parsed = objectMapper.readTree(content);
 
                 String intent = parsed.path("intent").asText("GENERAL_QNA");
@@ -3218,7 +3199,7 @@ public class AiAssistantService {
                         .build();
             }
         } catch (Exception ex) {
-            log.warn("Groq LLM intent engine encountered error: {}", ex.getMessage());
+            log.warn("aiServiceFarmShift LLM endpoint ({}/api/voice/chat) encountered error: {}", aiServiceUrl, ex.getMessage());
         }
         return null;
     }

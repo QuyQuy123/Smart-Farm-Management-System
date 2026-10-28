@@ -2,7 +2,11 @@ import time
 import logging
 import httpx
 from app.core.config import settings
-from app.schemas.voice_schema import SpeechTranscribeResponse
+from app.schemas.voice_schema import (
+    SpeechTranscribeResponse,
+    AssistantChatRequest,
+    AssistantChatResponse,
+)
 from app.services.stt_postprocess import postprocess_vietnamese_stt
 
 logger = logging.getLogger("aiServiceFarmShift.voice")
@@ -18,6 +22,7 @@ DOMAIN_PROMPT = (
 )
 
 GROQ_STT_ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions"
+GROQ_CHAT_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 
 class VoiceService:
     @staticmethod
@@ -84,6 +89,88 @@ class VoiceService:
             provider="WEB_SPEECH_FALLBACK",
             fallback=True,
             duration_ms=duration_ms
+        )
+
+    @staticmethod
+    async def chat_completion(req: AssistantChatRequest) -> AssistantChatResponse:
+        start_time = time.time()
+        messages = []
+        if req.system_prompt:
+            messages.append({"role": "system", "content": req.system_prompt})
+        if req.history:
+            for h in req.history[-6:]:
+                role = h.get("role", "user")
+                content = h.get("content", "")
+                if content and content.strip():
+                    mapped_role = "assistant" if role.lower() in ("assistant", "bot") else "user"
+                    messages.append({"role": mapped_role, "content": content})
+        messages.append({"role": "user", "content": req.message})
+
+        groq_key = settings.GROQ_API_KEY.strip() if settings.GROQ_API_KEY else ""
+        if groq_key:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {groq_key}",
+                    "Content-Type": "application/json",
+                }
+                payload = {
+                    "model": settings.GROQ_CHAT_MODEL or "llama-3.3-70b-versatile",
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                    "messages": messages,
+                }
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    response = await client.post(GROQ_CHAT_ENDPOINT, headers=headers, json=payload)
+
+                duration_ms = int((time.time() - start_time) * 1000)
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    return AssistantChatResponse(
+                        content=content,
+                        provider=settings.GROQ_CHAT_MODEL or "llama-3.3-70b-versatile",
+                        fallback=False,
+                        duration_ms=duration_ms,
+                    )
+                logger.warning(f"Groq Chat LLM trả về mã lỗi {response.status_code}: {response.text}")
+            except Exception as ex:
+                logger.warning(f"Lỗi khi gọi Groq Chat LLM trong aiService: {ex}")
+
+        openai_key = settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY else ""
+        if openai_key:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {openai_key}",
+                    "Content-Type": "application/json",
+                }
+                payload = {
+                    "model": settings.OPENAI_MODEL or "gpt-4o-mini",
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                    "messages": messages,
+                }
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    response = await client.post(settings.OPENAI_API_URL, headers=headers, json=payload)
+
+                duration_ms = int((time.time() - start_time) * 1000)
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    return AssistantChatResponse(
+                        content=content,
+                        provider=settings.OPENAI_MODEL or "gpt-4o-mini",
+                        fallback=False,
+                        duration_ms=duration_ms,
+                    )
+            except Exception as ex:
+                logger.warning(f"Lỗi khi gọi OpenAI fallback trong aiService: {ex}")
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        return AssistantChatResponse(
+            content="",
+            provider="LOCAL_FALLBACK",
+            fallback=True,
+            duration_ms=duration_ms,
         )
 
 voice_service = VoiceService()

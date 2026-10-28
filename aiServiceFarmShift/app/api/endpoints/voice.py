@@ -1,7 +1,11 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import logging
 from app.services.voice_service import voice_service
-from app.schemas.voice_schema import SpeechTranscribeResponse
+from app.schemas.voice_schema import (
+    SpeechTranscribeResponse,
+    AssistantChatRequest,
+    AssistantChatResponse,
+)
 
 logger = logging.getLogger("aiServiceFarmShift.endpoints.voice")
 
@@ -33,3 +37,12 @@ async def transcribe_voice(file: UploadFile = File(...)):
         return response
     finally:
         await file.close()
+
+
+@router.post("/chat", response_model=AssistantChatResponse, summary="Phân tích ý định NLU & Trả lời câu hỏi chăn nuôi qua LLM")
+async def assistant_chat(request: AssistantChatRequest):
+    """
+    Nhận câu hỏi/câu lệnh và System Prompt từ Backend, gọi Groq Llama / OpenAI LLM
+    in-house tại aiServiceFarmShift và trả về JSON kết quả.
+    """
+    return await voice_service.chat_completion(request)
