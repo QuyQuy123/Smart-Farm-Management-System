@@ -383,6 +383,13 @@ public class AiAssistantService {
             }
         }
         final FlockMovementType filter = wanted;
+        Optional<FarmingCycle> activeCycle = cycleRepository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE);
+        if (activeCycle.isPresent()) {
+            return movementRepository.findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(activeCycle.get().getId()).stream()
+                    .filter(m -> filter != null ? m.getType() == filter : (m.getType() == FlockMovementType.DEATH || m.getType() == FlockMovementType.CULL))
+                    .max(Comparator.comparing(FlockMovement::getId))
+                    .orElse(null);
+        }
         return movementRepository.findAll().stream()
                 .filter(m -> filter != null ? m.getType() == filter : (m.getType() == FlockMovementType.DEATH || m.getType() == FlockMovementType.CULL))
                 .filter(m -> m.getFlock() != null && m.getFlock().getCycle() != null && barnId.equals(m.getFlock().getCycle().getBarn().getId()))
@@ -430,7 +437,12 @@ public class AiAssistantService {
             "PAY_PURCHASE_INVOICE",
             "CANCEL_PURCHASE_INVOICE",
             "LOG_EXPENSE",
-            "LOG_OR_UPDATE_EXPENSE"
+            "LOG_OR_UPDATE_EXPENSE",
+            "UPDATE_EXPENSE",
+            "TRANSFER_FLOCK",
+            "START_CYCLE",
+            "CLOSE_CYCLE",
+            "START_OR_CLOSE_CYCLE"
     );
 
     private AiAssistantResponse workerBlocked(String actionType) {
@@ -776,6 +788,9 @@ public class AiAssistantService {
 
         // 6. TRANSFER_FLOCK (Tách / Chuyển đàn giữa các chuồng)
         if (norm.contains("chuyen dan") || norm.contains("tach dan") || (norm.contains("chuyen") && (norm.contains("con ga") || norm.contains("con") || norm.contains("dan")) && norm.contains("sang"))) {
+            if (env.worker()) {
+                return workerBlocked("TRANSFER_FLOCK");
+            }
             Matcher matcher = Pattern.compile("(?:tu\\s+)?([a-z0-9\\s]+?)\\s+sang\\s+([a-z0-9\\s]+)").matcher(norm);
             Barn sourceBarn = null;
             Barn targetBarn = null;
@@ -832,6 +847,9 @@ public class AiAssistantService {
 
         // 7. START_OR_CLOSE_CYCLE (Bắt đầu hoặc kết thúc lứa)
         if (norm.contains("mo lua") || norm.contains("bat dau lua") || norm.contains("khai bao lua") || norm.contains("ket thuc lua") || norm.contains("dong lua")) {
+            if (env.worker()) {
+                return workerBlocked("START_OR_CLOSE_CYCLE");
+            }
             Barn barn = resolveBarn(norm, message, currentRoute);
             if (barn != null) {
                 boolean isClose = norm.contains("ket thuc") || norm.contains("dong");
@@ -1085,7 +1103,7 @@ public class AiAssistantService {
 
         // 2. QUERY_FARM_STATUS (Tra cứu tồn kho, tình trạng chuồng, công nợ)
         if (norm.contains("ton kho") || norm.contains("tinh trang") || norm.contains("cong no") || norm.contains("con bao nhieu") || norm.contains("nhiet do")) {
-            AiAssistantResponse queryResponse = handleFarmStatusQuery(norm, message, currentRoute);
+            AiAssistantResponse queryResponse = handleFarmStatusQuery(norm, message, currentRoute, isWorker);
             if (queryResponse != null) {
                 return queryResponse;
             }
@@ -1096,8 +1114,8 @@ public class AiAssistantService {
             return handleVetDiagnosis(norm, message);
         }
 
-        // 4. NAVIGATE_AND_PREFILL (Điều hướng trang hoặc Mở Modal tạo đơn)
-        if (norm.startsWith("mo ") || norm.startsWith("chuyen sang ") || norm.startsWith("chuyen den ") || norm.startsWith("di toi ") || norm.startsWith("xem ") || norm.startsWith("vao ") || norm.startsWith("tao don") || norm.contains("tao don nhap") || norm.contains("man hinh ") || norm.matches(".*\\btrang\\s+(?:hoa don|nhap hang|khu nuoi|chuong|kho|nhat ky|tai khoan|bao cao|so quy)\\b.*")) {
+        // 4. NAVIGATE_AND_PREFILL (Điều hướng trang hoặc Mở Modal tạo đơn / form nhanh)
+        if (norm.startsWith("mo ") || norm.startsWith("chuyen sang ") || norm.startsWith("chuyen den ") || norm.startsWith("di toi ") || norm.startsWith("xem ") || norm.startsWith("vao ") || norm.startsWith("tao don") || norm.contains("tao don nhap") || norm.contains("quet hoa don") || norm.contains("boc tach hoa don") || norm.contains("tao phieu xuat") || norm.contains("man hinh ") || norm.matches(".*\\btrang\\s+(?:hoa don|nhap hang|khu nuoi|chuong|kho|nhat ky|tai khoan|bao cao|so quy|ban hang|nha cung cap)\\b.*")) {
             AiAssistantResponse navResponse = handleNavigationAndPrefill(norm, message);
             if (navResponse != null) {
                 return navResponse;
@@ -2641,10 +2659,17 @@ public class AiAssistantService {
                 if (expense == null) {
                     Long barnId = payload.get("barnId") != null ? Long.valueOf(String.valueOf(payload.get("barnId"))) : null;
                     if (barnId != null) {
-                        expense = expenseRepository.findAll().stream()
-                                .filter(e -> e.getCycle() != null && barnId.equals(e.getCycle().getBarn().getId()))
-                                .sorted((a, b) -> b.getId().compareTo(a.getId()))
-                                .findFirst().orElse(null);
+                        Optional<FarmingCycle> activeCycle = cycleRepository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE);
+                        if (activeCycle.isPresent()) {
+                            expense = expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(activeCycle.get().getId())
+                                    .stream().findFirst().orElse(null);
+                        }
+                        if (expense == null) {
+                            expense = expenseRepository.findAll().stream()
+                                    .filter(e -> e.getCycle() != null && barnId.equals(e.getCycle().getBarn().getId()))
+                                    .sorted((a, b) -> b.getId().compareTo(a.getId()))
+                                    .findFirst().orElse(null);
+                        }
                     }
                 }
                 if (expense == null) {
@@ -2792,7 +2817,27 @@ public class AiAssistantService {
         Map<String, Object> prefill = null;
         String reply = null;
 
-        if (norm.contains("tao don") || norm.contains("nhap hang tu") || norm.contains("tao hoa don")) {
+        if (norm.contains("quet hoa don") || norm.contains("boc tach hoa don") || norm.contains("hoa don ocr")) {
+            targetRoute = "/purchases";
+            uiCommand = "OPEN_OCR_MODAL";
+            reply = "🚀 Đang chuyển tới trang Hóa đơn nhập hàng và mở công cụ **Bóc tách hóa đơn thông minh (AI OCR)**.";
+        } else if (norm.contains("tao phieu xuat noi bo") || norm.contains("mo tao phieu xuat kho")) {
+            targetRoute = "/transfers";
+            uiCommand = "OPEN_CREATE_TRANSFER_MODAL";
+            reply = "🚀 Đang chuyển tới màn hình **Xuất nhập nội bộ** và mở sẵn form Tạo phiếu mới.";
+        } else if (norm.contains("mo form ghi cam") || norm.contains("them nhat ky cho an")) {
+            targetRoute = "/journal";
+            uiCommand = "OPEN_FEED_MODAL";
+            reply = "🚀 Đang chuyển tới màn hình **Ghi nhật ký chăn nuôi** và mở sẵn form Ghi nhận cám.";
+        } else if (norm.contains("mo form can mau") || norm.contains("nhap can nang ga")) {
+            targetRoute = "/journal";
+            uiCommand = "OPEN_WEIGHT_MODAL";
+            reply = "🚀 Đang chuyển tới màn hình **Ghi nhật ký chăn nuôi** và mở sẵn form Cân mẫu.";
+        } else if (norm.contains("mo form bao chet") || norm.contains("mo form hao hut")) {
+            targetRoute = "/journal";
+            uiCommand = "OPEN_MORTALITY_MODAL";
+            reply = "🚀 Đang chuyển tới màn hình **Ghi nhật ký chăn nuôi** và mở sẵn form Báo cáo hao hụt.";
+        } else if (norm.contains("tao don") || norm.contains("nhap hang tu") || norm.contains("tao hoa don")) {
             targetRoute = "/purchases";
             uiCommand = "OPEN_CREATE_PURCHASE_MODAL";
 
@@ -2887,10 +2932,14 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleFarmStatusQuery(String norm, String message) {
-        return handleFarmStatusQuery(norm, message, null);
+        return handleFarmStatusQuery(norm, message, null, false);
     }
 
     private AiAssistantResponse handleFarmStatusQuery(String norm, String message, String currentRoute) {
+        return handleFarmStatusQuery(norm, message, currentRoute, false);
+    }
+
+    private AiAssistantResponse handleFarmStatusQuery(String norm, String message, String currentRoute, boolean isWorker) {
         // Query feed stock
         if (norm.contains("cam") || norm.contains("thuc an")) {
             List<InventoryItem> items = inventoryRepository.findAll();
@@ -2944,6 +2993,9 @@ public class AiAssistantService {
 
         // Query debts
         if (norm.contains("cong no")) {
+            if (isWorker) {
+                return workerBlocked("QUERY_FARM_STATUS");
+            }
             List<PurchaseInvoice> invoices = invoiceRepository.findAll();
             long totalDebt = invoices.stream()
                     .filter(i -> !"Đã hủy".equalsIgnoreCase(i.getStockStatus()))
@@ -2990,20 +3042,26 @@ public class AiAssistantService {
                     .collect(Collectors.joining(", "));
 
             String inventorySummary = inventoryRepository.findAll().stream().limit(20)
-                    .map(i -> String.format("{id:%d, name:'%s', stock:%s, price:%s, unit:'%s'}",
-                            i.getId(), i.getProduct() != null ? i.getProduct().getName() : "", i.getStock(), i.getPrice(), i.getUnit() != null ? i.getUnit().getName() : ""))
+                    .map(i -> isWorker
+                            ? String.format("{id:%d, name:'%s', stock:%s, unit:'%s'}",
+                                    i.getId(), i.getProduct() != null ? i.getProduct().getName() : "", i.getStock(), i.getUnit() != null ? i.getUnit().getName() : "")
+                            : String.format("{id:%d, name:'%s', stock:%s, price:%s, unit:'%s'}",
+                                    i.getId(), i.getProduct() != null ? i.getProduct().getName() : "", i.getStock(), i.getPrice(), i.getUnit() != null ? i.getUnit().getName() : ""))
                     .collect(Collectors.joining(", "));
 
-            String supplierSummary = supplierRepository.findAll().stream()
+            String supplierSummary = isWorker ? "Ẩn theo phân quyền ROLE_FARM_WORKER" : supplierRepository.findAll().stream()
                     .map(s -> String.format("{id:%d, code:'%s', name:'%s', phone:'%s', policy:'%s'}",
                             s.getId(), s.getCode(), s.getName(), s.getPhone(), s.getPaymentPolicy()))
                     .collect(Collectors.joining(", "));
 
             String invoiceSummary = invoiceRepository.findAll().stream()
                     .sorted((a, b) -> b.getId().compareTo(a.getId())).limit(10)
-                    .map(inv -> String.format("{id:%d, code:'%s', supplier:'%s', total:%d, paid:%d, payStatus:'%s', stockStatus:'%s'}",
-                            inv.getId(), inv.getCode(), inv.getSupplier() != null ? inv.getSupplier().getName() : "",
-                            inv.getTotalAmount(), inv.getPaidAmount(), inv.getPaymentStatus(), inv.getStockStatus()))
+                    .map(inv -> isWorker
+                            ? String.format("{id:%d, code:'%s', stockStatus:'%s'}",
+                                    inv.getId(), inv.getCode(), inv.getStockStatus())
+                            : String.format("{id:%d, code:'%s', supplier:'%s', total:%d, paid:%d, payStatus:'%s', stockStatus:'%s'}",
+                                    inv.getId(), inv.getCode(), inv.getSupplier() != null ? inv.getSupplier().getName() : "",
+                                    inv.getTotalAmount(), inv.getPaidAmount(), inv.getPaymentStatus(), inv.getStockStatus()))
                     .collect(Collectors.joining(", "));
 
             String routeHint = "";
@@ -3027,6 +3085,13 @@ public class AiAssistantService {
                     "- Vật tư kho (Inventory): [" + inventorySummary + "]\n" +
                     "- Nhà cung cấp (Suppliers): [" + supplierSummary + "]\n" +
                     "- Hóa đơn nhập gần nhất (Invoices): [" + invoiceSummary + "]\n" +
+                    "Quy tắc phân tích ngữ nghĩa & đơn vị:\n" +
+                    "1. 1 bao cám = 25 kg (ví dụ: '2 bao cám Higro 01' -> quantity = 50.0, unit = 'kg').\n" +
+                    "2. Nếu người dùng đang ở route '/barns/{id}' mà câu lệnh không nêu tên chuồng, mặc định áp dụng cho chuồng đó.\n" +
+                    "3. Ví dụ Few-Shot:\n" +
+                    "   - Input: 'Cho nhà A1 ăn 2 bao cám số 1' -> {\"intent\":\"LOG_FEED\",\"operation\":\"CREATE\",\"targetBarnName\":\"Nhà A1\",\"itemName\":\"Higro 01\",\"quantity\":50.0,\"unit\":\"kg\",\"navigateTo\":\"/journal\",\"reply\":\"Đã chuẩn bị phiếu ghi nhận cho Nhà A1 ăn 50 kg cám Higro 01.\"}\n" +
+                    "   - Input: 'Nhà B1 cân 50 con trung bình 1 ký rưỡi' -> {\"intent\":\"LOG_WEIGHT\",\"operation\":\"CREATE\",\"targetBarnName\":\"Nhà B1\",\"avgWeightKg\":1.5,\"sampleSize\":50,\"navigateTo\":\"/barns\",\"reply\":\"Đã chuẩn bị phiếu cân mẫu Nhà B1: trung bình 1.5 kg/con (50 con).\"}\n" +
+                    "   - Input: 'Mở xuất nhập nội bộ' -> {\"intent\":\"NAVIGATE_AND_PREFILL\",\"operation\":\"NAVIGATE\",\"navigateTo\":\"/transfers\",\"reply\":\"Đang chuyển sang màn hình Xuất nhập nội bộ.\"}\n" +
                     "Phân tích yêu cầu và trả về ĐÚNG DUY NHẤT một đối tượng JSON hợp lệ không bọc trong markdown:\n" +
                     "{\n" +
                     "  \"intent\": \"LOG_FEED | LOG_WEIGHT | LOG_MORTALITY | LOG_EXPENSE | UPDATE_BARN_INFO | UPDATE_INVENTORY_ITEM | UPDATE_SUPPLIER_INFO | PAY_PURCHASE_INVOICE | CANCEL_PURCHASE_INVOICE | TRANSFER_FLOCK | COMPLETE_DAILY_TASKS | IMPORT_PURCHASE_STOCK | QUERY_FARM_STATUS | VET_DIAGNOSIS | NAVIGATE_AND_PREFILL | GENERAL_QNA\",\n" +
@@ -3043,7 +3108,7 @@ public class AiAssistantService {
                     "  \"fieldToUpdate\": \"capacity | areaM2 | price | stock | phone | paymentPolicy | quantityKg | avgWeightKg | amount\",\n" +
                     "  \"newValue\": \"6500\",\n" +
                     "  \"reason\": \"Ghi chú\",\n" +
-                    "  \"navigateTo\": \"/journal | /barns | /inventory | /purchases | /today-tasks | null\",\n" +
+                    "  \"navigateTo\": \"/journal | /barns | /inventory | /purchases | /transfers | /today-tasks | null\",\n" +
                     "  \"reply\": \"Câu trả lời hoặc giải thích bằng tiếng Việt chi tiết, chuẩn chuyên môn nông nghiệp, thân thiện\"\n" +
                     "}";
 
@@ -3145,7 +3210,9 @@ public class AiAssistantService {
                 if ("areaM2".equalsIgnoreCase(field) || parsed.path("areaM2").asDouble(0) > 0) {
                     payload.put("areaM2", parsed.path("areaM2").asDouble(0) > 0 ? parsed.path("areaM2").asDouble() : Double.parseDouble(val));
                 }
-                return executeMutationPayload(payload, username);
+                String bName = barn != null ? barn.getName() : "chuồng nuôi";
+                return confirmOrExecute(payload, "Cập nhật thông tin: " + bName,
+                        "Bạn có muốn cập nhật thông tin cho **" + bName + "** không?", autoExecute, username);
             }
 
             case "UPDATE_INVENTORY_ITEM": {
@@ -3155,8 +3222,9 @@ public class AiAssistantService {
                 if (!parsed.path("targetEntityId").isMissingNode() && !parsed.path("targetEntityId").isNull()) {
                     payload.put("itemId", parsed.path("targetEntityId").asLong());
                 }
-                if (!parsed.path("itemName").asText("").isBlank()) {
-                    payload.put("productName", parsed.path("itemName").asText());
+                String pName = parsed.path("itemName").asText("vật tư kho");
+                if (!pName.isBlank()) {
+                    payload.put("productName", pName);
                 }
                 String field = parsed.path("fieldToUpdate").asText("");
                 String val = parsed.path("newValue").asText("");
@@ -3166,7 +3234,8 @@ public class AiAssistantService {
                 if ("stock".equalsIgnoreCase(field) || parsed.path("quantity").asDouble(0) > 0) {
                     payload.put("stock", parsed.path("quantity").asDouble(0) > 0 ? parsed.path("quantity").asDouble() : Double.parseDouble(val));
                 }
-                return executeMutationPayload(payload, username);
+                return confirmOrExecute(payload, "Cập nhật vật tư: " + pName,
+                        "Bạn có muốn cập nhật thông tin vật tư **" + pName + "** không?", autoExecute, username);
             }
 
             case "UPDATE_SUPPLIER_INFO": {
@@ -3180,7 +3249,8 @@ public class AiAssistantService {
                 String val = parsed.path("newValue").asText("");
                 if ("phone".equalsIgnoreCase(field)) payload.put("phone", val);
                 if ("paymentPolicy".equalsIgnoreCase(field)) payload.put("paymentPolicy", val);
-                return executeMutationPayload(payload, username);
+                return confirmOrExecute(payload, "Cập nhật nhà cung cấp",
+                        "Bạn có muốn cập nhật thông tin nhà cung cấp không?", autoExecute, username);
             }
 
             case "PAY_PURCHASE_INVOICE": {
@@ -3192,7 +3262,8 @@ public class AiAssistantService {
                 if (parsed.path("amount").asLong(0) > 0) {
                     payload.put("amount", parsed.path("amount").asLong());
                 }
-                return executeMutationPayload(payload, username);
+                return confirmOrExecute(payload, "Thanh toán hóa đơn: " + code,
+                        "Bạn có muốn ghi nhận thanh toán cho hóa đơn **" + code + "** không?", autoExecute, username);
             }
 
             case "CANCEL_PURCHASE_INVOICE": {
@@ -3201,7 +3272,8 @@ public class AiAssistantService {
                 payload.put("actionType", "CANCEL_PURCHASE_INVOICE");
                 String code = parsed.path("targetCode").asText(parsed.path("invoiceCode").asText(""));
                 payload.put("invoiceCode", code);
-                return executeMutationPayload(payload, username);
+                return confirmOrExecute(payload, "Hủy hóa đơn: " + code,
+                        "Bạn có chắc chắn muốn hủy đơn hàng **" + code + "** không?", autoExecute, username);
             }
 
             case "LOG_FEED": {

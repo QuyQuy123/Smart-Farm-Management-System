@@ -8,8 +8,13 @@ from app.services.stt_postprocess import postprocess_vietnamese_stt
 logger = logging.getLogger("aiServiceFarmShift.voice")
 
 DOMAIN_PROMPT = (
-    "Hệ thống quản lý trang trại gà thịt FarmShift: Chuồng A1, Nhà A2, Nhà B1, cám Higro 01, Higro 02, "
-    "C.P. Việt Nam, Dabaco, Hanvet, vắc-xin Lasota, Gumboro, Newcastle, cân mẫu, hao hụt, nhập kho, NH000001."
+    "FarmShift, trang trại gà thịt thương phẩm. Khu Mía Thịt, Khu J Thịt, Khu đông tảo, "
+    "Nhà A1, Nhà A2, Nhà B1, Nhà B2, chuồng nuôi, lứa nuôi. "
+    "Ghi nhật ký cho ăn, Cám Higro 01, Cám Higro 02, Cám CP 511, bao cám, cân mẫu, trọng lượng trung bình, "
+    "hao hụt, gà chết, thải loại, xuất bán, thu hoạch. Việc hôm nay, Phân công công việc, "
+    "Xuất nhập nội bộ, Quản lý đơn nhập hàng, Hóa đơn bán hàng, Kho hàng, Sổ quỹ, Công nợ, Nhà cung cấp, "
+    "Báo cáo lãi lỗ, Hiệu suất chăn nuôi, FCR. Dabaco, CP Việt Nam, Cargill, Hanvet, Lasota, Gumboro, "
+    "Newcastle, Men tiêu hóa, Điện giải Gluco-K-C, NH000001, NH000002, XNB000001."
 )
 
 GROQ_STT_ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions"
