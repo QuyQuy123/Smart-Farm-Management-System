@@ -22,6 +22,7 @@ public class ProductCategoryService {
     private final ProductCategoryRepository repository;
     private final com.farmshift.backendFarmShift.repository.InventoryItemRepository inventory;
     private final com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouseRepository;
+    private final com.farmshift.backendFarmShift.repository.InternalStockVoucherItemRepository internalStockVoucherItemRepository;
 
     public List<ProductCategoryResponse> list() {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
@@ -42,7 +43,9 @@ public class ProductCategoryService {
     @Transactional
     public void delete(Long id) {
         var product = find(id);
-        if (inventory.existsByProduct_Id(id)) throw new ConflictException("Không thể xóa tên hàng hóa đang có trong kho.", "PRODUCT_IN_USE", null);
+        if (inventory.existsByProduct_Id(id) || internalStockVoucherItemRepository.existsByProduct_Id(id)) {
+            throw new ConflictException("Không thể xóa tên hàng hóa đang có trong kho hoặc đã phát sinh phiếu xuất nhập nội bộ.", "PRODUCT_IN_USE", null);
+        }
         repository.delete(product);
     }
 
