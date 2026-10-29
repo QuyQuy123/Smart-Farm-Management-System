@@ -1,6 +1,6 @@
 // src/features/farmshift/PurchasesView.jsx
 // Quản lý Hóa đơn nhập hàng, Nhà cung cấp & Tags chuẩn FarmShift & DESIGN.md
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, FileSpreadsheet, Eye, ScanText,
@@ -45,6 +45,15 @@ export const PurchasesView = () => {
   const [tags, setTags] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
   const [productCategories, setProductCategories] = useState([]);
+  const productOptions = useMemo(() => {
+    const unique = new Map();
+    for (const product of productCategories) {
+      if (!product.warehouseId) continue;
+      const key = JSON.stringify([product.warehouseId, product.productId ?? product.name?.normalize('NFC').trim().toLocaleLowerCase('vi')]);
+      if (!unique.has(key)) unique.set(key, product);
+    }
+    return [...unique.values()];
+  }, [productCategories]);
   const [productLoading, setProductLoading] = useState(false);
   const [productError, setProductError] = useState('');
   const [productRevision, setProductRevision] = useState(0);
@@ -1890,7 +1899,7 @@ export const PurchasesView = () => {
                             required
                           >
                             <option value="">{productLoading ? 'Đang tải hàng hóa...' : 'Chọn hàng hóa (Kho)'}</option>
-                            {productCategories.filter(product => product.warehouseId).map(product => <option key={product.id} value={product.id}>{product.name} ({product.warehouseName})</option>)}
+                            {productOptions.map(product => <option key={product.id} value={product.id}>{product.name} ({product.warehouseName})</option>)}
                           </select>
                           )}
                         </div>

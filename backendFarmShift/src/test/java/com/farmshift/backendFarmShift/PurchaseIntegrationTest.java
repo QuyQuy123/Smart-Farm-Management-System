@@ -294,6 +294,22 @@ class PurchaseIntegrationTest {
             assertEquals("/img/feed.jpg", lot.getImageUrl());
             assertNotNull(lot.getPurchaseInvoiceItemId());
         }
+        var statistics = entityManager.getEntityManagerFactory().unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        boolean statisticsEnabled = statistics.isStatisticsEnabled();
+        statistics.setStatisticsEnabled(true);
+        try {
+            entityManager.clear(); statistics.clear();
+            mvc.perform(get("/api/inventory-items").param("warehouseId", warehouse.getId().toString()).param("includeReceipts", "true"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(3))
+                    .andExpect(jsonPath("$.data[0].receipt.quantity").value(100))
+                    .andExpect(jsonPath("$.data[0].receipt.price").value(300000))
+                    .andExpect(jsonPath("$.data[1].receipt.quantity").value(200))
+                    .andExpect(jsonPath("$.data[1].receipt.price").value(400000))
+                    .andExpect(jsonPath("$.data[0].receipt.invoiceCode").isNotEmpty());
+            assertEquals(3, statistics.getPrepareStatementCount(), "history is fetched once for all receipt lots");
+        } finally {
+            statistics.setStatisticsEnabled(statisticsEnabled);
+        }
         // A depleted receipt must not be recycled by a later purchase.
         var first = lots.get(0); first.setStock(java.math.BigDecimal.ZERO); inventoryRepository.saveAndFlush(first);
         var row = new PurchaseInvoiceItemRequest(product.getId(), "Lot feed", 1.0, "Kg", 500000L, 0.0, warehouse.getId());

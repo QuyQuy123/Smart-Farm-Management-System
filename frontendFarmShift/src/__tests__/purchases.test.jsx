@@ -185,13 +185,15 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
   it('loads all warehouse rows and submits the selected product and destination warehouse', async () => {
     productCategoryService.listAllInventoryItems.mockResolvedValue([
       { id: 101, productId: 11, name: 'Cám GT2', warehouseId: 10, warehouseName: 'Kho mới đổi tên', unitName: 'Kg' },
-      { id: 102, productId: 11, name: 'Cám GT2', warehouseId: 20, warehouseName: 'Kho tạo thêm', unitName: 'Kg' }
+      { id: 102, productId: 11, name: 'Cám GT2', warehouseId: 20, warehouseName: 'Kho tạo thêm', unitName: 'Kg' },
+      { id: 103, productId: 11, name: 'Cám GT2', warehouseId: 20, warehouseName: 'Kho tạo thêm', unitName: 'Kg', price: 400000 }
     ]);
     render(<MemoryRouter><PurchasesView /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: /Tạo đơn nhập hàng/i }));
     const select = await screen.findByRole('combobox', { name: 'Tên hàng hóa 1' });
     await screen.findByRole('option', { name: /Cám GT2 \(Kho tạo thêm\)/ });
     expect(screen.getByRole('option', { name: /Cám GT2 \(Kho mới đổi tên\)/ })).toBeInTheDocument();
+    expect(screen.getAllByRole('option', { name: /Cám GT2 \(Kho tạo thêm\)/ })).toHaveLength(1);
     fireEvent.change(select, { target: { value: '102' } });
     fireEvent.change(screen.getByLabelText(/Nhà cung cấp \*/i), { target: { value: '1' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'Đơn giá (VNĐ) 1' }), { target: { value: '1000' } });
