@@ -69,3 +69,42 @@
   .slot { grid-template-columns: 1fr; }
   .slotTime { flex-direction: row; align-items: baseline; gap: 10px; border-right: 0; border-bottom: 1px solid #9fb3dc; padding: 8px 12px; }
 }
+
+/* Bản gọn ở trang chi tiết chuồng: chỉ để xem nhanh, thao tác chính nằm ở Việc hôm nay. */
+.compact { border-radius: 10px; }
+.compact .header { padding: 10px 14px; gap: 10px; }
+.compact .header h3 { font-size: 14px; }
+.compact .header p { margin-top: 2px; font-size: 12.5px; }
+.compact .progress { min-width: 150px; }
+.compact .progress strong { font-size: 16px; }
+.compact .progress span, .compact .progress small { font-size: 12px; }
+.compact .bar { height: 4px; }
+.compact .warnings { padding: 8px 14px; gap: 4px; }
+.compact .warnings li { font-size: 12.5px; }
+.compact .schedule { margin: 10px; border-width: 1px; border-radius: 8px; box-shadow: 3px 3px 0 rgba(47, 87, 163, 0.12); }
+.compact .slot { grid-template-columns: 64px minmax(0, 1fr); }
+.compact .slotTime { gap: 2px; padding: 8px 6px; border-right-width: 1px; }
+.compact .slotTime strong { font-size: 14px; font-weight: 700; }
+.compact .slotTime small { font-size: 11px; }
+.compact .slotAllDay strong { font-size: 12.5px; white-space: normal; }
+.compact .slotTasks { padding: 6px 8px 0; }
+.compact .section h4 { margin-bottom: 4px; font-size: 11.5px; }
+.compact .task { gap: 8px; padding: 7px 10px; margin-bottom: 6px; border-radius: 8px; }
+.compact .info { gap: 1px; }
+.compact .info strong { font-size: 13px; }
+.compact .amount { font-size: 12.5px; }
+.compact .info small { font-size: 12px; }
+.compact .tag { margin-left: 6px; padding: 0 6px; font-size: 11px; }
+.compact .actions { gap: 2px; }
+.compact .doneButton { min-width: 64px; min-height: 0; padding: 4px 10px; font-size: 12.5px; border-radius: 8px; }
+.compact .doneButton svg { width: 13px; height: 13px; }
+.compact .otherButton, .compact .undoButton { padding: 2px 6px; font-size: 12px; }
+.compact .otherButton svg, .compact .undoButton svg { width: 13px; height: 13px; }
+.compact .editor { grid-template-columns: 140px 1fr; gap: 8px; padding: 8px; }
+.compact .editor label { font-size: 12.5px; }
+.compact .empty { padding: 14px; font-size: 13px; }
+
+@media (max-width: 640px) {
+  .compact .slot { grid-template-columns: 1fr; }
+  .compact .slotTime { border-right: 0; padding: 6px 10px; }
+}
