@@ -63,7 +63,9 @@ public class PurchaseService {
             } catch (ArithmeticException e) { throw new BadRequestException("Giá trị hóa đơn vượt giới hạn cho phép."); }
             var product = row.productCategoryId() == null ? null : productCategoryRepository.findById(row.productCategoryId())
                     .orElseThrow(() -> new ResourceNotFoundException("Mặt hàng không tồn tại."));
-            updatedItems.add(new PurchaseInvoiceItem(invoice, product, row.name().strip(), row.qty(), row.unit().strip(), row.price(), row.vatRate(), amount));
+            var updatedItem = new PurchaseInvoiceItem(invoice, product, row.name().strip(), row.qty(), row.unit().strip(), row.price(), row.vatRate(), amount);
+            updatedItem.setWarehouse(resolveItemWarehouse(product, row.warehouseId()));
+            updatedItems.add(updatedItem);
         }
         long total;
         try { total = Math.max(0, Math.addExact(Math.subtractExact(itemsTotal, request.discountAmount()), request.otherCost())); }
@@ -112,7 +114,7 @@ public class PurchaseService {
             ProductCategory category = null;
             if (itemReq.productCategoryId() != null) {
                 category = productCategoryRepository.findById(itemReq.productCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Hàng hóa đã chọn không tồn tại."));
-                if (category.getWarehouse() == null) throw new BadRequestException("Hàng hóa đã chọn chưa thuộc kho nào.");
+                if (itemReq.warehouseId() == null && category.getWarehouse() == null) throw new BadRequestException("Hàng hóa đã chọn chưa thuộc kho nào.");
             }
             if (!Double.isFinite(itemReq.qty())) throw new BadRequestException("Số lượng không hợp lệ.");
             long lineAmount = Math.round(itemReq.qty() * itemReq.price());
@@ -128,6 +130,7 @@ public class PurchaseService {
                     itemReq.vatRate(),
                     lineAmount
             );
+            item.setWarehouse(resolveItemWarehouse(category, itemReq.warehouseId()));
             invoice.addItem(item);
         }
 
@@ -268,6 +271,14 @@ public class PurchaseService {
         invoiceRepository.saveAndFlush(invoice);
     }
 
+    private WarehouseCategory resolveItemWarehouse(ProductCategory product, Long warehouseId) {
+        if (warehouseId == null) return null; // Preserve legacy and OCR invoice behavior.
+        if (product == null) throw new BadRequestException("Vui lòng chọn hàng hóa thuộc kho.");
+        return inventoryRepository.findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(warehouseId, product.getId()).stream().findFirst()
+                .orElseThrow(() -> new BadRequestException("Hàng hóa đã chọn không thuộc kho này."))
+                .getWarehouse();
+    }
+
     private void increaseStockForInvoice(PurchaseInvoice invoice) {
         for (PurchaseInvoiceItem item : invoice.getItems()) {
             String name = Normalizer.normalize(item.getProductName().strip(), Normalizer.Form.NFC);
@@ -279,7 +290,9 @@ public class PurchaseService {
             }
 
             WarehouseCategory warehouse = null;
-            if (product != null && product.getWarehouse() != null) {
+            if (item.getWarehouse() != null) {
+                warehouse = item.getWarehouse();
+            } else if (product != null && product.getWarehouse() != null) {
                 warehouse = product.getWarehouse();
             } else {
                 warehouse = warehouseCategoryRepository.findAll().stream().findFirst().orElseGet(() -> {
@@ -320,27 +333,23 @@ public class PurchaseService {
                         });
             }
 
-            InventoryItem inventoryItem = inventoryRepository.findByWarehouse_IdAndProduct_Id(warehouse.getId(), product.getId()).orElse(null);
-            BigDecimal quantityToAdd = BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 0.0);
-            BigDecimal price = BigDecimal.valueOf(item.getUnitPrice() != null ? item.getUnitPrice() : 0L);
-
-            if (inventoryItem == null) {
-                inventoryItem = new InventoryItem();
-                inventoryItem.setWarehouse(warehouse);
-                inventoryItem.setProduct(product);
-                inventoryItem.setUnit(unit);
-                inventoryItem.setStock(quantityToAdd);
-                inventoryItem.setPrice(price);
-            } else {
-                BigDecimal currentStock = inventoryItem.getStock() != null ? inventoryItem.getStock() : BigDecimal.ZERO;
-                inventoryItem.setStock(currentStock.add(quantityToAdd));
-                if (price.compareTo(BigDecimal.ZERO) > 0) {
-                    inventoryItem.setPrice(price);
-                }
-                if (inventoryItem.getUnit() == null && unit != null) {
-                    inventoryItem.setUnit(unit);
-                }
+            var lots = inventoryRepository.findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(warehouse.getId(), product.getId());
+            var template = lots.stream().findFirst().orElse(null);
+            // Only an unused zero-stock catalog row may become the first receipt lot.
+            // Later receipts always insert a row, including receipts at the same price.
+            InventoryItem inventoryItem = lots.stream()
+                    .filter(lot -> lot.getPurchaseInvoiceItemId() == null && lot.getStock().signum() == 0)
+                    .findFirst().orElseGet(InventoryItem::new);
+            if (inventoryItem.getId() == null && template != null) {
+                inventoryItem.setBrand(template.getBrand());
+                inventoryItem.setImageUrl(template.getImageUrl());
             }
+            inventoryItem.setWarehouse(warehouse);
+            inventoryItem.setProduct(product);
+            inventoryItem.setUnit(unit != null ? unit : (template == null ? null : template.getUnit()));
+            inventoryItem.setStock(BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 0.0));
+            inventoryItem.setPrice(BigDecimal.valueOf(item.getUnitPrice() != null ? item.getUnitPrice() : 0L));
+            inventoryItem.setPurchaseInvoiceItemId(item.getId());
 
             inventoryRepository.save(inventoryItem);
         }
@@ -406,7 +415,8 @@ public class PurchaseService {
                         it.getUnit(),
                         it.getUnitPrice(),
                         it.getVatRate(),
-                        it.getAmount()
+                        it.getAmount(),
+                        it.getWarehouse() == null ? null : it.getWarehouse().getId()
                 )
         ).toList();
 

@@ -17,13 +17,36 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test") @Transactional
+@SpringBootTest(properties="spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect") @AutoConfigureMockMvc @ActiveProfiles("test") @Transactional
 class CustomerContactIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired CustomerContactRepository repository;
     private static final String API = "/api/customer-contacts";
     private static final String BODY = "{\"name\":\" Nguyễn Văn A \",\"phone\":\"0912345678\"}";
+
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void updatingInvoiceAdjustsBalancesAndKeepsInvoiceCode() {
+        var order = sales.create(sale("update-sale", "Original buyer"));
+        String code = order.getCode();
+        var paidRequest = new com.farmshift.backendFarmShift.dto.request.SalesOrderRequest("update-sale", java.time.LocalDate.now(),
+            "Original buyer", "0912345678", "Updated address", "Area - Barn - Cycle", 5,
+            new java.math.BigDecimal("10"), new java.math.BigDecimal("50000"), "PARTIAL", new java.math.BigDecimal("200000"), "Updated");
+        var updated = sales.update("update-sale", paidRequest);
+        assertEquals(code, updated.getCode());
+        var buyer = repository.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc("0912345678", "Original buyer").orElseThrow();
+        assertEquals(0, buyer.getTotalBought().compareTo(new java.math.BigDecimal("500000")));
+        assertEquals(0, buyer.getDebt().compareTo(new java.math.BigDecimal("300000")));
+        // Saving the same update again must not change the totals.
+        sales.update("update-sale", paidRequest);
+        assertEquals(0, buyer.getDebt().compareTo(new java.math.BigDecimal("300000")));
+        sales.update("update-sale", sale("update-sale", "New buyer"));
+        assertEquals(0, buyer.getTotalBought().signum());
+        assertEquals(0, buyer.getDebt().signum());
+        var newBuyer = repository.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc("0912345678", "New buyer").orElseThrow();
+        assertEquals(0, newBuyer.getDebt().compareTo(new java.math.BigDecimal("1000000")));
+        assertEquals(code, updated.getCode());
+    }
 
     @Autowired com.farmshift.backendFarmShift.service.SalesOrderService sales;
 

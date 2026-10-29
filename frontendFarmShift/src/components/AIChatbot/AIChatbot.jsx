@@ -264,8 +264,47 @@ export const AIChatbot = () => {
   const endOfMessagesRef = useRef(null);
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
   const audioChunksRef = useRef([]);
   const interimTranscriptRef = useRef('');
+
+  const normalizeWebSpeechText = (raw) => {
+    if (!raw) return '';
+    return raw
+      .replace(/\bnhật\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)\b/giu, 'nhật ký')
+      .replace(/\b(?:sổ|số|xổ)\s+(?:quỷ|quĩ|quý|quỹ|qũy|quỳ)\b/giu, 'sổ quỹ')
+      .replace(/\b(?:cần\s+mẫu|cân\s+mẩu)\b/giu, 'cân mẫu')
+      .replace(/\bhao\s+hục\b/giu, 'hao hụt')
+      .replace(/\bthải\s+lọai\b/giu, 'thải loại')
+      .replace(/\b(?:hai|hi|hy)\s*(?:gờ\s*|gơ\s*)?(?:rô|grô|gro)\s*0?1\b/giu, 'Higro 01')
+      .replace(/\bcám\s+số\s+1\b/giu, 'Higro 01')
+      .replace(/\b(?:hai|hi|hy)\s*(?:gờ\s*|gơ\s*)?(?:rô|grô|gro)\s*0?2\b/giu, 'Higro 02')
+      .replace(/\bcám\s+số\s+2\b/giu, 'Higro 02')
+      .replace(/\b(?:xi\s*pi|si\s*pi|cp)\s*511\b/giu, 'CP 511')
+      .replace(/\b(?:đa\s+ba\s+cô|da\s+ba\s+co|đabacô)\b/giu, 'Dabaco')
+      .replace(/\b(?:han\s+vét|hàn\s+vét)\b/giu, 'Hanvet')
+      .replace(/\b(?:la\s+sô\s+ta|la\s+xô\s+ta|lasôta)\b/giu, 'Lasota')
+      .replace(/\b(?:gum\s+bô\s+rô|găm\s+bô\s+rô)\b/giu, 'Gumboro')
+      .replace(/\b(?:niu\s+cát\s+xơn|niu\s+cat\s+xon|niu\s+cát\s+xơ)\b/giu, 'Newcastle')
+      .replace(/\bnhà\s+a\s*(?:một|1)\b/giu, 'Nhà A1')
+      .replace(/\bnhà\s+a\s*(?:hai|2)\b/giu, 'Nhà A2')
+      .replace(/\bnhà\s+(?:b|bê)\s*(?:một|1)\b/giu, 'Nhà B1')
+      .replace(/\bnhà\s+(?:b|bê)\s*(?:hai|2)\b/giu, 'Nhà B2')
+      .replace(/\bchuồng\s+a\s*(?:một|1)\b/giu, 'Chuồng A1')
+      .replace(/\bchuồng\s+a\s*(?:hai|2)\b/giu, 'Chuồng A2')
+      .replace(/\bchuồng\s+(?:b|bê)\s*(?:một|1)\b/giu, 'Chuồng B1')
+      .replace(/\bchuồng\s+(?:b|bê)\s*(?:hai|2)\b/giu, 'Chuồng B2')
+      .replace(/\bkhu\s+(?:di|gi|j)\s+thịt\b/giu, 'Khu J Thịt')
+      .replace(/\bkhu\s+mía(?:\s+thịt)?\b/giu, 'Khu Mía Thịt');
+  };
+
+  const closeChatWindow = () => {
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
+    }
+    setSpeakingMsgId(null);
+    setIsOpen(false);
+  };
 
   // Persist messages across views in sessionStorage
   useEffect(() => {
@@ -287,6 +326,9 @@ export const AIChatbot = () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         try { mediaRecorderRef.current.stop(); } catch (_e) { /* ignore */ }
       }
+      if (streamRef.current) {
+        try { streamRef.current.getTracks().forEach(track => track.stop()); } catch (_e) { /* ignore */ }
+      }
       if ('speechSynthesis' in window) {
         try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
       }
@@ -298,7 +340,6 @@ export const AIChatbot = () => {
     if (!isOpen && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
-        setSpeakingMsgId(null);
       } catch (_e) { /* ignore */ }
     }
   }, [isOpen]);
@@ -494,8 +535,8 @@ export const AIChatbot = () => {
         speakText(response.reply, botMsg.id);
       }
 
-      // Phát sự kiện toàn cục để các màn hình lắng nghe tự reload dữ liệu
-      if (response.executed || response.uiCommand === 'REFRESH_DATA' || response.uiCommand === 'OPEN_CREATE_PURCHASE_MODAL') {
+      // Phát sự kiện toàn cục để các màn hình lắng nghe tự reload dữ liệu hoặc mở modal nhanh
+      if (response.executed || response.uiCommand) {
         window.dispatchEvent(new CustomEvent('farmshift:ai-action', { detail: response }));
       }
 
@@ -588,6 +629,7 @@ export const AIChatbot = () => {
     // Khởi tạo MediaRecorder
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
       const recorder = new MediaRecorder(stream, { mimeType });
 
@@ -600,9 +642,10 @@ export const AIChatbot = () => {
       recorder.onstop = async () => {
         // Dọn dẹp tracks microphone
         stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
 
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        let recognizedText = interimTranscriptRef.current;
+        let recognizedText = normalizeWebSpeechText(interimTranscriptRef.current);
 
         // Thử gửi audioBlob lên Groq Whisper STT
         if (audioBlob.size > 0) {
@@ -651,8 +694,9 @@ export const AIChatbot = () => {
             transcript += event.results[i][0].transcript;
           }
           if (transcript) {
-            interimTranscriptRef.current = transcript;
-            setInput(transcript);
+            const normalized = normalizeWebSpeechText(transcript);
+            interimTranscriptRef.current = normalized;
+            setInput(normalized);
           }
         };
 
@@ -684,6 +728,10 @@ export const AIChatbot = () => {
   const stopListening = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       try { mediaRecorderRef.current.stop(); } catch (_e) { /* ignore */ }
+    }
+    if (streamRef.current) {
+      try { streamRef.current.getTracks().forEach(track => track.stop()); } catch (_e) { /* ignore */ }
+      streamRef.current = null;
     }
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch (_e) { /* ignore */ }
@@ -772,7 +820,7 @@ export const AIChatbot = () => {
                 type="button"
                 className={styles.iconBtn}
                 title="Thu nhỏ cửa sổ"
-                onClick={() => setIsOpen(false)}
+                onClick={closeChatWindow}
               >
                 <ChevronDown size={18} />
               </button>

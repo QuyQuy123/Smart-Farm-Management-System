@@ -21,7 +21,8 @@ const JournalView = lazy(() => import('../features/farmshift/JournalView').then(
 const InventoryView = lazy(() => import('../features/farmshift/InventoryView').then(m => ({ default: m.InventoryView })));
 const PurchasesView = lazy(() => import('../features/farmshift/PurchasesView').then(m => ({ default: m.PurchasesView })));
 const SalesView = lazy(() => import('../features/farmshift/SalesView').then(m => ({ default: m.SalesView })));
-const TransfersView = lazy(() => import('../features/farmshift/TransfersView').then(m => ({ default: m.TransfersView })));
+const TransfersView = lazy(() => import('../features/farmshift/InternalStockView').then(m => ({ default: m.InternalStockView })));
+const InternalStockView = TransfersView;
 const CashbookView = lazy(() => import('../features/farmshift/CashbookView').then(m => ({ default: m.CashbookView })));
 const ReportsView = lazy(() => import('../features/farmshift/ReportsView').then(m => ({ default: m.ReportsView })));
 const CatalogSettingsView = lazy(() => import('../features/farmshift/CatalogSettingsView').then(m => ({ default: m.CatalogSettingsView })));
@@ -69,6 +70,7 @@ export const AppRouter = () => {
         <Route path="/journal" element={<ProtectedRoute><JournalView /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><InventoryView /></ProtectedRoute>} />
         <Route path="/transfers" element={<ProtectedRoute><TransfersView /></ProtectedRoute>} />
+        <Route path="/internal-stock" element={<ProtectedRoute><InternalStockView /></ProtectedRoute>} />
         <Route path="/purchases" element={<ProtectedRoute><PurchasesView /></ProtectedRoute>} />
         <Route path="/sales" element={<ProtectedRoute><SalesView /></ProtectedRoute>} />
         <Route path="/cashbook" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />

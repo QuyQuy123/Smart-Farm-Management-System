@@ -563,4 +563,35 @@ describe('Voice Assistant & Actionable AI Chatbot Suite', () => {
     expect(card).toHaveTextContent('Cập nhật thông tin: Nhà A1');
     expect(card).toHaveTextContent('5.000 con → 6.000 con');
   });
+
+  it('dispatches farmshift:ai-action when AI returns quick modal uiCommand (OPEN_OCR_MODAL)', async () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    aiAssistantService.sendAssistantMessage.mockResolvedValueOnce({
+      reply: '🚀 Đang chuyển tới trang Hóa đơn nhập hàng và mở công cụ Bóc tách hóa đơn thông minh (AI OCR).',
+      actionType: 'NAVIGATE_AND_PREFILL',
+      executed: true,
+      navigateTo: '/purchases',
+      uiCommand: 'OPEN_OCR_MODAL'
+    });
+
+    renderComponent();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    const input = screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Quét hóa đơn OCR' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await waitFor(() => {
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'farmshift:ai-action',
+          detail: expect.objectContaining({
+            navigateTo: '/purchases',
+            uiCommand: 'OPEN_OCR_MODAL'
+          })
+        })
+      );
+    });
+  });
 });

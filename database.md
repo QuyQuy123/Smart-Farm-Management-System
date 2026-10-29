@@ -43,6 +43,13 @@ erDiagram
     purchase_invoices ||--o{ purchase_invoice_items : "contains"
     purchase_invoices }o--o{ purchase_tags : "tagged_via_invoice_tags"
     product_categories ||--o{ purchase_invoice_items : "references"
+
+    %% Internal Stock Movements
+    internal_stock_categories ||--o{ internal_stock_vouchers : "categorizes"
+    warehouse_categories ||--o{ internal_stock_vouchers : "source_or_target"
+    internal_stock_vouchers ||--o{ internal_stock_voucher_items : "contains"
+    product_categories ||--o{ internal_stock_voucher_items : "transfers"
+    farming_cycles ||--o{ internal_stock_vouchers : "charges_expense"
 ```
 
 ---
@@ -312,7 +319,81 @@ Entity: `InventoryItem`. Quản lý tồn kho thực tế, đơn giá bán/xuấ
 - `GET /api/inventory-items/{id}`: Chi tiết một mặt hàng tồn kho.
 - `POST /api/inventory-items`: Thêm mặt hàng mới vào kho (`ROLE_FARM_OWNER`).
 - `PUT /api/inventory-items/{id}`: Điều chỉnh đơn giá, đơn vị tính hoặc nhãn hiệu (`ROLE_FARM_OWNER`).
-- `DELETE /api/inventory-items/{id}`: Xóa bản ghi mặt hàng (`ROLE_FARM_OWNER`).
+### 4.2 Bảng `internal_stock_categories` — Danh mục phiếu xuất nhập nội bộ
+
+Entity: `InternalStockCategory`. Quản lý phân loại danh mục phiếu tại **Xuất nhập nội bộ → Danh mục** (`/internal-stock` hoặc `/transfers`).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `movement_type` | VARCHAR(20) | NOT NULL. `IMPORT` (Nhập kho), `EXPORT` (Xuất kho), `TRANSFER` (Chuyển kho). |
+| `name` | VARCHAR(150) | NOT NULL. Tên danh mục hiển thị (VD: `Nhập đầu kì`, `Xuất hủy`, `Chuyển kho nội bộ`). |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC chữ thường chống trùng lặp. |
+| `description` | VARCHAR(1000) | Mô tả công dụng và bối cảnh lập phiếu của danh mục. |
+| `is_system` | BOOLEAN | NOT NULL, DEFAULT FALSE. Cờ bảo vệ 3 danh mục gốc của hệ thống không bị xóa. |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+
+**Thuộc tính tính toán trả về qua API:**
+- `voucherCount` (`Số phiếu`): Số lượng phiếu xuất nhập đang hiệu lực (khác `CANCELLED`) thuộc danh mục này.
+
+**API:** `GET /api/internal-stock/categories` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Không thể xóa danh mục hệ thống hoặc danh mục đã phát sinh phiếu (`CATEGORY_IN_USE`).
+
+### 4.3 Bảng `internal_stock_vouchers` — Chứng từ xuất nhập nội bộ
+
+Entity: `InternalStockVoucher`. Quản lý chứng từ điều chuyển, xuất hủy hoặc nhập đầu kỳ không phát sinh công nợ nhà cung cấp hay doanh thu bán hàng.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã chứng từ tự sinh: `XNB000001`, `XNB000002`... |
+| `movement_type` | VARCHAR(20) | NOT NULL. `IMPORT` (Nhập kho), `EXPORT` (Xuất kho), `TRANSFER` (Chuyển kho). |
+| `category_id` | BIGINT | NOT NULL, FOREIGN KEY → `internal_stock_categories.id`. |
+| `source_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `EXPORT` và `TRANSFER`; NULL với `IMPORT`. |
+| `target_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `IMPORT` và `TRANSFER`; NULL với `EXPORT`. |
+| `cycle_id` | BIGINT | FOREIGN KEY → `farming_cycles.id` (nullable). Lứa nuôi nhận chi phí khi xuất hủy thuốc/vật tư. |
+| `expense_id` | BIGINT | FOREIGN KEY → `cycle_expenses.id` (nullable). Khoản chi phát sinh tự động nếu xuất hủy gắn với lứa. |
+| `movement_date` | DATE | NOT NULL. Ngày thực hiện chứng từ (ghi nhận theo `Asia/Bangkok`). |
+| `total_amount` | NUMERIC(19,2) | NOT NULL, DEFAULT 0.00. Tổng định giá giá trị hàng hóa trong phiếu (VNĐ). |
+| `status` | VARCHAR(20) | NOT NULL, DEFAULT `'COMPLETED'`. `COMPLETED` (Đã hoàn thành) hoặc `CANCELLED` (Đã hủy). |
+| `note` | VARCHAR(1000) | Diễn giải nguyên nhân xuất kho hoặc mục đích điều chuyển. |
+| `attachment_url` | VARCHAR(500) | Đường dẫn ảnh chứng từ/biên bản tiêu hủy (`local` hoặc Cloudflare R2). |
+| `created_by` | VARCHAR(150) | NOT NULL. Email tài khoản lập phiếu (`accounts.email`). |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật theo `Asia/Bangkok`. |
+
+### 4.4 Bảng `internal_stock_voucher_items` — Chi tiết hàng hóa xuất nhập nội bộ
+
+Entity: `InternalStockVoucherItem`. Danh sách các dòng hàng hóa trong chứng từ xuất nhập nội bộ (quan hệ 1-N với `internal_stock_vouchers`).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `voucher_id` | BIGINT | NOT NULL, FOREIGN KEY → `internal_stock_vouchers.id` ON DELETE CASCADE. |
+| `product_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_categories.id`. |
+| `source_inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Mặt hàng kho nguồn (gắn khi `EXPORT`, `TRANSFER`). |
+| `target_inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Mặt hàng kho đích (gắn khi `IMPORT`, `TRANSFER`). |
+| `quantity` | NUMERIC(19,3) | NOT NULL. Số lượng luân chuyển (phải > 0). |
+| `unit_id` | BIGINT | FOREIGN KEY → `measurement_units.id`. Đơn vị tính định lượng. |
+| `unit_price` | NUMERIC(19,2) | NOT NULL, DEFAULT 0.00. Đơn giá mặt hàng tại thời điểm lập phiếu. |
+| `amount` | NUMERIC(19,2) | NOT NULL, DEFAULT 0.00. Thành tiền = `quantity * unit_price`. |
+| `note` | VARCHAR(500) | Ghi chú cụ thể cho dòng hàng (số lô, tình trạng hỏng hóc...). |
+
+**Quy tắc nghiệp vụ cốt lõi:**
+1. **Trừ tồn kho nguyên tử (`takeStock`)**: Thao tác `EXPORT` và `TRANSFER` bắt buộc thực thi câu lệnh nguyên tử `UPDATE inventory_items SET stock = stock - :qty WHERE id = :id AND stock >= :qty`. Nếu không đủ hàng, chặn ngay và trả mã lỗi chuẩn `MSG27` (`Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm.`).
+2. **Quyền hạn xem tài chính**: Khi tài khoản mang vai trò `ROLE_FARM_WORKER` xem phiếu, các trường tài chính (`unit_price`, `amount`, `total_amount`) tự động trả về `NULL`.
+3. **Hoàn tác phiếu (`CANCELLED`)**: Đảo ngược chính xác biến động tồn kho, xóa khoản chi `cycle_expenses` liên quan và chỉ cho phép hoàn tác nếu kho nhận còn đủ hàng để thu hồi.
+
+**API:**
+- `GET /api/internal-stock/vouchers`: Danh sách phiếu phân trang có bộ lọc (`movementType`, `categoryId`, `warehouseId`, `status`, ngày tháng, từ khóa).
+- `GET /api/internal-stock/vouchers/{id}`: Chi tiết phiếu và danh sách hàng hóa.
+- `POST /api/internal-stock/vouchers`: Lập phiếu xuất/nhập/chuyển kho (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+### 4.5 Bảng `internal_stock_voucher_numbers` — Bộ đếm mã chứng từ xuất nhập nội bộ
+
+Entity: `InternalStockVoucherNumber`. Quản lý giá trị số nguyên tự tăng để sinh mã chứng từ nghiệp vụ duy nhất `XNB000001`, `XNB000002`...
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `current_val` | BIGINT | NOT NULL, DEFAULT 0. Giá trị số nguyên liên tục hiện tại của bộ đếm. |
 
 ---
 

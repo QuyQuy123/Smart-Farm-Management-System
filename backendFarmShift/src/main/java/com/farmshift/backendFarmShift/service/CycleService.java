@@ -222,11 +222,16 @@ public class CycleService {
     private CycleFinance finance(List<FlockMovement> movements, List<FeedRecord> feeds, List<CycleExpense> expenses, CycleMetrics metrics) {
         BigDecimal chicks = BigDecimal.ZERO, revenue = BigDecimal.ZERO;
         for (FlockMovement m : movements) {
-            BigDecimal value = m.getFlock().getUnitPrice().multiply(BigDecimal.valueOf(m.getQuantity()));
+            BigDecimal unitPrice = m.getFlock() != null && m.getFlock().getUnitPrice() != null ? m.getFlock().getUnitPrice() : BigDecimal.ZERO;
+            BigDecimal value = unitPrice.multiply(BigDecimal.valueOf(m.getQuantity()));
             switch (m.getType()) {
                 case IMPORT, TRANSFER_IN -> chicks = chicks.add(value);
                 case TRANSFER_OUT -> chicks = chicks.subtract(value);
-                case HARVEST -> revenue = revenue.add(m.getWeightKg().multiply(m.getUnitPrice()));
+                case HARVEST -> {
+                    if (m.getWeightKg() != null && m.getUnitPrice() != null) {
+                        revenue = revenue.add(m.getWeightKg().multiply(m.getUnitPrice()));
+                    }
+                }
                 default -> { }
             }
         }

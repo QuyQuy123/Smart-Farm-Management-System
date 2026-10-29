@@ -26,7 +26,7 @@ public class InventoryItemService {
     private final DailyTaskLogRepository taskLogs;
     /** warehouseId null: mọi hàng hóa của mọi kho (dùng khi gắn hàng hóa vào chương trình nuôi). */
     public List<InventoryItemResponse> list(Long warehouseId) {
-        if (warehouseId == null) return repository.findAll(Sort.by("warehouse.name", "product.name")).stream().map(this::response).toList();
+        if (warehouseId == null) return repository.findAllWithDetailsBy(Sort.by("warehouse.name", "product.name")).stream().map(this::response).toList();
         if (!warehouses.existsById(warehouseId)) throw new ResourceNotFoundException("Kho không tồn tại.");
         return repository.findByWarehouse_Id(warehouseId, Sort.by("createdAt", "id")).stream().map(this::response).toList();
     }
@@ -43,22 +43,25 @@ public class InventoryItemService {
         }
         repository.delete(item);
     }
-    private InventoryItem find(Long id) { return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hàng hóa.")); }
+    private InventoryItem find(Long id) { return repository.findWithDetailsById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hàng hóa.")); }
     private InventoryItemResponse save(InventoryItem item, InventoryItemRequest request) {
         var warehouse = warehouses.findById(request.warehouseId()).orElseThrow(() -> new ResourceNotFoundException("Kho đã chọn không tồn tại."));
         String name = java.text.Normalizer.normalize(request.name().strip(), java.text.Normalizer.Form.NFC);
         String key = name.toLowerCase(java.util.Locale.ROOT);
+        // Share the catalog product across warehouses; inventory is unique per warehouse/product.
         var product = products.findByNameKey(key).orElseGet(() -> {
             var created = new com.farmshift.backendFarmShift.entity.ProductCategory();
             created.setName(name); created.setNameKey(key); created.setWarehouse(warehouse);
             return products.saveAndFlush(created);
         });
-        if (product.getWarehouse() == null || !product.getWarehouse().getId().equals(warehouse.getId())) throw new BadRequestException("Tên hàng hóa này đã thuộc kho khác. Vui lòng nhập tên khác.");
         var unit = units.findById(request.unitId()).orElseThrow(() -> new ResourceNotFoundException("Đơn vị tính đã chọn không tồn tại."));
         if (item.getId() != null && item.getStock().signum() != 0 && (item.getUnit() == null || !item.getUnit().getId().equals(unit.getId()))) {
             throw new ConflictException("Không thể đổi đơn vị của hàng hóa đang còn tồn kho.", "INVENTORY_IN_USE", "unitId");
         }
-        if (repository.existsByWarehouse_IdAndProduct_IdAndIdNot(warehouse.getId(), product.getId(), item.getId() == null ? -1L : item.getId())) throw duplicate();
+        boolean identityChanged = item.getId() == null
+                || !item.getWarehouse().getId().equals(warehouse.getId())
+                || !item.getProduct().getId().equals(product.getId());
+        if (identityChanged && repository.existsByWarehouse_IdAndProduct_IdAndIdNot(warehouse.getId(), product.getId(), item.getId() == null ? -1L : item.getId())) throw duplicate();
         if (item.getId() != null && item.getStock().signum() != 0 && (!item.getWarehouse().getId().equals(warehouse.getId()) || !item.getProduct().getId().equals(product.getId()))) {
             throw new ConflictException("Không thể đổi kho hoặc tên hàng hóa đang còn tồn kho.", "INVENTORY_IN_USE", null);
         }

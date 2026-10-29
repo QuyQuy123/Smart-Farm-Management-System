@@ -87,6 +87,27 @@ class BrandIntegrationTest {
     }
 
     @Test
+    void allowsSameBrandAcrossProductTypesButRejectsDuplicatePair() throws Exception {
+        var first = mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Dapaco\",\"productType\":\"Feed\"}"))
+            .andExpect(status().isCreated()).andReturn();
+        long id = mapper.readTree(first.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Dapaco\",\"productType\":\"Vaccine\"}"))
+            .andExpect(status().isCreated());
+        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\" DAPACO \",\"productType\":\" vaccine \"}"))
+            .andExpect(status().isConflict());
+        mvc.perform(put(API + "/" + id).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Dapaco\",\"productType\":\"Feed\",\"note\":\"Updated\"}"))
+            .andExpect(status().isOk());
+        mvc.perform(put(API + "/" + id).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Dapaco\",\"productType\":\"Vaccine\"}"))
+            .andExpect(status().isConflict());
+        assertEquals(2, repository.count());
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_FARM_WORKER")
     void workerCanReadButCannotWrite() throws Exception {
         var brand = new Brand();
