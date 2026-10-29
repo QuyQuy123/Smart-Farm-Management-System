@@ -6,6 +6,12 @@ import org.springframework.data.domain.Sort;
 import java.util.List;
 
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, Long> {
+    // Fetch all fields used by InventoryItemResponse in one query, avoiding per-row lazy loads.
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "product", "brand", "unit"})
+    List<InventoryItem> findAllWithDetailsBy(Sort sort);
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "product", "brand", "unit"})
+    java.util.Optional<InventoryItem> findWithDetailsById(Long id);
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "product", "brand", "unit"})
     List<InventoryItem> findByWarehouse_Id(Long warehouseId, Sort sort);
     java.util.Optional<InventoryItem> findByWarehouse_IdAndProduct_Id(Long warehouseId, Long productId);
     java.util.List<InventoryItem> findByProduct_Id(Long productId);

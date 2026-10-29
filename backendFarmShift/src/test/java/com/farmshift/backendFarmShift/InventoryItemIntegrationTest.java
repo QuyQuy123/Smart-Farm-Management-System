@@ -22,6 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test") @Transactional
 class InventoryItemIntegrationTest {
+    @Autowired jakarta.persistence.EntityManager em;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired InventoryItemRepository inventory;
@@ -79,15 +80,75 @@ class InventoryItemIntegrationTest {
         mvc.perform(get("/api/product-categories/" + productId)).andExpect(jsonPath("$.data.itemCount").value(1));
     }
     @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
-    void rejectsNegativePriceWrongWarehouseAndInvalidReferences() throws Exception {
+    void rejectsNegativePriceAndInvalidReferences() throws Exception {
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("price", -1)))).andExpect(status().isBadRequest());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("price", "1.234")))).andExpect(status().isBadRequest());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("brandId", 9999999)))).andExpect(status().isNotFound());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("unitId", 9999999)))).andExpect(status().isNotFound());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("unitId", "")))).andExpect(status().isBadRequest());
-        var other = new WarehouseCategory(); other.setName("Kho khác"); other.setNameKey("kho khác"); other = warehouses.saveAndFlush(other);
-        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("warehouseId", other.getId())))).andExpect(status().isBadRequest());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("imageUrl", "data:image/png;base64,abc")))).andExpect(status().isBadRequest());
+    }
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void sharesProductAcrossWarehousesWithIndependentStockAndPrice() throws Exception {
+        long firstId = create();
+        var first = inventory.findById(firstId).orElseThrow();
+        first.setStock(new BigDecimal("7"));
+        inventory.saveAndFlush(first);
+        var other = new WarehouseCategory(); other.setName("Kho khác"); other.setNameKey("kho khác");
+        Long otherId = warehouses.saveAndFlush(other).getId();
+        var result = mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON)
+                .content(payload(Map.of("warehouseId", otherId, "name", "  CÁM KIỂM THỬ  ", "price", "320000"))))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.data.productId").value(productId))
+            .andExpect(jsonPath("$.data.stock").value(0)).andExpect(jsonPath("$.data.price").value(320000)).andReturn();
+        long secondId = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        assertNotEquals(firstId, secondId);
+        assertEquals(0, first.getStock().compareTo(new BigDecimal("7")));
+        assertEquals(0, first.getPrice().compareTo(new BigDecimal("125000.50")));
+        assertEquals(warehouseId, products.findById(productId).orElseThrow().getWarehouse().getId());
+        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("warehouseId", otherId))))
+            .andExpect(status().isConflict());
+        mvc.perform(put(API + "/" + secondId).contentType(MediaType.APPLICATION_JSON)
+                .content(payload(Map.of("warehouseId", otherId, "price", "330000"))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.price").value(330000));
+        mvc.perform(put(API + "/" + firstId).contentType(MediaType.APPLICATION_JSON)
+                .content(payload(Map.of("name", "Tên mới"))))
+            .andExpect(status().isConflict());
+        mvc.perform(put(API + "/" + firstId).contentType(MediaType.APPLICATION_JSON)
+                .content(payload(Map.of("warehouseId", otherId, "name", "Hàng khác"))))
+            .andExpect(status().isConflict());
+    }
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void acceptsCatalogProductWithoutOriginalWarehouse() throws Exception {
+        var product = products.findById(productId).orElseThrow();
+        product.setWarehouse(null); products.saveAndFlush(product);
+        create();
+        assertNull(product.getWarehouse());
+    }
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void listingFetchesReferencesWithConstantQueryCount() throws Exception {
+        create();
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(Map.of("name", "Hàng test " + i))))
+                .andExpect(status().isCreated());
+        }
+        em.flush(); em.clear();
+        var statistics = em.getEntityManagerFactory().unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        boolean enabled = statistics.isStatisticsEnabled();
+        statistics.setStatisticsEnabled(true);
+        try {
+            statistics.clear();
+            mvc.perform(get(API).param("warehouseId", warehouseId.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data[0].brandName").value("Nhãn hiệu kiểm thử"))
+                .andExpect(jsonPath("$.data[0].unitName").value("Kg kiểm thử"));
+            assertEquals(2, statistics.getPrepareStatementCount(), "warehouse existence + one joined inventory query");
+            em.clear(); statistics.clear();
+            mvc.perform(get(API)).andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(4));
+            assertEquals(1, statistics.getPrepareStatementCount(), "all warehouses must use one joined query");
+        } finally {
+            statistics.setStatisticsEnabled(enabled);
+        }
     }
     @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
     void createsTypedNameAndRejectsBlankName() throws Exception {
