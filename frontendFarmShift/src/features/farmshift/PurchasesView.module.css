@@ -72,6 +72,8 @@
 .editItemRow output { display: flex; align-items: center; justify-content: flex-end; min-height: 44px; margin-top: 6px; font-weight: 600; background: #f6f9f8; border-radius: 8px; padding: 6px; overflow-wrap: anywhere; }
 .editTotal { padding: 14px; background: #edf7f4; border-radius: 10px; text-align: right; color: #357c6e; }
 @media(max-width: 700px) { .editStatuses { grid-template-columns: 1fr; } .editItemRow { grid-template-columns: 1fr 1fr; padding-bottom: 14px; border-bottom: 1px solid #edf1f0; } .editItemRow > :first-child { grid-column: 1 / -1; } }
+.flockLink { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: #eef8f6; color: #34474f; font-size: 14px; }
+.flockLink a { color: var(--color-primary, #019788); font-weight: 600; }
 .workflowSteps { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-bottom: 16px; padding: 8px 0; }
 .workflowStep { display: flex; align-items: center; gap: 6px; color: #008a7b; font-size: 13.5px; font-weight: 600; }
 .workflowTick { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; color: #008a7b; }

@@ -33,6 +33,7 @@ public class CycleService {
     private final FeedRecordRepository feedRepository;
     private final WeightSampleRepository weightRepository;
     private final CycleExpenseRepository expenseRepository;
+    private final PurchaseInvoiceRepository invoiceRepository;
 
     public List<CycleSummaryResponse> list(Long barnId) {
         barnService.find(barnId);
@@ -100,6 +101,11 @@ public class CycleService {
         List<WeightSample> samples = weightRepository.findAllByCycleIdOrderBySampleDateDescIdDesc(cycleId);
         List<CycleExpense> expenses = expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(cycleId);
         LocalDate reference = reference(cycle);
+        Map<Long, PurchaseInvoice> invoices = new HashMap<>();
+        if (canSeeFinance && !flocks.isEmpty()) {
+            invoiceRepository.findAllByFlockIdIn(flocks.stream().map(Flock::getId).toList())
+                    .forEach(invoice -> invoices.putIfAbsent(invoice.getFlock().getId(), invoice));
+        }
 
         CycleMetrics metrics = metrics(cycle, barn, flocks, movements, feeds, samples);
         int currentDay = metrics.ageDays() != null ? metrics.ageDays() : metrics.dayOfCycle();
@@ -116,7 +122,7 @@ public class CycleService {
                 BarnService.response(barn, cycle.getStatus() == CycleStatus.ACTIVE ? cycle.getId() : activeCycleId(barn)),
                 metrics,
                 canSeeFinance ? finance(movements, feeds, expenses, metrics) : null,
-                flocks.stream().map(flock -> flockResponse(flock, reference, canSeeFinance)).toList(),
+                flocks.stream().map(flock -> flockResponse(flock, reference, canSeeFinance, invoices.get(flock.getId()))).toList(),
                 List.copyOf(programs.values()),
                 movements.stream().filter(m -> m.getType() != FlockMovementType.IMPORT)
                         .sorted(Comparator.comparing(FlockMovement::getMovementDate).thenComparing(FlockMovement::getId).reversed())
@@ -131,6 +137,12 @@ public class CycleService {
     }
 
     // ---------------------------------------------------------------- shared rules
+
+    /** Chuồng của lứa nuôi, để kiểm tra công nhân có phụ trách chuồng đó không. */
+    @Transactional(readOnly = true)
+    public Long barnIdOf(Long id) {
+        return find(id).getBarn().getId();
+    }
 
     FarmingCycle find(Long id) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lứa nuôi."));
@@ -269,20 +281,30 @@ public class CycleService {
     }
 
     static FlockResponse flockResponse(Flock flock, LocalDate reference, boolean canSeeFinance) {
+        return flockResponse(flock, reference, canSeeFinance, null);
+    }
+
+    /** invoice: hóa đơn nhập con giống của đàn (nếu có); chỉ trả về cho vai trò được xem chi phí. */
+    static FlockResponse flockResponse(Flock flock, LocalDate reference, boolean canSeeFinance, PurchaseInvoice invoice) {
         int age = ageOn(flock, reference);
         FarmingProgram program = flock.getProgram();
+        Supplier supplier = flock.getSupplier();
+        PurchaseInvoice visibleInvoice = canSeeFinance ? invoice : null;
         return new FlockResponse(flock.getId(), flockCode(flock), flock.getName(), program == null ? null : program.getId(),
                 program == null ? null : program.getName(), flock.getGender(), flock.getSourceType(),
                 flock.getSourceNote(), flockCode(flock.getSourceFlock()), flock.getImportDate(), flock.getAgeAtImport(), age,
                 flock.getImportQuantity(), flock.getImportAvgWeight(),
                 flock.getImportAvgWeight().multiply(BigDecimal.valueOf(flock.getImportQuantity())).setScale(1, RoundingMode.HALF_UP),
-                canSeeFinance ? flock.getUnitPrice() : null, flock.getQuantity(), flock.getStatus(), flock.getNote());
+                canSeeFinance ? flock.getUnitPrice() : null, flock.getQuantity(), flock.getStatus(), flock.getNote(),
+                supplier == null ? null : supplier.getId(), supplier == null ? null : supplier.getName(),
+                visibleInvoice == null ? null : visibleInvoice.getId(), visibleInvoice == null ? null : visibleInvoice.getCode());
     }
 
     static FlockMovementResponse movementResponse(FlockMovement m, boolean canSeeFinance) {
         boolean sale = m.getType() == FlockMovementType.HARVEST && canSeeFinance;
         return new FlockMovementResponse(m.getId(), m.getFlock().getId(), flockCode(m.getFlock()), m.getFlock().getName(), m.getType(),
                 m.getMovementDate(), m.getQuantity(), m.getWeightKg(), sale ? m.getUnitPrice() : null,
-                sale ? money(m.getWeightKg().multiply(m.getUnitPrice())) : null, flockCode(m.getRelatedFlock()), m.getNote(), m.getCreatedBy());
+                sale ? money(m.getWeightKg().multiply(m.getUnitPrice())) : null, flockCode(m.getRelatedFlock()), m.getNote(), m.getCreatedBy(),
+                m.getPhotoUrls() == null ? List.of() : List.of(m.getPhotoUrls().split("\n")));
     }
 }

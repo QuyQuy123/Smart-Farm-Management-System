@@ -7,6 +7,7 @@ import com.farmshift.backendFarmShift.entity.PurchaseTag;
 import com.farmshift.backendFarmShift.entity.Supplier;
 import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
+import com.farmshift.backendFarmShift.repository.FlockRepository;
 import com.farmshift.backendFarmShift.repository.ProductTypeRepository;
 import com.farmshift.backendFarmShift.repository.PurchaseInvoiceRepository;
 import com.farmshift.backendFarmShift.repository.PurchaseTagRepository;
@@ -31,6 +32,7 @@ public class SupplierService {
     private final ProductTypeRepository productTypes;
     private final PurchaseTagRepository tagRepository;
     private final PurchaseInvoiceRepository invoiceRepository;
+    private final FlockRepository flockRepository;
 
     public List<SupplierResponse> list() {
         return repository.findAll(Sort.by("createdAt", "id")).stream().map(this::response).toList();
@@ -52,7 +54,12 @@ public class SupplierService {
 
     @Transactional
     public void delete(Long id) {
-        repository.delete(find(id));
+        Supplier supplier = find(id);
+        if (flockRepository.existsBySupplierId(id)) {
+            throw new ConflictException("Nhà cung cấp " + supplier.getName() + " đã cung cấp con giống cho đàn đang lưu trong hệ thống, không thể xóa.",
+                    "SUPPLIER_HAS_FLOCKS", null);
+        }
+        repository.delete(supplier);
     }
 
     private Supplier find(Long id) {

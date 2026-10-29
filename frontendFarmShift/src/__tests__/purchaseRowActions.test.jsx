@@ -41,3 +41,14 @@ it('requires confirmation before deleting and closes the menu with Escape', asyn
 it('disables deletion of posted invoices', () => {
  setup({ stockStatus: 'Đã nhập kho' }); openMenu(); expect(screen.getByRole('menuitem', { name: 'Xóa hóa đơn' })).toBeDisabled(); expect(screen.getByRole('menuitem', { name: 'Sửa hóa đơn' })).toBeDisabled();
 });
+
+it('preserves the selected destination warehouse when editing quantity', async () => {
+ setup({ items: [{ productCategoryId: 11, warehouseId: 20, name: 'Shared feed', qty: 2, unit: 'Kg', price: 1000 }] });
+ openMenu(); fireEvent.click(screen.getByRole('menuitem', { name: 'Sửa hóa đơn' }));
+ const dialog = screen.getByRole('dialog');
+ fireEvent.change(within(dialog).getByLabelText('Số lượng 1'), { target: { value: '5' } });
+ fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thay đổi' }));
+ await waitFor(() => expect(updatePurchase).toHaveBeenCalledWith(1, expect.objectContaining({
+   items: [expect.objectContaining({ productCategoryId: 11, warehouseId: 20, qty: 5 })]
+ })));
+});

@@ -20,6 +20,10 @@ public interface PurchaseInvoiceRepository extends JpaRepository<PurchaseInvoice
 
     Optional<PurchaseInvoice> findTopByOrderByIdDesc();
 
+    /** Hóa đơn nhập con giống của các đàn (không tính hóa đơn đã hủy). */
+    @Query("SELECT p FROM PurchaseInvoice p WHERE p.flock.id IN :flockIds AND p.stockStatus <> 'Đã hủy' ORDER BY p.id")
+    List<PurchaseInvoice> findAllByFlockIdIn(@Param("flockIds") List<Long> flockIds);
+
     @Query("SELECT COALESCE(SUM(p.totalAmount), 0) FROM PurchaseInvoice p WHERE p.supplier.id = :supplierId AND p.stockStatus <> 'Đã hủy'")
     Long calculateTotalPurchasedBySupplier(@Param("supplierId") Long supplierId);
 

@@ -23,7 +23,8 @@ public record BarnDayPlan(Long cycleId, String cycleCode, Long barnId, String ba
      * Một việc. key ổn định để xác nhận / hoàn tác. plannedQuantity theo unit (kg, g, ml, liều); plannedStock là số đơn vị tồn kho
      * tương ứng (ví dụ 21,4 bao). stockEnough = false khi kho không đủ cho phần còn lại.
      */
-    public record Task(String key, ProgramStepCategory category, String name, Integer meal, Integer mealsPerDay,
+    /** time: giờ cho ăn "HH:mm" của cữ (chỉ việc cho ăn), theo giờ cữ đầu đã cài và số cữ trong ngày. */
+    public record Task(String key, ProgramStepCategory category, String name, Integer meal, Integer mealsPerDay, String time,
                        AdministrationMethod method, String doseText, BigDecimal plannedQuantity, String unit,
                        BigDecimal plannedStock, String stockUnit, Long inventoryItemId, String inventoryItemName,
                        BigDecimal stockOnHand, Boolean stockEnough, BigDecimal tempMin, BigDecimal tempMax, String note,

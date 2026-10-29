@@ -184,7 +184,7 @@ public class InternalStockService {
 
             if ("IMPORT".equals(type)) {
                 // Tăng tồn kho hoặc tạo mới ở kho nhập
-                Optional<InventoryItem> existingOpt = inventoryItemRepository.findByWarehouse_IdAndProduct_Id(targetWarehouse.getId(), product.getId());
+                Optional<InventoryItem> existingOpt = compatibleLot(targetWarehouse.getId(), product.getId(), unitPrice, unit, null);
                 InventoryItem targetItem;
                 if (existingOpt.isPresent()) {
                     targetItem = existingOpt.get();
@@ -211,8 +211,7 @@ public class InternalStockService {
 
             } else if ("EXPORT".equals(type)) {
                 // Trừ tồn kho nguyên tử ở kho xuất
-                InventoryItem sourceItem = inventoryItemRepository.findByWarehouse_IdAndProduct_Id(sourceWarehouse.getId(), product.getId())
-                        .orElseThrow(() -> new BadRequestException("Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm. [MSG27]"));
+                InventoryItem sourceItem = sourceLot(itemReq.inventoryItemId(), sourceWarehouse.getId(), product.getId());
 
                 int updated = inventoryItemRepository.takeStock(sourceItem.getId(), qty);
                 if (updated == 0) {
@@ -229,8 +228,7 @@ public class InternalStockService {
 
             } else if ("TRANSFER".equals(type)) {
                 // Trừ tồn kho nguyên tử ở kho xuất
-                InventoryItem sourceItem = inventoryItemRepository.findByWarehouse_IdAndProduct_Id(sourceWarehouse.getId(), product.getId())
-                        .orElseThrow(() -> new BadRequestException("Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm. [MSG27]"));
+                InventoryItem sourceItem = sourceLot(itemReq.inventoryItemId(), sourceWarehouse.getId(), product.getId());
 
                 int updated = inventoryItemRepository.takeStock(sourceItem.getId(), qty);
                 if (updated == 0) {
@@ -240,7 +238,7 @@ public class InternalStockService {
                 item.setSourceInventoryItem(sourceItem);
 
                 // Cộng tồn kho hoặc tạo mới ở kho nhận
-                Optional<InventoryItem> targetOpt = inventoryItemRepository.findByWarehouse_IdAndProduct_Id(targetWarehouse.getId(), product.getId());
+                Optional<InventoryItem> targetOpt = compatibleLot(targetWarehouse.getId(), product.getId(), sourceItem.getPrice(), sourceItem.getUnit(), sourceItem.getBrand());
                 InventoryItem targetItem;
                 if (targetOpt.isPresent()) {
                     targetItem = targetOpt.get();
@@ -403,4 +401,25 @@ public class InternalStockService {
                 itemResponses
         );
     }
+    private InventoryItem sourceLot(Long inventoryItemId, Long warehouseId, Long productId) {
+        InventoryItem lot = inventoryItemId == null
+                ? inventoryItemRepository.findByWarehouse_IdAndProduct_Id(warehouseId, productId)
+                    .orElseThrow(() -> new BadRequestException("Tồn kho khả dụng không đủ. [MSG27]"))
+                : inventoryItemRepository.findById(inventoryItemId)
+                    .orElseThrow(() -> new BadRequestException("Dòng tồn kho không tồn tại."));
+        if (!lot.getWarehouse().getId().equals(warehouseId) || !lot.getProduct().getId().equals(productId)) {
+            throw new BadRequestException("Dòng tồn kho không thuộc kho xuất hoặc hàng hóa đã chọn.");
+        }
+        return lot;
+    }
+
+    private Optional<InventoryItem> compatibleLot(Long warehouseId, Long productId, BigDecimal price,
+                                                 MeasurementUnit unit, Brand brand) {
+        return inventoryItemRepository.findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(warehouseId, productId)
+                .stream().filter(lot -> lot.getPrice().compareTo(price) == 0
+                        && java.util.Objects.equals(lot.getUnit() == null ? null : lot.getUnit().getId(), unit == null ? null : unit.getId())
+                        && java.util.Objects.equals(lot.getBrand() == null ? null : lot.getBrand().getId(), brand == null ? null : brand.getId()))
+                .findFirst();
+    }
+
 }

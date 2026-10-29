@@ -201,6 +201,7 @@ Entity: `Supplier`. Quản lý đối tác cung ứng tại **Thiết lập danh
 - `debt`: Tổng dư nợ hiện tại = `openingDebt` + (tổng `totalAmount` - tổng `paidAmount` của các đơn chưa trả hết).
 
 **API:** `GET /api/suppliers`, `GET /api/suppliers/{id}` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**Quy tắc:** Không xóa được nhà cung cấp đã cung cấp con giống cho đàn (`flocks.supplier_id`) → 409 `SUPPLIER_HAS_FLOCKS`. Hộp thoại **Nhập đàn** có nút (+) thêm nhanh nhà cung cấp bằng chính `POST /api/suppliers`.
 
 ### 3.4 Bảng `warehouse_categories` — Danh mục kho
 
@@ -428,11 +429,14 @@ Entity: `PurchaseInvoice`. Quản lý các chứng từ mua vật tư, cám, v�
 | `total_amount` | BIGINT | NOT NULL, DEFAULT 0. Tổng số tiền phải thanh toán của đơn hàng (sau thuế, chiết khấu). |
 | `paid_amount` | BIGINT | NOT NULL, DEFAULT 0. Số tiền đã thanh toán cho nhà cung cấp (VNĐ). |
 | `payment_status` | VARCHAR(50) | NOT NULL. `Thanh toán hoàn tất`, `Trả sau`, `Thanh toán một phần`, `Đã hủy`. |
-| `stock_status` | VARCHAR(50) | NOT NULL. `Đã nhập kho`, `Chưa nhập kho`. |
+| `stock_status` | VARCHAR(50) | NOT NULL. `Đã nhập kho`, `Chưa nhập kho`, `Đã nhập chuồng` (hóa đơn con giống: gà vào thẳng chuồng, không cộng tồn kho), `Đã hủy`. |
 | `reference_code` | VARCHAR(100) | Số hóa đơn VAT / mã chứng từ gốc của bên bán (VD: `HD-CP-0915`). |
 | `note` | VARCHAR(1000) | Ghi chú chi tiết về đợt nhập hàng. |
 | `attachment_url` | VARCHAR(500) | Đường dẫn ảnh chụp hóa đơn chứng từ gốc (phục vụ đối soát). |
+| `flock_id` | BIGINT | FOREIGN KEY → `flocks.id` (`fk_purchase_flock`), nullable. Đàn con giống mà hóa đơn nhập về (hóa đơn tự tạo khi nhập đàn mua ngoài); lứa / chuồng lấy qua đàn. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+
+**Hóa đơn con giống (tự tạo khi nhập đàn):** `POST /api/cycles/{id}/flocks` có `supplierId` và `unitPrice > 0` thì tạo một hóa đơn: nhà cung cấp của đàn, `invoice_date` = ngày nhập, một dòng `Con giống <giống> (đàn Hxxxx)` = số con × giá con giống (đơn vị `Con`), `stock_status = 'Đã nhập chuồng'`, `payment_status` = `Trả sau` (mặc định) hoặc `Thanh toán hoàn tất`. Hóa đơn này chỉ được ghi thanh toán; sửa / xóa / hủy / nhập kho trả 400 `PURCHASE_FLOCK_LINKED` vì số lượng và giá thuộc về đàn. API trả thêm `flockId`, `flockCode`, `flockName`, `cycleId`, `cycleNumber`, `barnId`, `barnName`.
 
 **Bảng liên kết N-N:** `purchase_invoice_tag_mappings` liên kết `invoice_id` (FK `purchase_invoices`) và `tag_id` (FK `purchase_tags`).
 
@@ -530,7 +534,8 @@ Entity: `Flock`. Quản lý từng lô giống nhập hoặc chuyển vào trong
 | `name` | VARCHAR(150) | NOT NULL. Tên đàn (VD: `MÍA-DABACO TRỐNG`, `J-DABACO XÔ`). |
 | `gender` | VARCHAR(20) | NOT NULL. `MALE` (Trống), `FEMALE` (Mái), `MIXED` (Xô). |
 | `source_type` | VARCHAR(20) | NOT NULL. `PURCHASE` (Nhập con giống) hoặc `TRANSFER` (Tách/chuyển đàn từ chuồng khác). |
-| `source_note` | VARCHAR(200) | Nơi cung ứng giống hoặc mã chuồng nguồn. |
+| `source_note` | VARCHAR(200) | Nơi cung ứng giống dạng chữ (dữ liệu cũ; đàn có nhà cung cấp thì lưu tên nhà cung cấp) hoặc mã chuồng nguồn khi chuyển đàn. |
+| `supplier_id` | BIGINT | FOREIGN KEY → `suppliers.id` (`fk_flock_supplier`), nullable. Nhà cung cấp con giống, chọn trong hộp thoại Nhập đàn. Đàn cũ / đàn chuyển chỉ có `source_note`. |
 | `source_flock_id` | BIGINT | FOREIGN KEY → `flocks.id`. Đàn gốc đối ứng khi tách/chuyển. |
 | `program_id` | BIGINT | FOREIGN KEY → `farming_programs.id`. Chương trình nuôi kỹ thuật áp dụng theo giống. |
 | `import_date` | DATE | NOT NULL. Ngày nhập hoặc ngày tiếp nhận đàn. |
@@ -544,6 +549,7 @@ Entity: `Flock`. Quản lý từng lô giống nhập hoặc chuyển vào trong
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **Quy tắc cửa sổ nhập đàn:** Các đàn nhập của cùng một lứa cách nhau không quá 3 ngày (`FLOCK_IMPORT_WINDOW`).
+**Nhập đàn mua ngoài:** `POST /api/cycles/{id}/flocks` nhận thêm `supplierId` và `paymentStatus` (`Trả sau` | `Thanh toán hoàn tất`); có nhà cung cấp và giá > 0 thì tự tạo hóa đơn nhập con giống (xem 5.2). API đàn trả thêm `supplierId`, `supplierName` (mọi vai trò) và `purchaseInvoiceId`, `purchaseInvoiceCode` (chỉ chủ trại / kế toán).
 
 ### 6.5 Bảng `flock_movements` — Biến động đàn
 

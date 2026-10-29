@@ -165,6 +165,30 @@ class DailyPlanIntegrationTest {
     }
 
     @Test
+    void mealsAreSpreadOverTwelveHoursFromTheFirstMealTime() throws Exception {
+        // 4 meals: every 3 hours from the default 07:00.
+        mvc.perform(get(plan()))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'FEED')].time").value(contains("07:00", "10:00", "13:00", "16:00")))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'VACCINE')].time").value(contains((Object) null)));
+
+        send(put("/api/farm/meal-schedule"), Map.of("firstMealTime", "06:30"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FARM_NOT_SET"));
+        send(put("/api/farm"), Map.of("name", "Trại test", "owner", "Chủ trại", "phone", "0912345678")).andExpect(status().isOk());
+        send(put("/api/farm/meal-schedule"), Map.of("firstMealTime", "11:00"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("MEAL_TIME_RANGE"));
+        send(put("/api/farm/meal-schedule"), Map.of("firstMealTime", "06:30")).andExpect(status().isOk());
+        mvc.perform(get(plan()))
+            .andExpect(jsonPath("$.data.tasks[?(@.category == 'FEED')].time").value(contains("06:30", "09:30", "12:30", "15:30")));
+        mvc.perform(put("/api/farm/meal-schedule").with(user("worker@farm.test").authorities(() -> "ROLE_FARM_WORKER"))
+            .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"firstMealTime\":\"07:00\"}"))
+            .andExpect(status().isForbidden());
+
+        org.junit.jupiter.api.Assertions.assertEquals("07:00", com.farmshift.backendFarmShift.service.FarmService.mealTime(java.time.LocalTime.of(7, 0), 1, 3).toString());
+        org.junit.jupiter.api.Assertions.assertEquals("11:00", com.farmshift.backendFarmShift.service.FarmService.mealTime(java.time.LocalTime.of(7, 0), 2, 3).toString());
+        org.junit.jupiter.api.Assertions.assertEquals("15:00", com.farmshift.backendFarmShift.service.FarmService.mealTime(java.time.LocalTime.of(7, 0), 3, 3).toString());
+    }
+
+    @Test
     void confirmingAMealTakesTheFeedOutOfStockAndBooksItsCost() throws Exception {
         confirm(feedKey(1), null, null).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.doneCount").value(1))

@@ -62,6 +62,11 @@ public class PurchaseInvoice {
     @Column(name = "attachment_url", length = 500)
     private String attachmentUrl;
 
+    /** Đàn con giống mà hóa đơn này nhập về (hóa đơn tự tạo khi nhập đàn); lứa / chuồng lấy qua đàn. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "flock_id", foreignKey = @ForeignKey(name = "fk_purchase_flock"))
+    private Flock flock;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "purchase_invoice_tag_mappings",

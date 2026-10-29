@@ -7,6 +7,7 @@ import * as cycles from '../services/cycleService';
 import * as areas from '../services/farmAreaService';
 import * as programService from '../services/farmingProgramService';
 import * as dailyPlan from '../services/dailyPlanService';
+import * as supplierService from '../services/supplierService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
@@ -14,6 +15,8 @@ vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: mocks
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ pageTitle, children }) => <main><h1>{pageTitle}</h1>{children}</main> }));
 vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(), listFarmAreas: vi.fn(), FARM_AREAS_CHANGED: 'farm-areas-changed' }));
 vi.mock('../services/farmingProgramService', () => ({ listPrograms: vi.fn() }));
+vi.mock('../services/supplierService', () => ({ listSuppliers: vi.fn(), createSupplier: vi.fn(), updateSupplier: vi.fn(), deleteSupplier: vi.fn() }));
+vi.mock('../services/productTypeService', () => ({ listProductTypes: vi.fn() }));
 vi.mock('../services/dailyPlanService', () => ({ getBarnDailyPlan: vi.fn(), confirmDailyTask: vi.fn(), undoDailyTask: vi.fn() }));
 vi.mock('../services/cycleService', () => ({
   getBarn: vi.fn(), listCycles: vi.fn(), startCycle: vi.fn(), getCycle: vi.fn(), closeCycle: vi.fn(), importFlock: vi.fn(),
@@ -104,6 +107,7 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     cycles.getCycle.mockResolvedValue(detail());
     dailyPlan.getBarnDailyPlan.mockResolvedValue(dayPlan());
     cycles.importFlock.mockResolvedValue({});
+    supplierService.listSuppliers.mockResolvedValue([{ id: 6, name: 'Giống Dabaco', productTypeName: 'Con giống' }]);
     cycles.transferFlock.mockResolvedValue({});
     cycles.startCycle.mockResolvedValue({ id: 70, cycleNumber: 1 });
     programService.listPrograms.mockResolvedValue([
@@ -150,6 +154,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     fireEvent.change(field(dialog, /Ngày nhập/), { target: { value: iso(-13) } });
     fireEvent.change(field(dialog, /Số lượng nhập/), { target: { value: '25000' } });
     fireEvent.change(field(dialog, /Giá con giống/), { target: { value: '11000' } });
+    await within(dialog).findByRole('option', { name: /Giống Dabaco/ });
+    fireEvent.change(field(dialog, /Nhà cung cấp con giống/), { target: { value: '6' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     expect(await within(dialog).findByText(/quá 3 ngày/)).toBeInTheDocument();
     expect(within(dialog).getByText('Chuồng chỉ còn chỗ cho 20.000 con.')).toBeInTheDocument();
@@ -159,7 +165,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     fireEvent.change(field(dialog, /Số lượng nhập/), { target: { value: '5000' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await waitFor(() => expect(cycles.importFlock).toHaveBeenCalledWith(20, {
-      programId: 2, name: 'MÍA XÔ', gender: 'MIXED', importDate: iso(-14), ageAtImport: 1, quantity: 5000, avgWeight: 0.04, unitPrice: 11000, sourceNote: '', note: '',
+      programId: 2, name: 'MÍA XÔ', gender: 'MIXED', importDate: iso(-14), ageAtImport: 1, quantity: 5000, avgWeight: 0.04, unitPrice: 11000,
+      supplierId: 6, paymentStatus: 'Trả sau', note: '',
     }));
     expect(mocks.showToast).toHaveBeenCalledWith('Đã nhập đàn MÍA XÔ (5.000 con).', 'success');
   });

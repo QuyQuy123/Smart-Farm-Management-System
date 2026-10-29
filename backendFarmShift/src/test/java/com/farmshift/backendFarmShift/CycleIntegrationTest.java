@@ -34,6 +34,8 @@ class CycleIntegrationTest {
     private static final LocalDate START = TODAY.minusDays(10);
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
+    @Autowired com.farmshift.backendFarmShift.repository.AccountRepository accounts;
+    @Autowired com.farmshift.backendFarmShift.repository.RoleRepository roles;
     long areaId;
     long barnId;
     long programId;
@@ -59,6 +61,17 @@ class CycleIntegrationTest {
     private ResultActions post(String url, Object body) throws Exception {
         return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(url)
                 .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)));
+    }
+
+    private long workerAccount(String email) {
+        var role = roles.findByName("ROLE_FARM_WORKER").orElseGet(() -> roles.save(new com.farmshift.backendFarmShift.entity.Role(null, "ROLE_FARM_WORKER", "Công nhân")));
+        var account = new com.farmshift.backendFarmShift.entity.Account();
+        account.setEmail(email);
+        account.setPassword("x");
+        account.setFullName(email);
+        account.setRole(role);
+        account.setIsActive(true);
+        return accounts.save(account).getId();
     }
 
     private long id(ResultActions result) throws Exception {
@@ -196,8 +209,18 @@ class CycleIntegrationTest {
     void recordsLossesAndHarvestThenClosesCycleAndStartsTheNextOne() throws Exception {
         long cycle = startCycle(barnId, START);
         long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 100);
-        post("/api/flocks/" + flockId + "/losses", Map.of("type", "DEATH", "movementDate", TODAY.toString(), "quantity", 3))
-            .andExpect(status().isCreated());
+        post("/api/flocks/" + flockId + "/losses", Map.of("type", "DEATH", "movementDate", TODAY.toString(), "quantity", 3,
+                "photoUrls", List.of("/img/losses/a.jpg", "https://cdn.farm.test/losses/b.jpg")))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.data.photoUrls.length()").value(2));
+        post("/api/flocks/" + flockId + "/losses", Map.of("type", "DEATH", "movementDate", TODAY.toString(), "quantity", 1,
+                "photoUrls", List.of("javascript:alert(1)")))
+            .andExpect(status().isBadRequest());
+        post("/api/flocks/" + flockId + "/losses", Map.of("type", "DEATH", "movementDate", TODAY.toString(), "quantity", 1,
+                "photoUrls", List.of("/img/1.jpg", "/img/2.jpg", "/img/3.jpg", "/img/4.jpg")))
+            .andExpect(status().isBadRequest());
+        JsonNode death = null;
+        for (JsonNode movement : detail(cycle).path("movements")) if ("DEATH".equals(movement.path("type").asText())) death = movement;
+        org.junit.jupiter.api.Assertions.assertEquals("/img/losses/a.jpg", death.path("photoUrls").get(0).asText());
         post("/api/flocks/" + flockId + "/losses", Map.of("type", "CULL", "movementDate", TODAY.toString(), "quantity", 2, "weightKg", 2))
             .andExpect(status().isCreated());
         post("/api/flocks/" + flockId + "/losses", Map.of("type", "HARVEST", "movementDate", TODAY.toString(), "quantity", 1))
@@ -333,11 +356,28 @@ class CycleIntegrationTest {
         String harvest = mapper.writeValueAsString(Map.of("movementDate", TODAY.toString(), "quantity", 1, "weightKg", 2, "unitPrice", 60000));
         String expense = mapper.writeValueAsString(Map.of("expenseDate", TODAY.toString(), "category", "WATER", "amount", 100000));
         String flock = mapper.writeValueAsString(flock("Gà J", "MIXED", START, 10));
+        String weight = mapper.writeValueAsString(Map.of("sampleDate", TODAY.toString(), "avgWeightKg", 0.45, "sampleSize", 30));
+
+        // Công nhân chưa được phân công chuồng này thì không ghi được nhật ký.
+        long workerId = workerAccount("worker@farm.test");
+        for (String[] write : new String[][] {{"/api/cycles/" + cycle + "/feed-records", feed}, {"/api/cycles/" + cycle + "/weight-samples", weight},
+                {"/api/flocks/" + flockId + "/losses", loss}}) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(write[0]).with(worker)
+                .contentType(MediaType.APPLICATION_JSON).content(write[1]))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("BARN_NOT_ASSIGNED"));
+        }
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/barns/" + barnId + "/workers")
+            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of("workerIds", List.of(workerId))))).andExpect(status().isOk());
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/cycles/" + cycle + "/feed-records").with(worker)
             .contentType(MediaType.APPLICATION_JSON).content(feed)).andExpect(status().isCreated());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/cycles/" + cycle + "/weight-samples").with(worker)
+            .contentType(MediaType.APPLICATION_JSON).content(weight)).andExpect(status().isCreated());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/flocks/" + flockId + "/losses").with(worker)
             .contentType(MediaType.APPLICATION_JSON).content(loss)).andExpect(status().isCreated());
+        mvc.perform(get("/api/cycles/" + cycle).with(worker))
+            .andExpect(jsonPath("$.data.metrics.currentQuantity").value(99))
+            .andExpect(jsonPath("$.data.metrics.avgWeightKg").value(0.45));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/flocks/" + flockId + "/harvests").with(worker)
             .contentType(MediaType.APPLICATION_JSON).content(harvest)).andExpect(status().isForbidden());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/cycles/" + cycle + "/flocks").with(worker)

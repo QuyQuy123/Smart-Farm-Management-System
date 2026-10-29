@@ -38,6 +38,9 @@ public class FlockMovement {
     private Flock relatedFlock;
     @Column(length = 1000)
     private String note;
+    /** Ảnh đính kèm khi ghi chết / loại thải, mỗi dòng một đường dẫn. */
+    @Column(name = "photo_urls", length = 2000)
+    private String photoUrls;
     @Column(name = "created_by", length = 150)
     private String createdBy;
     @CreationTimestamp

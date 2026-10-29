@@ -8,6 +8,7 @@ import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.FlockMovementResponse;
 import com.farmshift.backendFarmShift.dto.response.FlockResponse;
 import com.farmshift.backendFarmShift.service.FlockService;
+import com.farmshift.backendFarmShift.service.WorkAssignmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class FlockController {
     private final FlockService service;
+    private final WorkAssignmentService workAssignment;
 
     @PostMapping("/{id}/transfer")
     @ResponseStatus(HttpStatus.CREATED)
@@ -39,6 +41,7 @@ public class FlockController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_FARM_WORKER')")
     public ApiResponse<FlockMovementResponse> recordLoss(@PathVariable Long id, @Valid @RequestBody FlockLossRequest request, Authentication authentication) {
+        workAssignment.requireAssigned(authentication, service.barnIdOf(id));
         return ApiResponse.success("Đã ghi hao hụt", service.recordLoss(id, request, authentication.getName()));
     }
 

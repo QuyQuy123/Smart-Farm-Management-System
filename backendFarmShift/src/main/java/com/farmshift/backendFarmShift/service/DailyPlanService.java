@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 
 import static com.farmshift.backendFarmShift.service.CycleService.*;
@@ -43,6 +44,7 @@ public class DailyPlanService {
     private final CycleExpenseRepository expenseRepository;
     private final jakarta.persistence.EntityManager entityManager;
     private final WorkAssignmentService workAssignment;
+    private final FarmService farmService;
 
     /** Phiếu việc của mọi chuồng đang có lứa nuôi trong một ngày (mặc định hôm nay). */
     public List<BarnDayPlan> farm(LocalDate date, boolean canSeeFinance) {
@@ -412,6 +414,7 @@ public class DailyPlanService {
         for (FlockDay flockDay : plan.flocks()) flocks.put(flockDay.flock().getId(), flockDay);
         Map<String, DailyTaskLog> logs = new LinkedHashMap<>();
         for (DailyTaskLog log : logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day)) logs.put(log.getTaskKey(), log);
+        LocalTime firstMeal = farmService.firstMealTime();
 
         List<String> warnings = new ArrayList<>(plan.warnings());
         Map<Long, BigDecimal> remainingByItem = new LinkedHashMap<>();
@@ -425,7 +428,9 @@ public class DailyPlanService {
                 remainingByItem.merge(task.item.getId(), stock, BigDecimal::add);
                 items.put(task.item.getId(), task.item);
             }
-            tasks.add(new BarnDayPlan.Task(task.key, task.category, task.name, task.meal, task.meals, task.method, doseText(task),
+            String time = task.category == ProgramStepCategory.FEED && task.meal != null && task.meals != null
+                    ? FarmService.mealTime(firstMeal, task.meal, task.meals).toString() : null;
+            tasks.add(new BarnDayPlan.Task(task.key, task.category, task.name, task.meal, task.meals, time, task.method, doseText(task),
                     task.total, task.unit == null ? null : task.unit.label(), stock, task.item == null ? null : stockUnit(task.item),
                     task.item == null ? null : task.item.getId(), task.item == null ? null : task.item.getProduct().getName(),
                     task.item == null ? null : task.item.getStock(),
@@ -440,7 +445,7 @@ public class DailyPlanService {
         }
         // Việc đã xác nhận nhưng không còn trong kế hoạch (đổi chương trình, đàn đã bán hết...) vẫn hiện để xem và hoàn tác.
         for (DailyTaskLog log : logs.values()) {
-            tasks.add(new BarnDayPlan.Task(log.getTaskKey(), log.getCategory(), log.getTaskName(), log.getMeal(), null, null, null,
+            tasks.add(new BarnDayPlan.Task(log.getTaskKey(), log.getCategory(), log.getTaskName(), log.getMeal(), null, null, null, null,
                     log.getPlannedQuantity(), log.getUsageUnit() == null ? null : log.getUsageUnit().label(), null,
                     log.getInventoryItem() == null ? null : stockUnit(log.getInventoryItem()),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getId(),

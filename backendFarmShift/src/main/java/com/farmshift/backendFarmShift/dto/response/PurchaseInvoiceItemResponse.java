@@ -8,6 +8,7 @@ public record PurchaseInvoiceItemResponse(
     String unit,
     Long price,
     Double vatRate,
-    Long amount
+    Long amount,
+    Long warehouseId
 ) {
 }

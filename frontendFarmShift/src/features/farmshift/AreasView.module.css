@@ -107,6 +107,11 @@
 /* Cycle dialogs (CycleDialogs.jsx) */
 .fullRow { grid-column: 1 / -1; }
 .fieldHint { display: block; margin: 2px 0 8px; font-size: 13.5px; color: #71818a; }
+.pickerRow { display: flex; align-items: stretch; gap: 8px; margin-bottom: 4px; }
+.pickerRow select { flex: 1; min-width: 0; margin-bottom: 0 !important; }
+.pickerAdd { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 44px; border: 1px solid #8fcdb8; border-radius: 8px; background: #e8f6f1; color: #00695c; cursor: pointer; }
+.pickerAdd:hover:not(:disabled) { background: #d4efe6; }
+.pickerAdd:disabled { opacity: .5; cursor: not-allowed; }
 .infoNote { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; margin: 0 0 16px !important; border-radius: 8px; background: #eef6ff; color: #254fad; border: 1px solid #c9dcfb; font-size: 14.5px; }
 .infoNote svg { flex-shrink: 0; margin-top: 3px; }
 .segmented { display: flex; gap: 4px; padding: 4px; margin-bottom: 16px; border-radius: 10px; background: #f0f4f6; }
