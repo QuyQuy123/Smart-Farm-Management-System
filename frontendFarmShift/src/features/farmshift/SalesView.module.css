@@ -107,3 +107,15 @@
   .saleForm > .saleBody { grid-template-columns: 1fr; padding: 16px; }
   .saleBody .wideField { grid-column: auto; }
 }
+
+.salePage { width: 100%; }
+.salePageCard { width: 100%; overflow: hidden; }
+.salePageCard > :global(.farmshift-modal-header) { padding: 20px 24px; }
+.salePageCard .saleForm { display: block; overflow: visible; }
+.salePageCard .saleForm > .saleBody { overflow: visible; padding: 24px; }
+.salePageCard :global(.farmshift-modal-footer) { padding: 16px 24px; }
+@media (max-width: 600px) {
+  .salePageCard > :global(.farmshift-modal-header),
+  .salePageCard .saleForm > .saleBody,
+  .salePageCard :global(.farmshift-modal-footer) { padding: 16px; }
+}
