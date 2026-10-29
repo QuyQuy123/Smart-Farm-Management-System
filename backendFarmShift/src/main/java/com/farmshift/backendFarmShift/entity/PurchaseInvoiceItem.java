@@ -21,6 +21,11 @@ public class PurchaseInvoiceItem {
     @JoinColumn(name = "product_category_id", foreignKey = @ForeignKey(name = "fk_purchase_item_product_category"))
     private ProductCategory productCategory;
 
+    // Destination selected when the invoice is created; legacy/OCR rows may leave this null.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id", foreignKey = @ForeignKey(name = "fk_purchase_item_warehouse"))
+    private WarehouseCategory warehouse;
+
     @Column(name = "product_name", nullable = false, length = 200)
     private String productName;
 

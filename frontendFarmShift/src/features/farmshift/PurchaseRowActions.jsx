@@ -15,7 +15,7 @@ function InvoiceDialog({ mode, invoice, suppliers, tags, onClose, onSaved }) {
   const [discountAmount, setDiscountAmount] = useState(invoice.discountAmount || 0);
   const [otherCost, setOtherCost] = useState(invoice.otherCost || 0);
   const total = Math.max(0, items.reduce((sum, item) => sum + Math.round(Number(item.qty || 0) * Number(item.price || 0)), 0) - Number(discountAmount || 0) + Number(otherCost || 0));
-  const changeItem = (index, field, value) => setItems(rows => rows.map((row, i) => i === index ? { ...row, [field]: value, ...(field === 'name' ? { productCategoryId: null } : {}) } : row));
+  const changeItem = (index, field, value) => setItems(rows => rows.map((row, i) => i === index ? { ...row, [field]: value, ...(field === 'name' ? { productCategoryId: null, warehouseId: null } : {}) } : row));
   const [tagIds, setTagIds] = useState(invoice.tagIds || []);
   const [saving, setSaving] = useState(false), [error, setError] = useState('');
   useEffect(() => {
@@ -31,7 +31,7 @@ function InvoiceDialog({ mode, invoice, suppliers, tags, onClose, onSaved }) {
     setSaving(true); setError('');
     try {
       if (deleting) await deletePurchase(invoice.id);
-      else await updatePurchase(invoice.id, { supplierId: Number(supplierId), date, referenceCode: referenceCode.trim(), note: note.trim(), tagIds, items: items.map(item => ({ productCategoryId: item.productCategoryId || null, name: item.name.trim(), unit: item.unit.trim(), qty: Number(item.qty), price: Number(item.price), vatRate: item.vatRate || 0 })), discountAmount: Number(discountAmount), otherCost: Number(otherCost) });
+      else await updatePurchase(invoice.id, { supplierId: Number(supplierId), date, referenceCode: referenceCode.trim(), note: note.trim(), tagIds, items: items.map(item => ({ productCategoryId: item.productCategoryId || null, warehouseId: item.warehouseId || null, name: item.name.trim(), unit: item.unit.trim(), qty: Number(item.qty), price: Number(item.price), vatRate: item.vatRate || 0 })), discountAmount: Number(discountAmount), otherCost: Number(otherCost) });
       onSaved(deleting ? 'Đã xóa hóa đơn.' : 'Đã cập nhật hóa đơn.');
     } catch (error) { setError(error.response?.data?.message || 'Không lưu được thay đổi. Vui lòng thử lại.'); setSaving(false); }
   }

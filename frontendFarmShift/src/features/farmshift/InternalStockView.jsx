@@ -677,7 +677,7 @@ export const InternalStockView = () => {
                               <option value="">-- Chọn hàng hóa --</option>
                               {availableItems.map(item => (
                                 <option key={item.id} value={item.id}>
-                                  {item.productName || item.name} ({item.unitName || item.unit || 'Kg'}) - Tồn: {Number(item.stock || 0).toLocaleString('vi-VN')}
+                                  {item.productName || item.name} ({item.unitName || item.unit || 'Kg'}) - Lô #{item.id}{!isWorker && ` - ${Number(item.price || 0).toLocaleString('vi-VN')} đ`} - Tồn: {Number(item.stock || 0).toLocaleString('vi-VN')}
                                 </option>
                               ))}
                             </select>

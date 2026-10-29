@@ -26,7 +26,7 @@ import {
 } from '../../services/purchaseService';
 import { listSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../services/supplierService';
 import { listProductTypes } from '../../services/productTypeService';
-import { listProductCategories } from '../../services/productCategoryService';
+import { listAllInventoryItems } from '../../services/inventoryItemService';
 import { listMeasurementUnits } from '../../services/measurementUnitService';
 import styles from './PurchasesView.module.css';
 import { PurchaseRowActions } from './PurchaseRowActions';
@@ -144,7 +144,7 @@ export const PurchasesView = () => {
           listSuppliers().catch(() => []),
           listPurchaseTags().catch(() => []),
           listProductTypes().catch(() => []),
-          listProductCategories().catch(() => [])
+          listAllInventoryItems().catch(() => [])
         ]);
         if (!cancelled) {
           setPurchases(Array.isArray(pos) ? pos : []);
@@ -197,7 +197,7 @@ export const PurchasesView = () => {
     if (!showAddModal || isOcrDraft) return;
     let cancelled = false;
     setProductLoading(true); setProductError('');
-    listProductCategories().then(data => { if (!cancelled) setProductCategories(Array.isArray(data) ? data : []); })
+    listAllInventoryItems().then(data => { if (!cancelled) setProductCategories(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancelled) { setProductCategories([]); setProductError('Không tải được hàng hóa từ database. Vui lòng thử lại.'); } })
       .finally(() => { if (!cancelled) setProductLoading(false); });
     return () => { cancelled = true; };
@@ -394,7 +394,7 @@ export const PurchasesView = () => {
     } else {
       newPo.items.forEach((it, idx) => {
         const itemErr = {};
-        if (isOcrDraft ? (!it.name?.trim() || it.name.trim().length > 200) : !productCategories.some(product => String(product.id) === String(it.productCategoryId) && product.warehouseId)) {
+        if (isOcrDraft ? (!it.name?.trim() || it.name.trim().length > 200) : !productCategories.some(product => String(product.id) === String(it.inventoryItemId) && product.warehouseId)) {
           itemErr.name = isOcrDraft ? 'Vui lòng nhập tên hàng hóa từ chứng từ, tối đa 200 ký tự.' : 'Vui lòng chọn hàng hóa thuộc kho trong danh sách.';
           hasItemErr = true;
         }
@@ -636,6 +636,7 @@ export const PurchasesView = () => {
         tagIds: newPo.tagIds,
         items: newPo.items.map(it => ({
           productCategoryId: !isOcrDraft && it.productCategoryId ? Number(it.productCategoryId) : null,
+          warehouseId: !isOcrDraft && it.warehouseId ? Number(it.warehouseId) : null,
           name: it.name,
           qty: Number(it.qty),
           unit: it.unit,
@@ -1880,10 +1881,10 @@ export const PurchasesView = () => {
                             onBlur={() => validatePoField('name', idx)}
                             disabled={productLoading || !!productError}
                             className={`farmshift-form-control ${itemErr.name ? 'has-error' : ''}`}
-                            value={row.productCategoryId || ''}
+                            value={row.inventoryItemId || ''}
                             onChange={event => {
                               const product = productCategories.find(product => String(product.id) === event.target.value);
-                              setNewPo(prev => ({ ...prev, items: prev.items.map((item, index) => index === idx ? { ...item, productCategoryId: product ? String(product.id) : '', name: product?.name || '', unit: product?.specification || item.unit } : item) }));
+                              setNewPo(prev => ({ ...prev, items: prev.items.map((item, index) => index === idx ? { ...item, inventoryItemId: product ? String(product.id) : '', productCategoryId: product?.productId || '', warehouseId: product?.warehouseId || null, name: product?.name || '', unit: product?.unitName || item.unit } : item) }));
                               clearItemError(idx, 'name');
                             }}
                             required
