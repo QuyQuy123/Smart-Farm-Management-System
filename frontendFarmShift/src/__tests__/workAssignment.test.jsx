@@ -54,15 +54,36 @@ describe('Phân công công việc (chủ trại)', () => {
 
   it('starts on the area map, then opens the barns of an area', async () => {
     renderView();
-    const area = await screen.findByRole('button', { name: 'Mở khu Khu Mía' });
+    const area = await screen.findByRole('region', { name: 'Khu Khu Mía' });
     expect(within(area).getByText('2 chuồng · 9.000 con đang nuôi')).toBeInTheDocument();
-    expect(within(area).getByTitle('Nhà A1: Đã xong việc giao')).toBeInTheDocument();
-    expect(within(area).getByTitle('Nhà A2: Chưa có người phụ trách')).toBeInTheDocument();
+    // Workers are shown per barn, not for the whole area.
+    const a1 = within(area).getByRole('button', { name: 'Mở chuồng Nhà A1' });
+    expect(a1).toHaveAttribute('title', 'Nhà A1: Đã xong việc giao · Công nhân A');
+    expect(within(a1).getByText('A')).toBeInTheDocument();
+    expect(within(area).getByRole('button', { name: 'Mở chuồng Nhà A2' })).toHaveTextContent('Chưa có người');
+    expect(within(area).getByText('1 chuồng chưa có người phụ trách')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Phân công Nhà A1' })).not.toBeInTheDocument();
-    fireEvent.click(area);
+    fireEvent.click(within(area).getByRole('button', { name: 'Mở khu Khu Mía' }));
     expect(screen.getByRole('region', { name: 'Phân công Nhà A1' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A2' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sơ đồ khu' }));
     expect(screen.getByRole('button', { name: 'Mở khu Khu Mía' })).toBeInTheDocument();
+  });
+
+  it('opens only the barn whose tile was clicked', async () => {
+    renderView();
+    fireEvent.click(await screen.findByRole('button', { name: 'Mở chuồng Nhà A2' }));
+    expect(screen.getByRole('heading', { name: 'Khu Mía › Nhà A2' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A2' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Phân công Nhà A1' })).not.toBeInTheDocument();
+    // Switch straight to another barn of the area, or back to the whole area.
+    expect(screen.getByRole('tab', { name: /Nhà A2/ })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: /Nhà A1/ }));
+    expect(screen.getByRole('heading', { name: 'Khu Mía › Nhà A1' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Phân công Nhà A2' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Cả khu (2)' }));
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A1' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A2' })).toBeInTheDocument();
   });
 
   it('shows each barn with its workers and the tasks given for the day', async () => {

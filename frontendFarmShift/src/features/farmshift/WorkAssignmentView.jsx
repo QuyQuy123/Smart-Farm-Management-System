@@ -10,7 +10,8 @@ import styles from './WorkAssignmentView.module.css';
 /** Việc chăm sóc hay giao, để chủ trại bấm chọn nhanh khi giao việc. */
 const COMMON_TASKS = ['Rửa máng uống', 'Thay / rắc thêm trấu', 'Sát trùng lối đi, hố sát trùng', 'Kiểm tra quạt, đèn sưởi', 'Dọn phân, đảo đệm lót'];
 const time = value => (value ? String(value).slice(0, 5) : '');
-const initial = name => String(name || '?').trim().charAt(0).toUpperCase();
+/** Tên gọi (chữ cuối của họ tên) cho gọn trên ô chuồng: "Nông Thị Hằng" → "Hằng". */
+const givenName = name => String(name || '').trim().split(/\s+/).pop();
 
 /** Tình trạng một chuồng trên sơ đồ: chưa có người phụ trách / còn việc giao / đã xong việc giao / chưa giao việc. */
 const barnState = barn => {
@@ -29,8 +30,7 @@ const groupAreas = barns => {
   });
   return [...areas.values()].map(area => {
     const tasks = area.barns.flatMap(barn => barn.tasks);
-    const workers = [...new Map(area.barns.flatMap(barn => barn.workers).map(worker => [worker.id, worker])).values()];
-    return { ...area, workers, taskCount: tasks.length, doneCount: tasks.filter(task => task.done).length,
+    return { ...area, taskCount: tasks.length, doneCount: tasks.filter(task => task.done).length,
       headcount: area.barns.reduce((sum, barn) => sum + barn.headcount, 0),
       unassigned: area.barns.filter(barn => barnState(barn) === 'unassigned').length };
   });
@@ -86,7 +86,8 @@ export function WorkAssignmentPanel({ date }) {
   const today = todayIso();
   const [revision, setRevision] = useState(0);
   const [workerFilter, setWorkerFilter] = useState(null);
-  const [areaId, setAreaId] = useState(null);
+  // Sơ đồ khu → bấm khu mở cả khu, bấm ô chuồng mở riêng chuồng đó.
+  const [focus, setFocus] = useState({ areaId: null, barnId: null });
   const [state, setState] = useState({ key: null, board: null, error: '' });
   const [modal, setModal] = useState(null);
   const requestKey = `${date}:${revision}`;
@@ -105,8 +106,9 @@ export function WorkAssignmentPanel({ date }) {
   const ofWorker = barn => !workerFilter || barn.workers.some(worker => worker.id === workerFilter)
     || barn.tasks.some(task => task.assignee.id === workerFilter);
   const areas = board ? groupAreas(board.barns) : [];
-  const area = areas.find(item => item.areaId === areaId);
-  const barns = !board || !area ? [] : area.barns.filter(ofWorker);
+  const area = areas.find(item => item.areaId === focus.areaId);
+  const focusBarn = area?.barns.find(barn => barn.barnId === focus.barnId);
+  const barns = !area ? [] : focusBarn ? [focusBarn] : area.barns.filter(ofWorker);
   const shownAreas = areas.filter(item => item.barns.some(ofWorker));
   const allTasks = board ? board.barns.flatMap(barn => barn.tasks) : [];
   const unassigned = board ? board.barns.filter(barn => barn.activeCycleId && barn.workers.length === 0).length : 0;
@@ -162,72 +164,108 @@ export function WorkAssignmentPanel({ date }) {
       : state.error ? <div className={styles.state} role="alert"><p>{state.error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
         : <div className={styles.layout}>
-          <aside className={styles.workers} aria-label="Công nhân">
-            <h3><Users size={18} />Công nhân</h3>
-            <button type="button" className={`${styles.workerRow} ${!workerFilter ? styles.workerActive : ''}`} onClick={() => setWorkerFilter(null)}>
-              <span className={styles.avatar}>∗</span><span><strong>Tất cả chuồng</strong><small>{board.barns.length} chuồng</small></span>
-            </button>
+          {/* Lọc theo công nhân: một dải chọn giống thanh Việc hôm nay / Phân công, mỗi người một dòng gọn. */}
+          <div className={styles.workerBar}>
+            <span className={styles.workerLabel}><Users size={16} />Lọc theo công nhân</span>
+            <div className={styles.workers} role="group" aria-label="Công nhân">
+              <button type="button" aria-pressed={!workerFilter} className={`${styles.workerRow} ${!workerFilter ? styles.workerActive : ''}`}
+                onClick={() => setWorkerFilter(null)} title={`${board.barns.length} chuồng`}>
+                <strong>Tất cả</strong><small>{board.barns.length} chuồng</small>
+              </button>
+              {board.workers.map(worker => <button key={worker.id} type="button" aria-pressed={workerFilter === worker.id}
+                className={`${styles.workerRow} ${workerFilter === worker.id ? styles.workerActive : ''}`} onClick={() => setWorkerFilter(worker.id)}
+                title={`${worker.fullName}: ${worker.barnCount} chuồng · việc giao ${worker.doneCount}/${worker.taskCount}`}>
+                <span className={styles.avatar}>{worker.fullName.trim().charAt(0).toUpperCase()}</span>
+                <strong>{worker.fullName}</strong><small>{worker.barnCount} chuồng</small>
+                {worker.taskCount > 0 && <em className={styles.workerTasks}>{worker.doneCount}/{worker.taskCount}</em>}
+              </button>)}
+            </div>
             {board.workers.length === 0 && <p className={styles.empty}>Chưa có tài khoản công nhân.</p>}
-            {board.workers.map(worker => <button key={worker.id} type="button" aria-pressed={workerFilter === worker.id}
-              className={`${styles.workerRow} ${workerFilter === worker.id ? styles.workerActive : ''}`} onClick={() => setWorkerFilter(worker.id)}>
-              <span className={styles.avatar}>{worker.fullName.trim().charAt(0).toUpperCase()}</span>
-              <span><strong>{worker.fullName}</strong><small>{worker.barnCount} chuồng · việc giao {worker.doneCount}/{worker.taskCount}</small></span>
-            </button>)}
-          </aside>
+          </div>
 
           {!area ? <div className={styles.areaMap} aria-label="Sơ đồ khu nuôi">
-            {shownAreas.length === 0 ? <p className={styles.state}>Công nhân này chưa phụ trách chuồng nào.</p> : shownAreas.map(item => <button
-              key={item.areaId} type="button" className={styles.areaCard} onClick={() => setAreaId(item.areaId)} aria-label={`Mở khu ${item.areaName}`}>
-              <span className={styles.areaHead}>
+            {shownAreas.length === 0 ? <p className={styles.state}>Công nhân này chưa phụ trách chuồng nào.</p> : shownAreas.map(item => <section
+              key={item.areaId} className={styles.areaCard} aria-label={`Khu ${item.areaName}`}>
+              <button type="button" className={styles.areaHead} onClick={() => setFocus({ areaId: item.areaId, barnId: null })} aria-label={`Mở khu ${item.areaName}`}>
                 <span className={styles.areaIcon}><MapPinned size={20} /></span>
                 <span className={styles.areaTitle}><strong>{item.areaName}</strong>
                   <small>{item.barns.length} chuồng · {formatAmount(item.headcount)} con đang nuôi</small></span>
                 <ChevronRight size={20} className={styles.areaChevron} />
-              </span>
-              <span className={styles.plan}>{item.barns.map(barn => {
+              </button>
+              <div className={styles.plan}>{item.barns.map(barn => {
                 const status = barnState(barn);
-                return <span key={barn.barnId} className={`${styles.tile} ${styles[`tile_${status}`]} ${ofWorker(barn) ? '' : styles.tileDim}`}
-                  title={`${barn.barnName}: ${STATE_LABELS[status]}`}>
+                const names = barn.workers.map(worker => worker.fullName).join(', ');
+                return <button key={barn.barnId} type="button" className={`${styles.tile} ${styles[`tile_${status}`]} ${ofWorker(barn) ? '' : styles.tileDim}`}
+                  onClick={() => setFocus({ areaId: item.areaId, barnId: barn.barnId })} aria-label={`Mở chuồng ${barn.barnName}`}
+                  title={`${barn.barnName}: ${STATE_LABELS[status]}${names ? ` · ${names}` : ''}`}>
                   <span className={styles.tileName}>{barn.barnName}</span>
+                  <span className={styles.tileWorkers}>{barn.workers.length ? barn.workers.map(worker => givenName(worker.fullName)).join(', ') : 'Chưa có người'}</span>
                   <span className={styles.tileFoot}>
-                    <span className={styles.tileWorkers}>{barn.workers.length ? barn.workers.map(worker => <i key={worker.id}>{initial(worker.fullName)}</i>) : '—'}</span>
+                    <span className={styles.tileCount}>{barn.workers.length > 0 && `${barn.workers.length} người`}</span>
                     {barn.tasks.length > 0 && <span className={styles.tileTasks}>{barn.tasks.filter(task => task.done).length}/{barn.tasks.length}</span>}
                   </span>
-                </span>;
-              })}</span>
-              <span className={styles.areaFoot}>
-                <span>{item.workers.length ? item.workers.map(worker => worker.fullName).join(', ') : 'Chưa phân công'}</span>
-                <span className={styles.areaStats}>{item.unassigned > 0 && <em>{item.unassigned} chuồng chưa có người</em>}
-                  việc giao {item.doneCount}/{item.taskCount}</span>
-              </span>
-            </button>)}
+                </button>;
+              })}</div>
+              <div className={styles.areaFoot}>
+                <span>{item.unassigned > 0 && <em>{item.unassigned} chuồng chưa có người phụ trách</em>}</span>
+                <span className={styles.areaStats}>việc giao {item.doneCount}/{item.taskCount}</span>
+              </div>
+            </section>)}
             <p className={styles.legend}>
               {Object.entries(STATE_LABELS).map(([key, label]) => <span key={key}><i className={styles[`tile_${key}`]} />{label}</span>)}
             </p>
           </div> : <div className={styles.areaView}>
           <div className={styles.areaBar}>
-            <button type="button" className={styles.ghost} onClick={() => setAreaId(null)}><ArrowLeft size={16} />Sơ đồ khu</button>
-            <h3>{area.areaName}</h3>
+            <button type="button" className={styles.ghost} onClick={() => setFocus({ areaId: null, barnId: null })}><ArrowLeft size={16} />Sơ đồ khu</button>
+            <h3>{area.areaName}{focusBarn && ` › ${focusBarn.barnName}`}</h3>
             <small>{area.barns.length} chuồng · việc giao {area.doneCount}/{area.taskCount}</small>
           </div>
-          <div className={styles.barns}>
-            {barns.length === 0 ? <p className={styles.state}>Công nhân này không phụ trách chuồng nào trong khu.</p> : barns.map(barn => <section key={barn.barnId} className={styles.barn}
+          {/* Chuyển nhanh giữa các chuồng trong khu, hoặc xem cả khu. */}
+          <div className={styles.barnSwitch} role="tablist" aria-label={`Chuồng trong ${area.areaName}`}>
+            <button type="button" role="tab" aria-selected={!focusBarn} className={!focusBarn ? styles.switchActive : ''}
+              onClick={() => setFocus({ areaId: area.areaId, barnId: null })}>Cả khu ({area.barns.length})</button>
+            {area.barns.map(barn => {
+              const status = barnState(barn);
+              return <button key={barn.barnId} type="button" role="tab" aria-selected={focusBarn?.barnId === barn.barnId}
+                className={focusBarn?.barnId === barn.barnId ? styles.switchActive : ''} title={STATE_LABELS[status]}
+                onClick={() => setFocus({ areaId: area.areaId, barnId: barn.barnId })}>
+                <i className={styles[`tile_${status}`]} />{barn.barnName}
+                {barn.tasks.length > 0 && <small>{barn.tasks.filter(task => task.done).length}/{barn.tasks.length}</small>}
+              </button>;
+            })}
+          </div>
+          <div className={`${styles.barns} ${focusBarn ? styles.barnsSingle : ''}`}>
+            {barns.length === 0 ? <p className={styles.state}>Công nhân này không phụ trách chuồng nào trong khu.</p> : barns.map(barn => <section key={barn.barnId} className={`${styles.barn} ${focusBarn ? styles.book : ''}`}
               aria-label={`Phân công ${barn.barnName}`}>
+              {/* Một chuồng đang mở: vẽ như cuốn sổ mở đôi, trang trái là chuồng và người phụ trách, trang phải là việc giao trong ngày. */}
+              <div className={`${styles.page} ${styles.pageLeft}`}>
+              <span className={styles.bookKicker}>Sổ giao việc</span>
               <header className={styles.barnHead}>
                 <span className={styles.barnIcon}><Warehouse size={18} /></span>
                 <div className={styles.barnTitle}>
                   <h3>{barn.barnName}</h3>
                   <small>{barn.areaName} · {barn.activeCycleId ? `đang nuôi ${formatAmount(barn.headcount)} con` : 'chưa có lứa nuôi'}</small>
                 </div>
-                <button type="button" className={styles.ghost} onClick={() => setModal({ kind: 'workers', barn })} aria-label={`Phân công ${barn.barnName}`}>
-                  <UserCog size={16} />Phân công</button>
               </header>
 
+              {/* Nút Phân công đứng cạnh danh sách người phụ trách, là thứ nó thay đổi. */}
               <div className={styles.assignees}>
-                <span className={styles.label}>Phụ trách</span>
-                {barn.workers.length === 0 ? <span className={styles.none}>Chưa có ai</span>
-                  : barn.workers.map(worker => <span key={worker.id} className={styles.chip}>{worker.fullName}</span>)}
+                <div className={styles.assigneeHead}>
+                  <span className={styles.label}>Phụ trách</span>
+                  <button type="button" className={styles.ghost} onClick={() => setModal({ kind: 'workers', barn })} aria-label={`Phân công ${barn.barnName}`}>
+                    <UserCog size={16} />Phân công</button>
+                </div>
+                <div className={styles.assigneeList}>
+                  {barn.workers.length === 0 ? <span className={styles.none}>Chưa có ai</span>
+                    : barn.workers.map(worker => <span key={worker.id} className={styles.chip}>{worker.fullName}</span>)}
+                </div>
               </div>
+              <p className={styles.bookStat}>
+                <strong>{barn.tasks.filter(task => task.done).length}/{barn.tasks.length}</strong> việc đã xong
+                <span>Ngày {formatDay(date)}</span>
+              </p>
+              </div>
+              <div className={`${styles.page} ${styles.pageRight}`}>
 
               <div className={styles.taskHead}>
                 <span className={styles.label}>Việc giao ngày {formatDay(date)}</span>
@@ -251,6 +289,7 @@ export function WorkAssignmentPanel({ date }) {
                     <button type="button" className={`${styles.icon} ${styles.danger}`} aria-label={`Xóa việc ${task.title}`} onClick={() => removeTask(task)}><Trash2 size={15} /></button>
                   </div>
                 </li>)}</ul>}
+              </div>
             </section>)}
           </div>
           </div>}

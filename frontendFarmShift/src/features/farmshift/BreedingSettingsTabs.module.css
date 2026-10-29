@@ -1,10 +1,8 @@
-/* Thiết lập chăn nuôi: section switcher drawn as cards in one horizontally scrolling row.
+/* Thiết lập chăn nuôi: section switcher drawn as cards sharing the full width (one row on wide screens, stacked on phones).
    Light-green cards with forest-green text; the selected card is filled forest green with a pastel-yellow icon as the accent. */
-.cards { display: flex; gap: 16px; margin: 0 0 20px; padding: 4px 4px 12px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: #95d5b2 transparent; }
-.cards::-webkit-scrollbar { height: 6px; }
-.cards::-webkit-scrollbar-thumb { background: #95d5b2; border-radius: 999px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 0 0 20px; }
 
-.card { flex: 0 0 270px; scroll-snap-align: start; display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px solid #d7ecdc; border-radius: 14px; background: #f3faf4; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
+.card { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px solid #d7ecdc; border-radius: 14px; background: #f3faf4; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
 .card:hover { background: #e9f6ec; border-color: #95d5b2; transform: translateY(-1px); }
 .card:focus-visible { outline: 2px solid #2d6a4f; outline-offset: 2px; }
 
@@ -18,4 +16,4 @@
 .active .title { color: #ffffff; }
 .active .sub { color: #d8f3dc; }
 
-@media (max-width: 560px) { .cards { gap: 10px; } .card { flex-basis: 240px; padding: 14px 16px; } }
+@media (max-width: 560px) { .cards { grid-template-columns: 1fr; gap: 10px; } .card { padding: 14px 16px; } }

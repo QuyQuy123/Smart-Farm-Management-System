@@ -88,7 +88,6 @@ export const AppRouter = () => {
         <Route path="/payroll" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />
         <Route path="/assets" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />
         <Route path="/growth-targets" element={<ProtectedRoute><BreedingSettingsView /></ProtectedRoute>} />
-        <Route path="/harvest-types" element={<ProtectedRoute><BreedingSettingsView /></ProtectedRoute>} />
         <Route path="/screens" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />
         <Route path="/owner-dashboard" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />

@@ -1,23 +1,18 @@
 // src/features/farmshift/BreedingSettingsView.jsx
 // Thiết lập chăn nuôi & Quy trình kỹ thuật chuẩn FarmShift & DESIGN.md
-import React, { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  Settings, Thermometer, Activity, Calendar, CheckCircle, Plus,
-  FileSpreadsheet, X, Target, Scissors, Clock, UserCheck, AlertTriangle, Edit3, Trash2, ClipboardList
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Calendar, ClipboardList, Edit3, FileSpreadsheet, Plus, Target, X } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
 import { FarmingProgramsPanel } from './FarmingProgramsPanel';
 import tabStyles from './BreedingSettingsTabs.module.css';
 
+// A card with `to` opens another screen instead of a tab here: care work is assigned on Việc hôm nay › Phân công.
 const SETTING_TABS = [
   { key: 'program', label: 'Chương trình nuôi', sub: 'Cám, vắc-xin, nhiệt độ theo giống', icon: ClipboardList },
+  { key: 'tasks', label: 'Công việc & Lịch chăm sóc', sub: 'Phân công chuồng và giao việc cho công nhân', icon: Calendar, to: '/today-tasks?view=assign' },
   { key: 'growth_targets', label: 'Mục tiêu tăng trưởng & Định mức cám', sub: 'Cân nặng, FCR theo ngày tuổi', icon: Target },
-  { key: 'harvest_types', label: 'Loại thu hoạch & Biểu cân', sub: 'Phân loại và đơn giá xuất bán', icon: Scissors },
-  { key: 'tasks', label: 'Công việc & Lịch chăm sóc', sub: 'Giao việc cho công nhân', icon: Calendar },
-  { key: 'standards', label: 'Chỉ số vật nuôi theo ngày', sub: 'Chuẩn tăng trọng hằng ngày', icon: Activity },
-  { key: 'env', label: 'Chỉ số môi trường nuôi (IoT)', sub: 'Ngưỡng nhiệt độ, độ ẩm', icon: Thermometer },
 ];
 
 export const BreedingSettingsView = () => {
@@ -25,23 +20,13 @@ export const BreedingSettingsView = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // The URL is the source of truth: ?tab=… wins, the legacy /growth-targets and /harvest-types routes still map to their tab.
+  // The URL is the source of truth: ?tab=… wins, the legacy /growth-targets route still maps to its tab.
   const tabParam = new URLSearchParams(location.search).get('tab');
-  const activeTab = SETTING_TABS.some(tab => tab.key === tabParam) ? tabParam
-    : location.pathname.includes('growth-targets') ? 'growth_targets'
-      : location.pathname.includes('harvest-types') ? 'harvest_types'
-        : 'program';
+  const activeTab = SETTING_TABS.some(tab => tab.key === tabParam && !tab.to) ? tabParam
+    : location.pathname.includes('growth-targets') ? 'growth_targets' : 'program';
   const openTab = key => navigate(`/breeding-settings?tab=${key}`);
 
-  // Keep the selected card visible in the scrolling row, e.g. when opening ?tab=env directly.
-  const cardsRef = useRef(null);
-  useEffect(() => {
-    cardsRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  }, [activeTab]);
-
   const [showAddGrowthModal, setShowAddGrowthModal] = useState(false);
-  const [showAddHarvestModal, setShowAddHarvestModal] = useState(false);
-  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
 
   // Mock data for Growth Targets
   const [growthTargets, setGrowthTargets] = useState([
@@ -51,27 +36,8 @@ export const BreedingSettingsView = () => {
     { id: 'MT004', name: 'Gà Ta Lạc Thủy thả đồi', from: 45, to: 90, weight: '2.10 kg', feed: '110 g', fcr: '2.35', notes: 'Nuôi thả vườn kết hợp thức ăn ủ men vi sinh' }
   ]);
 
-  // Mock data for Harvest Types
-  const [harvestTypes, setHarvestTypes] = useState([
-    { id: 'TH001', code: 'TH-LOAI-1', group: 'Thu hoạch chính', name: 'Gà thịt biểu lớn (Loại 1)', weightSpec: '>= 2.3 kg', notes: 'Mào đỏ, ức dày, lông bóng mượt, không tật lỗi', price: '78,000 đ/kg' },
-    { id: 'TH002', code: 'TH-LOAI-2', group: 'Thu hoạch chính', name: 'Gà thịt biểu vừa (Loại 2)', weightSpec: '1.9 - 2.2 kg', notes: 'Thể trạng tốt, da chân vàng, đồng đều', price: '74,000 đ/kg' },
-    { id: 'TH003', code: 'TH-XO', group: 'Bán xô', name: 'Gà xô nguyên đàn', weightSpec: 'Trung bình đàn', notes: 'Thương lái bao tiêu cả chuồng, trừ hao 3% bù diều', price: '72,000 đ/kg' },
-    { id: 'TH004', code: 'TH-LOC', group: 'Thu tỉa / Loại thải', name: 'Gà lọc còi / Loại thải', weightSpec: '< 1.7 kg', notes: 'Gà chậm lớn hoặc dị tật nhẹ, bán tiêu thụ nhanh', price: '52,000 đ/kg' },
-    { id: 'TH005', code: 'TH-TRUNG', group: 'Sản phẩm phụ', name: 'Trứng gà chuồng', weightSpec: 'Quả', notes: 'Trứng gà đẻ bói hoặc thu gom định kỳ', price: '3,200 đ/quả' }
-  ]);
-
-  // Mock data for Tasks (Lịch chăm sóc & Công việc)
-  const [tasks, setTasks] = useState([
-    { id: 'TSK01', date: '2026-10-08', time: '06:30', house: 'Chuồng 01 (Lứa L01-26)', name: 'Rải trấu đệm lót sinh học & xới xáo', worker: 'Nguyễn Văn Bình', status: 'Đã hoàn thành' },
-    { id: 'TSK02', date: '2026-10-08', time: '08:00', house: 'Chuồng 02 (Lứa L02-26)', name: 'Nhỏ vắc-xin Newcastle Lasota lần 2', worker: 'Trần Thị Mai', status: 'Chưa làm' },
-    { id: 'TSK03', date: '2026-10-08', time: '14:30', house: 'Chuồng 03 (Lứa L03-26)', name: 'Cân mẫu ngẫu nhiên 30 con kiểm tra tăng trọng', worker: 'Lê Văn Cường', status: 'Chưa làm' },
-    { id: 'TSK04', date: '2026-10-08', time: '17:00', house: 'Khu chuồng 01 - 04', name: 'Vệ sinh khử trùng máng ăn tự động', worker: 'Nguyễn Văn Bình', status: 'Chưa làm' }
-  ]);
-
   // Form states
   const [newGrowth, setNewGrowth] = useState({ name: '', from: '', to: '', weight: '', feed: '', fcr: '', notes: '' });
-  const [newHarvest, setNewHarvest] = useState({ name: '', group: 'Thu hoạch chính', weightSpec: '', price: '', notes: '' });
-  const [newTask, setNewTask] = useState({ date: '2026-10-08', time: '07:00', house: 'Chuồng 01', name: '', worker: 'Nguyễn Văn Bình' });
 
   const handleAddGrowth = (e) => {
     e.preventDefault();
@@ -88,42 +54,6 @@ export const BreedingSettingsView = () => {
     setGrowthTargets([...growthTargets, item]);
     setShowAddGrowthModal(false);
     setNewGrowth({ name: '', from: '', to: '', weight: '', feed: '', fcr: '', notes: '' });
-  };
-
-  const handleAddHarvest = (e) => {
-    e.preventDefault();
-    const item = {
-      id: `TH00${harvestTypes.length + 1}`,
-      code: `TH-0${harvestTypes.length + 1}`,
-      name: newHarvest.name,
-      group: newHarvest.group,
-      weightSpec: newHarvest.weightSpec,
-      price: newHarvest.price,
-      notes: newHarvest.notes
-    };
-    setHarvestTypes([...harvestTypes, item]);
-    setShowAddHarvestModal(false);
-    setNewHarvest({ name: '', group: 'Thu hoạch chính', weightSpec: '', price: '', notes: '' });
-  };
-
-  const handleAddTask = (e) => {
-    e.preventDefault();
-    const item = {
-      id: `TSK0${tasks.length + 1}`,
-      date: newTask.date,
-      time: newTask.time,
-      house: newTask.house,
-      name: newTask.name,
-      worker: newTask.worker,
-      status: 'Chưa làm'
-    };
-    setTasks([item, ...tasks]);
-    setShowAddTaskModal(false);
-    setNewTask({ date: '2026-10-08', time: '07:00', house: 'Chuồng 01', name: '', worker: 'Nguyễn Văn Bình' });
-  };
-
-  const toggleTaskStatus = (id) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, status: t.status === 'Đã hoàn thành' ? 'Chưa làm' : 'Đã hoàn thành' } : t));
   };
 
   return (
@@ -143,42 +73,31 @@ export const BreedingSettingsView = () => {
               <Plus size={16} /> Thêm mục tiêu
             </button>
           )}
-          {activeTab === 'harvest_types' && (
-            <button
-              className="farmshift-btn farmshift-btn-primary"
-              onClick={() => setShowAddHarvestModal(true)}
-            >
-              <Plus size={16} /> Thêm loại thu hoạch
-            </button>
-          )}
-          {activeTab === 'tasks' && (
-            <button
-              className="farmshift-btn farmshift-btn-primary"
-              onClick={() => setShowAddTaskModal(true)}
-            >
-              <Plus size={16} /> Giao việc mới
-            </button>
-          )}
         </div>
       }
     >
       {/* ── Subsystem cards: each one addressable as /breeding-settings?tab=… ── */}
-      <nav ref={cardsRef} className={tabStyles.cards} aria-label="Mục thiết lập chăn nuôi">
-        {SETTING_TABS.map(({ key, label, sub, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            className={`${tabStyles.card} ${activeTab === key ? tabStyles.active : ''}`}
-            aria-current={activeTab === key ? 'page' : undefined}
-            onClick={() => openTab(key)}
-          >
+      <nav className={tabStyles.cards} aria-label="Mục thiết lập chăn nuôi">
+        {SETTING_TABS.map(({ key, label, sub, icon: Icon, to }) => {
+          const content = <>
             <span className={tabStyles.icon}><Icon size={20} /></span>
             <span className={tabStyles.text}>
               <span className={tabStyles.title}>{label}</span>
               <span className={tabStyles.sub}>{sub}</span>
             </span>
-          </button>
-        ))}
+          </>;
+          return to
+            ? <Link key={key} to={to} className={tabStyles.card}>{content}</Link>
+            : <button
+              key={key}
+              type="button"
+              className={`${tabStyles.card} ${activeTab === key ? tabStyles.active : ''}`}
+              aria-current={activeTab === key ? 'page' : undefined}
+              onClick={() => openTab(key)}
+            >
+              {content}
+            </button>;
+        })}
       </nav>
 
       {/* ── Tab 1: Chương trình nuôi theo giống (dữ liệu thật từ API) ── */}
@@ -242,236 +161,6 @@ export const BreedingSettingsView = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 3: Loại thu hoạch & Biểu cân ─────────────────── */}
-      {activeTab === 'harvest_types' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <div>
-              <h3 className="farmshift-card-title">Tiêu chuẩn phân loại gà xuất chuồng & Sản phẩm thu hoạch</h3>
-              <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
-                Phục vụ tạo phiếu xuất bán hàng, phân loại biểu cân và định giá xuất trại
-              </p>
-            </div>
-            <button
-              className="farmshift-btn farmshift-btn-primary"
-              onClick={() => setShowAddHarvestModal(true)}
-            >
-              <Plus size={15} /> Thêm loại thu hoạch
-            </button>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Mã loại</th>
-                  <th>Nhóm thu hoạch</th>
-                  <th>Tên loại xuất bán</th>
-                  <th>Biểu cân chuẩn</th>
-                  <th>Giá tham chiếu</th>
-                  <th>Tiêu chuẩn & Mô tả phẩm cấp</th>
-                  <th style={{ textAlign: 'center' }}>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {harvestTypes.map(h => (
-                  <tr key={h.id}>
-                    <td><strong style={{ color: 'var(--color-primary)' }}>{h.code || h.id}</strong></td>
-                    <td>
-                      <span className="farmshift-badge farmshift-badge-neutral">{h.group}</span>
-                    </td>
-                    <td><strong>{h.name}</strong></td>
-                    <td><strong style={{ color: 'var(--color-signature-coral)' }}>{h.weightSpec}</strong></td>
-                    <td style={{ fontWeight: 600, color: 'var(--color-success)' }}>{h.price}</td>
-                    <td style={{ fontSize: '13.5px', color: 'var(--color-body)' }}>{h.notes}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        className="farmshift-btn farmshift-btn-secondary"
-                        style={{ padding: '3px 8px', fontSize: '13.5px' }}
-                        onClick={() => showToast(`Cập nhật tiêu chuẩn ${h.name}`, 'info')}
-                      >
-                        <Edit3 size={13} /> Sửa
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 4: Công việc & Lịch chăm sóc ───────────────── */}
-      {activeTab === 'tasks' && (
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-            <div className="farmshift-stat-card">
-              <div className="farmshift-stat-label">Tổng công việc hôm nay</div>
-              <div className="farmshift-stat-val">{tasks.length}</div>
-              <div className="farmshift-stat-sub">Đã lên lịch phân công</div>
-            </div>
-            <div className="farmshift-stat-card">
-              <div className="farmshift-stat-label">Chưa thực hiện</div>
-              <div className="farmshift-stat-val" style={{ color: '#d9a441' }}>
-                {tasks.filter(t => t.status === 'Chưa làm').length}
-              </div>
-              <div className="farmshift-stat-sub">Cần hoàn thành trong ca</div>
-            </div>
-            <div className="farmshift-stat-card">
-              <div className="farmshift-stat-label">Đã hoàn thành</div>
-              <div className="farmshift-stat-val" style={{ color: 'var(--color-success)' }}>
-                {tasks.filter(t => t.status === 'Đã hoàn thành').length}
-              </div>
-              <div className="farmshift-stat-sub">Tỉ lệ hoàn thành 25%</div>
-            </div>
-            <div className="farmshift-stat-card">
-              <div className="farmshift-stat-label">Chuồng được phân công</div>
-              <div className="farmshift-stat-val" style={{ color: 'var(--color-primary)' }}>4</div>
-              <div className="farmshift-stat-sub">Toàn bộ 4 chuồng nuôi</div>
-            </div>
-          </div>
-
-          <div className="farmshift-card">
-            <div className="farmshift-card-header">
-              <h3 className="farmshift-card-title">Lịch phân công công việc & Giám sát ca làm</h3>
-              <button
-                className="farmshift-btn farmshift-btn-primary"
-                onClick={() => setShowAddTaskModal(true)}
-              >
-                <Plus size={15} /> Giao việc mới
-              </button>
-            </div>
-            <div className="farmshift-table-container" style={{ border: 'none' }}>
-              <table className="farmshift-table">
-                <thead>
-                  <tr>
-                    <th>Ngày</th>
-                    <th>Giờ</th>
-                    <th>Chuồng áp dụng</th>
-                    <th>Nội dung công việc</th>
-                    <th>Người phụ trách</th>
-                    <th>Trạng thái</th>
-                    <th style={{ textAlign: 'center' }}>Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasks.map(t => (
-                    <tr key={t.id}>
-                      <td>{t.date}</td>
-                      <td><strong>{t.time}</strong></td>
-                      <td>{t.house}</td>
-                      <td><strong>{t.name}</strong></td>
-                      <td>{t.worker}</td>
-                      <td>
-                        <span className={`farmshift-badge ${t.status === 'Đã hoàn thành' ? 'farmshift-badge-success' : 'farmshift-badge-warning'}`}>
-                          {t.status}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          className={`farmshift-btn ${t.status === 'Đã hoàn thành' ? 'farmshift-btn-secondary' : 'farmshift-btn-primary'}`}
-                          style={{ padding: '4px 10px', fontSize: '13.5px' }}
-                          onClick={() => toggleTaskStatus(t.id)}
-                        >
-                          {t.status === 'Đã hoàn thành' ? 'Mở lại' : '✓ Hoàn thành'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 5: Bảng chuẩn tăng trọng ───────────────────── */}
-      {activeTab === 'standards' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Bảng chuẩn tăng trọng & Lượng ăn theo ngày (Giống J-Dabaco)</h3>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tuần tuổi</th>
-                  <th>Số ngày</th>
-                  <th>Trọng lượng chuẩn (g/con)</th>
-                  <th>Lượng ăn ngày (g/con)</th>
-                  <th>FCR lũy kế chuẩn</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>Tuần 1</strong></td>
-                  <td>1 - 7 ngày</td>
-                  <td>120 - 150g</td>
-                  <td>15 - 20g</td>
-                  <td>1.10</td>
-                </tr>
-                <tr>
-                  <td><strong>Tuần 2</strong></td>
-                  <td>8 - 14 ngày</td>
-                  <td>280 - 320g</td>
-                  <td>28 - 35g</td>
-                  <td>1.35</td>
-                </tr>
-                <tr>
-                  <td><strong>Tuần 4</strong></td>
-                  <td>22 - 28 ngày</td>
-                  <td>850 - 950g</td>
-                  <td>55 - 65g</td>
-                  <td>1.75</td>
-                </tr>
-                <tr>
-                  <td><strong>Tuần 6</strong></td>
-                  <td>36 - 42 ngày</td>
-                  <td>1,500 - 1,650g</td>
-                  <td>90 - 105g</td>
-                  <td>2.05</td>
-                </tr>
-                <tr>
-                  <td><strong>Tuần 8</strong></td>
-                  <td>50 - 56 ngày</td>
-                  <td>2,000 - 2,200g</td>
-                  <td>120 - 135g</td>
-                  <td>2.25</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 6: Ngưỡng IoT ───────────────────────────────── */}
-      {activeTab === 'env' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Cấu hình ngưỡng cảm biến nhiệt độ & độ ẩm chuồng trại</h3>
-          </div>
-          <div className="farmshift-card-body">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '16px' }}>
-                <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Nhiệt độ môi trường</strong>
-                <div style={{ marginTop: '10px', fontSize: '14.5px', color: 'var(--color-body)', lineHeight: 1.6 }}>
-                  • Ngưỡng lý tưởng: <strong>25.0°C - 28.5°C</strong><br />
-                  • Cảnh báo cao: <strong>&gt; 29.5°C</strong> (Kích hoạt giàn quạt hút & cooling pad)<br />
-                  • Nguy hiểm khẩn cấp: <strong>&gt; 32.0°C</strong> (Báo động còi & tin nhắn cho chủ trại)
-                </div>
-              </div>
-
-              <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '16px' }}>
-                <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Độ ẩm không khí</strong>
-                <div style={{ marginTop: '10px', fontSize: '14.5px', color: 'var(--color-body)', lineHeight: 1.6 }}>
-                  • Ngưỡng lý tưởng: <strong>60% - 70%</strong><br />
-                  • Cảnh báo ẩm ướt: <strong>&gt; 78%</strong> (Yêu cầu tăng thông gió, rải thêm đệm lót trấu)
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -580,173 +269,6 @@ export const BreedingSettingsView = () => {
         </div>
       )}
 
-      {/* ── Modal: Thêm loại thu hoạch ────────────────────── */}
-      {showAddHarvestModal && (
-        <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal">
-            <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Thêm loại thu hoạch & Phân cấp</h3>
-              <button onClick={() => setShowAddHarvestModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleAddHarvest}>
-              <div className="farmshift-modal-body">
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Tên loại thu hoạch *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="VD: Gà thịt biểu lớn, Gà xô..."
-                    className="farmshift-form-control"
-                    value={newHarvest.name}
-                    onChange={(e) => setNewHarvest({ ...newHarvest, name: e.target.value })}
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Nhóm thu hoạch</label>
-                    <select
-                      className="farmshift-form-control"
-                      value={newHarvest.group}
-                      onChange={(e) => setNewHarvest({ ...newHarvest, group: e.target.value })}
-                    >
-                      <option value="Thu hoạch chính">Thu hoạch chính</option>
-                      <option value="Bán xô">Bán xô</option>
-                      <option value="Thu tỉa / Loại thải">Thu tỉa / Loại thải</option>
-                      <option value="Sản phẩm phụ">Sản phẩm phụ</option>
-                    </select>
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Biểu cân chuẩn *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder=">= 2.2 kg"
-                      className="farmshift-form-control"
-                      value={newHarvest.weightSpec}
-                      onChange={(e) => setNewHarvest({ ...newHarvest, weightSpec: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Giá tham chiếu xuất chuồng</label>
-                  <input
-                    type="text"
-                    placeholder="75,000 đ/kg"
-                    className="farmshift-form-control"
-                    value={newHarvest.price}
-                    onChange={(e) => setNewHarvest({ ...newHarvest, price: e.target.value })}
-                  />
-                </div>
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Tiêu chuẩn phẩm cấp & Ghi chú</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Đặc điểm nhận diện, yêu cầu ngoại hình..."
-                    className="farmshift-form-control"
-                    value={newHarvest.notes}
-                    onChange={(e) => setNewHarvest({ ...newHarvest, notes: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="farmshift-modal-footer">
-                <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setShowAddHarvestModal(false)}>
-                  Hủy
-                </button>
-                <button type="submit" className="farmshift-btn farmshift-btn-primary">
-                  Lưu loại thu hoạch
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal: Giao việc mới ───────────────────────────── */}
-      {showAddTaskModal && (
-        <div className="farmshift-modal-backdrop">
-          <div className="farmshift-modal">
-            <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">Giao việc & Lên lịch chăm sóc mới</h3>
-              <button onClick={() => setShowAddTaskModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleAddTask}>
-              <div className="farmshift-modal-body">
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label">Nội dung công việc *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="VD: Cân gà mẫu, Rải trấu, Phun thuốc sát trùng chuồng..."
-                    className="farmshift-form-control"
-                    value={newTask.name}
-                    onChange={(e) => setNewTask({ ...newTask, name: e.target.value })}
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Ngày thực hiện *</label>
-                    <input
-                      type="date"
-                      required
-                      className="farmshift-form-control"
-                      value={newTask.date}
-                      onChange={(e) => setNewTask({ ...newTask, date: e.target.value })}
-                    />
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Thời gian *</label>
-                    <input
-                      type="time"
-                      required
-                      className="farmshift-form-control"
-                      value={newTask.time}
-                      onChange={(e) => setNewTask({ ...newTask, time: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Chuồng nuôi</label>
-                    <select
-                      className="farmshift-form-control"
-                      value={newTask.house}
-                      onChange={(e) => setNewTask({ ...newTask, house: e.target.value })}
-                    >
-                      <option value="Chuồng 01">Chuồng 01 (Lứa L01-26)</option>
-                      <option value="Chuồng 02">Chuồng 02 (Lứa L02-26)</option>
-                      <option value="Chuồng 03">Chuồng 03 (Lứa L03-26)</option>
-                      <option value="Chuồng 04">Chuồng 04 (Lứa L04-26)</option>
-                      <option value="Toàn bộ chuồng trại">Toàn bộ chuồng trại</option>
-                    </select>
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Người phụ trách *</label>
-                    <input
-                      type="text"
-                      required
-                      className="farmshift-form-control"
-                      value={newTask.worker}
-                      onChange={(e) => setNewTask({ ...newTask, worker: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="farmshift-modal-footer">
-                <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setShowAddTaskModal(false)}>
-                  Hủy
-                </button>
-                <button type="submit" className="farmshift-btn farmshift-btn-primary">
-                  Giao công việc
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </FarmShiftLayout>
   );
 };
