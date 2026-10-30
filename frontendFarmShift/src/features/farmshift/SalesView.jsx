@@ -8,13 +8,15 @@ import { listSalesCustomers, listSalesOrders, createSalesOrder, updateSalesOrder
 import { listBarns } from '../../services/farmAreaService';
 import { listCycles } from '../../services/cycleService';
 import styles from './SalesView.module.css';
+import { extractWeightSlip, confirmWeightSlip } from '../../services/weightSlipService';
+import { WeightSlipCapture } from './WeightSlipCapture';
 import { SalesInvoiceTemplate } from './SalesInvoiceTemplate';
-import { Plus, Search, FileSpreadsheet, X, Printer, Pencil } from 'lucide-react';
+import { Plus, Search, FileSpreadsheet, X, Printer, Pencil, ScanText } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 
 export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = ['customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'orders';
+  const activeTab = ['orders', 'customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'create';
   const setActiveTab = tab => setSearchParams({ tab });
   const { user } = useAuth();
   const storageKey = `farmshift-sales-v1:${user?.email || 'demo'}`;
@@ -82,10 +84,46 @@ export const SalesView = () => {
     note: ''
   });
 
+  const [showCapture, setShowCapture] = useState(false);
+  const [ocrFile, setOcrFile] = useState(null), [ocrPreview, setOcrPreview] = useState('');
+  const [ocrBusy, setOcrBusy] = useState(false), [ocrError, setOcrError] = useState(''), [ocrDraft, setOcrDraft] = useState(null);
+  const ocrRequest = useRef(null);
+  useEffect(() => {
+    if (!ocrFile) { setOcrPreview(''); return; }
+    const url = URL.createObjectURL(ocrFile); setOcrPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [ocrFile]);
+  useEffect(() => () => ocrRequest.current?.abort(), []);
+  const clearOcr = () => {
+    ocrRequest.current?.abort(); setShowCapture(false); setOcrFile(null); setOcrDraft(null); setOcrBusy(false); setOcrError('');
+  };
+  async function readWeightSlip(file) {
+    ocrRequest.current?.abort();
+    const controller = new AbortController(); ocrRequest.current = controller;
+    setShowCapture(false); setOcrFile(file); setOcrDraft(null); setOcrBusy(true); setOcrError(''); setSaveError('');
+    try {
+      const draft = await extractWeightSlip(file, controller.signal);
+      if (controller.signal.aborted) return;
+      setOcrDraft(draft);
+      const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase().trim();
+      const matches = cycleOptions.filter(option => draft.barnName && normalize(option.barnName) === normalize(draft.barnName)
+        && (!draft.areaName || normalize(option.areaName) === normalize(draft.areaName))
+        && (!draft.cycleCode || normalize(option.cycleCode) === normalize(draft.cycleCode)));
+      const numeric = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? String(value) : '';
+      setNewSale(previous => ({ ...previous, customer: draft.customer || '', phone: String(draft.phone || '').replace(/[^0-9]/g, ''),
+        address: draft.address || '', taxCode: draft.taxCode || '', date: draft.date || '',
+        quantity: numeric(draft.quantity), totalWeight: numeric(draft.totalWeight), unitPrice: numeric(draft.unitPrice),
+        paymentMethod: draft.paymentMethod || 'Tiền mặt', paymentStatus: ['PAID', 'DEBT', 'PARTIAL'].includes(draft.status) ? draft.status : 'DEBT',
+        paidAmount: numeric(draft.paidAmount), flock: matches.length === 1 ? matches[0].id : '', note: draft.note || '' }));
+    } catch (error) {
+      if (!controller.signal.aborted) setOcrError(error.response?.data?.message || error.message || 'Không bóc tách được phiếu cân. Vui lòng thử lại.');
+    } finally { if (!controller.signal.aborted) setOcrBusy(false); }
+  }
   const [cycleOptions, setCycleOptions] = useState([]);
   const [cyclesLoading, setCyclesLoading] = useState(false);
   const [cyclesError, setCyclesError] = useState('');
   const openSaleModal = async (sale = null) => {
+    clearOcr();
     setEditingSale(sale);
     setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }] : []);
     setSaveError('');
@@ -112,7 +150,7 @@ export const SalesView = () => {
       const options = await Promise.all(barns.map(async barn => {
         const cycles = await listCycles(barn.id);
         return cycles.map(cycle => ({
-          id: String(cycle.id),
+          id: String(cycle.id), areaName: barn.areaName, barnName: barn.name, cycleCode: cycle.code,
           label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
         }));
       }));
@@ -127,6 +165,7 @@ export const SalesView = () => {
 
   useEffect(() => {
     if (activeTab === 'create') openSaleModal();
+    else clearOcr();
   }, [activeTab]);
 
   const closeSaleForm = () => {
@@ -136,7 +175,7 @@ export const SalesView = () => {
 
   const handleCreateSale = async (e) => {
     e.preventDefault();
-    if (saving) return;
+    if (saving || ocrBusy || (ocrFile && (!ocrDraft || ocrError))) return;
     const qty = Number(newSale.quantity) || 0;
     const weight = Number(newSale.totalWeight) || 0;
     const price = Number(newSale.unitPrice) || 0;
@@ -159,7 +198,8 @@ export const SalesView = () => {
         quantity: qty, totalWeight: weight, unitPrice: price,
         status: newSale.paymentStatus, paidAmount, note: newSale.note,
       };
-      const created = editingSale ? await updateSalesOrder(editingSale.id, body) : await createSalesOrder(body);
+      const created = editingSale ? await updateSalesOrder(editingSale.id, body) : ocrFile ? await confirmWeightSlip(body, ocrFile) : await createSalesOrder(body);
+      clearOcr();
       requestId.current = null;
       setSales(previous => editingSale ? previous.map(sale => sale.id === created.id ? created : sale) : [created, ...previous]);
       setCustomerRevision(value => value + 1);
@@ -286,7 +326,7 @@ export const SalesView = () => {
                           {s.totalAmount - s.paidAmount > 0 ? `Còn nợ ${formatMoney(s.totalAmount - s.paidAmount)}` : 'Đã thanh toán'}
                         </span>
                       </td>
-                      <td><button type="button" className={styles.editButton} onClick={() => openSaleModal(s)} title="Chỉnh sửa hóa đơn" aria-label={`Sửa hóa đơn ${s.code}`}><Pencil size={16} /></button></td>
+                      <td>{s.weightSlipUrl && <a href={s.weightSlipUrl} target="_blank" rel="noreferrer" className={styles.invoiceLink} aria-label={`Xem phiếu cân ${s.code}`}>Phiếu cân</a>}<button type="button" className={styles.editButton} onClick={() => openSaleModal(s)} title="Chỉnh sửa hóa đơn" aria-label={`Sửa hóa đơn ${s.code}`}><Pencil size={16} /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -362,6 +402,7 @@ export const SalesView = () => {
           <div className={showAddModal ? `farmshift-modal ${styles.modal} ${styles.saleModal}` : `farmshift-card ${styles.salePageCard}`} role={showAddModal ? 'dialog' : 'region'} aria-modal={showAddModal ? true : undefined} aria-labelledby="sale-modal-title">
             <div className="farmshift-modal-header">
               <h3 id="sale-modal-title" className="farmshift-modal-title">{editingSale ? `Chỉnh sửa hóa đơn ${editingSale.code}` : 'Tạo đơn bán hàng'}</h3>
+              {!editingSale && <button type="button" className="farmshift-btn farmshift-btn-mint" disabled={saving || ocrBusy || cyclesLoading} onClick={() => setShowCapture(true)}><ScanText size={16} />Bóc tách phiếu cân</button>}
               {showAddModal && <button
                 disabled={saving}
                 onClick={closeSaleForm}
@@ -372,8 +413,23 @@ export const SalesView = () => {
                 <X size={18} />
               </button>}
             </div>
+            <div className={ocrFile ? styles.ocrReview : undefined}>
+            {ocrFile && <aside className={styles.weightPreview} aria-label="Phiếu cân gốc">
+              <h4>Phiếu cân gốc</h4>
+              {ocrPreview && (ocrFile.type === 'application/pdf' ? <iframe src={ocrPreview} title="PDF phiếu cân gốc" /> : <img src={ocrPreview} alt="Ảnh phiếu cân gốc" />)}
+              <div className={styles.captureActions}><button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving || ocrBusy} onClick={() => setShowCapture(true)}>Chọn phiếu khác</button><button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving} onClick={clearOcr}>Bỏ phiếu cân</button></div>
+              {ocrDraft?.referenceCode && <p>Mã phiếu: {ocrDraft.referenceCode}</p>}
+              {ocrDraft?.barnName && <p>Trên phiếu: {ocrDraft.areaName || ''} / {ocrDraft.barnName} {ocrDraft.cycleCode || ''}</p>}
+            </aside>}
             <form className={styles.saleForm} onSubmit={handleCreateSale}>
               <div className={`farmshift-modal-body ${styles.saleBody}`}>
+                {ocrBusy && <p role="status" className={styles.fullField}>Đang bóc tách phiếu cân, vui lòng chờ...</p>}
+                {ocrError && <p role="alert" className={`${styles.error} ${styles.fullField}`}>{ocrError}</p>}
+                {ocrDraft && <div className={`${styles.ocrNotice} ${styles.fullField}`}><strong>Đối chiếu phiếu cân trước khi xác nhận</strong><p>Các mục không đọc rõ cần nhập bổ sung. Kiểm tra cân thực tế đã trừ bì, đơn giá và trạng thái thanh toán.</p>
+                  {!ocrDraft.status && <p>Phiếu chưa thể hiện thanh toán: đang chọn Nợ, vui lòng kiểm tra lại.</p>}
+                  {(ocrDraft.warnings || []).map((warning, index) => <p key={index}>{String(warning)}</p>)}
+                  {!!ocrDraft.weighings?.length && <details><summary>Chi tiết các lượt cân đã đọc</summary><div className={styles.weighingTable}><table className="farmshift-table"><thead><tr><th>Mã cân</th><th>Số con</th><th>Cả lồng (kg)</th><th>Bì (kg)</th><th>Thực tế (kg)</th></tr></thead><tbody>{ocrDraft.weighings.map((row, index) => <tr key={index}><td>{row.code ?? '—'}</td><td>{row.quantity ?? '—'}</td><td>{row.grossWeight ?? '—'}</td><td>{row.tareWeight ?? '—'}</td><td>{row.netWeight ?? '—'}</td></tr>)}</tbody></table></div></details>}
+                </div>}
                 {saveError && <p role="alert" className={styles.error}>{saveError}</p>}
                 <div className={styles.fieldRow}>
                   <div className="farmshift-form-group">
@@ -509,15 +565,17 @@ export const SalesView = () => {
                 >
                   Hủy
                 </button>
-                <button type="submit" disabled={saving} className="farmshift-btn farmshift-btn-mint">
-                  {saving ? 'Đang lưu...' : editingSale ? 'Lưu thay đổi' : 'Lưu đơn bán'}
+                <button type="submit" disabled={saving || ocrBusy || !!ocrError || (ocrFile && !ocrDraft)} className="farmshift-btn farmshift-btn-mint">
+                  {saving ? 'Đang lưu...' : editingSale ? 'Lưu thay đổi' : ocrFile ? 'Xác nhận và lưu đơn bán' : 'Lưu đơn bán'}
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
 
+      {showCapture && <WeightSlipCapture onFile={readWeightSlip} onClose={() => setShowCapture(false)} />}
     </FarmShiftLayout>
   );
 };

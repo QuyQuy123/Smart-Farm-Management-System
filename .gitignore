@@ -33,3 +33,6 @@ aiServiceFarmShift/venv/
 aiServiceFarmShift/__pycache__/
 aiServiceFarmShift/**/__pycache__/
 /.agents
+
+# Uploaded original sales weight slips
+frontendFarmShift/public/weigh-slips/

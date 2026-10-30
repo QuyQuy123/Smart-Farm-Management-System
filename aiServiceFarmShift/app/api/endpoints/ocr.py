@@ -56,3 +56,15 @@ async def preprocess_invoice(file: UploadFile = File(...)):
 def get_sample_invoice():
     """Trả về dữ liệu hóa đơn mẫu của Công ty CP Chăn nuôi C.P. Việt Nam để test nhanh."""
     return ocr_service._rule_based_fallback(b"", "hoa_don_mau_cp.png")
+
+
+@router.post("/extract-weight-slip", summary="Bóc tách phiếu cân bán gà bằng OpenAI")
+async def extract_weight_slip(file: UploadFile = File(...)):
+    from app.services.weight_slip_ocr import extract_weight_slip as extract
+    content = await file.read(10 * 1024 * 1024 + 1)
+    if not content or len(content) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Phiếu cân phải có dung lượng từ 1 byte đến 10MB.")
+    mime = (file.content_type or "").lower()
+    if mime not in ("image/jpeg", "image/png", "image/webp", "application/pdf"):
+        raise HTTPException(400, "Chỉ hỗ trợ JPG, PNG, WEBP và PDF.")
+    return await extract(content, mime)

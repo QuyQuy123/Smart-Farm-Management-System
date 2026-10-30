@@ -18,6 +18,7 @@ public class SalesOrder {
  private BigDecimal totalAmount;
  private BigDecimal paidAmount;
  private String status;
+ @Column(name="weight_slip_url", length=500) private String weightSlipUrl;
  @Column(columnDefinition="TEXT") private String note;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="customer_id") @com.fasterxml.jackson.annotation.JsonIgnore
  private CustomerContact buyer;
