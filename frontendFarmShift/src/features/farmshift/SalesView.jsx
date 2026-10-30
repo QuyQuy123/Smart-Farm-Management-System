@@ -126,16 +126,7 @@ export const SalesView = () => {
         return barnMatch && areaMatch && cycleMatch;
       });
 
-      let selectedFlockId = matched ? matched.id : '';
-      if (!matched) {
-        const draftLabel = [draft.areaName, draft.barnName, draft.cycleCode].filter(Boolean).join(' - ');
-        if (draftLabel) {
-          const customId = `ocr_${Date.now()}`;
-          const customOption = { id: customId, label: draftLabel, areaName: draft.areaName, barnName: draft.barnName, cycleCode: draft.cycleCode };
-          setCycleOptions(prev => [customOption, ...prev.filter(o => !o.id.startsWith('ocr_'))]);
-          selectedFlockId = customId;
-        }
-      }
+      const selectedFlockId = matched ? matched.id : '';
 
       const numeric = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? String(value) : '';
       const ocrStatus = ['PAID', 'DEBT', 'PARTIAL'].includes(draft.status) ? draft.status : 'DEBT';
@@ -177,19 +168,11 @@ export const SalesView = () => {
     try {
       const barns = await listBarns();
       const options = await Promise.all(barns.map(async barn => {
-        try {
-          const cycles = await listCycles(barn.id);
-          if (Array.isArray(cycles) && cycles.length > 0) {
-            return cycles.map(cycle => ({
-              id: String(cycle.id), areaName: barn.areaName, barnName: barn.name, cycleCode: cycle.code,
-              label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
-            }));
-          }
-        } catch {}
-        return [{
-          id: `barn_${barn.id}`, areaName: barn.areaName, barnName: barn.name,
-          label: `${barn.areaName} - ${barn.name}`,
-        }];
+        const cycles = await listCycles(barn.id);
+        return (cycles || []).map(cycle => ({
+          id: String(cycle.id), areaName: barn.areaName, barnName: barn.name, cycleCode: cycle.code,
+          label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
+        }));
       }));
       setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }, ...options.flat()] : options.flat());
     } catch {
@@ -223,8 +206,14 @@ export const SalesView = () => {
       setSaveError('Số tiền đã trả phải lớn hơn 0 và nhỏ hơn tổng doanh thu.');
       return;
     }
-    const flock = newSale.flock === '__existing__' && editingSale ? editingSale.flock : cycleOptions.find(option => option.id === newSale.flock)?.label;
+    const flockOption = newSale.flock === '__existing__' && editingSale
+      ? null
+      : cycleOptions.find(option => option.id === newSale.flock);
+    const flock = flockOption ? flockOption.label : (editingSale ? editingSale.flock : '');
     if (!flock) { setSaveError('Vui lòng chọn khu nuôi - chuồng - lứa.'); return; }
+    const cycleId = flockOption && flockOption.id !== '__existing__' && !flockOption.id.startsWith('ocr_')
+      ? Number(flockOption.id)
+      : (editingSale?.cycleId || null);
     requestId.current ||= crypto.randomUUID();
     setSaving(true);
     setSaveError('');
@@ -232,6 +221,7 @@ export const SalesView = () => {
       const body = {
         id: editingSale?.id || requestId.current, date: newSale.date, customer: newSale.customer.trim(),
         phone: newSale.phone.trim(), address: newSale.address.trim(), taxCode: newSale.taxCode.trim(), paymentMethod: newSale.paymentMethod, flock,
+        cycleId,
         quantity: qty, totalWeight: weight, unitPrice: price,
         status: newSale.paymentStatus, paidAmount, note: newSale.note,
       };
@@ -243,6 +233,8 @@ export const SalesView = () => {
       setShowAddModal(false);
       if (!editingSale) setActiveTab('orders');
       setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '' }));
+      window.dispatchEvent(new Event('farm-areas-changed'));
+      try { localStorage.setItem('farm-areas-changed', `${Date.now()}-${Math.random()}`); } catch {}
     } catch (error) {
       setSaveError(error.response?.data?.message || 'Không thể lưu đơn bán. Vui lòng thử lại.');
     } finally { setSaving(false); }
