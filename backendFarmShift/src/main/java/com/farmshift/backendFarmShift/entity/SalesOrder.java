@@ -22,6 +22,11 @@ public class SalesOrder {
  @Column(columnDefinition="TEXT") private String note;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="customer_id") @com.fasterxml.jackson.annotation.JsonIgnore
  private CustomerContact buyer;
+ @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="cycle_id") @com.fasterxml.jackson.annotation.JsonIgnore
+ private FarmingCycle cycle;
+ @OneToOne(fetch=FetchType.LAZY) @JoinColumn(name="movement_id") @com.fasterxml.jackson.annotation.JsonIgnore
+ private FlockMovement harvestMovement;
  @Column(name="created_at", updatable=false) private java.time.LocalDateTime createdAt;
  @PrePersist void recordCreationTime() { if(createdAt==null) createdAt=java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Bangkok")); }
+ public Long getCycleId() { return cycle != null ? cycle.getId() : null; }
 }
