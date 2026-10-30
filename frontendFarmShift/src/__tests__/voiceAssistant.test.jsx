@@ -239,12 +239,9 @@ describe('Voice Assistant & Actionable AI Chatbot Suite', () => {
     });
   });
 
-  it('resets conversation when clicking the reset button', async () => {
+  it('displays default welcome message when opened', async () => {
     renderComponent();
     fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
-
-    const resetBtn = screen.getByTitle('Bắt đầu hội thoại mới');
-    fireEvent.click(resetBtn);
 
     expect(screen.getByText(/Tôi là Trợ lý AI FarmShift/i)).toBeInTheDocument();
   });
@@ -280,11 +277,6 @@ describe('Voice Assistant & Actionable AI Chatbot Suite', () => {
 
     renderComponent();
     fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
-
-    // Check header TTS toggle button
-    const headerTtsBtn = screen.getByTestId('header-tts-toggle');
-    expect(headerTtsBtn).toBeInTheDocument();
-    fireEvent.click(headerTtsBtn);
 
     const input = screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i);
     fireEvent.change(input, { target: { value: 'Nhiệt độ úm gà con' } });

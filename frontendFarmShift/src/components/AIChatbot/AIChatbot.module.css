@@ -91,13 +91,13 @@
 
 /* ── Header ─────────────────────────────────────────────── */
 .header {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  color: #ffffff;
-  padding: 16px 18px;
+  background: linear-gradient(135deg, #e6f7f4 0%, #d8f3ee 100%);
+  color: #134e4a;
+  padding: 14px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #ccebe5;
   position: relative;
 }
 
@@ -119,16 +119,24 @@
 
 .avatarWrapper {
   position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #019788 0%, #004d40 100%);
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
-  box-shadow: 0 4px 10px rgba(1, 151, 136, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(1, 151, 136, 0.2);
+  border: 1.5px solid #a7f3d0;
+  padding: 3px;
+}
+
+.avatarLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  display: block;
 }
 
 .statusDot {
@@ -139,7 +147,7 @@
   height: 10px;
   border-radius: 50%;
   background-color: #10b981;
-  border: 2px solid #0f172a;
+  border: 2px solid #e6f7f4;
 }
 
 .headerText {
@@ -149,28 +157,12 @@
 
 .headerTitle {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 15.5px;
   letter-spacing: -0.01em;
-  color: #ffffff;
+  color: #0f4a43;
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.headerSubtitle {
-  font-size: 13.5px;
-  color: #94a3b8;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 2px;
-}
-
-.onlineBadge {
-  display: inline-block;
-  color: #34d399;
-  font-size: 12.5px;
-  font-weight: 500;
 }
 
 .headerActions {
@@ -183,9 +175,9 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
-  color: #cbd5e1;
+  background: rgba(1, 151, 136, 0.08);
+  border: 1px solid rgba(1, 151, 136, 0.15);
+  color: #0f766e;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -194,8 +186,8 @@
 }
 
 .iconBtn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  background: rgba(1, 151, 136, 0.18);
+  color: #004d40;
 }
 
 /* ── Messages Container ──────────────────────────────────── */
@@ -226,17 +218,27 @@
 }
 
 .botIconSmall {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: #019788;
-  color: #ffffff;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   margin-bottom: 2px;
-  box-shadow: 0 2px 6px rgba(1, 151, 136, 0.25);
+  box-shadow: 0 2px 6px rgba(1, 151, 136, 0.15);
+  border: 1px solid #bbf7d0;
+  padding: 2px;
+  overflow: hidden;
+}
+
+.botLogoSmall {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  display: block;
 }
 
 .message {
