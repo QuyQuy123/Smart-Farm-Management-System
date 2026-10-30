@@ -1,10 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Package, X } from 'lucide-react';
 import { listBrands } from '../../services/brandService';
 import { listMeasurementUnits } from '../../services/measurementUnitService';
 import { createInventoryItem, updateInventoryItem, deleteInventoryItem } from '../../services/inventoryItemService';
 import { fileService } from '../../services/fileService';
 import styles from './WarehouseCategoriesView.module.css';
+
+const formatPrice = value => {
+  const [integer, fraction] = value.split('.');
+  return integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (fraction === undefined ? '' : `,${fraction}`);
+};
+const parsePrice = value => {
+  const clean = value.replace(/[.\s]/g, '');
+  if (!/^\d*(,\d{0,2})?$/.test(clean)) return null;
+  if (!clean) return '';
+  const [integer, fraction] = clean.split(',');
+  const digits = (integer || '0').replace(/^0+(?=\d)/, '');
+  return digits + (fraction === undefined ? '' : `.${fraction}`);
+};
 
 export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved }) => {
   const dialog = useRef(null);
@@ -16,6 +29,16 @@ export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved })
   const [imageUrl, setImageUrl] = useState(item?.imageUrl || '');
   const [file, setFile] = useState(null), [preview, setPreview] = useState('');
   const [brands, setBrands] = useState([]);
+  const brandOptions = useMemo(() => {
+    const unique = new Map();
+    for (const brand of brands) {
+      const key = String(brand.name || '').normalize('NFC').trim().toLocaleLowerCase('vi');
+      if (!key) continue;
+      // Retain the selected database ID when editing, even if another group has the same brand name.
+      if (!unique.has(key) || String(brand.id) === brandId) unique.set(key, brand);
+    }
+    return [...unique.values()];
+  }, [brands, brandId]);
   const readOnly = mode === 'view', deleting = mode === 'delete';
   const [loading, setLoading] = useState(!readOnly && !deleting), [metadataError, setMetadataError] = useState('');
   const [revision, setRevision] = useState(0), [saving, setSaving] = useState(false), [error, setError] = useState('');
@@ -98,14 +121,14 @@ export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved })
           </div>
           <div className={styles.formField}>
           <label htmlFor="inventory-price">Giá tiền (đ) {!readOnly && <span className={styles.required}>*</span>}</label>
-          <input id="inventory-price" type="number" min="0" step="0.01" className="farmshift-form-control" placeholder="Ví dụ: 150000" value={price} onChange={event => setPrice(event.target.value)} required readOnly={readOnly} disabled={saving} />
+          <input id="inventory-price" type="text" inputMode="decimal" className="farmshift-form-control" placeholder="Ví dụ: 320.000" value={formatPrice(price)} onChange={event => { const parsed = parsePrice(event.target.value); if (parsed !== null) setPrice(parsed); }} required readOnly={readOnly} disabled={saving} />
           </div>
           <div className={styles.formField}>
           <label htmlFor="inventory-stock">Tồn kho</label><input id="inventory-stock" className="farmshift-form-control" value={item?.stock ?? 0} readOnly />
           </div>
           <div className={styles.formField}>
           <label htmlFor="inventory-brand">Nhãn hiệu</label>
-          {readOnly ? <input id="inventory-brand" className="farmshift-form-control" value={item.brandName || 'Chưa chọn nhãn hiệu'} readOnly /> : <select id="inventory-brand" className="farmshift-form-control" value={brandId} onChange={event => setBrandId(event.target.value)} disabled={saving || loading || !!metadataError}><option value="">Chọn nhãn hiệu (không bắt buộc)</option>{brands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select>}
+          {readOnly ? <input id="inventory-brand" className="farmshift-form-control" value={item.brandName || 'Chưa chọn nhãn hiệu'} readOnly /> : <select id="inventory-brand" className="farmshift-form-control" value={brandId} onChange={event => setBrandId(event.target.value)} disabled={saving || loading || !!metadataError}><option value="">Chọn nhãn hiệu (không bắt buộc)</option>{brandOptions.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select>}
           </div>
           </div>
           {metadataError && <p role="alert" className={styles.error}>{metadataError}<button type="button" onClick={() => setRevision(value => value + 1)}>Thử lại</button></p>}

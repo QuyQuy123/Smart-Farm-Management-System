@@ -25,6 +25,7 @@ class SupplierIntegrationTest {
     @Autowired ObjectMapper mapper;
     @Autowired SupplierRepository suppliers;
     @Autowired ProductTypeRepository types;
+    @Autowired com.farmshift.backendFarmShift.config.SupplierNameKeyUpgrade upgrade;
     Long groupId;
     @BeforeEach void setup() {
         var type = new ProductType(); type.setName("Nhóm NCC kiểm thử"); type.setNameKey("nhóm ncc kiểm thử");
@@ -58,6 +59,37 @@ class SupplierIntegrationTest {
         mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload("NCC A", "0912345678", groupId))).andExpect(status().isCreated());
         mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload(" ncc a ", "0912345678", groupId))).andExpect(status().isConflict());
         mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"A\",\"representative\":\"B\",\"phone\":\"0912345678\"}")).andExpect(status().isBadRequest());
+    }
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void sameSupplierCanSupplyDifferentGroupsButCannotDuplicateWithinGroup() throws Exception {
+        var other = new ProductType(); other.setName("Vacxin"); other.setNameKey("vacxin");
+        Long otherId = types.saveAndFlush(other).getId();
+        var first = mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload("Quý Quý", "0968311853", groupId)))
+            .andExpect(status().isCreated()).andReturn();
+        long firstId = mapper.readTree(first.getResponse().getContentAsString()).path("data").path("id").asLong();
+        var second = mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload(" Quý Quý ", "0968311853", otherId)))
+            .andExpect(status().isCreated()).andReturn();
+        long secondId = mapper.readTree(second.getResponse().getContentAsString()).path("data").path("id").asLong();
+        assertNotEquals(firstId, secondId);
+        mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload(" QUÝ QUÝ ", "0968311853", otherId)))
+            .andExpect(status().isConflict());
+        mvc.perform(put("/api/suppliers/" + secondId).contentType(MediaType.APPLICATION_JSON).content(payload("Quý Quý", "0968311853", otherId)))
+            .andExpect(status().isOk());
+        mvc.perform(put("/api/suppliers/" + secondId).contentType(MediaType.APPLICATION_JSON).content(payload("Quý Quý", "0968311853", groupId)))
+            .andExpect(status().isConflict());
+    }
+    @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+    void upgradeKeepsLegacySupplierIdentityAndCanRunTwice() throws Exception {
+        var legacy = new com.farmshift.backendFarmShift.entity.Supplier();
+        legacy.setName("Legacy supplier"); legacy.setNameKey("legacy supplier"); legacy.setRepresentative("A"); legacy.setPhone("0912345678");
+        legacy.setProductType(types.findById(groupId).orElseThrow()); legacy = suppliers.saveAndFlush(legacy);
+        Long id = legacy.getId(); String code = legacy.getCode();
+        upgrade.run(null); upgrade.run(null);
+        var upgraded = suppliers.findById(id).orElseThrow();
+        assertEquals(code, upgraded.getCode());
+        assertEquals(com.farmshift.backendFarmShift.service.SupplierService.nameKey("Legacy supplier", groupId), upgraded.getNameKey());
+        mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload("Legacy supplier", "0912345678", groupId)))
+            .andExpect(status().isConflict());
     }
     @Test @WithMockUser(authorities="ROLE_FARM_WORKER")
     void workerCanReadButCannotMutate() throws Exception {

@@ -182,6 +182,17 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
     { id: 3, name: 'Gà giống J-Dabaco 01 ngày tuổi' }
   ];
 
+  it('distinguishes suppliers with the same name by their database group', async () => {
+    supplierService.listSuppliers.mockResolvedValue([
+      { id: 101, name: 'Quý Quý', productTypeName: 'Thức ăn chăn nuôi' },
+      { id: 102, name: 'Quý Quý', productTypeName: 'Vacxin' }
+    ]);
+    render(<MemoryRouter><PurchasesView /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Tạo đơn nhập hàng/i }));
+    expect(await screen.findByRole('option', { name: 'Quý Quý (Thức ăn chăn nuôi)' })).toHaveValue('101');
+    expect(screen.getByRole('option', { name: 'Quý Quý (Vacxin)' })).toHaveValue('102');
+  });
+
   it('loads all warehouse rows and submits the selected product and destination warehouse', async () => {
     productCategoryService.listAllInventoryItems.mockResolvedValue([
       { id: 101, productId: 11, name: 'Cám GT2', warehouseId: 10, warehouseName: 'Kho mới đổi tên', unitName: 'Kg' },
