@@ -253,7 +253,7 @@ export const AreasView = () => {
 
   const breadcrumbs = [{ label: 'Quản lý khu nuôi', path: '/areas' }, ...(mode === 'area' ? [{ label: 'Danh sách Chuồng', path: '/barns' }] : [])];
 
-  return <FarmShiftLayout pageTitle={title} breadcrumbs={breadcrumbs} showShortcuts>
+  return <FarmShiftLayout pageTitle={title} breadcrumbs={breadcrumbs}>
     <AreaTabs areas={areas} active={mode === 'area' ? id : mode} />
     {!canEdit && <p className={styles.readOnly} role="note"><Info size={16} />Bạn đang xem ở chế độ chỉ đọc. Chỉ chủ trang trại được thêm, sửa hoặc xóa khu nuôi và chuồng.</p>}
     {mode === 'area' && area && <>
