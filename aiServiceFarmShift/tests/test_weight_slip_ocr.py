@@ -42,7 +42,7 @@ class WeightSlipOcrTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_fixed_pdf_template_is_rendered_for_the_model(self):
         from pathlib import Path
-        template = next((Path(__file__).resolve().parents[2] / "frontendFarmShift" / "public").glob("*.pdf"))
+        template = next((Path(__file__).resolve().parents[2] / "frontendFarmShift" / "public").rglob("Phiếu Cân Bán Gà.pdf"))
         response = MagicMock()
         response.json.return_value = {"choices": [{"message": {"content": json.dumps({"isWeightSlip": True})}}]}
         client = AsyncMock(); client.post.return_value = response
@@ -52,6 +52,17 @@ class WeightSlipOcrTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(result["quantity"])
             content = client.post.call_args.kwargs["json"]["messages"][0]["content"]
             self.assertEqual(2, sum(part["type"] == "image_url" for part in content))
+
+    async def test_quota_error_has_an_actionable_message(self):
+        import httpx
+        response = MagicMock()
+        response.raise_for_status.side_effect = httpx.HTTPStatusError("quota", request=httpx.Request("POST", "https://example.test"), response=httpx.Response(429))
+        client = AsyncMock(); client.post.return_value = response
+        with patch("app.services.weight_slip_ocr.settings.OPENAI_API_KEY", "test-only"), patch("app.services.weight_slip_ocr.httpx.AsyncClient") as factory:
+            factory.return_value.__aenter__.return_value = client
+            with self.assertRaises(HTTPException) as error:
+                await extract_weight_slip(self.image(), "image/png")
+            self.assertIn("hạn mức", error.exception.detail)
 
     async def test_provider_failure_does_not_fabricate_invoice(self):
         with patch("app.services.weight_slip_ocr.settings.OPENAI_API_KEY", "test-only"), patch("app.services.weight_slip_ocr.httpx.AsyncClient") as factory:

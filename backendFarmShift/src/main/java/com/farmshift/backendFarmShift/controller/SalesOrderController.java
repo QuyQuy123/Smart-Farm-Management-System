@@ -16,6 +16,11 @@ public class SalesOrderController {
  private final SalesOrderService service;
  private final com.farmshift.backendFarmShift.service.ocr.SalesWeightVisionClient weightVision;
  private final com.farmshift.backendFarmShift.service.ocr.WeightSlipStorage weightStorage;
+ @PostMapping(value="/weight-slip/preview", consumes="multipart/form-data")
+ @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+ public ApiResponse<java.util.List<String>> previewWeightSlip(@RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+  return ApiResponse.success("Bản xem trước phiếu cân", weightStorage.preview(file));
+ }
  @PostMapping(value="/ocr", consumes="multipart/form-data")
  @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
  public ApiResponse<com.fasterxml.jackson.databind.JsonNode> extractWeightSlip(@RequestPart("file") org.springframework.web.multipart.MultipartFile file) {

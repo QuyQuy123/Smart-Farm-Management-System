@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+﻿from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 import logging
 
@@ -63,8 +63,18 @@ async def extract_weight_slip(file: UploadFile = File(...)):
     from app.services.weight_slip_ocr import extract_weight_slip as extract
     content = await file.read(10 * 1024 * 1024 + 1)
     if not content or len(content) > 10 * 1024 * 1024:
-        raise HTTPException(400, "Phiếu cân phải có dung lượng từ 1 byte đến 10MB.")
-    mime = (file.content_type or "").lower()
+        raise HTTPException(400, "Phieu can phai co dung luong tu 1 byte den 10MB.")
+    mime = (file.content_type or "").lower().split(";")[0].strip()
+    # Nhan dien mime tu magic bytes neu content-type khong chinh xac
+    if mime in ("", "application/octet-stream"):
+        if content[:4] == b"\x89PNG":
+            mime = "image/png"
+        elif content[:3] == b"\xff\xd8\xff":
+            mime = "image/jpeg"
+        elif content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+            mime = "image/webp"
+        elif content[:5] == b"%PDF-":
+            mime = "application/pdf"
     if mime not in ("image/jpeg", "image/png", "image/webp", "application/pdf"):
-        raise HTTPException(400, "Chỉ hỗ trợ JPG, PNG, WEBP và PDF.")
+        raise HTTPException(400, "Chi ho tro JPG, PNG, WEBP va PDF.")
     return await extract(content, mime)

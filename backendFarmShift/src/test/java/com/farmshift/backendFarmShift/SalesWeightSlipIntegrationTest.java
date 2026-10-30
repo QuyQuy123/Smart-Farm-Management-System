@@ -63,6 +63,19 @@ class SalesWeightSlipIntegrationTest {
   try (var files = Files.list(uploads)) { assertEquals(1, files.count()); }
  }
  @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
+ void previewsAllPdfPagesWithoutCallingAiOrPersistingFiles() throws Exception {
+  var bytes = new ByteArrayOutputStream();
+  try (var pdf = new org.apache.pdfbox.pdmodel.PDDocument()) {
+   pdf.addPage(new org.apache.pdfbox.pdmodel.PDPage()); pdf.addPage(new org.apache.pdfbox.pdmodel.PDPage()); pdf.save(bytes);
+  }
+  var file = new MockMultipartFile("file", "weight-slip.pdf", "application/pdf", bytes.toByteArray());
+  mvc.perform(multipart("/api/sales/orders/weight-slip/preview").file(file))
+   .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(2))
+   .andExpect(jsonPath("$.data[0]").value(org.hamcrest.Matchers.startsWith("data:image/png;base64,")));
+  verifyNoInteractions(vision);
+  try (var files = Files.list(uploads)) { assertEquals(0, files.count()); }
+ }
+ @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
  void rejectsInvalidDocumentWithoutCallingAiOrSavingOrder() throws Exception {
   var bad = new MockMultipartFile("file", "fake.jpg", "image/jpeg", "not an image".getBytes());
   mvc.perform(multipart("/api/sales/orders/ocr").file(bad)).andExpect(status().isBadRequest());

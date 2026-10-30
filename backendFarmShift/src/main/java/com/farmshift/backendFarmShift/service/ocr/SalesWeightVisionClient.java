@@ -15,7 +15,10 @@ import java.nio.charset.StandardCharsets;
 public class SalesWeightVisionClient {
     private final String baseUrl;
     private final ObjectMapper mapper;
-    private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final HttpClient client = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
     public SalesWeightVisionClient(ObjectMapper mapper, @Value("${ai-service.url:http://localhost:8000}") String url) {
         this.mapper = mapper; this.baseUrl = url.replaceAll("/+$", "");
     }
@@ -30,7 +33,14 @@ public class SalesWeightVisionClient {
                     .timeout(Duration.ofSeconds(90)).header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() != 200) throw new BadRequestException("Dịch vụ OCR chưa bóc tách được phiếu cân. Vui lòng kiểm tra cấu hình AI hoặc thử ảnh rõ hơn.");
+            if (response.statusCode() != 200) {
+                String message = "Dịch vụ OCR chưa bóc tách được phiếu cân (HTTP " + response.statusCode() + ").";
+                try {
+                    var detail = mapper.readTree(response.body()).path("detail");
+                    if (detail.isTextual() && !detail.asText().isBlank() && detail.asText().length() <= 500) message = detail.asText();
+                } catch (Exception ignored) { /* A proxy may return a non-JSON error. */ }
+                throw new BadRequestException(message);
+            }
             var result = mapper.readTree(response.body());
             if (!result.path("isWeightSlip").asBoolean(false)) throw new BadRequestException("Tệp không phải phiếu cân bán gà.");
             return result;

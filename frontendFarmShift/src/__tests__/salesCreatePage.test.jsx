@@ -13,7 +13,7 @@ vi.mock('../services/salesCustomerService', () => ({ listSalesCustomers: vi.fn(a
 vi.mock('../services/farmAreaService', () => ({ listBarns: async () => [{ id: 1, name: 'Chuồng A', areaName: 'Khu A' }] }));
 vi.mock('../services/cycleService', () => ({ listCycles: async () => [{ id: 2, code: 'L000002' }] }));
 vi.mock('../features/farmshift/SalesInvoiceTemplate', () => ({ SalesInvoiceTemplate: () => null }));
-vi.mock('../services/weightSlipService', () => ({ extractWeightSlip: vi.fn(), confirmWeightSlip: vi.fn() }));
+vi.mock('../services/weightSlipService', () => ({ extractWeightSlip: vi.fn(), confirmWeightSlip: vi.fn(), previewWeightSlip: vi.fn() }));
 const objectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
 const revokeUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
 beforeAll(() => {

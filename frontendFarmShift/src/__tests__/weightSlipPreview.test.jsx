@@ -1,0 +1,33 @@
+import React from 'react';
+import { beforeAll, afterAll, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { WeightSlipPreview } from '../features/farmshift/WeightSlipPreview';
+import { previewWeightSlip } from '../services/weightSlipService';
+vi.mock('../services/weightSlipService', () => ({ previewWeightSlip: vi.fn() }));
+const previous = window.PointerEvent;
+beforeAll(() => { window.PointerEvent = MouseEvent; });
+afterAll(() => { window.PointerEvent = previous; });
+it('renders PDF pages without an embedded browser viewer and supports wheel zoom and mouse dragging', async () => {
+  previewWeightSlip.mockResolvedValue(['data:image/png;base64,one', 'data:image/png;base64,two']);
+  const file = new File(['pdf'], 'phieu.pdf', { type: 'application/pdf' });
+  const { container } = render(<WeightSlipPreview file={file} imageUrl="blob:original-pdf" />);
+  await screen.findByAltText('Trang 2 phiếu cân gốc');
+  expect(container.querySelector('iframe, object, embed')).toBeNull();
+  const viewport = screen.getByRole('region', { name: 'Xem phiếu cân bằng chuột' });
+  const pages = screen.getByTestId('weight-document-pages');
+  fireEvent.wheel(viewport, { deltaY: -100, clientX: 100, clientY: 100 });
+  expect(pages.style.transform).not.toContain('scale(1)');
+  const before = pages.style.transform;
+  fireEvent.pointerDown(viewport, { button: 0, clientX: 100, clientY: 100 });
+  fireEvent.pointerMove(viewport, { clientX: 150, clientY: 180 });
+  fireEvent.pointerUp(viewport);
+  expect(pages.style.transform).not.toBe(before);
+  fireEvent.keyDown(viewport, { key: 'Home' });
+  expect(pages.style.transform).toBe('translate(0px, 0px) scale(1)');
+});
+it('uses the uploaded image directly without calling the PDF endpoint', () => {
+  previewWeightSlip.mockClear();
+  render(<WeightSlipPreview file={new File(['png'], 'phieu.png', { type: 'image/png' })} imageUrl="blob:photo" />);
+  expect(screen.getByAltText('Ảnh phiếu cân gốc')).toHaveAttribute('src', 'blob:photo');
+  expect(previewWeightSlip).not.toHaveBeenCalled();
+});

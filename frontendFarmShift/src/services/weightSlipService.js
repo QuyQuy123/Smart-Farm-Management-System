@@ -9,3 +9,8 @@ export async function confirmWeightSlip(data, file) {
   body.append('file', file);
   return (await api.post('/sales/orders/weight-slip', body, { timeout: 110000, headers: { 'Content-Type': undefined } })).data.data;
 }
+
+export async function previewWeightSlip(file, signal) {
+  const body = new FormData(); body.append('file', file);
+  return (await api.post('/sales/orders/weight-slip/preview', body, { signal, timeout: 30000, headers: { 'Content-Type': undefined } })).data.data;
+}

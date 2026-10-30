@@ -46,6 +46,26 @@ public class WeightSlipStorage {
         } catch (BadRequestException ex) { throw ex; }
         catch (IOException ex) { throw new BadRequestException("Không đọc được tệp phiếu cân."); }
     }
+    public java.util.List<String> preview(MultipartFile file) {
+        var document = validate(file);
+        if (!document.mime().equals("application/pdf")) {
+            return java.util.List.of("data:" + document.mime() + ";base64," + java.util.Base64.getEncoder().encodeToString(document.bytes()));
+        }
+        try (var pdf = Loader.loadPDF(document.bytes())) {
+            var renderer = new org.apache.pdfbox.rendering.PDFRenderer(pdf);
+            var pages = new java.util.ArrayList<String>();
+            for (int index = 0; index < pdf.getNumberOfPages(); index++) {
+                var box = pdf.getPage(index).getCropBox();
+                if (box.getWidth() * box.getHeight() * 4 > 25_000_000) throw new BadRequestException("Kích thước trang PDF quá lớn.");
+                var image = renderer.renderImageWithDPI(index, 300, org.apache.pdfbox.rendering.ImageType.RGB);
+                var bytes = new ByteArrayOutputStream();
+                ImageIO.write(image, "png", bytes);
+                pages.add("data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(bytes.toByteArray()));
+            }
+            return pages;
+        } catch (IOException ex) { throw new BadRequestException("Không tạo được bản xem trước PDF."); }
+    }
+
     public String save(MultipartFile file) {
         var document = validate(file);
         try {

@@ -30,7 +30,10 @@ export function WeightSlipCapture({ onFile, onClose }) {
     try {
       stop();
       const current = request.current;
-      const media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      const media = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560, min: 1280 }, height: { ideal: 1440, min: 720 } },
+        audio: false
+      });
       if (!mounted.current || current !== request.current) { media.getTracks().forEach(track => track.stop()); return; }
       stream.current = media; setCamera(true);
     } catch { if (mounted.current) setError('Không mở được camera. Hãy cấp quyền hoặc chọn ảnh từ thiết bị.'); }

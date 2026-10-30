@@ -9,9 +9,10 @@ import { listBarns } from '../../services/farmAreaService';
 import { listCycles } from '../../services/cycleService';
 import styles from './SalesView.module.css';
 import { extractWeightSlip, confirmWeightSlip } from '../../services/weightSlipService';
+import { WeightSlipPreview } from './WeightSlipPreview';
 import { WeightSlipCapture } from './WeightSlipCapture';
 import { SalesInvoiceTemplate } from './SalesInvoiceTemplate';
-import { Plus, Search, FileSpreadsheet, X, Printer, Pencil, ScanText } from 'lucide-react';
+import { Plus, Search, FileSpreadsheet, X, Printer, Pencil, ScanText, Loader2 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 
 export const SalesView = () => {
@@ -105,16 +106,44 @@ export const SalesView = () => {
       const draft = await extractWeightSlip(file, controller.signal);
       if (controller.signal.aborted) return;
       setOcrDraft(draft);
-      const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase().trim();
-      const matches = cycleOptions.filter(option => draft.barnName && normalize(option.barnName) === normalize(draft.barnName)
-        && (!draft.areaName || normalize(option.areaName) === normalize(draft.areaName))
-        && (!draft.cycleCode || normalize(option.cycleCode) === normalize(draft.cycleCode)));
+      const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const numOnly = value => String(value || '').replace(/[^0-9]/g, '');
+      let matched = cycleOptions.find(option => {
+        if (!option.id || option.id === '__existing__' || option.id.startsWith('ocr_')) return false;
+        const barnMatch = draft.barnName && (
+          normalize(option.barnName) === normalize(draft.barnName) ||
+          (numOnly(option.barnName) && parseInt(numOnly(option.barnName), 10) === parseInt(numOnly(draft.barnName), 10))
+        );
+        const areaMatch = !draft.areaName || (
+          normalize(option.areaName).includes(normalize(draft.areaName)) ||
+          normalize(draft.areaName).includes(normalize(option.areaName))
+        );
+        const cycleMatch = !draft.cycleCode || (
+          normalize(option.cycleCode).includes(normalize(draft.cycleCode)) ||
+          normalize(draft.cycleCode).includes(normalize(option.cycleCode)) ||
+          (numOnly(option.cycleCode) && parseInt(numOnly(option.cycleCode), 10) === parseInt(numOnly(draft.cycleCode), 10))
+        );
+        return barnMatch && areaMatch && cycleMatch;
+      });
+
+      let selectedFlockId = matched ? matched.id : '';
+      if (!matched) {
+        const draftLabel = [draft.areaName, draft.barnName, draft.cycleCode].filter(Boolean).join(' - ');
+        if (draftLabel) {
+          const customId = `ocr_${Date.now()}`;
+          const customOption = { id: customId, label: draftLabel, areaName: draft.areaName, barnName: draft.barnName, cycleCode: draft.cycleCode };
+          setCycleOptions(prev => [customOption, ...prev.filter(o => !o.id.startsWith('ocr_'))]);
+          selectedFlockId = customId;
+        }
+      }
+
       const numeric = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? String(value) : '';
+      const ocrStatus = ['PAID', 'DEBT', 'PARTIAL'].includes(draft.status) ? draft.status : 'DEBT';
       setNewSale(previous => ({ ...previous, customer: draft.customer || '', phone: String(draft.phone || '').replace(/[^0-9]/g, ''),
         address: draft.address || '', taxCode: draft.taxCode || '', date: draft.date || '',
         quantity: numeric(draft.quantity), totalWeight: numeric(draft.totalWeight), unitPrice: numeric(draft.unitPrice),
-        paymentMethod: draft.paymentMethod || 'Tiền mặt', paymentStatus: ['PAID', 'DEBT', 'PARTIAL'].includes(draft.status) ? draft.status : 'DEBT',
-        paidAmount: numeric(draft.paidAmount), flock: matches.length === 1 ? matches[0].id : '', note: draft.note || '' }));
+        paymentMethod: ocrStatus === 'DEBT' ? '' : (draft.paymentMethod || 'Tiền mặt'), paymentStatus: ocrStatus,
+        paidAmount: numeric(draft.paidAmount), flock: selectedFlockId, note: previous.note || '' }));
     } catch (error) {
       if (!controller.signal.aborted) setOcrError(error.response?.data?.message || error.message || 'Không bóc tách được phiếu cân. Vui lòng thử lại.');
     } finally { if (!controller.signal.aborted) setOcrBusy(false); }
@@ -148,11 +177,19 @@ export const SalesView = () => {
     try {
       const barns = await listBarns();
       const options = await Promise.all(barns.map(async barn => {
-        const cycles = await listCycles(barn.id);
-        return cycles.map(cycle => ({
-          id: String(cycle.id), areaName: barn.areaName, barnName: barn.name, cycleCode: cycle.code,
-          label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
-        }));
+        try {
+          const cycles = await listCycles(barn.id);
+          if (Array.isArray(cycles) && cycles.length > 0) {
+            return cycles.map(cycle => ({
+              id: String(cycle.id), areaName: barn.areaName, barnName: barn.name, cycleCode: cycle.code,
+              label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
+            }));
+          }
+        } catch {}
+        return [{
+          id: `barn_${barn.id}`, areaName: barn.areaName, barnName: barn.name,
+          label: `${barn.areaName} - ${barn.name}`,
+        }];
       }));
       setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }, ...options.flat()] : options.flat());
     } catch {
@@ -402,7 +439,26 @@ export const SalesView = () => {
           <div className={showAddModal ? `farmshift-modal ${styles.modal} ${styles.saleModal}` : `farmshift-card ${styles.salePageCard}`} role={showAddModal ? 'dialog' : 'region'} aria-modal={showAddModal ? true : undefined} aria-labelledby="sale-modal-title">
             <div className="farmshift-modal-header">
               <h3 id="sale-modal-title" className="farmshift-modal-title">{editingSale ? `Chỉnh sửa hóa đơn ${editingSale.code}` : 'Tạo đơn bán hàng'}</h3>
-              {!editingSale && <button type="button" className="farmshift-btn farmshift-btn-mint" disabled={saving || ocrBusy || cyclesLoading} onClick={() => setShowCapture(true)}><ScanText size={16} />Bóc tách phiếu cân</button>}
+              {!editingSale && (
+                <button
+                  type="button"
+                  className="farmshift-btn farmshift-btn-mint"
+                  disabled={saving || ocrBusy || cyclesLoading}
+                  onClick={() => setShowCapture(true)}
+                >
+                  {ocrBusy ? (
+                    <>
+                      <Loader2 size={16} color="#ffffff" className="farmshift-spinner" />
+                      <span>Đang trích xuất...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ScanText size={16} />
+                      <span>Bóc tách phiếu cân</span>
+                    </>
+                  )}
+                </button>
+              )}
               {showAddModal && <button
                 disabled={saving}
                 onClick={closeSaleForm}
@@ -416,20 +472,18 @@ export const SalesView = () => {
             <div className={ocrFile ? styles.ocrReview : undefined}>
             {ocrFile && <aside className={styles.weightPreview} aria-label="Phiếu cân gốc">
               <h4>Phiếu cân gốc</h4>
-              {ocrPreview && (ocrFile.type === 'application/pdf' ? <iframe src={ocrPreview} title="PDF phiếu cân gốc" /> : <img src={ocrPreview} alt="Ảnh phiếu cân gốc" />)}
+              <WeightSlipPreview file={ocrFile} imageUrl={ocrPreview} />
               <div className={styles.captureActions}><button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving || ocrBusy} onClick={() => setShowCapture(true)}>Chọn phiếu khác</button><button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving} onClick={clearOcr}>Bỏ phiếu cân</button></div>
-              {ocrDraft?.referenceCode && <p>Mã phiếu: {ocrDraft.referenceCode}</p>}
-              {ocrDraft?.barnName && <p>Trên phiếu: {ocrDraft.areaName || ''} / {ocrDraft.barnName} {ocrDraft.cycleCode || ''}</p>}
             </aside>}
             <form className={styles.saleForm} onSubmit={handleCreateSale}>
               <div className={`farmshift-modal-body ${styles.saleBody}`}>
-                {ocrBusy && <p role="status" className={styles.fullField}>Đang bóc tách phiếu cân, vui lòng chờ...</p>}
+                {ocrBusy && (
+                  <div role="status" className={`${styles.ocrLoadingStatus} ${styles.fullField}`}>
+                    <Loader2 size={18} color="#10b981" className="farmshift-spinner" />
+                    <span>Đang trích xuất dữ liệu phiếu cân, vui lòng chờ...</span>
+                  </div>
+                )}
                 {ocrError && <p role="alert" className={`${styles.error} ${styles.fullField}`}>{ocrError}</p>}
-                {ocrDraft && <div className={`${styles.ocrNotice} ${styles.fullField}`}><strong>Đối chiếu phiếu cân trước khi xác nhận</strong><p>Các mục không đọc rõ cần nhập bổ sung. Kiểm tra cân thực tế đã trừ bì, đơn giá và trạng thái thanh toán.</p>
-                  {!ocrDraft.status && <p>Phiếu chưa thể hiện thanh toán: đang chọn Nợ, vui lòng kiểm tra lại.</p>}
-                  {(ocrDraft.warnings || []).map((warning, index) => <p key={index}>{String(warning)}</p>)}
-                  {!!ocrDraft.weighings?.length && <details><summary>Chi tiết các lượt cân đã đọc</summary><div className={styles.weighingTable}><table className="farmshift-table"><thead><tr><th>Mã cân</th><th>Số con</th><th>Cả lồng (kg)</th><th>Bì (kg)</th><th>Thực tế (kg)</th></tr></thead><tbody>{ocrDraft.weighings.map((row, index) => <tr key={index}><td>{row.code ?? '—'}</td><td>{row.quantity ?? '—'}</td><td>{row.grossWeight ?? '—'}</td><td>{row.tareWeight ?? '—'}</td><td>{row.netWeight ?? '—'}</td></tr>)}</tbody></table></div></details>}
-                </div>}
                 {saveError && <p role="alert" className={styles.error}>{saveError}</p>}
                 <div className={styles.fieldRow}>
                   <div className="farmshift-form-group">
@@ -528,16 +582,69 @@ export const SalesView = () => {
                   </div>
                 </div>
 
-                <div className={`${styles.customerInvoiceFields} ${styles.fullField}`}>
-                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-tax-code">Mã số thuế</label><input id="sale-tax-code" className="farmshift-form-control" maxLength={50} value={newSale.taxCode} onChange={event => setNewSale({ ...newSale, taxCode: event.target.value })} /></div>
-                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-payment-method">Hình thức thanh toán <span className={styles.required}>*</span></label><select id="sale-payment-method" className="farmshift-form-control" required value={newSale.paymentMethod} onChange={event => setNewSale({ ...newSale, paymentMethod: event.target.value })}><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option><option value="Tiền mặt / Chuyển khoản">Tiền mặt / Chuyển khoản</option>{newSale.paymentMethod && !['Tiền mặt','Chuyển khoản','Tiền mặt / Chuyển khoản'].includes(newSale.paymentMethod) && <option value={newSale.paymentMethod}>{newSale.paymentMethod}</option>}</select></div>
+                <div className="farmshift-form-group">
+                  <label className="farmshift-form-label" htmlFor="sale-tax-code">Mã số thuế</label>
+                  <input
+                    id="sale-tax-code"
+                    className="farmshift-form-control"
+                    maxLength={50}
+                    value={newSale.taxCode}
+                    onChange={event => setNewSale({ ...newSale, taxCode: event.target.value })}
+                  />
                 </div>
 
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label" htmlFor="sale-payment-status">Trạng thái <span className={styles.required}>*</span></label>
-                  <select id="sale-payment-status" className="farmshift-form-control" required value={newSale.paymentStatus} onChange={event => setNewSale({ ...newSale, paymentStatus: event.target.value })}>
-                    <option value="PAID">Đã thanh toán</option><option value="DEBT">Nợ</option><option value="PARTIAL">Thanh toán 1 phần</option>
-                  </select>
+                <div className={`${styles.customerInvoiceFields} ${styles.fullField}`}>
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label" htmlFor="sale-payment-status">
+                      Trạng thái <span className={styles.required}>*</span>
+                    </label>
+                    <select
+                      id="sale-payment-status"
+                      className="farmshift-form-control"
+                      required
+                      value={newSale.paymentStatus}
+                      onChange={event => {
+                        const nextStatus = event.target.value;
+                        setNewSale(previous => ({
+                          ...previous,
+                          paymentStatus: nextStatus,
+                          paymentMethod: nextStatus === 'DEBT' ? '' : (previous.paymentMethod || 'Tiền mặt'),
+                          paidAmount: nextStatus === 'PAID' ? '' : previous.paidAmount
+                        }));
+                      }}
+                    >
+                      <option value="PAID">Đã thanh toán</option>
+                      <option value="DEBT">Nợ</option>
+                      <option value="PARTIAL">Thanh toán 1 phần</option>
+                    </select>
+                  </div>
+
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label" htmlFor="sale-payment-method">
+                      Hình thức thanh toán {newSale.paymentStatus !== 'DEBT' && <span className={styles.required}>*</span>}
+                    </label>
+                    <select
+                      id="sale-payment-method"
+                      className="farmshift-form-control"
+                      disabled={newSale.paymentStatus === 'DEBT'}
+                      required={newSale.paymentStatus !== 'DEBT'}
+                      value={newSale.paymentStatus === 'DEBT' ? '' : newSale.paymentMethod}
+                      onChange={event => setNewSale({ ...newSale, paymentMethod: event.target.value })}
+                    >
+                      {newSale.paymentStatus === 'DEBT' ? (
+                        <option value="">-- Để trống --</option>
+                      ) : (
+                        <>
+                          <option value="Tiền mặt">Tiền mặt</option>
+                          <option value="Chuyển khoản">Chuyển khoản</option>
+                          <option value="Tiền mặt / Chuyển khoản">Tiền mặt / Chuyển khoản</option>
+                          {newSale.paymentMethod && !['Tiền mặt','Chuyển khoản','Tiền mặt / Chuyển khoản'].includes(newSale.paymentMethod) && (
+                            <option value={newSale.paymentMethod}>{newSale.paymentMethod}</option>
+                          )}
+                        </>
+                      )}
+                    </select>
+                  </div>
                 </div>
                 {newSale.paymentStatus === 'PARTIAL' && <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-paid-amount">Số tiền đã trả (đ) <span className={styles.required}>*</span></label>
