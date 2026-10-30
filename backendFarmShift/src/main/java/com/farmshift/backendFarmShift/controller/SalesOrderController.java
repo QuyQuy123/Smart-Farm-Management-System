@@ -14,6 +14,25 @@ import java.util.List;
 public class SalesOrderController {
  private final SalesOrderRepository orders;
  private final SalesOrderService service;
+ private final com.farmshift.backendFarmShift.service.ocr.SalesWeightVisionClient weightVision;
+ private final com.farmshift.backendFarmShift.service.ocr.WeightSlipStorage weightStorage;
+ @PostMapping(value="/weight-slip/preview", consumes="multipart/form-data")
+ @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+ public ApiResponse<java.util.List<String>> previewWeightSlip(@RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+  return ApiResponse.success("Bản xem trước phiếu cân", weightStorage.preview(file));
+ }
+ @PostMapping(value="/ocr", consumes="multipart/form-data")
+ @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+ public ApiResponse<com.fasterxml.jackson.databind.JsonNode> extractWeightSlip(@RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+  return ApiResponse.success("Đã bóc tách phiếu cân. Vui lòng đối chiếu trước khi lưu.", weightVision.extract(weightStorage.validate(file)));
+ }
+ @PostMapping(value="/weight-slip", consumes="multipart/form-data")
+ @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+ public ApiResponse<SalesOrder> confirmWeightSlip(@Valid @RequestPart("data") SalesOrderRequest request,
+      @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+  return ApiResponse.success("Đã lưu đơn bán và bản gốc phiếu cân", service.createWithWeightSlip(request, file));
+ }
+
  private final com.farmshift.backendFarmShift.service.SalesInvoiceService invoiceService;
  @GetMapping("/{id}/invoice")
  public ApiResponse<com.farmshift.backendFarmShift.dto.response.SalesInvoiceResponse> invoice(@PathVariable String id) {

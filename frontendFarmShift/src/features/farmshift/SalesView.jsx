@@ -8,13 +8,16 @@ import { listSalesCustomers, listSalesOrders, createSalesOrder, updateSalesOrder
 import { listBarns } from '../../services/farmAreaService';
 import { listCycles } from '../../services/cycleService';
 import styles from './SalesView.module.css';
+import { extractWeightSlip, confirmWeightSlip } from '../../services/weightSlipService';
+import { WeightSlipPreview } from './WeightSlipPreview';
+import { WeightSlipCapture } from './WeightSlipCapture';
 import { SalesInvoiceTemplate } from './SalesInvoiceTemplate';
-import { Plus, Search, FileSpreadsheet, X, Printer, Pencil } from 'lucide-react';
+import { Plus, Search, FileSpreadsheet, X, Printer, Pencil, ScanText, Loader2 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 
 export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = ['customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'orders';
+  const activeTab = ['orders', 'customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'create';
   const setActiveTab = tab => setSearchParams({ tab });
   const { user } = useAuth();
   const storageKey = `farmshift-sales-v1:${user?.email || 'demo'}`;
@@ -82,10 +85,74 @@ export const SalesView = () => {
     note: ''
   });
 
+  const [showCapture, setShowCapture] = useState(false);
+  const [ocrFile, setOcrFile] = useState(null), [ocrPreview, setOcrPreview] = useState('');
+  const [ocrBusy, setOcrBusy] = useState(false), [ocrError, setOcrError] = useState(''), [ocrDraft, setOcrDraft] = useState(null);
+  const ocrRequest = useRef(null);
+  useEffect(() => {
+    if (!ocrFile) { setOcrPreview(''); return; }
+    const url = URL.createObjectURL(ocrFile); setOcrPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [ocrFile]);
+  useEffect(() => () => ocrRequest.current?.abort(), []);
+  const clearOcr = () => {
+    ocrRequest.current?.abort(); setShowCapture(false); setOcrFile(null); setOcrDraft(null); setOcrBusy(false); setOcrError('');
+  };
+  async function readWeightSlip(file) {
+    ocrRequest.current?.abort();
+    const controller = new AbortController(); ocrRequest.current = controller;
+    setShowCapture(false); setOcrFile(file); setOcrDraft(null); setOcrBusy(true); setOcrError(''); setSaveError('');
+    try {
+      const draft = await extractWeightSlip(file, controller.signal);
+      if (controller.signal.aborted) return;
+      setOcrDraft(draft);
+      const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const numOnly = value => String(value || '').replace(/[^0-9]/g, '');
+      let matched = cycleOptions.find(option => {
+        if (!option.id || option.id === '__existing__' || option.id.startsWith('ocr_')) return false;
+        const barnMatch = draft.barnName && (
+          normalize(option.barnName) === normalize(draft.barnName) ||
+          (numOnly(option.barnName) && parseInt(numOnly(option.barnName), 10) === parseInt(numOnly(draft.barnName), 10))
+        );
+        const areaMatch = !draft.areaName || (
+          normalize(option.areaName).includes(normalize(draft.areaName)) ||
+          normalize(draft.areaName).includes(normalize(option.areaName))
+        );
+        const cycleMatch = !draft.cycleCode || (
+          normalize(option.cycleCode).includes(normalize(draft.cycleCode)) ||
+          normalize(draft.cycleCode).includes(normalize(option.cycleCode)) ||
+          (numOnly(option.cycleCode) && parseInt(numOnly(option.cycleCode), 10) === parseInt(numOnly(draft.cycleCode), 10))
+        );
+        return barnMatch && areaMatch && cycleMatch;
+      });
+
+      let selectedFlockId = matched ? matched.id : '';
+      if (!matched) {
+        const draftLabel = [draft.areaName, draft.barnName, draft.cycleCode].filter(Boolean).join(' - ');
+        if (draftLabel) {
+          const customId = `ocr_${Date.now()}`;
+          const customOption = { id: customId, label: draftLabel, areaName: draft.areaName, barnName: draft.barnName, cycleCode: draft.cycleCode };
+          setCycleOptions(prev => [customOption, ...prev.filter(o => !o.id.startsWith('ocr_'))]);
+          selectedFlockId = customId;
+        }
+      }
+
+      const numeric = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? String(value) : '';
+      const ocrStatus = ['PAID', 'DEBT', 'PARTIAL'].includes(draft.status) ? draft.status : 'DEBT';
+      setNewSale(previous => ({ ...previous, customer: draft.customer || '', phone: String(draft.phone || '').replace(/[^0-9]/g, ''),
+        address: draft.address || '', taxCode: draft.taxCode || '', date: draft.date || '',
+        quantity: numeric(draft.quantity), totalWeight: numeric(draft.totalWeight), unitPrice: numeric(draft.unitPrice),
+        paymentMethod: ocrStatus === 'DEBT' ? '' : (draft.paymentMethod || 'Tiền mặt'), paymentStatus: ocrStatus,
+        paidAmount: numeric(draft.paidAmount), flock: selectedFlockId, note: previous.note || '' }));
+    } catch (error) {
+      if (!controller.signal.aborted) setOcrError(error.response?.data?.message || error.message || 'Không bóc tách được phiếu cân. Vui lòng thử lại.');
+    } finally { if (!controller.signal.aborted) setOcrBusy(false); }
+  }
   const [cycleOptions, setCycleOptions] = useState([]);
   const [cyclesLoading, setCyclesLoading] = useState(false);
   const [cyclesError, setCyclesError] = useState('');
   const openSaleModal = async (sale = null) => {
+    clearOcr();
     setEditingSale(sale);
     setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }] : []);
     setSaveError('');
@@ -110,11 +177,19 @@ export const SalesView = () => {
     try {
       const barns = await listBarns();
       const options = await Promise.all(barns.map(async barn => {
-        const cycles = await listCycles(barn.id);
-        return cycles.map(cycle => ({
-          id: String(cycle.id),
-          label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
-        }));
+        try {
+          const cycles = await listCycles(barn.id);
+          if (Array.isArray(cycles) && cycles.length > 0) {
+            return cycles.map(cycle => ({
+              id: String(cycle.id), areaName: barn.areaName, barnName: barn.name, cycleCode: cycle.code,
+              label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
+            }));
+          }
+        } catch {}
+        return [{
+          id: `barn_${barn.id}`, areaName: barn.areaName, barnName: barn.name,
+          label: `${barn.areaName} - ${barn.name}`,
+        }];
       }));
       setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }, ...options.flat()] : options.flat());
     } catch {
@@ -127,6 +202,7 @@ export const SalesView = () => {
 
   useEffect(() => {
     if (activeTab === 'create') openSaleModal();
+    else clearOcr();
   }, [activeTab]);
 
   const closeSaleForm = () => {
@@ -136,7 +212,7 @@ export const SalesView = () => {
 
   const handleCreateSale = async (e) => {
     e.preventDefault();
-    if (saving) return;
+    if (saving || ocrBusy || (ocrFile && (!ocrDraft || ocrError))) return;
     const qty = Number(newSale.quantity) || 0;
     const weight = Number(newSale.totalWeight) || 0;
     const price = Number(newSale.unitPrice) || 0;
@@ -159,7 +235,8 @@ export const SalesView = () => {
         quantity: qty, totalWeight: weight, unitPrice: price,
         status: newSale.paymentStatus, paidAmount, note: newSale.note,
       };
-      const created = editingSale ? await updateSalesOrder(editingSale.id, body) : await createSalesOrder(body);
+      const created = editingSale ? await updateSalesOrder(editingSale.id, body) : ocrFile ? await confirmWeightSlip(body, ocrFile) : await createSalesOrder(body);
+      clearOcr();
       requestId.current = null;
       setSales(previous => editingSale ? previous.map(sale => sale.id === created.id ? created : sale) : [created, ...previous]);
       setCustomerRevision(value => value + 1);
@@ -286,7 +363,7 @@ export const SalesView = () => {
                           {s.totalAmount - s.paidAmount > 0 ? `Còn nợ ${formatMoney(s.totalAmount - s.paidAmount)}` : 'Đã thanh toán'}
                         </span>
                       </td>
-                      <td><button type="button" className={styles.editButton} onClick={() => openSaleModal(s)} title="Chỉnh sửa hóa đơn" aria-label={`Sửa hóa đơn ${s.code}`}><Pencil size={16} /></button></td>
+                      <td>{s.weightSlipUrl && <a href={s.weightSlipUrl} target="_blank" rel="noreferrer" className={styles.invoiceLink} aria-label={`Xem phiếu cân ${s.code}`}>Phiếu cân</a>}<button type="button" className={styles.editButton} onClick={() => openSaleModal(s)} title="Chỉnh sửa hóa đơn" aria-label={`Sửa hóa đơn ${s.code}`}><Pencil size={16} /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -362,6 +439,26 @@ export const SalesView = () => {
           <div className={showAddModal ? `farmshift-modal ${styles.modal} ${styles.saleModal}` : `farmshift-card ${styles.salePageCard}`} role={showAddModal ? 'dialog' : 'region'} aria-modal={showAddModal ? true : undefined} aria-labelledby="sale-modal-title">
             <div className="farmshift-modal-header">
               <h3 id="sale-modal-title" className="farmshift-modal-title">{editingSale ? `Chỉnh sửa hóa đơn ${editingSale.code}` : 'Tạo đơn bán hàng'}</h3>
+              {!editingSale && (
+                <button
+                  type="button"
+                  className="farmshift-btn farmshift-btn-mint"
+                  disabled={saving || ocrBusy || cyclesLoading}
+                  onClick={() => setShowCapture(true)}
+                >
+                  {ocrBusy ? (
+                    <>
+                      <Loader2 size={16} color="#ffffff" className="farmshift-spinner" />
+                      <span>Đang trích xuất...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ScanText size={16} />
+                      <span>Bóc tách phiếu cân</span>
+                    </>
+                  )}
+                </button>
+              )}
               {showAddModal && <button
                 disabled={saving}
                 onClick={closeSaleForm}
@@ -372,8 +469,21 @@ export const SalesView = () => {
                 <X size={18} />
               </button>}
             </div>
+            <div className={ocrFile ? styles.ocrReview : undefined}>
+            {ocrFile && <aside className={styles.weightPreview} aria-label="Phiếu cân gốc">
+              <h4>Phiếu cân gốc</h4>
+              <WeightSlipPreview file={ocrFile} imageUrl={ocrPreview} />
+              <div className={styles.captureActions}><button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving || ocrBusy} onClick={() => setShowCapture(true)}>Chọn phiếu khác</button><button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving} onClick={clearOcr}>Bỏ phiếu cân</button></div>
+            </aside>}
             <form className={styles.saleForm} onSubmit={handleCreateSale}>
               <div className={`farmshift-modal-body ${styles.saleBody}`}>
+                {ocrBusy && (
+                  <div role="status" className={`${styles.ocrLoadingStatus} ${styles.fullField}`}>
+                    <Loader2 size={18} color="#10b981" className="farmshift-spinner" />
+                    <span>Đang trích xuất dữ liệu phiếu cân, vui lòng chờ...</span>
+                  </div>
+                )}
+                {ocrError && <p role="alert" className={`${styles.error} ${styles.fullField}`}>{ocrError}</p>}
                 {saveError && <p role="alert" className={styles.error}>{saveError}</p>}
                 <div className={styles.fieldRow}>
                   <div className="farmshift-form-group">
@@ -472,16 +582,69 @@ export const SalesView = () => {
                   </div>
                 </div>
 
-                <div className={`${styles.customerInvoiceFields} ${styles.fullField}`}>
-                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-tax-code">Mã số thuế</label><input id="sale-tax-code" className="farmshift-form-control" maxLength={50} value={newSale.taxCode} onChange={event => setNewSale({ ...newSale, taxCode: event.target.value })} /></div>
-                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-payment-method">Hình thức thanh toán <span className={styles.required}>*</span></label><select id="sale-payment-method" className="farmshift-form-control" required value={newSale.paymentMethod} onChange={event => setNewSale({ ...newSale, paymentMethod: event.target.value })}><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option><option value="Tiền mặt / Chuyển khoản">Tiền mặt / Chuyển khoản</option>{newSale.paymentMethod && !['Tiền mặt','Chuyển khoản','Tiền mặt / Chuyển khoản'].includes(newSale.paymentMethod) && <option value={newSale.paymentMethod}>{newSale.paymentMethod}</option>}</select></div>
+                <div className="farmshift-form-group">
+                  <label className="farmshift-form-label" htmlFor="sale-tax-code">Mã số thuế</label>
+                  <input
+                    id="sale-tax-code"
+                    className="farmshift-form-control"
+                    maxLength={50}
+                    value={newSale.taxCode}
+                    onChange={event => setNewSale({ ...newSale, taxCode: event.target.value })}
+                  />
                 </div>
 
-                <div className="farmshift-form-group">
-                  <label className="farmshift-form-label" htmlFor="sale-payment-status">Trạng thái <span className={styles.required}>*</span></label>
-                  <select id="sale-payment-status" className="farmshift-form-control" required value={newSale.paymentStatus} onChange={event => setNewSale({ ...newSale, paymentStatus: event.target.value })}>
-                    <option value="PAID">Đã thanh toán</option><option value="DEBT">Nợ</option><option value="PARTIAL">Thanh toán 1 phần</option>
-                  </select>
+                <div className={`${styles.customerInvoiceFields} ${styles.fullField}`}>
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label" htmlFor="sale-payment-status">
+                      Trạng thái <span className={styles.required}>*</span>
+                    </label>
+                    <select
+                      id="sale-payment-status"
+                      className="farmshift-form-control"
+                      required
+                      value={newSale.paymentStatus}
+                      onChange={event => {
+                        const nextStatus = event.target.value;
+                        setNewSale(previous => ({
+                          ...previous,
+                          paymentStatus: nextStatus,
+                          paymentMethod: nextStatus === 'DEBT' ? '' : (previous.paymentMethod || 'Tiền mặt'),
+                          paidAmount: nextStatus === 'PAID' ? '' : previous.paidAmount
+                        }));
+                      }}
+                    >
+                      <option value="PAID">Đã thanh toán</option>
+                      <option value="DEBT">Nợ</option>
+                      <option value="PARTIAL">Thanh toán 1 phần</option>
+                    </select>
+                  </div>
+
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label" htmlFor="sale-payment-method">
+                      Hình thức thanh toán {newSale.paymentStatus !== 'DEBT' && <span className={styles.required}>*</span>}
+                    </label>
+                    <select
+                      id="sale-payment-method"
+                      className="farmshift-form-control"
+                      disabled={newSale.paymentStatus === 'DEBT'}
+                      required={newSale.paymentStatus !== 'DEBT'}
+                      value={newSale.paymentStatus === 'DEBT' ? '' : newSale.paymentMethod}
+                      onChange={event => setNewSale({ ...newSale, paymentMethod: event.target.value })}
+                    >
+                      {newSale.paymentStatus === 'DEBT' ? (
+                        <option value="">-- Để trống --</option>
+                      ) : (
+                        <>
+                          <option value="Tiền mặt">Tiền mặt</option>
+                          <option value="Chuyển khoản">Chuyển khoản</option>
+                          <option value="Tiền mặt / Chuyển khoản">Tiền mặt / Chuyển khoản</option>
+                          {newSale.paymentMethod && !['Tiền mặt','Chuyển khoản','Tiền mặt / Chuyển khoản'].includes(newSale.paymentMethod) && (
+                            <option value={newSale.paymentMethod}>{newSale.paymentMethod}</option>
+                          )}
+                        </>
+                      )}
+                    </select>
+                  </div>
                 </div>
                 {newSale.paymentStatus === 'PARTIAL' && <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-paid-amount">Số tiền đã trả (đ) <span className={styles.required}>*</span></label>
@@ -509,15 +672,17 @@ export const SalesView = () => {
                 >
                   Hủy
                 </button>
-                <button type="submit" disabled={saving} className="farmshift-btn farmshift-btn-mint">
-                  {saving ? 'Đang lưu...' : editingSale ? 'Lưu thay đổi' : 'Lưu đơn bán'}
+                <button type="submit" disabled={saving || ocrBusy || !!ocrError || (ocrFile && !ocrDraft)} className="farmshift-btn farmshift-btn-mint">
+                  {saving ? 'Đang lưu...' : editingSale ? 'Lưu thay đổi' : ocrFile ? 'Xác nhận và lưu đơn bán' : 'Lưu đơn bán'}
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
 
+      {showCapture && <WeightSlipCapture onFile={readWeightSlip} onClose={() => setShowCapture(false)} />}
     </FarmShiftLayout>
   );
 };

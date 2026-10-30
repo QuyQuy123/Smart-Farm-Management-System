@@ -12,6 +12,26 @@ public class SalesOrderService {
  private final SalesOrderRepository orders;
  private final CustomerContactRepository customers;
  private final SalesInvoiceCodeService codes;
+ private final com.farmshift.backendFarmShift.service.ocr.WeightSlipStorage weightSlipStorage;
+ @Transactional
+ public SalesOrder createWithWeightSlip(SalesOrderRequest request, org.springframework.web.multipart.MultipartFile file) {
+  var existing = orders.findById(request.id());
+  if (existing.isPresent()) {
+   if (existing.get().getWeightSlipUrl() == null) throw new BadRequestException("Mã đơn đã tồn tại. Vui lòng tạo đơn mới.");
+   return existing.get();
+  }
+  weightSlipStorage.validate(file);
+  var order = create(request);
+  String url = weightSlipStorage.save(file);
+  org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+   @Override public void afterCompletion(int status) {
+    if (status != STATUS_COMMITTED) weightSlipStorage.delete(url);
+   }
+  });
+  order.setWeightSlipUrl(url);
+  return orders.save(order);
+ }
+
  @Transactional
  public SalesOrder create(SalesOrderRequest request) {
   var existing = orders.findById(request.id());

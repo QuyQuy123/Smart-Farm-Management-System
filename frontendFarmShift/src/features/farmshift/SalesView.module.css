@@ -119,3 +119,136 @@
   .salePageCard .saleForm > .saleBody,
   .salePageCard :global(.farmshift-modal-footer) { padding: 16px; }
 }
+
+/* Override the shared .farmshift-card width regardless of stylesheet load order. */
+.captureDialog.captureDialog { width: min(680px, calc(100vw - 24px)); max-width: 680px; flex: 0 1 680px; margin: 0; padding: 0; max-height: min(90vh, calc(100dvh - 24px)); display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; }
+.captureDialog header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.captureDialog h3 { margin: 0; }
+.captureActions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.cameraVideo { width: 100%; max-height: 55vh; background: #172a25; border-radius: 10px; }
+.ocrReview { display: grid; grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr); align-items: start; }
+.weightPreview { min-width: 0; padding: 20px; background: #f3f7f5; border-right: 1px solid #dce7e2; position: sticky; top: 16px; }
+.weightPreview h4 { margin: 0 0 12px; }
+.weightPreview img { width: 100%; max-height: 75vh; object-fit: contain; }
+.weightPreview iframe { width: 100%; height: 70vh; border: 1px solid #dce7e2; background: white; }
+.ocrReview .saleBody { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ocrReview .saleBody .wideField { grid-column: 1 / -1; }
+.ocrLoadingStatus { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; background: #f0faf6; border: 1px solid #cce5dc; border-radius: 10px; color: #047857; font-weight: 500; font-size: 14px; }
+.ocrNotice { padding: 12px; border: 1px solid #cce5dc; border-radius: 10px; background: #f0faf6; font-size: 14px; }
+.ocrNotice p { margin: 6px 0; }
+.weighingTable { overflow-x: auto; }
+@media (max-width: 1000px) { .ocrReview { grid-template-columns: 1fr; } .weightPreview { position: static; border-right: 0; border-bottom: 1px solid #dce7e2; } }
+@media (max-width: 600px) { .ocrReview .saleBody { grid-template-columns: 1fr; } }
+
+.captureHeader { flex-shrink: 0; padding: 18px 24px; border-bottom: 1px solid #dce1e4; }
+.captureHeader h3 { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; }
+.captureClose { display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #f0f5f3; color: #71857f; cursor: pointer; }
+.captureBody { padding: 24px; overflow-y: auto; min-height: 0; }
+.captureTabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; background: #f6f8f9; border-radius: 14px; margin-bottom: 12px; }
+.captureTabs button { display: flex; justify-content: center; align-items: center; gap: 10px; border: 0; border-radius: 11px; padding: 10px 8px; background: transparent; color: #526071; font-size: 14px; cursor: pointer; }
+.captureTabs button[aria-selected="true"] { background: #fff; color: #202832; box-shadow: 0 2px 5px #182d3512; font-weight: 600; }
+.captureDropZone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 20px; min-height: 160px; border: 2px dashed #9aa5b4; border-radius: 16px; background: #f8fafb; text-align: center; cursor: pointer; }
+.captureDropZone strong { font-size: 15px; color: #242c37; }
+.captureDropZone small { color: #72808d; }
+.captureDropZone:focus-visible, .captureTabs button:focus-visible, .captureClose:focus-visible { outline: 2px solid #008577; outline-offset: 3px; }
+.captureDragging { border-color: #008577; background: #eaf8f4; }
+.captureUploadIcon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: #e0f1f2; color: #26343a; }
+.captureGuide { margin-top: 12px; padding: 10px 14px; background: #f8fafb; border: 1px solid #dce1e4; border-radius: 13px; font-size: 13px; line-height: 1.5; }
+.captureGuide ul { margin: 0; padding-left: 20px; }
+.captureFooter { display: flex; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid #dce1e4; background: #f8fafb; flex-shrink: 0; }
+.captureCameraPlaceholder { display: grid; place-items: center; min-height: 140px; text-align: center; background: #f8fafb; border-radius: 14px; color: #647570; padding: 20px; }
+.captureCameraPanel .captureActions { justify-content: center; }
+@media (max-width: 600px) { .captureHeader, .captureBody, .captureFooter { padding: 12px 14px; } .captureHeader h3 { font-size: 17px; } .captureTabs button { font-size: 13px; gap: 6px; } .captureDropZone { padding: 14px 10px; gap: 10px; } .captureGuide { font-size: 13px; } }
+
+.captureDialog .cameraVideo { max-height: min(190px, 24dvh); object-fit: contain; }
+.captureDialog .captureActions { margin: 10px 0; }
+.captureDropZone .captureUploadIcon svg { width: 26px; height: 26px; }
+@media (max-height: 640px) and (min-width: 601px) {
+  .captureHeader, .captureFooter { padding: 8px 18px; }
+  .captureBody { padding: 12px 18px; }
+  .captureDropZone { min-height: 130px; padding: 10px; gap: 8px; }
+  .captureUploadIcon { width: 36px; height: 36px; }
+  .captureGuide { margin-top: 10px; padding: 8px 12px; font-size: 12px; }
+}
+
+.previewToolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.zoomControls { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1px solid #cbd7d1; border-radius: 6px; padding: 2px 6px; }
+.previewToolBtn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; background: transparent; border-radius: 4px; color: #374151; cursor: pointer; transition: background 0.15s; }
+.previewToolBtn:hover { background: #e5e7eb; color: #111827; }
+.zoomLevel { font-size: 12px; font-weight: 600; color: #4b5563; min-width: 40px; text-align: center; user-select: none; }
+.previewOpenOriginal { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cbd7d1; background: #fff; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #047857; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+.previewOpenOriginal:hover { background: #ecfdf5; border-color: #10b981; }
+
+.documentViewport { position: relative; height: min(70vh, 760px); min-height: 280px; width: 100%; overflow: hidden; background: #dfe6e3; border: 1px solid #cbd7d1; border-radius: 8px; cursor: grab; touch-action: none; user-select: none; overscroll-behavior: contain; }
+.documentViewport:active { cursor: grabbing; }
+.documentViewport:focus-visible { outline: 2px solid #008577; outline-offset: 2px; }
+.documentPages { width: 100%; transform-origin: 0 0; }
+.weightPreview .documentPages img {
+  display: block;
+  width: 100%;
+  max-height: none;
+  height: auto;
+  margin-bottom: 12px;
+  pointer-events: none;
+  background: white;
+  image-rendering: high-quality;
+}
+.documentMessage { padding: 18px; cursor: default; }
+.documentHint { margin: 8px 0; color: #71818a; font-size: 12px; }
+
+.fullscreenModal {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px;
+}
+.fullscreenHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  color: white;
+}
+.fullscreenHeader h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+}
+.fullscreenClose {
+  background: rgba(255, 255, 255, 0.15);
+  border: 0;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.fullscreenClose:hover { background: rgba(255, 255, 255, 0.3); }
+.fullscreenViewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #1e293b;
+  border-radius: 12px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.fullscreenViewport:active { cursor: grabbing; }
+.fullscreenPages { width: 100%; transform-origin: 0 0; }
+.fullscreenPages img {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  margin: 0 auto 16px auto;
+  background: white;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}

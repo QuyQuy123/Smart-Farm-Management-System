@@ -8,3 +8,5 @@ pillow>=10.4.0
 numpy>=1.26.0
 opencv-python-headless>=4.10.0
 python-dotenv>=1.0.1
+
+pymupdf>=1.24.0
