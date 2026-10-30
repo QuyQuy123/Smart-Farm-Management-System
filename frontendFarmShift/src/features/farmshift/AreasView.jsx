@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronLeft, ChevronRight,
-  Eye, FileSpreadsheet, Info, Layers, MoreVertical, Pencil, PlusCircle, Trash2, Warehouse,
+  ArrowLeft, ChevronLeft, ChevronRight,
+  Eye, FileSpreadsheet, Info, MoreVertical, Pencil, PlusCircle, Trash2, Warehouse,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
@@ -106,34 +106,20 @@ const usePaging = (items, filterKey) => {
   };
 };
 
-function SortButton({ direction, onToggle }) {
-  return <button type="button" className={styles.filterButton} onClick={onToggle}
-    aria-label={direction > 0 ? 'Sắp xếp ngày tạo giảm dần' : 'Sắp xếp ngày tạo tăng dần'} title="Đổi thứ tự sắp xếp">
-    {direction > 0 ? <ArrowUpNarrowWide size={16} /> : <ArrowDownWideNarrow size={16} />}
-  </button>;
-}
-
 function AreaList({ areas, canEdit, onOpen }) {
   const navigate = useNavigate();
-  const [filters, setFilters] = useState({ name: '', barns: '', description: '', date: '' });
-  const [direction, setDirection] = useState(1);
-  const set = key => event => setFilters(current => ({ ...current, [key]: event.target.value }));
-  const filtered = useMemo(() => areas.filter(area => contains(area.name, filters.name)
-    && (filters.barns === '' || area.barnCount === Number(filters.barns))
-    && contains(area.description, filters.description)
-    && sameDay(area.createdAt, filters.date)).sort(byCreated(direction)), [areas, filters, direction]);
-  const { rows, pager } = usePaging(filtered, JSON.stringify([filters, direction]));
+  const sorted = useMemo(() => [...areas].sort(byCreated(1)), [areas]);
+  const { rows, pager } = usePaging(sorted, String(areas.length));
 
   const exportAreas = () => exportCsv('danh-sach-khu-nuoi.csv',
     ['Mã khu', 'Tên khu nuôi', 'Số chuồng', 'Chuồng đang hoạt động', 'Tổng số con', 'Mô tả', 'Ngày tạo'],
-    filtered.map(area => [area.code, area.name, area.barnCount, area.activeBarnCount, area.animalCount, area.description, formatDate(area.createdAt)]));
+    sorted.map(area => [area.code, area.name, area.barnCount, area.activeBarnCount, area.animalCount, area.description, formatDate(area.createdAt)]));
 
   return <>
     <div className={styles.toolbar}>
       <Pager {...pager} unit="khu nuôi" />
       <div className={styles.toolbarActions}>
-        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate(-1)}><ArrowLeft size={15} />Quay lại</button>
-        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={exportAreas} disabled={!filtered.length}><FileSpreadsheet size={15} />Excel</button>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={exportAreas} disabled={!sorted.length}><FileSpreadsheet size={15} />Excel</button>
         {canEdit && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => onOpen({ type: 'area' })}><PlusCircle size={16} />Tạo khu nuôi</button>}
       </div>
     </div>
@@ -141,17 +127,9 @@ function AreaList({ areas, canEdit, onOpen }) {
       <table className={`farmshift-table ${styles.table}`}>
         <thead>
           <tr><th>Tên khu nuôi</th><th>Số chuồng</th><th>Mô tả</th><th>Ngày tạo</th><th aria-label="Thao tác" /></tr>
-          <tr className={styles.filterRow}>
-            <th><input aria-label="Lọc tên khu nuôi" placeholder="Tìm kiếm..." value={filters.name} onChange={set('name')} /></th>
-            <th><input aria-label="Lọc số chuồng" type="number" min="0" value={filters.barns} onChange={set('barns')} /></th>
-            <th><input aria-label="Lọc mô tả" placeholder="Tìm kiếm..." value={filters.description} onChange={set('description')} /></th>
-            <th><div className={styles.dateFilter}><input aria-label="Lọc ngày tạo khu nuôi" type="date" value={filters.date} onChange={set('date')} />
-              <SortButton direction={direction} onToggle={() => setDirection(value => -value)} /></div></th>
-            <th />
-          </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? <tr><td colSpan={5} className={styles.empty}>{areas.length ? 'Không có khu nuôi phù hợp với bộ lọc.' : canEdit ? 'Chưa có khu nuôi. Bấm "Tạo khu nuôi" để quy hoạch khu đầu tiên.' : 'Chưa có khu nuôi nào.'}</td></tr>
+          {rows.length === 0 ? <tr><td colSpan={5} className={styles.empty}>{canEdit ? 'Chưa có khu nuôi. Bấm "Tạo khu nuôi" để quy hoạch khu đầu tiên.' : 'Chưa có khu nuôi nào.'}</td></tr>
             : rows.map(area => <tr key={area.id}>
               <td><Link to={`/areas/${area.id}`} className={styles.nameLink}>{area.name}</Link></td>
               <td><strong>{formatNumber(area.barnCount)}</strong> <span className={styles.muted}>({formatNumber(area.activeBarnCount)} đang nuôi)</span></td>
@@ -174,17 +152,9 @@ function AreaList({ areas, canEdit, onOpen }) {
 
 function BarnList({ barns, areas, area, canEdit, onOpen }) {
   const navigate = useNavigate();
-  const [filters, setFilters] = useState({ name: '', areaId: '', status: '', quantity: '', target: '', date: '' });
-  const [direction, setDirection] = useState(1);
-  const set = key => event => setFilters(current => ({ ...current, [key]: event.target.value }));
-  const filtered = useMemo(() => barns.filter(barn => contains(barn.name, filters.name)
-    && (!filters.areaId || String(barn.areaId) === filters.areaId)
-    && (!filters.status || barn.status === filters.status)
-    && contains(barn.currentQuantity, filters.quantity)
-    && contains(barn.targetWeight ?? '', filters.target)
-    && sameDay(barn.createdAt, filters.date)).sort(byCreated(direction)), [barns, filters, direction]);
-  const { rows, pager } = usePaging(filtered, JSON.stringify([filters, direction]));
-  const columns = area ? 8 : 7;
+  const sorted = useMemo(() => [...barns].sort(byCreated(1)), [barns]);
+  const { rows, pager } = usePaging(sorted, String(barns.length));
+  const columns = area ? 7 : 6;
 
   return <>
     <div className={styles.toolbar}>
@@ -192,30 +162,23 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
       <div className={styles.toolbarActions}>
         {canEdit && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => onOpen({ type: 'barn', defaultAreaId: area?.id })} disabled={!areas.length}
           title={areas.length ? undefined : 'Cần tạo khu nuôi trước khi tạo chuồng'}><PlusCircle size={16} />Tạo Chuồng</button>}
-        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate('/areas')}><Layers size={15} />Danh sách khu nuôi</button>
       </div>
     </div>
     <div className="farmshift-table-container" style={{ border: 0 }}>
       <table className={`farmshift-table ${styles.table}`}>
         <thead>
-          <tr><th>Chuồng</th><th>Khu nuôi</th><th>Mục đích sử dụng</th><th>Trạng thái hoạt động</th><th>Số con</th>{area && <th>Mục tiêu (kg)</th>}<th>Ngày tạo</th><th aria-label="Thao tác" /></tr>
-          <tr className={styles.filterRow}>
-            <th><input aria-label="Lọc tên chuồng" placeholder="Tìm kiếm..." value={filters.name} onChange={set('name')} /></th>
-            <th><select aria-label="Lọc khu nuôi" value={filters.areaId} onChange={set('areaId')} disabled={Boolean(area)}>
-              <option value="">Tất cả</option>{areas.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select></th>
-            <th><select aria-label="Lọc trạng thái hoạt động" value={filters.status} onChange={set('status')}>
-              <option value="">Tất cả</option>{BARN_STATUSES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select></th>
-            <th><input aria-label="Lọc số con" placeholder="Tìm kiếm..." value={filters.quantity} onChange={set('quantity')} /></th>
-            {area && <th><input aria-label="Lọc mục tiêu" placeholder="Tìm kiếm..." value={filters.target} onChange={set('target')} /></th>}
-            <th><div className={styles.dateFilter}><input aria-label="Lọc ngày tạo chuồng" type="date" value={filters.date} onChange={set('date')} />
-              <SortButton direction={direction} onToggle={() => setDirection(value => -value)} /></div></th>
-            <th />
+          <tr>
+            <th>Chuồng</th>
+            <th>Khu nuôi</th>
+            <th>Trạng thái hoạt động</th>
+            <th>Số con</th>
+            {area && <th>Mục tiêu (kg)</th>}
+            <th>Ngày tạo</th>
+            <th aria-label="Thao tác" />
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? <tr><td colSpan={columns} className={styles.empty}>{barns.length ? 'Không có chuồng phù hợp với bộ lọc.' : canEdit ? 'Chưa có chuồng. Bấm "Tạo Chuồng" để thêm chuồng nuôi.' : 'Chưa có chuồng nào.'}</td></tr>
+          {rows.length === 0 ? <tr><td colSpan={columns} className={styles.empty}>{canEdit ? 'Chưa có chuồng. Bấm "Tạo Chuồng" để thêm chuồng nuôi.' : 'Chưa có chuồng nào.'}</td></tr>
             : rows.map(barn => {
               const status = BARN_STATUSES.find(option => option.value === barn.status);
               const fill = barn.capacity ? Math.min(100, Math.round((barn.currentQuantity / barn.capacity) * 100)) : 0;
