@@ -9,7 +9,6 @@ import {
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
-import { api } from '../../utils/api';
 import {
   listInternalStockCategories,
   createInternalStockCategory,
@@ -41,7 +40,6 @@ export const InternalStockView = () => {
   // Shared master data
   const [categories, setCategories] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
-  const [activeCycles, setActiveCycles] = useState([]);
   const [availableItems, setAvailableItems] = useState([]);
 
   // Tab 2: Vouchers List State
@@ -110,27 +108,10 @@ export const InternalStockView = () => {
     }
   };
 
-  const loadActiveCycles = async () => {
-    try {
-      const res = await api.get('/barns');
-      const barns = res.data?.data || [];
-      const running = barns
-        .filter(b => b.activeCycleId)
-        .map(b => ({
-          cycleId: b.activeCycleId,
-          label: `${b.name} (Lứa nuôi #${b.activeCycleId})`
-        }));
-      setActiveCycles(running);
-    } catch {
-      // Ignored
-    }
-  };
-
   // Load master data on mount
   useEffect(() => {
     loadCategories();
     loadWarehouses();
-    loadActiveCycles();
   }, []);
 
   // Load available inventory items when sourceWarehouseId or movementType changes
@@ -507,13 +488,6 @@ export const InternalStockView = () => {
                 </button>
                 <button
                   type="button"
-                  className={`${styles.typePill} ${voucherForm.movementType === 'IMPORT' ? styles.selectedImport : ''}`}
-                  onClick={() => handleTypeChange('IMPORT')}
-                >
-                  Nhập kho (Nhập đầu kì / Cân bằng)
-                </button>
-                <button
-                  type="button"
                   className={`${styles.typePill} ${voucherForm.movementType === 'TRANSFER' ? styles.selectedTransfer : ''}`}
                   onClick={() => handleTypeChange('TRANSFER')}
                 >
@@ -597,25 +571,6 @@ export const InternalStockView = () => {
                   </div>
                 )}
 
-                {/* Lứa nuôi hạch toán (chỉ cho EXPORT) */}
-                {voucherForm.movementType === 'EXPORT' && (
-                  <div className={styles.formGroup}>
-                    <label htmlFor="voucher-cycle">
-                      Hạch toán chi phí lứa nuôi (tùy chọn)
-                    </label>
-                    <select
-                      id="voucher-cycle"
-                      value={voucherForm.farmingCycleId}
-                      onChange={e => setVoucherForm({ ...voucherForm, farmingCycleId: e.target.value })}
-                    >
-                      <option value="">-- Không gắn lứa nuôi cụ thể --</option>
-                      {activeCycles.map(c => (
-                        <option key={c.cycleId} value={c.cycleId}>{c.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
                 {/* Ngày thực hiện */}
                 <div className={styles.formGroup}>
                   <label htmlFor="voucher-date">
@@ -677,7 +632,7 @@ export const InternalStockView = () => {
                               <option value="">-- Chọn hàng hóa --</option>
                               {availableItems.map(item => (
                                 <option key={item.id} value={item.id}>
-                                  {item.productName || item.name} ({item.unitName || item.unit || 'Kg'}) - Tồn: {Number(item.stock || 0).toLocaleString('vi-VN')}
+                                  {item.productName || item.name} ({item.unitName || item.unit || 'Kg'}) - Lô #{item.id}{!isWorker && ` - ${Number(item.price || 0).toLocaleString('vi-VN')} đ`} - Tồn: {Number(item.stock || 0).toLocaleString('vi-VN')}
                                 </option>
                               ))}
                             </select>

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, ChevronRight as Open, ListChecks, UserCog, Warehouse } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, ChevronRight as Open, Clock, ListChecks, UserCog, Warehouse } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
 import { getFarmDailyPlan } from '../../services/dailyPlanService';
 import { DailyPlanCard } from './DailyPlanCard';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { WorkAssignmentPanel } from './WorkAssignmentView';
+import { MealScheduleDialog } from './MealScheduleDialog';
 import { addDaysIso, apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import styles from './TodayTasksView.module.css';
 
@@ -27,6 +28,7 @@ export const TodayTasksView = () => {
   const today = todayIso();
   const [date, setDate] = useState(today);
   const [hideDone, setHideDone] = useState(false);
+  const [mealSchedule, setMealSchedule] = useState(false);
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState({ key: null, plans: [], error: '' });
   const requestKey = `${date}:${revision}`;
@@ -88,6 +90,8 @@ export const TodayTasksView = () => {
           onChange={event => event.target.value && (assigning || event.target.value <= today) && setDate(event.target.value)} />
         <button type="button" className={styles.navButton} aria-label="Ngày sau" disabled={!assigning && date >= today} onClick={() => setDate(addDaysIso(date, 1))}><ChevronRight size={18} /></button>
         {date !== today && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setDate(today)}>Hôm nay</button>}
+        {isOwner && !assigning && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setMealSchedule(true)}>
+          <Clock size={16} />Giờ cho ăn</button>}
       </div>
       {!assigning && <div className={styles.summary}>
         <ListChecks size={18} />
@@ -96,6 +100,8 @@ export const TodayTasksView = () => {
       </div>}
     </div>
 
+    {mealSchedule && <MealScheduleDialog onClose={() => setMealSchedule(false)}
+      onSaved={() => { setMealSchedule(false); setRevision(value => value + 1); }} />}
     {assigning ? <WorkAssignmentPanel date={date} /> : loading ? <p className={styles.state} role="status">Đang tải phiếu việc...</p>
       : state.error ? <div className={styles.state} role="alert"><p>{state.error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>

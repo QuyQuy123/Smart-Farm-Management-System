@@ -86,3 +86,36 @@
 .editButton { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 1px solid #cfe5df; border-radius: 8px; background: #edf8f4; color: #008577; cursor: pointer; }
 .editButton:hover { background: #d8f0e8; }
 .editButton:focus-visible { outline: 2px solid #008577; outline-offset: 2px; }
+
+/* Compact three-column sales form keeps the full desktop form in view. */
+.saleModal.saleModal { width: min(1120px, calc(100vw - 40px)); max-width: 1120px; }
+.saleModal > :global(.farmshift-modal-header) { padding: 16px 24px; }
+.saleModal :global(.farmshift-modal-footer) { padding: 14px 24px; }
+.saleForm > .saleBody { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 18px; padding: 18px 24px; align-content: start; }
+.saleBody .fieldRow { display: contents; }
+.saleBody :global(.farmshift-form-group) { min-width: 0; margin: 0; }
+.saleBody :global(.farmshift-form-label) { margin-bottom: 6px; font-size: 14px; }
+.saleBody :global(.farmshift-form-control) { width: 100%; min-width: 0; height: 42px; margin: 0; box-sizing: border-box; }
+.saleBody .wideField { grid-column: span 2; }
+.saleBody .fullField, .saleBody > .error { grid-column: 1 / -1; }
+.saleBody .saleTotal { grid-column: 1 / -1; margin: 0; padding-top: 8px; border-top: 1px solid var(--color-hairline); text-align: right; color: var(--fg-teal, #008577); }
+@media (max-width: 900px) {
+  .saleForm > .saleBody { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .saleModal.saleModal { width: calc(100vw - 20px); }
+  .saleForm > .saleBody { grid-template-columns: 1fr; padding: 16px; }
+  .saleBody .wideField { grid-column: auto; }
+}
+
+.salePage { width: 100%; }
+.salePageCard { width: 100%; overflow: hidden; }
+.salePageCard > :global(.farmshift-modal-header) { padding: 20px 24px; }
+.salePageCard .saleForm { display: block; overflow: visible; }
+.salePageCard .saleForm > .saleBody { overflow: visible; padding: 24px; }
+.salePageCard :global(.farmshift-modal-footer) { padding: 16px 24px; }
+@media (max-width: 600px) {
+  .salePageCard > :global(.farmshift-modal-header),
+  .salePageCard .saleForm > .saleBody,
+  .salePageCard :global(.farmshift-modal-footer) { padding: 16px; }
+}

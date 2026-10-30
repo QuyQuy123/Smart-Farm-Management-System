@@ -118,3 +118,11 @@
   .unitModal .unitConversionRow > input { margin-bottom: 0; }
   .unitModal .modalBody textarea { height: 56px; min-height: 56px; }
 }
+
+.inventoryGroupName { display: flex; align-items: center; gap: 8px; }
+.inventoryGroupName > button { flex-shrink: 0; }
+.inventoryHistoryRow > td { padding: 0 20px 20px; background: #f5faf8; }
+.inventoryHistory { padding: 18px; border: 1px solid #dce9e4; border-radius: 12px; background: #fff; overflow-x: auto; }
+.inventoryHistory h3 { margin: 0 0 8px; font-size: 15px; color: #12665c; }
+.inventoryHistory p { margin: 0 0 14px; font-size: 13px; color: #71818a; }
+.inventoryHistory table { min-width: 650px; }

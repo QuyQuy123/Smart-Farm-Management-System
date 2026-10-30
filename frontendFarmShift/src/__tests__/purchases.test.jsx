@@ -7,7 +7,7 @@ import { PurchasesView } from '../features/farmshift/PurchasesView';
 import * as purchaseService from '../services/purchaseService';
 import * as supplierService from '../services/supplierService';
 import * as productTypeService from '../services/productTypeService';
-import * as productCategoryService from '../services/productCategoryService';
+import * as productCategoryService from '../services/inventoryItemService';
 
 const mockToast = vi.fn();
 const mockUser = { role: 'ROLE_FARM_OWNER', fullName: 'Chủ Trại Test' };
@@ -47,8 +47,8 @@ vi.mock('../services/productTypeService', () => ({
 
 vi.mock('../services/measurementUnitService', () => ({ listMeasurementUnits: async () => [{ id: 1, code: 'BAO', name: 'Bao 25kg' }, { id: 2, code: 'KG', name: 'Kg' }] }));
 
-vi.mock('../services/productCategoryService', () => ({
-  listProductCategories: vi.fn()
+vi.mock('../services/inventoryItemService', () => ({
+  listAllInventoryItems: vi.fn()
 }));
 
 const originalShowModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
@@ -177,10 +177,31 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
   ];
 
   const mockProductCategories = [
-    { id: 1, name: 'Cám Giai đoạn 1 (Úm)', warehouseId: 1, warehouseName: 'Kho A', specification: 'Bao 25kg' },
-    { id: 2, name: 'Cám Giai đoạn 2 (Vỗ béo)', warehouseId: 2, warehouseName: 'Kho B', specification: 'Bao 25kg' },
+    { id: 1, productId: 11, unitName: 'Bao 25kg', name: 'Cám Giai đoạn 1 (Úm)', warehouseId: 1, warehouseName: 'Kho A', specification: 'Bao 25kg' },
+    { id: 2, productId: 12, unitName: 'Bao 25kg', name: 'Cám Giai đoạn 2 (Vỗ béo)', warehouseId: 2, warehouseName: 'Kho B', specification: 'Bao 25kg' },
     { id: 3, name: 'Gà giống J-Dabaco 01 ngày tuổi' }
   ];
+
+  it('loads all warehouse rows and submits the selected product and destination warehouse', async () => {
+    productCategoryService.listAllInventoryItems.mockResolvedValue([
+      { id: 101, productId: 11, name: 'Cám GT2', warehouseId: 10, warehouseName: 'Kho mới đổi tên', unitName: 'Kg' },
+      { id: 102, productId: 11, name: 'Cám GT2', warehouseId: 20, warehouseName: 'Kho tạo thêm', unitName: 'Kg' },
+      { id: 103, productId: 11, name: 'Cám GT2', warehouseId: 20, warehouseName: 'Kho tạo thêm', unitName: 'Kg', price: 400000 }
+    ]);
+    render(<MemoryRouter><PurchasesView /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /Tạo đơn nhập hàng/i }));
+    const select = await screen.findByRole('combobox', { name: 'Tên hàng hóa 1' });
+    await screen.findByRole('option', { name: /Cám GT2 \(Kho tạo thêm\)/ });
+    expect(screen.getByRole('option', { name: /Cám GT2 \(Kho mới đổi tên\)/ })).toBeInTheDocument();
+    expect(screen.getAllByRole('option', { name: /Cám GT2 \(Kho tạo thêm\)/ })).toHaveLength(1);
+    fireEvent.change(select, { target: { value: '102' } });
+    fireEvent.change(screen.getByLabelText(/Nhà cung cấp \*/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Đơn giá (VNĐ) 1' }), { target: { value: '1000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
+    await waitFor(() => expect(purchaseService.createPurchase).toHaveBeenCalledWith(expect.objectContaining({
+      items: [expect.objectContaining({ productCategoryId: 11, warehouseId: 20, name: 'Cám GT2' })]
+    })));
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -211,7 +232,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
     supplierService.deleteSupplier.mockResolvedValue({ success: true });
 
     productTypeService.listProductTypes.mockResolvedValue([...mockProductTypes]);
-    productCategoryService.listProductCategories.mockResolvedValue([...mockProductCategories]);
+    productCategoryService.listAllInventoryItems.mockResolvedValue([...mockProductCategories]);
   });
 
   afterEach(() => {
@@ -930,7 +951,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
     });
 
     it('saves OCR item names and units directly without catalog selection or catalog availability', async () => {
-      productCategoryService.listProductCategories.mockRejectedValue(new Error('catalog offline'));
+      productCategoryService.listAllInventoryItems.mockRejectedValue(new Error('catalog offline'));
       purchaseService.ocrPurchase.mockResolvedValue({
         supplierId: 1, supplierName: 'Công ty CP Chăn nuôi C.P. Việt Nam', referenceCode: 'HD-OCR-NEW',
         items: [{ productCategoryId: 2, name: 'Thuốc AGR đọc từ ảnh', qty: 2, unit: 'Chai mới', price: 30000 }]

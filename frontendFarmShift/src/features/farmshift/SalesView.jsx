@@ -14,7 +14,7 @@ import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 
 export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') === 'customers' ? 'customers' : 'orders';
+  const activeTab = ['customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'orders';
   const setActiveTab = tab => setSearchParams({ tab });
   const { user } = useAuth();
   const storageKey = `farmshift-sales-v1:${user?.email || 'demo'}`;
@@ -104,7 +104,7 @@ export const SalesView = () => {
         paymentStatus: 'PAID', paidAmount: '', date: new Date().toISOString().split('T')[0],
         flock: '', quantity: '', totalWeight: '', unitPrice: '', note: '' });
     }
-    setShowAddModal(true);
+    setShowAddModal(Boolean(sale));
     setCyclesLoading(true);
     setCyclesError('');
     try {
@@ -123,6 +123,15 @@ export const SalesView = () => {
     } finally {
       setCyclesLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'create') openSaleModal();
+  }, [activeTab]);
+
+  const closeSaleForm = () => {
+    setShowAddModal(false);
+    if (activeTab === 'create') setActiveTab('orders');
   };
 
   const handleCreateSale = async (e) => {
@@ -155,6 +164,7 @@ export const SalesView = () => {
       setSales(previous => editingSale ? previous.map(sale => sale.id === created.id ? created : sale) : [created, ...previous]);
       setCustomerRevision(value => value + 1);
       setShowAddModal(false);
+      if (!editingSale) setActiveTab('orders');
       setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '' }));
     } catch (error) {
       setSaveError(error.response?.data?.message || 'Không thể lưu đơn bán. Vui lòng thử lại.');
@@ -172,24 +182,21 @@ export const SalesView = () => {
   return (
     <FarmShiftLayout
       pageTitle="Quản lý bán hàng"
-      breadcrumbTitle={activeTab === 'customers' ? 'Khách hàng' : 'Danh sách đơn bán'}
+      breadcrumbTitle={activeTab === 'customers' ? 'Khách hàng' : activeTab === 'create' ? 'Tạo đơn bán hàng' : 'Danh sách đơn bán'}
       breadcrumbs={[{ label: 'Quản lý bán hàng' }]}
       actions={
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="farmshift-btn farmshift-btn-excel">
             <FileSpreadsheet size={15} /> Xuất Excel
           </button>
-          <button
-            className="farmshift-btn farmshift-btn-mint"
-            onClick={() => openSaleModal()}
-          >
-            <Plus size={16} /> Tạo đơn bán hàng
-          </button>
         </div>
       }
     >
       {/* ── Tabs Navigation ──────────────────────────────── */}
       <div className="farmshift-tabs">
+        <button type="button" className={`farmshift-tab-btn ${activeTab === 'create' ? 'active' : ''}`} disabled={saving} onClick={() => setActiveTab('create')}>
+          <Plus size={16} /> Tạo đơn bán hàng
+        </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
           onClick={() => setActiveTab('orders')}
@@ -349,28 +356,28 @@ export const SalesView = () => {
         </div>
       )}
 
-      {/* ── Modal: Tạo đơn bán mới ───────────────────────── */}
-      {showAddModal && (
-        <div className="farmshift-modal-backdrop" onClick={event => { if (event.target === event.currentTarget && !saving) setShowAddModal(false); }}>
-          <div className={`farmshift-modal ${styles.modal}`} role="dialog" aria-modal="true" aria-labelledby="sale-modal-title">
+      {/* Creation lives in its own tab; editing keeps the existing dialog. */}
+      {(activeTab === 'create' || showAddModal) && (
+        <div className={showAddModal ? 'farmshift-modal-backdrop' : styles.salePage} onClick={event => { if (showAddModal && event.target === event.currentTarget && !saving) closeSaleForm(); }}>
+          <div className={showAddModal ? `farmshift-modal ${styles.modal} ${styles.saleModal}` : `farmshift-card ${styles.salePageCard}`} role={showAddModal ? 'dialog' : 'region'} aria-modal={showAddModal ? true : undefined} aria-labelledby="sale-modal-title">
             <div className="farmshift-modal-header">
-              <h3 id="sale-modal-title" className="farmshift-modal-title">{editingSale ? `Chỉnh sửa hóa đơn ${editingSale.code}` : 'Tạo đơn bán'}</h3>
-              <button
+              <h3 id="sale-modal-title" className="farmshift-modal-title">{editingSale ? `Chỉnh sửa hóa đơn ${editingSale.code}` : 'Tạo đơn bán hàng'}</h3>
+              {showAddModal && <button
                 disabled={saving}
-                onClick={() => setShowAddModal(false)}
+                onClick={closeSaleForm}
                 type="button"
                 className={styles.closeButton}
                 aria-label="Đóng"
               >
                 <X size={18} />
-              </button>
+              </button>}
             </div>
             <form className={styles.saleForm} onSubmit={handleCreateSale}>
-              <div className="farmshift-modal-body">
+              <div className={`farmshift-modal-body ${styles.saleBody}`}>
                 {saveError && <p role="alert" className={styles.error}>{saveError}</p>}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className={styles.fieldRow}>
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Khách hàng / Thương lái <span className={styles.required}>*</span></label>
+                    <label className="farmshift-form-label">Người mua <span className={styles.required}>*</span></label>
                     <input
                       type="text"
                       className="farmshift-form-control"
@@ -400,15 +407,11 @@ export const SalesView = () => {
                   <label className="farmshift-form-label" htmlFor="sale-phone">Số điện thoại <span className={styles.required}>*</span></label>
                   <input id="sale-phone" type="tel" inputMode="numeric" pattern="[0-9]{10,11}" maxLength={11} required className="farmshift-form-control" value={newSale.phone} onChange={event => setNewSale({ ...newSale, phone: event.target.value.replace(/[^0-9]/g, '') })} />
                 </div>
-                <div className="farmshift-form-group">
+                <div className={`farmshift-form-group ${styles.wideField}`}>
                   <label className="farmshift-form-label" htmlFor="sale-address">Địa chỉ <span className={styles.required}>*</span></label>
                   <input id="sale-address" required maxLength={255} className="farmshift-form-control" value={newSale.address} onChange={event => setNewSale({ ...newSale, address: event.target.value })} />
                 </div>
 
-                <div className={styles.customerInvoiceFields}>
-                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-tax-code">Mã số thuế</label><input id="sale-tax-code" className="farmshift-form-control" maxLength={50} value={newSale.taxCode} onChange={event => setNewSale({ ...newSale, taxCode: event.target.value })} /></div>
-                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-payment-method">Hình thức thanh toán <span className={styles.required}>*</span></label><select id="sale-payment-method" className="farmshift-form-control" required value={newSale.paymentMethod} onChange={event => setNewSale({ ...newSale, paymentMethod: event.target.value })}><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option><option value="Tiền mặt / Chuyển khoản">Tiền mặt / Chuyển khoản</option>{newSale.paymentMethod && !['Tiền mặt','Chuyển khoản','Tiền mặt / Chuyển khoản'].includes(newSale.paymentMethod) && <option value={newSale.paymentMethod}>{newSale.paymentMethod}</option>}</select></div>
-                </div>
 
                 <div className="farmshift-form-group">
                   <label className="farmshift-form-label">Khu nuôi - chuồng - lứa <span className={styles.required}>*</span></label>
@@ -426,7 +429,7 @@ export const SalesView = () => {
                   {!cyclesLoading && !cyclesError && cycleOptions.length === 0 && <p className={styles.hint}>Chưa có lứa nuôi trong cơ sở dữ liệu.</p>}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div className={styles.fieldRow}>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Số con xuất <span className={styles.required}>*</span></label>
                     <input
@@ -469,6 +472,11 @@ export const SalesView = () => {
                   </div>
                 </div>
 
+                <div className={`${styles.customerInvoiceFields} ${styles.fullField}`}>
+                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-tax-code">Mã số thuế</label><input id="sale-tax-code" className="farmshift-form-control" maxLength={50} value={newSale.taxCode} onChange={event => setNewSale({ ...newSale, taxCode: event.target.value })} /></div>
+                  <div className="farmshift-form-group"><label className="farmshift-form-label" htmlFor="sale-payment-method">Hình thức thanh toán <span className={styles.required}>*</span></label><select id="sale-payment-method" className="farmshift-form-control" required value={newSale.paymentMethod} onChange={event => setNewSale({ ...newSale, paymentMethod: event.target.value })}><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option><option value="Tiền mặt / Chuyển khoản">Tiền mặt / Chuyển khoản</option>{newSale.paymentMethod && !['Tiền mặt','Chuyển khoản','Tiền mặt / Chuyển khoản'].includes(newSale.paymentMethod) && <option value={newSale.paymentMethod}>{newSale.paymentMethod}</option>}</select></div>
+                </div>
+
                 <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-payment-status">Trạng thái <span className={styles.required}>*</span></label>
                   <select id="sale-payment-status" className="farmshift-form-control" required value={newSale.paymentStatus} onChange={event => setNewSale({ ...newSale, paymentStatus: event.target.value })}>
@@ -479,9 +487,8 @@ export const SalesView = () => {
                   <label className="farmshift-form-label" htmlFor="sale-paid-amount">Số tiền đã trả (đ) <span className={styles.required}>*</span></label>
                   <input id="sale-paid-amount" type="text" inputMode="numeric" required pattern="[1-9][0-9.]*" title="Nhập số tiền đã trả lớn hơn 0" className="farmshift-form-control" value={newSale.paidAmount.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} onChange={event => setNewSale({ ...newSale, paidAmount: event.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '') })} />
                 </div>}
-                <p className={styles.hint}>Tổng tiền: {formatMoney(Number(newSale.totalWeight) * Number(newSale.unitPrice))}</p>
 
-                <div className="farmshift-form-group">
+                <div className={`farmshift-form-group ${newSale.paymentStatus === 'PARTIAL' ? styles.fullField : styles.wideField}`}>
                   <label className="farmshift-form-label">Ghi chú xuất bán</label>
                   <input
                     type="text"
@@ -490,6 +497,7 @@ export const SalesView = () => {
                     onChange={(e) => setNewSale({ ...newSale, note: e.target.value })}
                   />
                 </div>
+                <p className={styles.saleTotal}>Tổng tiền: <strong>{formatMoney(Number(newSale.totalWeight) * Number(newSale.unitPrice))}</strong></p>
               </div>
 
               <div className="farmshift-modal-footer">
@@ -497,7 +505,7 @@ export const SalesView = () => {
                   type="button"
                   className="farmshift-btn farmshift-btn-secondary"
                   disabled={saving}
-                onClick={() => setShowAddModal(false)}
+                onClick={closeSaleForm}
                 >
                   Hủy
                 </button>

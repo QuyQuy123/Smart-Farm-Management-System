@@ -181,7 +181,7 @@ describe('Full-System Automated Crawler & Smoke Sweep Test', () => {
       renderWithProviders(<JournalView />);
 
       const tabButtons = document.querySelectorAll('.farmshift-tab-btn');
-      expect(tabButtons.length).toBeGreaterThanOrEqual(4);
+      expect(tabButtons.length).toBeGreaterThanOrEqual(3);
 
       for (const btn of Array.from(tabButtons)) {
         await act(async () => {

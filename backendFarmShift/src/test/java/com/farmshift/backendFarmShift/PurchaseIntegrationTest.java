@@ -229,6 +229,100 @@ class PurchaseIntegrationTest {
     }
 
     @Test
+    void sharedProductImportsIntoSelectedWarehouseAfterEditingAndRenaming() throws Exception {
+        var original = new WarehouseCategory(); original.setName("Original"); original.setNameKey("original");
+        original = warehouseCategoryRepository.saveAndFlush(original);
+        var target = new WarehouseCategory(); target.setName("New warehouse"); target.setNameKey("new warehouse");
+        target = warehouseCategoryRepository.saveAndFlush(target);
+        var product = new ProductCategory(); product.setName("Shared feed"); product.setNameKey("shared feed"); product.setWarehouse(original);
+        product = productCategoryRepository.saveAndFlush(product);
+        for (var warehouse : List.of(original, target)) {
+            var stock = new InventoryItem(); stock.setWarehouse(warehouse); stock.setProduct(product);
+            stock.setPrice(java.math.BigDecimal.valueOf(1000)); stock.setStock(java.math.BigDecimal.ZERO);
+            inventoryRepository.saveAndFlush(stock);
+        }
+        var row = new PurchaseInvoiceItemRequest(product.getId(), "Shared feed", 4.0, "Kg", 1000L, 0.0, target.getId());
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(), List.of(row),
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
+        var result = mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.items[0].warehouseId").value(target.getId())).andReturn();
+        long id = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        var edit = new com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceEditRequest(supplierId, LocalDate.now(), null, "edit", List.of(), List.of(row), 0L, 0L);
+        mvc.perform(put("/api/purchases/" + id).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(edit)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].warehouseId").value(target.getId()));
+        target.setName("Renamed warehouse"); warehouseCategoryRepository.saveAndFlush(target);
+        entityManager.flush(); entityManager.clear();
+        mvc.perform(post("/api/purchases/" + id + "/import-stock")).andExpect(status().isOk());
+        mvc.perform(post("/api/purchases/" + id + "/import-stock")).andExpect(status().isOk());
+        assertEquals(4, inventoryRepository.findByWarehouse_IdAndProduct_Id(target.getId(), product.getId()).orElseThrow().getStock().intValue());
+        assertEquals(0, inventoryRepository.findByWarehouse_IdAndProduct_Id(original.getId(), product.getId()).orElseThrow().getStock().intValue());
+        var invalid = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(),
+                List.of(new PurchaseInvoiceItemRequest(product.getId(), "Shared feed", 1.0, "Kg", 1000L, 0.0, 999999L)),
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(invalid)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void purchaseReceiptsKeepSeparateQuantitiesPricesAndMetadata() throws Exception {
+        var warehouse = new WarehouseCategory(); warehouse.setName("Lot warehouse"); warehouse.setNameKey("lot warehouse");
+        warehouse = warehouseCategoryRepository.saveAndFlush(warehouse);
+        var product = new ProductCategory(); product.setName("Lot feed"); product.setNameKey("lot feed"); product.setWarehouse(warehouse);
+        product = productCategoryRepository.saveAndFlush(product);
+        var placeholder = new InventoryItem(); placeholder.setWarehouse(warehouse); placeholder.setProduct(product);
+        placeholder.setPrice(java.math.BigDecimal.valueOf(300000)); placeholder.setImageUrl("/img/feed.jpg");
+        placeholder = inventoryRepository.saveAndFlush(placeholder);
+        for (long price : List.of(300000L, 400000L, 400000L)) {
+            double qty = price == 300000L ? 100.0 : 200.0;
+            var row = new PurchaseInvoiceItemRequest(product.getId(), "Lot feed", qty, "Kg", price, 0.0, warehouse.getId());
+            var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(), List.of(row),
+                    0L, 0L, 0L, "Trả sau", "Đã nhập kho", null, null, null, null);
+            var result = mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated()).andReturn();
+            long invoiceId = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+            mvc.perform(post("/api/purchases/" + invoiceId + "/import-stock")).andExpect(status().isOk());
+        }
+        entityManager.flush(); entityManager.clear();
+        var lots = inventoryRepository.findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(warehouse.getId(), product.getId());
+        assertEquals(3, lots.size());
+        assertEquals(placeholder.getId(), lots.get(0).getId());
+        assertEquals(100, lots.get(0).getStock().intValue());
+        assertEquals(300000, lots.get(0).getPrice().intValue());
+        for (var lot : lots.subList(1, 3)) {
+            assertEquals(200, lot.getStock().intValue());
+            assertEquals(400000, lot.getPrice().intValue());
+            assertEquals("/img/feed.jpg", lot.getImageUrl());
+            assertNotNull(lot.getPurchaseInvoiceItemId());
+        }
+        var statistics = entityManager.getEntityManagerFactory().unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        boolean statisticsEnabled = statistics.isStatisticsEnabled();
+        statistics.setStatisticsEnabled(true);
+        try {
+            entityManager.clear(); statistics.clear();
+            mvc.perform(get("/api/inventory-items").param("warehouseId", warehouse.getId().toString()).param("includeReceipts", "true"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(3))
+                    .andExpect(jsonPath("$.data[0].receipt.quantity").value(100))
+                    .andExpect(jsonPath("$.data[0].receipt.price").value(300000))
+                    .andExpect(jsonPath("$.data[1].receipt.quantity").value(200))
+                    .andExpect(jsonPath("$.data[1].receipt.price").value(400000))
+                    .andExpect(jsonPath("$.data[0].receipt.invoiceCode").isNotEmpty());
+            assertEquals(3, statistics.getPrepareStatementCount(), "history is fetched once for all receipt lots");
+        } finally {
+            statistics.setStatisticsEnabled(statisticsEnabled);
+        }
+        // A depleted receipt must not be recycled by a later purchase.
+        var first = lots.get(0); first.setStock(java.math.BigDecimal.ZERO); inventoryRepository.saveAndFlush(first);
+        var row = new PurchaseInvoiceItemRequest(product.getId(), "Lot feed", 1.0, "Kg", 500000L, 0.0, warehouse.getId());
+        var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(), List.of(row),
+                0L, 0L, 0L, "Trả sau", "Đã nhập kho", null, null, null, null);
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+        entityManager.flush(); entityManager.clear();
+        assertEquals(4, inventoryRepository.findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(warehouse.getId(), product.getId()).size());
+        assertEquals(300000, inventoryRepository.findById(first.getId()).orElseThrow().getPrice().intValue());
+    }
+
+    @Test
     void rejectsInvalidNumericAndTextInputs() throws Exception {
         var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(),
                 List.of(new PurchaseInvoiceItemRequest(null, "Validation feed", 2.0, "Kg", 1000L, 0.0)),

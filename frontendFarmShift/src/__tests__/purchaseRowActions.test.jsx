@@ -19,7 +19,7 @@ function setup(overrides = {}) {
 function openMenu() { fireEvent.click(screen.getByRole('button', { name: 'Thao tác hóa đơn NH01' })); }
 it('views, edits metadata, and reloads after saving', async () => {
  const { onReload, onView } = setup(); openMenu();
- fireEvent.click(screen.getByRole('menuitem', { name: 'Xem chi tiết' })); expect(onView).toHaveBeenCalledWith(invoice);
+ fireEvent.click(screen.getByRole('menuitem', { name: /Chi tiết/ })); expect(onView).toHaveBeenCalledWith(invoice);
  openMenu(); fireEvent.click(screen.getByRole('menuitem', { name: 'Sửa hóa đơn' }));
  const dialog = screen.getByRole('dialog');
  expect(within(dialog).getByLabelText(/Nhà cung cấp/)).toHaveAttribute('readonly');
@@ -40,4 +40,15 @@ it('requires confirmation before deleting and closes the menu with Escape', asyn
 });
 it('disables deletion of posted invoices', () => {
  setup({ stockStatus: 'Đã nhập kho' }); openMenu(); expect(screen.getByRole('menuitem', { name: 'Xóa hóa đơn' })).toBeDisabled(); expect(screen.getByRole('menuitem', { name: 'Sửa hóa đơn' })).toBeDisabled();
+});
+
+it('preserves the selected destination warehouse when editing quantity', async () => {
+ setup({ items: [{ productCategoryId: 11, warehouseId: 20, name: 'Shared feed', qty: 2, unit: 'Kg', price: 1000 }] });
+ openMenu(); fireEvent.click(screen.getByRole('menuitem', { name: 'Sửa hóa đơn' }));
+ const dialog = screen.getByRole('dialog');
+ fireEvent.change(within(dialog).getByLabelText('Số lượng 1'), { target: { value: '5' } });
+ fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thay đổi' }));
+ await waitFor(() => expect(updatePurchase).toHaveBeenCalledWith(1, expect.objectContaining({
+   items: [expect.objectContaining({ productCategoryId: 11, warehouseId: 20, qty: 5 })]
+ })));
 });

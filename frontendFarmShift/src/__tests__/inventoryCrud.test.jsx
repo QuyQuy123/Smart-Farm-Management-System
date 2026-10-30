@@ -101,6 +101,32 @@ describe('Persistent inventory CRUD', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Upload thất bại');
     expect(service.createInventoryItem).not.toHaveBeenCalled();
   });
+  it('shows one summary with arithmetic average and expands original purchase history', async () => {
+    const common = { warehouseId: 1, productId: 11, name: 'Cám gà', unitId: 7, unitName: 'Kg', brandName: 'Nhãn hiệu A' };
+    items = [
+      { ...common, id: 21, price: 300000, stock: 100, receipt: { invoiceCode: 'NH000001', importedDate: '2026-10-28', quantity: 100, unit: 'Kg', price: 300000 } },
+      { ...common, id: 22, price: 400000, stock: 200, receipt: { invoiceCode: 'NH000002', importedDate: '2026-10-29', quantity: 200, unit: 'Kg', price: 400000 } }
+    ];
+    renderView();
+    const expand = await screen.findByRole('button', { name: 'Mở lịch sử Cám gà' });
+    expect(screen.getByText('1 hàng hóa')).toBeInTheDocument();
+    expect(screen.getByText('300')).toBeInTheDocument();
+    expect(screen.getByTitle('Trung bình cộng đơn giá các lần nhập')).toHaveTextContent('350.000');
+    expect(screen.queryByText('NH000001')).not.toBeInTheDocument();
+    fireEvent.click(expand);
+    expect(expand).toHaveAttribute('aria-expanded', 'true');
+    const history = screen.getByRole('region', { name: 'Lịch sử nhập Cám gà' });
+    expect(within(history).queryByRole('columnheader', { name: 'Chứng từ' })).not.toBeInTheDocument();
+    expect(within(history).queryByRole('columnheader', { name: 'Còn lại' })).not.toBeInTheDocument();
+    expect(within(history).getByText('28/10/2026')).toBeInTheDocument();
+    expect(within(history).getAllByText(/300\.000/)).toHaveLength(1);
+    fireEvent.click(within(history).getByRole('button', { name: 'Sửa Cám gà, dòng 2' }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByRole('option', { name: 'Kg (KG)' });
+    fireEvent.change(within(dialog).getByLabelText(/Giá tiền/), { target: { value: '410000' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu hàng hóa' }));
+    await waitFor(() => expect(service.updateInventoryItem).toHaveBeenCalledWith(22, expect.objectContaining({ price: '410000' })));
+  });
   it('does not expose mutation buttons to workers', async () => {
     mocks.role = 'ROLE_FARM_WORKER'; renderView();
     await screen.findByRole('button', { name: 'Kho cám' });

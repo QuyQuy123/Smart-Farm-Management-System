@@ -447,11 +447,11 @@ export const AIChatbot = () => {
     }
     switch (msg.actionType) {
       case 'LOG_FEED':
-        return { route: '/journal', label: 'Xem Nhật ký cho ăn' };
+        return { route: '/today-tasks', label: 'Xem Việc hôm nay' };
       case 'LOG_WEIGHT':
-        return { route: '/barns', label: 'Xem Cân mẫu chuồng' };
+        return { route: '/journal?tab=weight', label: 'Xem Cân mẫu chuồng' };
       case 'LOG_MORTALITY':
-        return { route: '/barns', label: 'Xem Đàn gà & Chuồng' };
+        return { route: '/journal?tab=loss', label: 'Xem Hao hụt chuồng' };
       case 'LOG_EXPENSE':
         return { route: '/cashbook', label: 'Xem Sổ quỹ chi phí' };
       case 'COMPLETE_DAILY_TASKS':

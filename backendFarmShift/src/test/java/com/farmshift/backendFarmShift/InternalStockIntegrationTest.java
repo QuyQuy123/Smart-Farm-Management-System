@@ -69,6 +69,44 @@ class InternalStockIntegrationTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_FARM_OWNER")
+    void transferAndExportUseSelectedLotAndPreserveOtherPrices() throws Exception {
+        var cheap = new InventoryItem(); cheap.setWarehouse(warehouseFeed); cheap.setProduct(productHigro);
+        cheap.setPrice(new BigDecimal("300000")); cheap.setStock(new BigDecimal("100"));
+        cheap = inventoryItemRepository.saveAndFlush(cheap);
+        var expensive = new InventoryItem(); expensive.setWarehouse(warehouseFeed); expensive.setProduct(productHigro);
+        expensive.setPrice(new BigDecimal("400000")); expensive.setStock(new BigDecimal("200"));
+        expensive = inventoryItemRepository.saveAndFlush(expensive);
+        var target = new InventoryItem(); target.setWarehouse(warehouseBackup); target.setProduct(productHigro);
+        target.setPrice(new BigDecimal("300000")); target.setStock(BigDecimal.TEN);
+        target = inventoryItemRepository.saveAndFlush(target);
+        var transfer = new InternalStockVoucherRequest("TRANSFER", categoryRepository.findByNameKey("chuyển kho nội bộ").orElseThrow().getId(),
+                warehouseFeed.getId(), warehouseBackup.getId(), null, LocalDate.now(), null, null,
+                List.of(new InternalStockVoucherItemRequest(productHigro.getId(), expensive.getId(), null, new BigDecimal("20"), null, null)));
+        mvc.perform(post("/api/internal-stock/vouchers").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(transfer)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.totalAmount").value(8000000));
+        em.flush(); em.clear();
+        assertEquals(180, inventoryItemRepository.findById(expensive.getId()).orElseThrow().getStock().intValue());
+        assertEquals(100, inventoryItemRepository.findById(cheap.getId()).orElseThrow().getStock().intValue());
+        var targets = inventoryItemRepository.findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(warehouseBackup.getId(), productHigro.getId());
+        assertEquals(2, targets.size());
+        assertEquals(10, inventoryItemRepository.findById(target.getId()).orElseThrow().getStock().intValue());
+        assertTrue(targets.stream().anyMatch(lot -> lot.getPrice().intValue() == 400000 && lot.getStock().intValue() == 20));
+        var export = new InternalStockVoucherRequest("EXPORT", categoryRepository.findByNameKey("xuất hủy").orElseThrow().getId(),
+                warehouseFeed.getId(), null, null, LocalDate.now(), null, null,
+                List.of(new InternalStockVoucherItemRequest(productHigro.getId(), expensive.getId(), null, new BigDecimal("5"), null, null)));
+        mvc.perform(post("/api/internal-stock/vouchers").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(export)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.totalAmount").value(2000000));
+        em.clear();
+        assertEquals(175, inventoryItemRepository.findById(expensive.getId()).orElseThrow().getStock().intValue());
+        var ambiguous = new InternalStockVoucherRequest("EXPORT", categoryRepository.findByNameKey("xuất hủy").orElseThrow().getId(),
+                warehouseFeed.getId(), null, null, LocalDate.now(), null, null,
+                List.of(new InternalStockVoucherItemRequest(productHigro.getId(), null, BigDecimal.ONE, null, null)));
+        mvc.perform(post("/api/internal-stock/vouchers").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(ambiguous)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_FARM_OWNER")
     void defaultSeedCategoriesExistWithVoucherCount() throws Exception {
         mvc.perform(get("/api/internal-stock/categories"))
                 .andExpect(status().isOk())

@@ -18,8 +18,19 @@
 .warnings svg { flex-shrink: 0; margin-top: 2px; }
 .empty { margin: 0; padding: 24px 20px; text-align: center; font-size: 14.5px; color: #71818a; }
 
-.section { padding: 12px 20px 4px; border-top: 1px solid #edf4ef; }
-.section:first-of-type { border-top: 0; }
+/* Lịch trong ngày kiểu tờ lịch giấy: nền kem, kẻ ô xanh, cột giờ bên trái. */
+.schedule { margin: 14px 16px 16px; border: 2px solid #2f57a3; border-radius: 6px; overflow: hidden;
+  background-color: #f8f3e6; background-image: radial-gradient(rgba(47, 87, 163, 0.10) 1px, transparent 1px); background-size: 6px 6px;
+  box-shadow: 6px 6px 0 rgba(47, 87, 163, 0.18); }
+.slot { display: grid; grid-template-columns: 116px minmax(0, 1fr); border-top: 1px solid #9fb3dc; }
+.slot:first-child { border-top: 0; }
+.slotTime { display: flex; flex-direction: column; gap: 4px; padding: 14px 12px; border-right: 2px solid #2f57a3; background: rgba(47, 87, 163, 0.06); }
+.slotTime strong { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; color: #1f3f80; font-variant-numeric: tabular-nums; }
+.slotTime small { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: #3d5a99; }
+.slotAllDay strong { font-size: 16px; white-space: nowrap; }
+.slotTasks { list-style: none; margin: 0; padding: 10px 12px 2px; min-width: 0; }
+.tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #e7edf9; color: #2f57a3; font-size: 12.5px; font-weight: 700; vertical-align: middle; }
+.section { padding: 2px 0 0; }
 .section h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #2d6a4f; }
 .section ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 
@@ -51,4 +62,49 @@
   .doneButton { flex: 1; }
   .editor { grid-template-columns: 1fr; }
   .header, .section, .warnings { padding-left: 14px; padding-right: 14px; }
+}
+
+@media (max-width: 640px) {
+  .schedule { margin: 10px 8px 12px; }
+  .slot { grid-template-columns: 1fr; }
+  .slotTime { flex-direction: row; align-items: baseline; gap: 10px; border-right: 0; border-bottom: 1px solid #9fb3dc; padding: 8px 12px; }
+}
+
+/* Bản gọn ở trang chi tiết chuồng: chỉ để xem nhanh, thao tác chính nằm ở Việc hôm nay. */
+.compact { border-radius: 10px; }
+.compact .header { padding: 10px 14px; gap: 10px; }
+.compact .header h3 { font-size: 14px; }
+.compact .header p { margin-top: 2px; font-size: 12.5px; }
+.compact .progress { min-width: 150px; }
+.compact .progress strong { font-size: 16px; }
+.compact .progress span, .compact .progress small { font-size: 12px; }
+.compact .bar { height: 4px; }
+.compact .warnings { padding: 8px 14px; gap: 4px; }
+.compact .warnings li { font-size: 12.5px; }
+.compact .schedule { margin: 10px; border-width: 1px; border-radius: 8px; box-shadow: 3px 3px 0 rgba(47, 87, 163, 0.12); }
+.compact .slot { grid-template-columns: 64px minmax(0, 1fr); }
+.compact .slotTime { gap: 2px; padding: 8px 6px; border-right-width: 1px; }
+.compact .slotTime strong { font-size: 14px; font-weight: 700; }
+.compact .slotTime small { font-size: 11px; }
+.compact .slotAllDay strong { font-size: 12.5px; white-space: normal; }
+.compact .slotTasks { padding: 6px 8px 0; }
+.compact .section h4 { margin-bottom: 4px; font-size: 11.5px; }
+.compact .task { gap: 8px; padding: 7px 10px; margin-bottom: 6px; border-radius: 8px; }
+.compact .info { gap: 1px; }
+.compact .info strong { font-size: 13px; }
+.compact .amount { font-size: 12.5px; }
+.compact .info small { font-size: 12px; }
+.compact .tag { margin-left: 6px; padding: 0 6px; font-size: 11px; }
+.compact .actions { gap: 2px; }
+.compact .doneButton { min-width: 64px; min-height: 0; padding: 4px 10px; font-size: 12.5px; border-radius: 8px; }
+.compact .doneButton svg { width: 13px; height: 13px; }
+.compact .otherButton, .compact .undoButton { padding: 2px 6px; font-size: 12px; }
+.compact .otherButton svg, .compact .undoButton svg { width: 13px; height: 13px; }
+.compact .editor { grid-template-columns: 140px 1fr; gap: 8px; padding: 8px; }
+.compact .editor label { font-size: 12.5px; }
+.compact .empty { padding: 14px; font-size: 13px; }
+
+@media (max-width: 640px) {
+  .compact .slot { grid-template-columns: 1fr; }
+  .compact .slotTime { border-right: 0; padding: 6px 10px; }
 }

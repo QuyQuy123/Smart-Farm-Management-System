@@ -5,6 +5,7 @@ import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 /** Shared farm settings for the current single-farm installation. */
 @Entity
@@ -25,6 +26,9 @@ public class Farm {
     private String address;
     @Column(length = 200)
     private String type;
+    /** Giờ cữ ăn đầu tiên trong ngày; null là mặc định 07:00. */
+    @Column(name = "first_meal_time")
+    private LocalTime firstMealTime;
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
