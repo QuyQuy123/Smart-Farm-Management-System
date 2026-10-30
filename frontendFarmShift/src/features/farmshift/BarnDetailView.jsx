@@ -572,7 +572,7 @@ export const BarnDetailView = () => {
           actions={<Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
           {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
             : dayPlan.flocks.length === 0 ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
-              : <div className={styles.dayPlan}><DailyPlanCard plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
+              : <div className={styles.dayPlan}><DailyPlanCard compact plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
                 onConfirm={dailyActions.confirm} onUndo={dailyActions.undo}
                 onConfirmAssigned={dailyActions.confirmAssigned} onUndoAssigned={dailyActions.undoAssigned} /></div>}
         </Card>}

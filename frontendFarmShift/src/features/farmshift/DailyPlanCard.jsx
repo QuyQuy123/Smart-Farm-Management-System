@@ -26,7 +26,7 @@ const amountText = (quantity, unit, stock, stockUnit) => {
  * Phiếu việc một ngày của một chuồng. Công nhân bấm "Xong" khi làm đúng kế hoạch, "Khác kế hoạch" khi lượng thực tế khác
  * (bắt buộc ghi lý do nếu lệch nhiều). onConfirm / onUndo trả về thông báo lỗi (chuỗi) hoặc null khi thành công.
  */
-export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, onConfirmAssigned, onUndoAssigned, showHeader = true, hideDone = false }) {
+export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, onConfirmAssigned, onUndoAssigned, showHeader = true, hideDone = false, compact = false }) {
   const [editing, setEditing] = useState(null);
   const [errors, setErrors] = useState({});
   const isOwner = role === 'ROLE_FARM_OWNER';
@@ -151,7 +151,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     </li>;
   };
 
-  return <section className={styles.card} aria-label={`Phiếu việc ${plan.barnName}`}>
+  return <section className={`${styles.card} ${compact ? styles.compact : ''}`} aria-label={`Phiếu việc ${plan.barnName}`}>
     {showHeader && <header className={styles.header}>
       <div>
         <h3>{plan.barnName} <span>· {plan.areaName}</span></h3>
