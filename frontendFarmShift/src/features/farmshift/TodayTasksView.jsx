@@ -29,6 +29,7 @@ export const TodayTasksView = () => {
   const [date, setDate] = useState(today);
   const [hideDone, setHideDone] = useState(false);
   const [mealSchedule, setMealSchedule] = useState(false);
+  const [assignSummary, setAssignSummary] = useState(null);
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState({ key: null, plans: [], error: '' });
   const requestKey = `${date}:${revision}`;
@@ -77,13 +78,15 @@ export const TodayTasksView = () => {
 
   return <FarmShiftLayout pageTitle="Việc hôm nay" breadcrumbTitle={opened ? opened.barnName : 'Việc hôm nay'}
     breadcrumbs={[{ label: 'Quản lý khu nuôi', path: '/areas' }, ...(opened ? [{ label: 'Việc hôm nay', path: '/today-tasks' }] : [])]}>
-    {isOwner && <div className={styles.viewTabs} role="tablist" aria-label="Việc hôm nay">
-      <button type="button" role="tab" aria-selected={!assigning} className={!assigning ? styles.viewActive : ''} onClick={() => switchView('tasks')}>
-        <ListChecks size={18} />Việc hôm nay</button>
-      <button type="button" role="tab" aria-selected={assigning} className={assigning ? styles.viewActive : ''} onClick={() => switchView('assign')}>
-        <UserCog size={18} />Phân công</button>
-    </div>}
+    {/* Tab xem và chọn ngày chung một hàng cho gọn; tổng kết việc nằm bên phải. */}
     <div className={styles.toolbar}>
+      <div className={styles.toolbarLeft}>
+      {isOwner && <div className={styles.viewTabs} role="tablist" aria-label="Việc hôm nay">
+        <button type="button" role="tab" aria-selected={!assigning} className={!assigning ? styles.viewActive : ''} onClick={() => switchView('tasks')}>
+          <ListChecks size={18} />Việc hôm nay</button>
+        <button type="button" role="tab" aria-selected={assigning} className={assigning ? styles.viewActive : ''} onClick={() => switchView('assign')}>
+          <UserCog size={18} />Phân công</button>
+      </div>}
       <div className={styles.dateNav}>
         <button type="button" className={styles.navButton} aria-label="Ngày trước" onClick={() => setDate(addDaysIso(date, -1))}><ChevronLeft size={18} /></button>
         <input type="date" aria-label="Ngày làm việc" className="farmshift-form-control" value={date} max={assigning ? undefined : today}
@@ -93,6 +96,11 @@ export const TodayTasksView = () => {
         {isOwner && !assigning && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setMealSchedule(true)}>
           <Clock size={16} />Giờ cho ăn</button>}
       </div>
+      </div>
+      {assigning && assignSummary && <div className={styles.summary}>
+        <UserCog size={18} />
+        <span><strong>{assignSummary.done}/{assignSummary.total}</strong> việc giao đã xong · {formatDay(date)}</span>
+      </div>}
       {!assigning && <div className={styles.summary}>
         <ListChecks size={18} />
         <span><strong>{done}/{tasks}</strong> việc đã xong · {state.plans.length} chuồng · {formatDay(date)}</span>
@@ -102,7 +110,7 @@ export const TodayTasksView = () => {
 
     {mealSchedule && <MealScheduleDialog onClose={() => setMealSchedule(false)}
       onSaved={() => { setMealSchedule(false); setRevision(value => value + 1); }} />}
-    {assigning ? <WorkAssignmentPanel date={date} /> : loading ? <p className={styles.state} role="status">Đang tải phiếu việc...</p>
+    {assigning ? <WorkAssignmentPanel date={date} onSummary={setAssignSummary} /> : loading ? <p className={styles.state} role="status">Đang tải phiếu việc...</p>
       : state.error ? <div className={styles.state} role="alert"><p>{state.error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
         : opened ? <div className={styles.detail}>

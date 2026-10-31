@@ -12,16 +12,18 @@ const apiFieldErrors = error => {
 
 /**
  * Generic form dialog driven by a field list. Each field: { key, label, type: text|number|date|select|textarea,
- * required, options: [{ value, label }], min, max, step, placeholder, hint, full, render }. render(props, setValue)
- * draws a custom control (props carry id, value, className and aria attributes). validate(values) returns
- * { key: message }; onSubmit(values) performs the request and resolves to the success message.
+ * required, options: [{ value, label }], min, max, step, placeholder, hint, full, render, visible }. render(props, setValue)
+ * draws a custom control (props carry id, value, className and aria attributes); visible(values) hides a field (and skips
+ * its required check) when it returns false. validate(values) returns { key: message }; onSubmit(values) performs the
+ * request and resolves to the success message.
  */
-export function FormDialog({ title, intro, warning, fields, initial, validate, onSubmit, submitLabel = 'Lưu và đóng lại', danger, onClose, onDone }) {
+export function FormDialog({ title, intro, warning, fields: allFields, initial, validate, onSubmit, submitLabel = 'Lưu và đóng lại', danger, onClose, onDone }) {
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const set = (key, value) => { setValues(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+  const fields = allFields.filter(field => !field.visible || field.visible(values));
 
   const submit = async event => {
     event.preventDefault();

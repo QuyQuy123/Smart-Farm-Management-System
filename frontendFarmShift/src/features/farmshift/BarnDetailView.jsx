@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeftRight, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Coins, Flag, Gauge, HeartCrack, Layers, Pencil, PlusCircle,
+  ArrowLeftRight, CalendarDays, Eye, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Coins, Flag, Gauge, HeartCrack, Layers, Pencil, PlusCircle,
   Scale, ShoppingCart, Skull, Sprout, Trash2, Users, Warehouse, Wheat,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
@@ -9,13 +9,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
 import {
-  addExpense, addFeedRecord, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample,
+  addExpense, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample,
   assignCycleProgram, assignFlockProgram, getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
 } from '../../services/cycleService';
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
 import { SupplierPicker } from './SupplierPicker';
+import { FlockDetailDialog } from './FlockDetailDialog';
 import { AreaTabs } from './AreaTabs';
 import { DailyPlanCard } from './DailyPlanCard';
 import { useDailyPlanActions } from './useDailyPlanActions';
@@ -349,23 +350,6 @@ export const BarnDetailView = () => {
     },
   });
 
-  const openFeed = () => setModal({
-    title: 'Ghi nhật ký cám',
-    initial: { recordDate: today, feedName: '', quantityKg: '', unitPrice: '', note: '' },
-    fields: [
-      { key: 'recordDate', label: 'Ngày cho ăn', type: 'date', required: true, max: today },
-      { key: 'feedName', label: 'Tên cám', required: true, placeholder: 'Ví dụ: Higro 02' },
-      { key: 'quantityKg', label: 'Lượng cám (kg)', type: 'number', required: true, min: 0, step: 0.01 },
-      { key: 'unitPrice', label: 'Đơn giá cám (đ/kg)', type: 'number', required: true, min: 0, step: 1 },
-      { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
-    ],
-    validate: values => ({ recordDate: dateRule(values.recordDate, 'Ngày cho ăn'), quantityKg: values.quantityKg !== '' && !(Number(values.quantityKg) > 0) ? 'Lượng cám phải lớn hơn 0.' : undefined }),
-    onSubmit: async values => {
-      await addFeedRecord(cycle.id, { ...values, feedName: values.feedName.trim(), quantityKg: Number(values.quantityKg), unitPrice: Number(values.unitPrice), note: values.note.trim() });
-      return 'Đã ghi nhật ký cám.';
-    },
-  });
-
   const openWeight = () => setModal({
     title: 'Ghi thông số vật nuôi (cân mẫu)',
     initial: { sampleDate: today, avgWeightKg: '', sampleSize: '', note: '' },
@@ -552,14 +536,16 @@ export const BarnDetailView = () => {
           ]} />
           {flocks.length === 0 ? <Empty>{flockTab === 'ACTIVE' ? (active ? 'Lứa chưa có đàn. Bấm "Nhập đàn" để nhập con giống.' : 'Không còn đàn đang nuôi.') : 'Chưa có đàn lưu trữ.'}</Empty> :
             <div className={styles.tableWrap}><table className={styles.table}>
-              <thead><tr><th>Mã đàn</th><th>Ngày tuổi</th><th>Tên</th><th colSpan={2}>Số lượng nhập</th><th>Giới tính</th><th>Tồn</th><th>Nguồn nhập</th><th>Ngày nhập</th><th /></tr></thead>
+              {/* Chỉ hiện thông tin cần xem hằng ngày; số lượng nhập, nguồn nhập, giá, hóa đơn... xem ở nút Chi tiết. */}
+              <thead><tr><th>Đàn</th><th>Ngày tuổi</th><th>Tồn</th><th /></tr></thead>
               <tbody>{flocks.map(flock => <tr key={flock.id}>
-                <td>{flock.code}</td><td>{flock.currentAgeDays}</td><td className={styles.upper}>{flock.name}{flock.programName && <small className={styles.programTag}>{flock.programName}</small>}</td>
-                <td>{num(flock.importQuantity)} con</td><td>{num(flock.importWeightKg, 1)} kg</td><td>{labelOf(FLOCK_GENDERS, flock.gender).split(' ')[0]}</td>
+                <td className={styles.upper}>{flock.name}<small className={styles.programTag}>{[flock.code, labelOf(FLOCK_GENDERS, flock.gender).split(' ')[0], flock.programName].filter(Boolean).join(' · ')}</small></td>
+                <td>{flock.currentAgeDays}</td>
                 <td><strong>{num(flock.quantity)} con</strong></td>
-                <td>{flock.supplierName || flock.sourceNote}{canFinance && flock.purchaseInvoiceId && <small className={styles.programTag}>
-                  <Link to={`/purchases?invoice=${flock.purchaseInvoiceId}`} title="Xem hóa đơn nhập con giống">HĐ {flock.purchaseInvoiceCode}</Link></small>}</td><td>{formatDay(flock.importDate)}</td>
-                <td className={styles.rowActions}>{active && flock.status === 'ACTIVE' && <>
+                <td className={styles.rowActions}>
+                  <button type="button" className={styles.iconButton} title="Xem chi tiết đàn" aria-label={`Chi tiết đàn ${flock.code}`}
+                    onClick={() => setModal({ type: 'flock', flock })}><Eye size={15} /></button>
+                  {active && flock.status === 'ACTIVE' && <>
                   {isOwner && <button type="button" className={styles.iconButton} title="Tách / chuyển đàn" aria-label={`Chuyển đàn ${flock.code}`} onClick={() => openTransfer(flock)}><ArrowLeftRight size={15} /></button>}
                   {canDaily && <button type="button" className={styles.iconButton} title="Ghi hao hụt / loại thải" aria-label={`Ghi hao hụt ${flock.code}`} onClick={() => openLoss(flock)}><Skull size={15} /></button>}
                   {canFinance && <button type="button" className={styles.iconButton} title="Xuất bán" aria-label={`Xuất bán ${flock.code}`} onClick={() => openHarvest(flock)}><ShoppingCart size={15} /></button>}
@@ -599,12 +585,11 @@ export const BarnDetailView = () => {
           </div>)}
         </Card>
 
-        <Card title="Nhật ký" icon={ClipboardList} actions={active && canDaily && <>
-          {journalTab === 'FEED' && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openFeed}><PlusCircle size={15} />Ghi cám</button>}
-          {journalTab === 'WEIGHT' && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openWeight}><PlusCircle size={15} />Ghi cân mẫu</button>}
-        </>}>
+        {/* Cám không ghi tay ở đây: nhật ký cám tự có khi bấm Xong cữ ăn (theo chương trình nuôi) ở Việc hôm nay. */}
+        <Card title="Nhật ký" icon={ClipboardList} actions={active && canDaily && journalTab === 'WEIGHT'
+          && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openWeight}><PlusCircle size={15} />Ghi cân mẫu</button>}>
           <Tabs value={journalTab} onChange={setJournalTab} tabs={[{ value: 'FEED', label: 'Cám' }, { value: 'WEIGHT', label: 'Thông số vật nuôi' }, { value: 'LOSS', label: 'Hao hụt & chuyển đàn' }]} />
-          {journalTab === 'FEED' && (detail.feedRecords.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
+          {journalTab === 'FEED' && (detail.feedRecords.length === 0 ? <Empty>Chưa có dữ liệu. Cám được ghi khi bấm Xong cữ ăn ở Việc hôm nay.</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
             <thead><tr><th>Ngày</th><th>Tên cám</th><th>Lượng (kg)</th>{canFinance && <th>Thành tiền</th>}<th>Người ghi</th><th /></tr></thead>
             <tbody>{detail.feedRecords.map(item => <tr key={item.id}><td>{formatDay(item.date)}</td><td>{item.label}</td><td>{num(item.quantity, 2)}</td>
               {canFinance && <td>{money(item.amount)}</td>}<td>{item.createdBy || '—'}</td>
@@ -654,6 +639,7 @@ export const BarnDetailView = () => {
       : error ? <div role="alert" className={`${styles.card} ${styles.emptyCycle}`}><p>{error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate('/barns')}>Về danh sách chuồng</button></div>
         : <><AreaTabs areas={areas} active={barn.areaId} />{header}{detail ? renderCycle() : renderNoCycle()}</>}
+    {modal?.type === 'flock' && <FlockDetailDialog flock={modal.flock} canFinance={canFinance} onClose={() => setModal(null)} />}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}
     {modal && !modal.type && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </FarmShiftLayout>;

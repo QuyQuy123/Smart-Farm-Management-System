@@ -88,17 +88,19 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         <span className={styles.amount}>
           {task.category === 'TEMPERATURE' ? `Giữ ${formatAmount(task.tempMin)} – ${formatAmount(task.tempMax)} °C` : planned || (MEASURED.includes(task.category) ? 'Chưa tính được lượng' : '')}
         </span>
-        <small>
+        {/* Bản gọn (trang chuồng) ẩn liều lượng và phần chia theo đàn; xem đủ ở trang Việc hôm nay. */}
+        {!compact && <small>
           {[task.method && labelOf(METHODS, task.method), task.doseText, task.note].filter(Boolean).join(' · ')}
           {task.shares.length > 1 && task.plannedQuantity != null && <> · {task.shares.map(share => `${share.flockCode}: ${formatAmount(share.plannedQuantity)} ${task.unit}`).join(', ')}</>}
-        </small>
+        </small>}
         {task.stockEnough === false && !done && <small className={styles.short}>Kho không đủ: còn {formatAmount(task.stockOnHand)} {task.stockUnit}</small>}
         {done && <small className={styles.doneLine}>
-          <Check size={13} />Xong lúc {time(done.doneAt)} · {done.doneBy}
+          <Check size={13} />Xong lúc {time(done.doneAt)}{!compact && <>
+          {` · ${done.doneBy}`}
           {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity))
             && ` · thực tế ${amountText(done.actualQuantity, task.unit, done.stockQuantity, task.stockUnit)}`}
           {done.cost != null && Number(done.cost) > 0 && ` · ${money(done.cost)}`}
-          {done.note && ` · ${done.note}`}
+          {done.note && ` · ${done.note}`}</>}
         </small>}
         {errors[task.key] && <small role="alert" className={styles.error}>{errors[task.key]}</small>}
         {isEditing && <div className={styles.editor}>
@@ -131,15 +133,18 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
   const renderAssigned = (task, tagged = false) => {
     const busy = busyKey === `${plan.cycleId}:${assignedKey(task)}`;
     const mine = isOwner || task.assignee.email === userEmail;
+    // Chuồng chỉ có một người phụ trách và việc giao đúng người đó thì "Giao cho …" lặp lại phần Phụ trách ở đầu thẻ.
+    const soleWorker = plan.workers?.length === 1 && plan.workers[0].id === task.assignee.id;
+    const showTime = task.dueTime && !compact;
     return <li key={task.id} className={`${styles.task} ${task.done ? styles.done : ''}`}>
       <div className={styles.info}>
         <strong>{task.title}{tagged && <span className={styles.tag}>Việc được giao</span>}</strong>
-        <small className={styles.assignedMeta}>
-          {task.dueTime && <><Clock size={13} />{String(task.dueTime).slice(0, 5)} · </>}Giao cho {task.assignee.fullName}
-        </small>
-        {task.note && <small>{task.note}</small>}
-        {task.done && <small className={styles.doneLine}><Check size={13} />Xong lúc {time(task.done.doneAt)} · {task.done.doneBy}
-          {task.done.note && ` · ${task.done.note}`}</small>}
+        {(showTime || !soleWorker) && <small className={styles.assignedMeta}>
+          {showTime && <><Clock size={13} />{String(task.dueTime).slice(0, 5)}{!soleWorker && ' · '}</>}{!soleWorker && `Giao cho ${task.assignee.fullName}`}
+        </small>}
+        {task.note && !compact && <small>{task.note}</small>}
+        {task.done && <small className={styles.doneLine}><Check size={13} />Xong lúc {time(task.done.doneAt)}
+          {!compact && ` · ${task.done.doneBy}`}{!compact && task.done.note && ` · ${task.done.note}`}</small>}
         {errors[assignedKey(task)] && <small role="alert" className={styles.error}>{errors[assignedKey(task)]}</small>}
       </div>
       {canAct && mine && onConfirmAssigned && <div className={styles.actions}>

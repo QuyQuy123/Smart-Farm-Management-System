@@ -9,6 +9,11 @@ import styles from './WorkAssignmentView.module.css';
 
 /** Việc chăm sóc hay giao, để chủ trại bấm chọn nhanh khi giao việc. */
 const COMMON_TASKS = ['Rửa máng uống', 'Thay / rắc thêm trấu', 'Sát trùng lối đi, hố sát trùng', 'Kiểm tra quạt, đèn sưởi', 'Dọn phân, đảo đệm lót'];
+const REPEAT_OPTIONS = [
+  { value: 'ONCE', label: 'Không lặp (làm một ngày)' },
+  { value: 'UNTIL', label: 'Lặp mỗi ngày đến ngày…' },
+  { value: 'RANGE', label: 'Lặp mỗi ngày từ ngày … đến ngày …' },
+];
 const time = value => (value ? String(value).slice(0, 5) : '');
 /** Tên gọi (chữ cuối của họ tên) cho gọn trên ô chuồng: "Nông Thị Hằng" → "Hằng". */
 const givenName = name => String(name || '').trim().split(/\s+/).pop();
@@ -81,7 +86,8 @@ function BarnWorkersDialog({ barn, workers, onClose, onSaved }) {
  * Tab "Phân công" trong màn Việc hôm nay (chủ trại): công nhân phụ trách từng chuồng và việc giao thêm hằng ngày.
  * Ngày do màn Việc hôm nay chọn. Công nhân chỉ thấy phiếu việc và việc được giao của chuồng mình phụ trách.
  */
-export function WorkAssignmentPanel({ date }) {
+/** onSummary({ done, total }): trang Việc hôm nay hiện số việc giao đã xong trên thanh công cụ thay cho dòng tổng kết ở đây. */
+export function WorkAssignmentPanel({ date, onSummary }) {
   const { showToast } = useNotification();
   const today = todayIso();
   const [revision, setRevision] = useState(0);
@@ -108,9 +114,12 @@ export function WorkAssignmentPanel({ date }) {
   const areas = board ? groupAreas(board.barns) : [];
   const area = areas.find(item => item.areaId === focus.areaId);
   const focusBarn = area?.barns.find(barn => barn.barnId === focus.barnId);
-  const barns = !area ? [] : focusBarn ? [focusBarn] : area.barns.filter(ofWorker);
+  // Đã mở một khu / chuồng thì thanh lọc công nhân ẩn đi, nên ở đây hiện đủ chuồng của khu, không lọc ngầm.
+  const barns = !area ? [] : focusBarn ? [focusBarn] : area.barns;
   const shownAreas = areas.filter(item => item.barns.some(ofWorker));
   const allTasks = board ? board.barns.flatMap(barn => barn.tasks) : [];
+  const doneTasks = allTasks.filter(task => task.done).length;
+  useEffect(() => { if (onSummary) onSummary(board ? { done: doneTasks, total: allTasks.length } : null); }, [onSummary, board, doneTasks, allTasks.length]);
   const unassigned = board ? board.barns.filter(barn => barn.activeCycleId && barn.workers.length === 0).length : 0;
 
   const openTask = (barn, task) => {
@@ -119,29 +128,40 @@ export function WorkAssignmentPanel({ date }) {
       return;
     }
     const editing = Boolean(task);
+    // Việc giao lưu startDate–endDate; form cho chọn: một ngày, lặp mỗi ngày từ ngày đang xem đến ngày X, hoặc lặp trong khung từ ngày … đến ngày ….
+    const start = date < today ? today : date;
+    const repeat = !editing || task.endDate === task.startDate ? 'ONCE' : task.startDate === start ? 'UNTIL' : 'RANGE';
+    const span = editing && repeat !== 'ONCE' ? { fromDate: task.startDate, toDate: task.endDate } : { fromDate: start, toDate: '' };
     setModal({
       kind: 'form',
       title: editing ? `Sửa việc · ${barn.barnName}` : `Giao việc · ${barn.barnName}`,
-      intro: 'Việc hiện trong phiếu việc của chuồng ở mục Việc hôm nay; công nhân bấm Xong khi làm xong. Đặt "Lặp đến ngày" để giao việc mỗi ngày.',
+      intro: 'Việc hiện trong phiếu việc của chuồng ở mục Việc hôm nay; công nhân bấm Xong khi làm xong. Chọn "Lặp lại" để giao việc mỗi ngày, hoặc chỉ trong một khung ngày.',
       initial: editing
-        ? { assigneeId: String(task.assignee.id), taskTitle: task.title, dueTime: time(task.dueTime), startDate: task.startDate, endDate: task.endDate === task.startDate ? '' : task.endDate, note: task.note || '' }
-        : { assigneeId: String(barn.workers[0].id), taskTitle: '', dueTime: '', startDate: date < today ? today : date, endDate: '', note: '' },
+        ? { assigneeId: String(task.assignee.id), taskTitle: task.title, dueTime: time(task.dueTime), repeat, onceDate: task.startDate, ...span, note: task.note || '' }
+        : { assigneeId: String(barn.workers[0].id), taskTitle: '', dueTime: '', repeat, onceDate: start, ...span, note: '' },
       fields: [
         { key: 'assigneeId', label: 'Công nhân', type: 'select', required: true, options: barn.workers.map(worker => ({ value: String(worker.id), label: worker.fullName })) },
         { key: 'dueTime', label: 'Giờ làm', type: 'time', hint: 'Không bắt buộc.' },
         // Khóa không đặt là 'title' vì FormDialog dùng id cycle-form-title cho tiêu đề hộp thoại.
         { key: 'taskTitle', label: 'Tên công việc', required: true, full: true, placeholder: `Ví dụ: ${COMMON_TASKS.slice(0, 3).join(', ')}` },
-        { key: 'startDate', label: 'Ngày làm', type: 'date', required: true, min: editing ? undefined : today },
-        { key: 'endDate', label: 'Lặp mỗi ngày đến', type: 'date', min: today, hint: 'Để trống nếu chỉ làm trong ngày.' },
+        { key: 'repeat', label: 'Lặp lại', type: 'select', required: true, full: true, options: REPEAT_OPTIONS },
+        { key: 'onceDate', label: 'Ngày làm', type: 'date', required: true, min: editing ? undefined : today, visible: values => values.repeat === 'ONCE' },
+        { key: 'toDate', label: 'Lặp mỗi ngày đến', type: 'date', required: true, min: start, visible: values => values.repeat === 'UNTIL',
+          hint: `Bắt đầu từ ${formatDay(start)}.` },
+        { key: 'fromDate', label: 'Từ ngày', type: 'date', required: true, min: editing ? undefined : today, visible: values => values.repeat === 'RANGE' },
+        { key: 'toDate', label: 'Đến ngày', type: 'date', required: true, min: today, visible: values => values.repeat === 'RANGE' },
         { key: 'note', label: 'Ghi chú', type: 'textarea', full: true, placeholder: 'Hướng dẫn thêm cho công nhân' },
       ],
       validate: values => ({
         taskTitle: values.taskTitle.trim().length > 200 ? 'Tên công việc không quá 200 ký tự.' : undefined,
-        endDate: values.endDate && values.endDate < values.startDate ? 'Ngày lặp đến phải từ ngày làm trở đi.' : undefined,
+        toDate: values.repeat === 'UNTIL' && values.toDate && values.toDate < start ? `Ngày lặp đến phải từ ${formatDay(start)} trở đi.`
+          : values.repeat === 'RANGE' && values.toDate && values.fromDate && values.toDate < values.fromDate ? 'Đến ngày phải từ ngày bắt đầu trở đi.' : undefined,
       }),
       onSubmit: async values => {
+        const [startDate, endDate] = values.repeat === 'ONCE' ? [values.onceDate, null]
+          : values.repeat === 'UNTIL' ? [start, values.toDate] : [values.fromDate, values.toDate];
         const body = { barnId: barn.barnId, assigneeId: Number(values.assigneeId), title: values.taskTitle.trim(), note: values.note.trim(),
-          startDate: values.startDate, endDate: values.endDate || null, dueTime: values.dueTime || null };
+          startDate, endDate, dueTime: values.dueTime || null };
         if (editing) await updateWorkTask(task.id, body); else await createWorkTask(body);
         return editing ? `Đã cập nhật việc "${body.title}".` : `Đã giao việc "${body.title}" cho ${barn.workers.find(worker => String(worker.id) === values.assigneeId)?.fullName}.`;
       },
@@ -155,8 +175,8 @@ export function WorkAssignmentPanel({ date }) {
   });
 
   return <>
-    {board && <div className={styles.stats}>
-      <span><strong>{allTasks.filter(task => task.done).length}/{allTasks.length}</strong> việc giao đã xong · {formatDay(date)}</span>
+    {board && (!onSummary || unassigned > 0) && <div className={styles.stats}>
+      {!onSummary && <span><strong>{doneTasks}/{allTasks.length}</strong> việc giao đã xong · {formatDay(date)}</span>}
       {unassigned > 0 && <span className={styles.alert}>{unassigned} chuồng đang nuôi chưa có người phụ trách</span>}
     </div>}
 
@@ -164,8 +184,8 @@ export function WorkAssignmentPanel({ date }) {
       : state.error ? <div className={styles.state} role="alert"><p>{state.error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
         : <div className={styles.layout}>
-          {/* Lọc theo công nhân: một dải chọn giống thanh Việc hôm nay / Phân công, mỗi người một dòng gọn. */}
-          <div className={styles.workerBar}>
+          {/* Lọc theo công nhân: chỉ ở sơ đồ khu; khi đã mở một khu / chuồng thì không cần nữa. */}
+          {!area && <div className={styles.workerBar}>
             <span className={styles.workerLabel}><Users size={16} />Lọc theo công nhân</span>
             <div className={styles.workers} role="group" aria-label="Công nhân">
               <button type="button" aria-pressed={!workerFilter} className={`${styles.workerRow} ${!workerFilter ? styles.workerActive : ''}`}
@@ -181,7 +201,7 @@ export function WorkAssignmentPanel({ date }) {
               </button>)}
             </div>
             {board.workers.length === 0 && <p className={styles.empty}>Chưa có tài khoản công nhân.</p>}
-          </div>
+          </div>}
 
           {!area ? <div className={styles.areaMap} aria-label="Sơ đồ khu nuôi">
             {shownAreas.length === 0 ? <p className={styles.state}>Công nhân này chưa phụ trách chuồng nào.</p> : shownAreas.map(item => <section
@@ -279,7 +299,7 @@ export function WorkAssignmentPanel({ date }) {
                     <strong>{task.title}</strong>
                     <small>
                       {task.dueTime && <><Clock size={13} /> {time(task.dueTime)} · </>}{task.assignee.fullName}
-                      {task.endDate !== task.startDate && ` · lặp đến ${formatDay(task.endDate)}`}
+                      {task.endDate !== task.startDate && ` · lặp ${formatDay(task.startDate)} – ${formatDay(task.endDate)}`}
                       {task.done ? ` · xong lúc ${new Date(task.done.doneAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` : ''}
                     </small>
                     {task.note && <small className={styles.note}>{task.note}</small>}
