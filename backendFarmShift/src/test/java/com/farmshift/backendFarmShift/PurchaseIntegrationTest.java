@@ -323,6 +323,24 @@ class PurchaseIntegrationTest {
     }
 
     @Test
+    void supplierNameAloneMustNotChooseAnArbitraryGroup() throws Exception {
+        var first = supplierRepository.findById(supplierId).orElseThrow();
+        var type = new ProductType(); type.setName("Other supply group"); type.setNameKey("other supply group"); type = productTypeRepository.saveAndFlush(type);
+        var second = new Supplier(); second.setName(first.getName()); second.setRepresentative(first.getRepresentative()); second.setPhone(first.getPhone());
+        second.setProductType(type); second.setNameKey(com.farmshift.backendFarmShift.service.SupplierService.nameKey(first.getName(), type.getId()));
+        second = supplierRepository.saveAndFlush(second);
+        var rows = List.of(new PurchaseInvoiceItemRequest(null, "Feed", 1.0, "Kg", 1000L, 0.0));
+        var ambiguous = new PurchaseInvoiceRequest(null, first.getName(), LocalDate.now(), rows,
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(ambiguous)))
+                .andExpect(status().isBadRequest());
+        var chosen = new PurchaseInvoiceRequest(second.getId(), first.getName(), LocalDate.now(), rows,
+                0L, 0L, 0L, "Trả sau", "Chưa nhập kho", null, null, null, null);
+        mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(chosen)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.supplierId").value(second.getId()));
+    }
+
+    @Test
     void rejectsInvalidNumericAndTextInputs() throws Exception {
         var request = new PurchaseInvoiceRequest(supplierId, null, LocalDate.now(),
                 List.of(new PurchaseInvoiceItemRequest(null, "Validation feed", 2.0, "Kg", 1000L, 0.0)),

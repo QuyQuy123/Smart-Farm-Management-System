@@ -362,11 +362,12 @@ public class PurchaseService {
         }
         if (request.supplierName() != null && !request.supplierName().isBlank()) {
             String name = Normalizer.normalize(request.supplierName().strip(), Normalizer.Form.NFC);
-            String key = name.toLowerCase(Locale.ROOT);
-            return supplierRepository.findByNameKey(key).orElseGet(() -> {
+            var matches = supplierRepository.findByNameIgnoreCase(name);
+            if (matches.size() > 1) throw new BadRequestException("Có nhiều nhà cung cấp cùng tên ở các nhóm khác nhau. Vui lòng chọn nhà cung cấp cụ thể.");
+            return matches.stream().findFirst().orElseGet(() -> {
                 Supplier newSupplier = new Supplier();
                 newSupplier.setName(name);
-                newSupplier.setNameKey(key);
+
                 newSupplier.setRepresentative("Đại diện NCC");
                 newSupplier.setPhone("0988111222");
 
@@ -377,6 +378,7 @@ public class PurchaseService {
                     return productTypeRepository.saveAndFlush(created);
                 });
                 newSupplier.setProductType(defaultType);
+                newSupplier.setNameKey(SupplierService.nameKey(name, defaultType.getId()));
                 return supplierRepository.saveAndFlush(newSupplier);
             });
         }

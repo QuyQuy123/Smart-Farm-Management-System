@@ -99,7 +99,7 @@ public class PurchaseOcrService {
                     invoiceTotal, computedTotal).replace(',', '.'));
         }
         if (supplierName != null && matched == null) {
-            warnings.add("Nhà cung cấp \"" + supplierName + "\" chưa có trong danh mục – sẽ được tạo mới khi lưu.");
+            warnings.add("Nhà cung cấp \"" + supplierName + "\" chưa khớp duy nhất với danh mục. Vui lòng chọn đúng nhà cung cấp và nhóm trước khi lưu.");
         }
 
         String engine = json.hasNonNull("engine") 
@@ -231,24 +231,21 @@ public class PurchaseOcrService {
         List<Supplier> suppliers = supplierRepository.findAll();
         String taxDigits = taxCode == null ? "" : taxCode.replaceAll("[^0-9]", "");
         if (taxDigits.length() >= 10) {
-            for (Supplier s : suppliers) {
-                String sTax = s.getTaxCode() == null ? "" : s.getTaxCode().replaceAll("[^0-9]", "");
-                if (sTax.equals(taxDigits)) return s;
-            }
+            var matches = suppliers.stream().filter(s -> s.getTaxCode() != null && s.getTaxCode().replaceAll("[^0-9]", "").equals(taxDigits)).toList();
+            if (!matches.isEmpty()) return matches.size() == 1 ? matches.get(0) : null;
         }
         if (name == null) return null;
         String key = normalize(name);
-        for (Supplier s : suppliers) {
-            if (s.getName() != null && normalize(s.getName()).equals(key)) return s;
-        }
+        var exact = suppliers.stream().filter(s -> s.getName() != null && normalize(s.getName()).equals(key)).toList();
+        if (!exact.isEmpty()) return exact.size() == 1 ? exact.get(0) : null;
         String core = stripCompanyWords(key);
         if (core.length() < 4) return null;
-        for (Supplier s : suppliers) {
-            if (s.getName() == null) continue;
-            String sCore = stripCompanyWords(normalize(s.getName()));
-            if (sCore.length() >= 4 && (sCore.contains(core) || core.contains(sCore))) return s;
-        }
-        return null;
+        var matches = suppliers.stream().filter(s -> {
+            if (s.getName() == null) return false;
+            String other = stripCompanyWords(normalize(s.getName()));
+            return other.length() >= 4 && (other.contains(core) || core.contains(other));
+        }).toList();
+        return matches.size() == 1 ? matches.get(0) : null;
     }
 
     static String normalize(String value) {

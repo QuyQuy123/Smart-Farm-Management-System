@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { createProgram, updateProgram } from '../../services/farmingProgramService';
 import { listAllInventoryItems } from '../../services/inventoryItemService';
 import { Dialog, FieldError } from './FarmAreaDialogs';
-import { MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS, apiErrorMessage, itemsForStep, validateProgram } from './farmAreaOptions';
+import { MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS, apiErrorMessage, itemFitsStep, itemsForStep, stockKind, validateProgram } from './farmAreaOptions';
 import { StockNamePicker } from './StockNamePicker';
 import styles from './FarmingPrograms.module.css';
 
@@ -46,12 +46,25 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState([]);
   const [itemsError, setItemsError] = useState('');
+  const [itemsLoading, setItemsLoading] = useState(true);
+  const feedOptions = useMemo(() => {
+    const names = new Map();
+    for (const item of items.filter(item => stockKind(item) === 'FEED')) {
+      const name = item.name?.normalize('NFC').trim();
+      if (!name) continue;
+      const key = name.toLocaleLowerCase('vi');
+      if (!names.has(key)) names.set(key, { name, items: [] });
+      names.get(key).items.push(item);
+    }
+    return [...names.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [items]);
 
   useEffect(() => {
     let cancelled = false;
     listAllInventoryItems()
       .then(data => { if (!cancelled) setItems(Array.isArray(data) ? data : []); })
-      .catch(() => { if (!cancelled) setItemsError('Không tải được danh sách hàng hóa kho. Vẫn lưu được chương trình nhưng chưa gắn hàng hóa.'); });
+      .catch(() => { if (!cancelled) setItemsError('Không tải được danh sách hàng hóa kho. Vui lòng mở lại form để thử lại.'); })
+      .finally(() => { if (!cancelled) setItemsLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -115,6 +128,23 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     const common = { 'aria-label': `${label} dòng ${row.index + 1}`, value: row.step[key], disabled: saving, className: 'farmshift-form-control',
       onChange: event => setStep(row.index, key, event.target.value) };
     if (kind === 'select') return <select {...common}>{extra.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
+    if (kind === 'pick' && row.step.category === 'FEED') {
+      const known = feedOptions.some(option => option.name === row.step.name);
+      return <select aria-label={common['aria-label']} className="farmshift-form-control" value={row.step.name} disabled={saving || itemsLoading}
+        aria-invalid={Boolean(errors.steps[row.index])} onChange={event => {
+          const option = feedOptions.find(option => option.name === event.target.value);
+          const candidates = option?.items || [];
+          // Keep an existing explicit lot link; a name shared by multiple lots must not choose a warehouse arbitrarily.
+          const selected = candidates.find(item => String(item.id) === String(row.step.inventoryItemId))
+            || (candidates.length === 1 ? candidates[0] : null);
+          setStep(row.index, 'name', option?.name || '');
+          setStep(row.index, 'inventoryItemId', selected && itemFitsStep(selected, 'FEED', '') ? String(selected.id) : '');
+        }}>
+        <option value="">{itemsLoading ? 'Đang tải loại cám...' : 'Chọn loại cám'}</option>
+        {!known && row.step.name && <option value={row.step.name}>{row.step.name}</option>}
+        {feedOptions.map(option => <option key={option.name} value={option.name}>{option.name}</option>)}
+      </select>;
+    }
     if (kind === 'pick') {
       return <StockNamePicker label={common['aria-label']} value={row.step.name} itemId={row.step.inventoryItemId} placeholder={extra}
         options={itemsForStep(items, row.step.category, row.step.unit)} disabled={saving} invalid={Boolean(errors.steps[row.index])}
@@ -162,7 +192,8 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
           })}
         </div>
         <FieldError message={errors.fields.steps} />
-        {['FEED', 'VACCINE', 'MEDICINE'].includes(tab) && <p className={styles.itemHint}>
+        {tab === 'FEED' && <p className={styles.itemHint}>Chọn tên cám từ tất cả các kho. Cùng một tên chỉ hiển thị một lần.</p>}
+        {['VACCINE', 'MEDICINE'].includes(tab) && <p className={styles.itemHint}>
           Gõ để lọc và chọn {tab === 'FEED' ? 'loại cám' : tab === 'VACCINE' ? 'vắc-xin' : 'thuốc'} có trong kho: khi công nhân xác nhận việc,
           hệ thống tự trừ kho và cộng chi phí vào lứa. Tên gõ tay vẫn lưu được nhưng không trừ kho.</p>}
         {itemsError && <p className={styles.itemHint} role="status">{itemsError}</p>}

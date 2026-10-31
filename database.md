@@ -4,7 +4,7 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
-- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), sử dụng cú pháp `ON CONFLICT DO NOTHING` hoặc `ON CONFLICT DO UPDATE` để đảm bảo tính lũy kế (idempotent), an toàn khi thực thi nhiều lần.
+- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), sử dụng cú pháp `ON CONFLICT DO NOTHING`, `ON CONFLICT DO UPDATE` và `WHERE NOT EXISTS` để đảm bảo tính lũy kế (idempotent), an toàn tuyệt đối khi thực thi nhiều lần (kể cả trước và sau khi các runner nâng cấp schema khởi chạy).
 - Backend sử dụng Spring Data JPA / Hibernate (`spring.jpa.hibernate.ddl-auto=update`), tự động kiểm tra và cập nhật cấu trúc bảng khi khởi động.
 
 ---
@@ -17,7 +17,7 @@ erDiagram
     roles ||--o{ accounts : "has"
     accounts ||--o| customers : "profiles"
     
-    %% Farm Infrastructure
+    %% Farm Infrastructure & Daily Operations
     farm_areas ||--o{ barns : "contains"
     barns ||--o{ farming_cycles : "hosts"
     farming_cycles ||--o{ flocks : "contains"
@@ -25,9 +25,15 @@ erDiagram
     farming_cycles ||--o{ feed_records : "logs"
     farming_cycles ||--o{ weight_samples : "weighs"
     farming_cycles ||--o{ cycle_expenses : "incurs"
+    farming_cycles ||--o{ daily_task_logs : "confirms_tasks"
     farming_programs ||--o{ farming_program_steps : "defines"
     farming_programs ||--o{ flocks : "applies_to"
     flocks ||--o| flocks : "source_flock"
+    barns ||--o{ barn_workers : "assigned_to"
+    accounts ||--o{ barn_workers : "works_in"
+    barns ||--o{ work_tasks : "schedules"
+    accounts ||--o{ work_tasks : "assigned_tasks"
+    work_tasks ||--o{ work_task_checks : "completed_on"
 
     %% Catalog & Master Data
     product_types ||--o{ suppliers : "categorizes"
@@ -36,13 +42,19 @@ erDiagram
     product_categories ||--o{ inventory_items : "item_detail"
     brands ||--o{ inventory_items : "manufactured_by"
     measurement_units ||--o{ inventory_items : "measured_by"
+    inventory_items ||--o{ farming_program_steps : "linked_stock"
+    inventory_items ||--o{ daily_task_logs : "deducts_stock"
 
     %% Purchase & Stock
     suppliers ||--o{ purchase_invoices : "supplies"
+    suppliers ||--o{ flocks : "supplies_chicks"
+    flocks ||--o{ purchase_invoices : "chick_invoice"
     suppliers }o--o{ purchase_tags : "tagged_via_supplier_tags"
     purchase_invoices ||--o{ purchase_invoice_items : "contains"
     purchase_invoices }o--o{ purchase_tags : "tagged_via_invoice_tags"
     product_categories ||--o{ purchase_invoice_items : "references"
+    warehouse_categories ||--o{ purchase_invoice_items : "destination_warehouse"
+    purchase_invoice_items ||--o| inventory_items : "receipt_lot"
 
     %% Internal Stock Movements
     internal_stock_categories ||--o{ internal_stock_vouchers : "categorizes"
@@ -50,6 +62,11 @@ erDiagram
     internal_stock_vouchers ||--o{ internal_stock_voucher_items : "contains"
     product_categories ||--o{ internal_stock_voucher_items : "transfers"
     farming_cycles ||--o{ internal_stock_vouchers : "charges_expense"
+
+    %% Sales & Harvest
+    customer_contacts ||--o{ sales_orders : "buys"
+    farming_cycles ||--o{ sales_orders : "harvests_from"
+    flock_movements ||--o| sales_orders : "records_harvest"
 ```
 
 ---
@@ -129,9 +146,10 @@ Entity: `Farm`. Lưu trữ hồ sơ định danh cơ sở chăn nuôi tại **Th
 | `name` | VARCHAR(200) | NOT NULL. Tên trang trại / cơ sở kinh doanh; hiển thị tại header và báo cáo. |
 | `owner` | VARCHAR(100) | NOT NULL. Chủ hộ / người đại diện pháp luật. |
 | `phone` | VARCHAR(20) | NOT NULL. Số điện thoại đường dây nóng / liên hệ. |
-| `scale` | VARCHAR(100) | Quy mô thiết kế chăn nuôi (VD: `50.000 con`). |
+| `scale` | VARCHAR(100) | Quy mô thiết kế chăn nuôi (VD: `50,000 con`). |
 | `address` | VARCHAR(500) | Địa chỉ trụ sở / vị trí trang trại. |
-| `type` | VARCHAR(200) | Mô hình sản xuất (VD: `Gà thịt thương phẩm hướng an toàn sinh học`). |
+| `type` | VARCHAR(200) | Mô hình sản xuất (VD: `Nuôi gà thịt thương phẩm an toàn sinh học`). |
+| `first_meal_time` | TIME | Giờ cữ ăn đầu tiên trong ngày phục vụ tính lịch cho ăn; `NULL` mặc định là `07:00`. |
 | `created_at` | TIMESTAMP | Thời điểm khởi tạo. |
 | `updated_at` | TIMESTAMP | Thời điểm cập nhật lần cuối. |
 
@@ -143,7 +161,7 @@ Entity: `Farm`. Lưu trữ hồ sơ định danh cơ sở chăn nuôi tại **Th
 
 ### 3.1 Bảng `customer_contacts` — Danh bạ khách hàng
 
-Entity: `CustomerContact`. Phục vụ quản lý đối tác thương mại tại **Thiết lập danh mục → Khách hàng**.
+Entity: `CustomerContact`. Phục vụ quản lý đối tác thương mại tại **Thiết lập danh mục → Khách hàng** và liên kết với phân hệ **Xuất bán** (`/sales`).
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
@@ -151,10 +169,16 @@ Entity: `CustomerContact`. Phục vụ quản lý đối tác thương mại t�
 | `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã định danh nghiệp vụ sinh tự động `KH` + UUID (không gạch nối). |
 | `name` | VARCHAR(200) | NOT NULL. Tên khách hàng / đơn vị thu mua. |
 | `phone` | VARCHAR(20) | NOT NULL. Số điện thoại (kiểm tra định dạng 10 số di động hoặc 11 số cố định). |
+| `address` | VARCHAR(255) | Địa chỉ khách hàng / đơn vị thu mua. |
+| `tax_code` | VARCHAR(50) | Mã số thuế của khách hàng (hiển thị trên hóa đơn bán hàng). |
+| `payment_method` | VARCHAR(100) | Hình thức thanh toán mặc định (VD: `Tiền mặt`, `Chuyển khoản`). |
+| `total_bought` | NUMERIC(19,2) | Tổng giá trị hàng đã mua lũy kế (VNĐ). |
+| `debt` | NUMERIC(19,2) | Công nợ phải thu hiện tại của khách hàng (VNĐ). |
+| `note` | TEXT | Ghi chú chi tiết về khách hàng. |
 | `created_at` | TIMESTAMP | Thời điểm thêm vào danh bạ. |
 | `updated_at` | TIMESTAMP | Thời điểm chỉnh sửa. |
 
-**API:** `GET /api/customer-contacts?page=0&q=...` (phân trang 10 dòng/trang), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/customer-contacts?page=0&q=...` (phân trang 10 dòng/trang), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`), cùng với `/api/sales/customers` phục vụ tra cứu và thanh toán công nợ khách hàng.
 
 ### 3.2 Bảng `product_types` — Loại hàng hóa
 
@@ -174,17 +198,17 @@ Entity: `ProductType`. Phục vụ nhóm phân loại tại **Thiết lập danh
 
 ### 3.3 Bảng `suppliers` — Nhà cung cấp
 
-Entity: `Supplier`. Quản lý đối tác cung ứng tại **Thiết lập danh mục → Nhà cung cấp** và liên kết chặt chẽ với phân hệ **Nhập hàng**.
+Entity: `Supplier`. Quản lý đối tác cung ứng tại **Thiết lập danh mục → Nhà cung cấp** và liên kết chặt chẽ với phân hệ **Nhập hàng** và **Nhập đàn**.
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã định danh `NCC` + UUID, sinh tự động tại `@PrePersist`. |
 | `name` | VARCHAR(200) | NOT NULL. Tên doanh nghiệp / đơn vị cung cấp. |
-| `name_key` | VARCHAR(200) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC chữ thường chống trùng. |
+| `name_key` | VARCHAR(200) | NOT NULL, UNIQUE. Khóa chống trùng phạm vi theo nhóm hàng hóa: băm `SHA-256("{productTypeId}:{normalizedName}")` (tự động nâng cấp bởi `SupplierNameKeyUpgrade`). |
 | `representative` | VARCHAR(100) | NOT NULL. Tên người liên hệ / đại diện bán hàng. |
 | `phone` | VARCHAR(20) | NOT NULL. Số điện thoại liên hệ (chuẩn hóa 10-11 số). |
-| `product_type_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_types.id`. Nhóm hàng hóa chính cung cấp. |
+| `product_type_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_types.id` (`fk_supplier_product_type`). Nhóm hàng hóa chính cung cấp. |
 | `email` | VARCHAR(100) | Hộp thư điện tử liên hệ. |
 | `address` | VARCHAR(300) | Địa chỉ trụ sở / chi nhánh nhà cung cấp. |
 | `tax_code` | VARCHAR(50) | Mã số thuế doanh nghiệp. |
@@ -244,7 +268,7 @@ Entity: `Brand`. Quản lý thương hiệu đối tác tại **Thiết lập da
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `name` | VARCHAR(150) | NOT NULL. Tên thương hiệu (VD: `C.P. Việt Nam`, `Tập đoàn Dabaco`, `Hanvet`). |
-| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa chống trùng lặp. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Khóa chống trùng theo cặp `(name, product_type)`: băm `SHA-256("{len}:{normalizedName}{normalizedType}")` (tự động nâng cấp bởi `BrandNameKeyUpgrade`). |
 | `product_type` | VARCHAR(150) | Lĩnh vực chuyên môn của thương hiệu. |
 | `quantity` | INTEGER | NOT NULL, DEFAULT 0. Số lượng sản phẩm gắn với thương hiệu. |
 | `note` | VARCHAR(1000) | Ghi chú về nhà sản xuất. |
@@ -281,7 +305,7 @@ Entity: `ProductCategory`. Quản lý danh mục hàng hóa tại **Thiết lậ
 | `specification` | VARCHAR(150) | Quy cách đóng gói (tham chiếu văn bản từ Specifications). |
 | `brand` | VARCHAR(150) | Thương hiệu sản xuất (tham chiếu văn bản từ Brands). |
 | `product_type` | VARCHAR(150) | Phân loại hàng hóa. |
-| `warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Kho lưu trữ mặc định. |
+| `warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id` (`fk_product_category_warehouse`). Kho lưu trữ mặc định. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **API:** `GET /api/product-categories`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
@@ -290,47 +314,64 @@ Entity: `ProductCategory`. Quản lý danh mục hàng hóa tại **Thiết lậ
 
 ## PHẦN 4: QUẢN LÝ KHO & TỒN KHO CHI TIẾT
 
-### 4.1 Bảng `inventory_items` — Mặt hàng tồn kho / Chi tiết tồn kho
+### 4.1 Bảng `inventory_items` — Mặt hàng tồn kho / Chi tiết lô tồn kho
 
-Entity: `InventoryItem`. Quản lý tồn kho thực tế, đơn giá bán/xuất và mã vạch sản phẩm theo từng kho vật lý.
+Entity: `InventoryItem`. Quản lý tồn kho thực tế, đơn giá theo từng lô nhập và mã sản phẩm theo từng kho vật lý.
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã sản phẩm sinh tự động dạng `SP` + UUID chữ in hoa (không đổi khi sửa). |
+| `purchase_invoice_item_id` | BIGINT | UNIQUE, nullable. Định danh dòng chi tiết hóa đơn nhập (`purchase_invoice_items.id`) đã sinh ra lô tồn kho này, giúp giữ riêng đơn giá nhập theo từng đợt và không tái sử dụng lô đã cạn cho hóa đơn sau. |
 | `warehouse_id` | BIGINT | NOT NULL, FOREIGN KEY → `warehouse_categories.id`. Kho lưu trữ mặt hàng. |
 | `product_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_categories.id`. Loại hàng hóa trong danh mục. |
 | `brand_id` | BIGINT | FOREIGN KEY → `brands.id`. Nhãn hiệu sản phẩm (có thể để trống). |
 | `unit_id` | BIGINT | FOREIGN KEY → `measurement_units.id` (`fk_inventory_unit`). Đơn vị tính định lượng. |
-| `price` | NUMERIC(19,2) | NOT NULL. Đơn giá vốn hoặc giá niêm yết hiện hành của mặt hàng (VNĐ). |
-| `stock` | NUMERIC(19,3) | NOT NULL, DEFAULT 0.000. Số lượng tồn kho thực tế hiện có trong kho. |
+| `price` | NUMERIC(19,2) | NOT NULL. Đơn giá vốn hoặc giá niêm yết của lô mặt hàng (VNĐ). |
+| `stock` | NUMERIC(19,3) | NOT NULL, DEFAULT 0.000. Số lượng tồn kho thực tế hiện có của lô hàng. |
 | `image_url` | TEXT | Đường dẫn URL hình ảnh mặt hàng. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**Ràng buộc duy nhất:**
-- `uq_inventory_warehouse_product`: UNIQUE (`warehouse_id`, `product_id`). Trong cùng một kho, mỗi loại mặt hàng chỉ tồn tại duy nhất một dòng quản lý tồn kho.
+**Chỉ mục & Nâng cấp Schema (`InventoryLotSchemaUpgrade`):**
+- Khi khởi động, `InventoryLotSchemaUpgrade` tự động gỡ bỏ ràng buộc cũ `uq_inventory_warehouse_product` và sử dụng chỉ mục `idx_inventory_warehouse_product (warehouse_id, product_id)`, cho phép một sản phẩm tồn tại ở nhiều kho khác nhau cũng như lưu nhiều lô nhập có đơn giá khác nhau trong cùng một kho.
 
 **Quy tắc nghiệp vụ & Tương tác:**
-1. Khi xác nhận nhập kho hóa đơn mua hàng (`POST /api/purchases/{id}/import-stock` hoặc tạo đơn với `stock_status = 'Đã nhập kho'`), hệ thống tìm bản ghi trong kho tương ứng. Nếu đã có thì cộng lũy kế `stock += item.quantity`, nếu chưa có sẽ tự động khởi tạo mặt hàng tồn kho mới.
+1. Khi xác nhận nhập kho hóa đơn mua hàng (`POST /api/purchases/{id}/import-stock` hoặc tạo đơn với `stock_status = 'Đã nhập kho'`), hệ thống ghi nhận tồn kho vào kho đích của từng dòng hàng (`purchase_invoice_items.warehouse_id` hoặc kho mặc định của `product_categories`), bảo toàn đơn giá riêng của đợt nhập thông qua `purchase_invoice_item_id`.
 2. Khi hủy đơn nhập hàng (`POST /api/purchases/{id}/cancel`), lượng tồn kho tương ứng sẽ tự động được khấu trừ hoàn lại để bảo đảm số liệu sổ sách.
+3. Trên giao diện Kho, các dòng tồn kho cùng sản phẩm trong kho được gom nhóm tổng tồn và hỗ trợ xem chi tiết lịch sử các đợt nhập hàng.
 
 **API:**
-- `GET /api/inventory-items?warehouseId={id}`: Danh sách toàn bộ mặt hàng thuộc một kho lưu trữ.
+- `GET /api/inventory-items?warehouseId={id}`: Danh sách mặt hàng thuộc một kho lưu trữ (hoặc tất cả kho).
 - `GET /api/inventory-items/{id}`: Chi tiết một mặt hàng tồn kho.
+- `GET /api/inventory-items/{id}/receipts`: Lịch sử các đợt nhập hàng của mặt hàng tồn kho (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/inventory-items`: Thêm mặt hàng mới vào kho (`ROLE_FARM_OWNER`).
 - `PUT /api/inventory-items/{id}`: Điều chỉnh đơn giá, đơn vị tính hoặc nhãn hiệu (`ROLE_FARM_OWNER`).
-### 4.2 Bảng `internal_stock_categories` — Danh mục phiếu xuất nhập nội bộ
+- `DELETE /api/inventory-items/{id}`: Xóa mặt hàng chưa phát sinh giao dịch (`ROLE_FARM_OWNER`).
 
-Entity: `InternalStockCategory`. Quản lý phân loại danh mục phiếu tại **Xuất nhập nội bộ → Danh mục** (`/internal-stock` hoặc `/transfers`).
+### 4.2 Bảng `internal_stock_categories` & `transfer_categories` — Danh mục phiếu xuất nhập nội bộ
 
+Entity: `InternalStockCategory` (và `TransferCategory`). Quản lý phân loại danh mục phiếu tại **Xuất nhập nội bộ → Danh mục** (`/internal-stock` hoặc `/transfers`).
+
+**Bảng `internal_stock_categories`:**
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
 | `movement_type` | VARCHAR(20) | NOT NULL. `IMPORT` (Nhập kho), `EXPORT` (Xuất kho), `TRANSFER` (Chuyển kho). |
 | `name` | VARCHAR(150) | NOT NULL. Tên danh mục hiển thị (VD: `Nhập đầu kì`, `Xuất hủy`, `Chuyển kho nội bộ`). |
-| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa NFC chữ thường chống trùng lặp. |
+| `name_key` | VARCHAR(150) | NOT NULL, UNIQUE (`uq_internal_stock_category_name_key`). Tên chuẩn hóa NFC chữ thường chống trùng lặp. |
 | `description` | VARCHAR(1000) | Mô tả công dụng và bối cảnh lập phiếu của danh mục. |
 | `is_system` | BOOLEAN | NOT NULL, DEFAULT FALSE. Cờ bảo vệ 3 danh mục gốc của hệ thống không bị xóa. |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+
+**Bảng `transfer_categories`:**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã danh mục sinh tự động `DM` + UUID. |
+| `slip_type` | VARCHAR(150) | NOT NULL. Loại phiếu (`IMPORT`, `EXPORT`, `TRANSFER` hoặc văn bản tự do sau `TransferCategorySchemaUpgrade`). |
+| `name` | VARCHAR(150) | NOT NULL. Tên danh mục. |
+| `name_key` | VARCHAR(150) | NOT NULL. UNIQUE cùng `slip_type` qua `uq_transfer_category_type_name`. |
+| `description` | VARCHAR(1000) | Mô tả chi tiết. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **Thuộc tính tính toán trả về qua API:**
@@ -378,7 +419,7 @@ Entity: `InternalStockVoucherItem`. Danh sách các dòng hàng hóa trong chứ
 | `note` | VARCHAR(500) | Ghi chú cụ thể cho dòng hàng (số lô, tình trạng hỏng hóc...). |
 
 **Quy tắc nghiệp vụ cốt lõi:**
-1. **Trừ tồn kho nguyên tử (`takeStock`)**: Thao tác `EXPORT` và `TRANSFER` bắt buộc thực thi câu lệnh nguyên tử `UPDATE inventory_items SET stock = stock - :qty WHERE id = :id AND stock >= :qty`. Nếu không đủ hàng, chặn ngay và trả mã lỗi chuẩn `MSG27` (`Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm.`).
+1. **Trừ tồn kho nguyên tử (`takeStock`)**: Thao tác `EXPORT` và `TRANSFER` bắt buộc thực thi câu lệnh nguyên tử `UPDATE inventory_items SET stock = stock - :qty WHERE id = :id AND stock >= :qty` (hỗ trợ trừ theo nhiều lô cùng mặt hàng trong kho). Nếu tổng tồn khả dụng không đủ, chặn ngay và trả mã lỗi chuẩn `MSG27` (`Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm.`).
 2. **Quyền hạn xem tài chính**: Khi tài khoản mang vai trò `ROLE_FARM_WORKER` xem phiếu, các trường tài chính (`unit_price`, `amount`, `total_amount`) tự động trả về `NULL`.
 3. **Hoàn tác phiếu (`CANCELLED`)**: Đảo ngược chính xác biến động tồn kho, xóa khoản chi `cycle_expenses` liên quan và chỉ cho phép hoàn tác nếu kho nhận còn đủ hàng để thu hồi.
 
@@ -386,14 +427,14 @@ Entity: `InternalStockVoucherItem`. Danh sách các dòng hàng hóa trong chứ
 - `GET /api/internal-stock/vouchers`: Danh sách phiếu phân trang có bộ lọc (`movementType`, `categoryId`, `warehouseId`, `status`, ngày tháng, từ khóa).
 - `GET /api/internal-stock/vouchers/{id}`: Chi tiết phiếu và danh sách hàng hóa.
 - `POST /api/internal-stock/vouchers`: Lập phiếu xuất/nhập/chuyển kho (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+
 ### 4.5 Bảng `internal_stock_voucher_numbers` — Bộ đếm mã chứng từ xuất nhập nội bộ
 
-Entity: `InternalStockVoucherNumber`. Quản lý giá trị số nguyên tự tăng để sinh mã chứng từ nghiệp vụ duy nhất `XNB000001`, `XNB000002`...
+Entity: `InternalStockVoucherNumber`. Quản lý chuỗi ID tự tăng để sinh mã chứng từ nghiệp vụ duy nhất `XNB000001`, `XNB000002`...
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
-| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
-| `current_val` | BIGINT | NOT NULL, DEFAULT 0. Giá trị số nguyên liên tục hiện tại của bộ đếm. |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng (`GenerationType.IDENTITY`). Dùng làm số thứ tự sinh mã `XNB%06d`. |
 
 ---
 
@@ -424,6 +465,7 @@ Entity: `PurchaseInvoice`. Quản lý các chứng từ mua vật tư, cám, v�
 | `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã chứng từ nhập hàng, ví dụ: `NH000001`. |
 | `supplier_id` | BIGINT | NOT NULL, FOREIGN KEY → `suppliers.id` (`fk_purchase_supplier`). Nhà cung cấp. |
 | `invoice_date` | DATE | NOT NULL. Ngày ghi nhận chứng từ / giao hàng. |
+| `imported_date` | DATE | Ngày nhập kho thực tế do server ghi theo `Asia/Bangkok` khi tạo đơn ở trạng thái `Đã nhập kho` hoặc xác nhận nhập kho. |
 | `discount_amount` | BIGINT | DEFAULT 0. Giá trị chiết khấu / giảm giá trên đơn hàng (VNĐ). |
 | `other_cost` | BIGINT | DEFAULT 0. Chi phí vận chuyển / bốc xếp phát sinh (VNĐ). |
 | `total_amount` | BIGINT | NOT NULL, DEFAULT 0. Tổng số tiền phải thanh toán của đơn hàng (sau thuế, chiết khấu). |
@@ -447,8 +489,9 @@ Entity: `PurchaseInvoiceItem`. Danh sách từng mặt hàng cụ thể trong đ
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
-| `invoice_id` | BIGINT | NOT NULL, FOREIGN KEY → `purchase_invoices.id` ON DELETE CASCADE. |
-| `product_category_id` | BIGINT | FOREIGN KEY → `product_categories.id` (nullable để hỗ trợ nhập tự do). |
+| `invoice_id` | BIGINT | NOT NULL, FOREIGN KEY → `purchase_invoices.id` (`fk_purchase_item_invoice`) ON DELETE CASCADE. |
+| `product_category_id` | BIGINT | FOREIGN KEY → `product_categories.id` (`fk_purchase_item_product_category`, nullable để hỗ trợ nhập tự do). |
+| `warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id` (`fk_purchase_item_warehouse`, nullable). Kho đích được chọn khi lập hóa đơn; nếu để trống sẽ lấy kho mặc định của `product_categories`. |
 | `product_name` | VARCHAR(200) | NOT NULL. Tên mặt hàng hiển thị trên hóa đơn. |
 | `quantity` | DOUBLE PRECISION | NOT NULL, DEFAULT 1.0. Số lượng nhập. |
 | `unit` | VARCHAR(50) | NOT NULL. Đơn vị tính (VD: `Bao (25kg)`, `Kg`, `Con`, `Lọ 1000 liều`). |
@@ -460,7 +503,7 @@ Entity: `PurchaseInvoiceItem`. Danh sách từng mặt hàng cụ thể trong đ
 - `GET /api/purchases?search=...&paymentStatus=...`: Tìm kiếm, lọc hóa đơn nhập hàng.
 - `GET /api/purchases/{id}`: Xem chi tiết hóa đơn kèm danh sách mặt hàng và thẻ tags.
 - `POST /api/purchases`: Tạo mới hóa đơn. Tự động tăng tồn kho nếu chọn `stock_status = 'Đã nhập kho'` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
-- `POST /api/purchases/{id}/import-stock`: Xác nhận nhập kho cho các đơn tạo trước ở trạng thái 'Chưa nhập kho' (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`, `ROLE_FARM_WORKER`).
+- `POST /api/purchases/{id}/import-stock`: Xác nhận nhập kho cho các đơn tạo trước ở trạng thái `'Chưa nhập kho'` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`, `ROLE_FARM_WORKER`).
 - `POST /api/purchases/{id}/pay`: Ghi nhận thanh toán bổ sung cho hóa đơn trả sau (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/purchases/{id}/cancel` (hoặc `DELETE /{id}`): Hủy đơn nhập hàng, tự động hoàn trả tồn kho nếu đã nhập trước đó (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/purchases/ocr`: Bóc tách thông minh chứng từ hóa đơn từ file ảnh chụp hoặc camera stream (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
@@ -553,7 +596,7 @@ Entity: `Flock`. Quản lý từng lô giống nhập hoặc chuyển vào trong
 
 ### 6.5 Bảng `flock_movements` — Biến động đàn
 
-Entity: `FlockMovement`. Nhật ký bất biến ghi nhận mọi biến động số lượng gia cầm (nhập, chết, loại, bán, chuyển).
+Entity: `FlockMovement`. Nhật ký ghi nhận mọi biến động số lượng gia cầm (nhập, chết, loại, bán, chuyển).
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
@@ -565,7 +608,8 @@ Entity: `FlockMovement`. Nhật ký bất biến ghi nhận mọi biến động
 | `weight_kg` | NUMERIC(14,3) | Tổng khối lượng tương ứng (kg). Bắt buộc khi xuất bán. |
 | `unit_price` | NUMERIC(14,2) | Đơn giá xuất bán (VNĐ/kg). |
 | `related_flock_id` | BIGINT | FOREIGN KEY → `flocks.id`. Đàn đối ứng trong giao dịch chuyển đàn. |
-| `note` | VARCHAR(1000) | Nguyên nhân biến động / chẩn đoán bệnh. |
+| `note` | VARCHAR(1000) | Nguyên nhân biến động / chẩn đoán bệnh / mã đơn bán hàng. |
+| `photo_urls` | VARCHAR(2000) | Danh sách đường dẫn ảnh đính kèm khi ghi nhận chết / loại thải (mỗi dòng một URL). |
 | `created_by` | VARCHAR(150) | Email của người ghi nhận nhật ký. |
 | `created_at` | TIMESTAMP | Thời điểm ghi hệ thống. |
 
@@ -657,8 +701,8 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. |
-| `task_date` | DATE | NOT NULL. Ngày làm việc (từ ngày bắt đầu lứa đến hôm nay). |
-| `task_key` | VARCHAR(120) | NOT NULL. Mã việc ổn định: `FEED:I{hàng hóa}:M{cữ}`, `VACCINE:I{hàng hóa}`, `MEDICINE:N{tên}`, `TEMPERATURE:N{tên}`. UNIQUE (`cycle_id`, `task_date`, `task_key`). |
+| `task_date` | DATE | NOT NULL. Ngày làm việc (từ ngày bắt đầu lứa đến hôm nay). Index `idx_daily_task_logs_date`. |
+| `task_key` | VARCHAR(120) | NOT NULL. Mã việc ổn định: `FEED:I{hàng hóa}:M{cữ}`, `VACCINE:I{hàng hóa}`, `MEDICINE:N{tên}`, `TEMPERATURE:N{tên}`. UNIQUE (`cycle_id`, `task_date`, `task_key`) qua `uk_daily_task_logs_cycle_date_key`. |
 | `category` | VARCHAR(20) | NOT NULL. `FEED`, `VACCINE`, `MEDICINE`, `TEMPERATURE`. |
 | `task_name` | VARCHAR(200) | NOT NULL. Tên việc lúc xác nhận (giữ lịch sử khi chương trình bị sửa). |
 | `meal` | INT | Cữ thứ mấy trong ngày (chỉ với cám). |
@@ -685,14 +729,14 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 
 ### 6.11 Bảng `barn_workers`, `work_tasks`, `work_task_checks` — Phân công công việc
 
-Entity: `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Màn **Phân công công việc** (`/work-assignments`, chỉ chủ trại).
+Entity: `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Tab **Phân công** trong màn **Việc hôm nay** (`/today-tasks`, đường dẫn cũ `/work-assignments`, chỉ chủ trại).
 
 **Bảng `barn_workers`** — công nhân phụ trách chuồng:
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `barn_id` | BIGINT | NOT NULL, FOREIGN KEY → `barns.id`. |
-| `account_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id` (tài khoản `ROLE_FARM_WORKER` đang hoạt động). UNIQUE (`barn_id`, `account_id`). |
+| `account_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id` (tài khoản `ROLE_FARM_WORKER` đang hoạt động). UNIQUE (`barn_id`, `account_id`) qua `uk_barn_workers_barn_account`. |
 | `assigned_by` | VARCHAR(150) | Email người phân công. |
 | `assigned_at` | TIMESTAMP | Thời điểm phân công. |
 
@@ -704,15 +748,15 @@ Entity: `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Màn **Phân công công vi�
 | `assignee_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id`. Phải là công nhân phụ trách chuồng (`WORK_ASSIGNEE_NOT_IN_BARN`). |
 | `title` | VARCHAR(200) | NOT NULL. Tên việc (VD: `Rửa máng uống`). |
 | `note` | VARCHAR(1000) | Hướng dẫn thêm. |
-| `start_date`, `end_date` | DATE | NOT NULL. `end_date` ≥ `start_date`, tối đa 183 ngày, `end_date` không trước hôm nay. |
+| `start_date`, `end_date` | DATE | NOT NULL. `end_date` ≥ `start_date`, tối đa 183 ngày, `end_date` không trước hôm nay. Index `idx_work_tasks_dates`. |
 | `due_time` | TIME | Giờ nên làm (không bắt buộc). |
-| `created_by`, `created_at` | VARCHAR / TIMESTAMP | Người và thời điểm giao. |
+| `created_by`, `created_at` | VARCHAR(150) / TIMESTAMP | Người và thời điểm giao. |
 
 **Bảng `work_task_checks`** — ngày việc được làm xong:
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
-| `task_id` | BIGINT | NOT NULL, FOREIGN KEY → `work_tasks.id`. UNIQUE (`task_id`, `check_date`). |
+| `task_id` | BIGINT | NOT NULL, FOREIGN KEY → `work_tasks.id`. UNIQUE (`task_id`, `check_date`) qua `uk_work_task_checks_task_date`. |
 | `check_date` | DATE | NOT NULL. Ngày làm (trong khoảng ngày của việc, không sau hôm nay). |
 | `note` | VARCHAR(1000) | Ghi chú của người làm. |
 | `done_by`, `done_at` | VARCHAR(150) / TIMESTAMP | NOT NULL. Người xác nhận và thời điểm. |
@@ -727,23 +771,68 @@ Entity: `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Màn **Phân công công vi�
 
 ---
 
-## PHẦN 7: LƯU TRỮ VÀ QUẢN LÝ TỆP TIN (MEDIA & ATTACHMENTS)
+## PHẦN 7: QUẢN LÝ XUẤT BÁN & HÓA ĐƠN BÁN HÀNG
+
+### 7.1 Bảng `sales_orders` — Đơn xuất bán gia cầm
+
+Entity: `SalesOrder`. Quản lý chứng từ xuất bán gà thương phẩm, theo dõi công nợ khách mua, đính kèm phiếu cân và tự động trừ số lượng đàn / cộng dồn doanh thu lứa nuôi tại **Xuất bán** (`/sales`).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | VARCHAR(255) | PRIMARY KEY. Định danh đơn hàng (UUID). |
+| `code` | VARCHAR(255) | NOT NULL, UNIQUE. Mã chứng từ bán hàng tự sinh dạng `BH000001` (nâng cấp từ mã `BH<32-hex>` cũ qua `SalesInvoiceCodeMigration`). |
+| `date` | DATE | Ngày xuất bán trên chứng từ. |
+| `customer` | VARCHAR(255) | Tên khách hàng / thương lái thu mua. |
+| `phone` | VARCHAR(255) | Số điện thoại người mua. |
+| `address` | VARCHAR(255) | Địa chỉ người mua. |
+| `flock` | VARCHAR(255) | Tên chuồng / đàn xuất bán hiển thị trên đơn (VD: `Nhà A1 - MÍA-DABACO XÔ (Lứa 1)`). |
+| `quantity` | INT | NOT NULL. Số lượng con gia cầm xuất bán. |
+| `total_weight` | NUMERIC(19,2) | Tổng khối lượng cân thực tế của đợt xuất bán (kg). |
+| `unit_price` | NUMERIC(19,2) | Đơn giá bán (VNĐ/kg). |
+| `total_amount` | NUMERIC(19,2) | Tổng thành tiền của đơn hàng = `total_weight * unit_price` (VNĐ). |
+| `paid_amount` | NUMERIC(19,2) | Số tiền khách đã thanh toán (VNĐ). |
+| `status` | VARCHAR(255) | Trạng thái thanh toán: `Đã thanh toán`, `Chưa thanh toán`, `Thanh toán 1 phần`. |
+| `weight_slip_url` | VARCHAR(500) | Đường dẫn tệp ảnh phiếu cân đính kèm (`/uploads/weight-slips/...`). |
+| `note` | TEXT | Ghi chú chi tiết của đơn xuất bán. |
+| `customer_id` | BIGINT | FOREIGN KEY → `customer_contacts.id`. Liên kết khách hàng trong danh bạ để đồng bộ công nợ và xuất hóa đơn. |
+| `cycle_id` | BIGINT | FOREIGN KEY → `farming_cycles.id`. Lứa nuôi được chọn khi xuất bán. |
+| `movement_id` | BIGINT | UNIQUE, FOREIGN KEY → `flock_movements.id`. Biến động xuất bán (`HARVEST`) gắn với đơn hàng. |
+| `created_at` | TIMESTAMP | Thời điểm tạo đơn do server ghi nhận theo múi giờ `Asia/Bangkok`. |
+
+### 7.2 Bảng `sales_invoice_numbers` — Bộ đếm mã hóa đơn bán hàng
+
+Entity: `SalesInvoiceNumber`. Quản lý chuỗi số tự tăng để cấp phát mã đơn bán hàng `BH000001`, `BH000002`...
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng (`GenerationType.IDENTITY`). Dùng làm số thứ tự sinh mã `BH%06d`. |
+
+**Quy tắc nghiệp vụ & Tương tác Xuất bán:**
+1. **Tự động trừ đàn & cộng doanh thu lứa nuôi (`applyHarvest` / `revertPreviousHarvest`)**:
+   - Khi tạo đơn bán hàng (`POST /api/sales/orders`) có gắn `cycleId` (hoặc khớp tên chuồng/đàn), hệ thống tự động trừ `quantity` vào `Flock.quantity` và `Barn.currentQuantity`, đồng thời tạo bản ghi `FlockMovement` (`type = HARVEST`, `quantity`, `weightKg = totalWeight`, `unitPrice`). Nhờ đó báo cáo lứa nuôi (`CycleService.metrics()`) tự động cộng dồn sản lượng thịt xuất chuồng và doanh thu thực tế của lứa.
+   - Khi cập nhật đơn bán hàng (`PUT /api/sales/orders/{id}`), hệ thống hoàn trả số lượng của biến động `HARVEST` cũ trước khi áp dụng số lượng mới.
+2. **Nhận diện phiếu cân bằng AI OCR (`SalesWeightVisionClient` & `aiServiceFarmShift`)**:
+   - Cho phép tải ảnh chụp hoặc PDF phiếu cân để bóc tách tự động bảng cân, số lượng con, tổng khối lượng, vẽ khung vị trí nhận diện (bounding boxes) trên ảnh xem trước độ phân giải cao và tự động gợi ý chuồng/đàn tương ứng.
+3. **Thông tin xuất hóa đơn bán hàng (`GET /api/sales/orders/{id}/invoice`)**:
+   - Đọc thông tin bên mua từ `customer_contacts` (`tax_code`, `payment_method`, `address`, `phone`) và thông tin bên bán từ cấu hình `sales.invoice.seller.*` (`name`, `tax-code`, `address`, `phone`, `fax`, `bank-account`).
+
+**API Quản lý Xuất bán:**
+- `GET /api/sales/orders`: Danh sách các đơn xuất bán.
+- `GET /api/sales/orders/{id}/invoice`: Dữ liệu in hóa đơn bán hàng.
+- `POST /api/sales/orders`: Tạo đơn xuất bán mới, cập nhật công nợ khách hàng và trừ tồn đàn (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `PUT /api/sales/orders/{id}`: Cập nhật đơn xuất bán và điều chỉnh lại biến động đàn / công nợ.
+- `POST /api/sales/orders/ocr` & `POST /api/sales/orders/weight-slip`: Lưu ảnh phiếu cân và gọi AI OCR bóc tách số liệu (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `POST /api/sales/orders/weight-slip/preview`: Chuyển đổi PDF/ảnh phiếu cân sang ảnh PNG xem trước (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+
+---
+
+## PHẦN 8: LƯU TRỮ VÀ QUẢN LÝ TỆP TIN (MEDIA & ATTACHMENTS)
 
 Hệ thống hỗ trợ linh hoạt 2 chế độ lưu trữ qua biến môi trường `STORAGE_PROVIDER`:
 1. `STORAGE_PROVIDER=local` (môi trường Dev / Local):
    - Ảnh đại diện được lưu vào thư mục: `frontendFarmShift/public/img/avatars/<UUID>.<ext>`.
    - Cơ sở dữ liệu lưu đường dẫn tương đối phục vụ web: `/img/avatars/<UUID>.<ext>`.
-   - File đính kèm hóa đơn lưu vào thư mục `frontendFarmShift/public/uploads/...`.
+   - File đính kèm hóa đơn nhập hàng và phiếu cân xuất bán lưu vào thư mục `uploads/...` (phục vụ qua `/uploads/**`).
 2. `STORAGE_PROVIDER=r2` (môi trường Production / Cloud):
    - Tệp tin tải trực tiếp lên Cloudflare R2 bucket thông qua AWS S3 SDK.
    - Cơ sở dữ liệu lưu URL đầy đủ truy cập công khai CDN (VD: `https://pub-xxxx.r2.dev/avatars/<UUID>.png`).
-
-`purchase_invoices.imported_date` (DATE, nullable): ngày nhập kho thực tế do server ghi theo Asia/Bangkok khi tạo hóa đơn ở trạng thái Đã nhập kho hoặc xác nhận nhập kho. Khác với ngày chứng từ `invoice_date`. Phiếu chưa nhập hoặc dữ liệu cũ chưa có ngày hiển thị —; không suy đoán ngày từ ngày chứng từ.
-
-### Thông tin xuất hóa đơn bán hàng
-
-- `customer_contacts.tax_code` (VARCHAR 50), `payment_method` (VARCHAR 100): mã số thuế và hình thức thanh toán, lưu từ form tạo đơn bán hàng.
-- `sales_orders.customer_id`: FK tới `customer_contacts`, dùng đọc thông tin bên mua trên hóa đơn.
-- `sales_orders.created_at`: thời điểm tạo đơn do server ghi theo Asia/Bangkok; mẫu hóa đơn hiển thị ngày của thời điểm này. Đơn cũ chưa có timestamp dùng `date` đã lưu, không tự đoán lại thời điểm tạo.
-- API `GET /api/sales/orders/{id}/invoice`: chỉ trả các trường thông tin hóa đơn, không trả toàn bộ cấu hình hệ thống. Đơn cũ chưa liên kết khách hàng được tra bằng tên và số điện thoại.
-- Thông tin đơn vị bán lấy từ `sales.invoice.seller.name`, `tax-code`, `address`, `phone`, `fax`, `bank-account` trong `application-local.properties`. Giá trị để trống chờ cấu hình thực tế. Không thêm bảng mới; khởi động backend với ddl-auto=update để bổ sung các cột.

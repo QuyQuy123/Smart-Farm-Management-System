@@ -42,6 +42,14 @@ export const PurchasesView = () => {
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'suppliers' | 'tags'
   const [purchases, setPurchases] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const supplierNameCounts = useMemo(() => {
+    const counts = new Map();
+    for (const supplier of suppliers) {
+      const key = supplier.name?.trim().toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return counts;
+  }, [suppliers]);
   const [tags, setTags] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
   const [productCategories, setProductCategories] = useState([]);
@@ -749,9 +757,10 @@ export const PurchasesView = () => {
       setOcrRotation(0);
 
       const data = await ocrPurchase(fileOrNull);
+      const matchingSuppliers = data.supplierName ? suppliers.filter(s => s.name?.trim().toLowerCase() === data.supplierName.trim().toLowerCase()) : [];
       const matchedSup = data.supplierId
         ? suppliers.find(s => s.id === data.supplierId)
-        : (data.supplierName ? suppliers.find(s => s.name?.toLowerCase() === data.supplierName?.toLowerCase()) : null);
+        : (matchingSuppliers.length === 1 ? matchingSuppliers[0] : null);
 
       const defaultTags = matchedSup?.tagIds ? [...matchedSup.tagIds] : [];
       const isNewSup = !matchedSup && !!data.supplierName;
@@ -1830,7 +1839,7 @@ export const PurchasesView = () => {
                           </option>
                         )}
                         {suppliers.map(s => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
+                          <option key={s.id} value={s.id}>{s.name}{supplierNameCounts.get(s.name?.trim().toLowerCase()) > 1 ? ` (${s.productTypeName || 'Nhóm chưa xác định'})` : ''}</option>
                         ))}
                       </select>
                     </div>
