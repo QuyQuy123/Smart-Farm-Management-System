@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, Check, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, X } from 'lucide-react';
 import { createBarn, createFarmArea, deleteBarn, deleteFarmArea, updateBarn, updateFarmArea } from '../../services/farmAreaService';
-import { ANIMAL_METRICS, BIRDS_PER_M2, ENVIRONMENT_METRICS, apiErrorMessage, suggestCapacity, validateBarn } from './farmAreaOptions';
+import { BIRDS_PER_M2, apiErrorMessage, suggestCapacity, validateBarn } from './farmAreaOptions';
 import styles from './AreasView.module.css';
 
 // Validation (400) and duplicate-name (409) responses carry { field: message } in data.
@@ -34,26 +34,11 @@ export function Dialog({ title, labelId, busy, onClose, wide, className = '', ch
 
 export const FieldError = ({ id, message }) => message ? <p id={id} className={styles.fieldError}>{message}</p> : null;
 
-function MetricPicker({ legend, options, value, onChange, disabled }) {
-  const toggle = code => onChange(value.includes(code) ? value.filter(item => item !== code) : [...value, code]);
-  return <fieldset className={styles.metricGroup} disabled={disabled}>
-    <legend>{legend}</legend>
-    <div className={styles.chips}>
-      {options.map(option => {
-        const selected = value.includes(option.value);
-        return <button key={option.value} type="button" className={`${styles.chip} ${selected ? styles.chipSelected : ''}`}
-          aria-pressed={selected} onClick={() => toggle(option.value)}>
-          {selected && <Check size={13} />}{option.label}
-        </button>;
-      })}
-    </div>
-  </fieldset>;
-}
-
 export function AreaDialog({ area, onClose, onSaved }) {
   const editing = Boolean(area);
   const [form, setForm] = useState(() => ({
     name: area?.name || '',
+    // Chỉ số theo dõi đã có sẵn cho mọi khu nên không hỏi trong form; giữ giá trị cũ khi sửa, mặc định khi tạo mới.
     environmentMetrics: area?.environmentMetrics || ['HUMIDITY', 'TEMPERATURE'],
     animalMetrics: area?.animalMetrics || ['WEIGHT', 'LOSS'],
     description: area?.description || '',
@@ -92,8 +77,6 @@ export function AreaDialog({ area, onClose, onSaved }) {
           placeholder="Ví dụ: Khu Mía Thịt" onChange={event => set('name', event.target.value)} disabled={saving}
           aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'farm-area-name-error' : undefined} autoFocus />
         <FieldError id="farm-area-name-error" message={errors.name} />
-        <MetricPicker legend="Theo dõi môi trường" options={ENVIRONMENT_METRICS} value={form.environmentMetrics} onChange={value => set('environmentMetrics', value)} disabled={saving} />
-        <MetricPicker legend="Theo dõi vật nuôi" options={ANIMAL_METRICS} value={form.animalMetrics} onChange={value => set('animalMetrics', value)} disabled={saving} />
         <label htmlFor="farm-area-description">Ghi chú</label>
         <textarea id="farm-area-description" className="farmshift-form-control" rows={3} maxLength={1000} value={form.description}
           placeholder="Mô tả hạ tầng, diện tích, hệ thống làm mát..." onChange={event => set('description', event.target.value)} disabled={saving} />

@@ -81,13 +81,14 @@ describe('Farm area management', () => {
     fireEvent.change(within(dialog).getByLabelText(/Tên khu nuôi/), { target: { value: '  Khu A  ' } });
     expect(within(dialog).queryByLabelText(/Loại vật nuôi/)).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/Số bữa ăn/)).not.toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Độ ẩm' }));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Ảnh chết loại' }));
+    // Tracked metrics are built in, so the form no longer asks for them and sends the defaults.
+    expect(within(dialog).queryByText('Theo dõi môi trường')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Theo dõi vật nuôi')).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await screen.findByRole('link', { name: 'Khu A' });
     expect(service.createFarmArea).toHaveBeenCalledWith({
-      name: 'Khu A', environmentMetrics: ['TEMPERATURE'],
-      animalMetrics: ['WEIGHT', 'LOSS', 'DEAD_PHOTO'], description: '',
+      name: 'Khu A', environmentMetrics: ['HUMIDITY', 'TEMPERATURE'],
+      animalMetrics: ['WEIGHT', 'LOSS'], description: '',
     });
     expect(mocks.showToast).toHaveBeenCalledWith('Đã thêm khu nuôi Khu A.', 'success');
   });

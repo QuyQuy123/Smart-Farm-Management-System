@@ -74,7 +74,7 @@
 .modalHeader { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; gap: 16px; border-bottom: 1px solid #edf1f0; }
 .modalHeader h2 { margin: 0; font-size: 18px; font-weight: 600; color: #182b31; }
 .modalBody { padding: 22px 24px; }
-.modalBody label, .metricGroup legend { display: block; font-size: 14.5px; font-weight: 500; margin: 0 0 7px; color: #182b31; }
+.modalBody label { display: block; font-size: 14.5px; font-weight: 500; margin: 0 0 7px; color: #182b31; }
 .modalBody input, .modalBody select { margin-bottom: 4px; }
 .modalBody textarea { resize: vertical; min-height: 80px; }
 .modalBody p { line-height: 1.6; margin: 0; }
@@ -83,11 +83,6 @@
 .formHint { margin: 0 0 14px !important; font-size: 13.5px; color: #607781; line-height: 1.5; }
 .invalid { border-color: #e11d48 !important; }
 .fieldError { color: #e11d48 !important; font-size: 13.5px; margin: 2px 0 8px !important; }
-.metricGroup { border: 0; padding: 0; margin: 14px 0 16px; min-width: 0; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { display: inline-flex; align-items: center; gap: 5px; padding: 7px 12px; border: 1px solid #dce5e2; border-radius: 999px; background: #fff; color: #42545c; font: inherit; font-size: 14.5px; cursor: pointer; }
-.chip:hover { border-color: #8fcdb8; }
-.chipSelected { background: #e8f6f1; border-color: #19a37f; color: #00695c; font-weight: 500; }
 .error, .warning { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; margin: 0 0 16px !important; border-radius: 8px; font-size: 14.5px; }
 .error { background: #fff1f0; color: #c63030; }
 .warning { background: #fff8e6; color: #8a5a00; border: 1px solid #f4d78a; }
