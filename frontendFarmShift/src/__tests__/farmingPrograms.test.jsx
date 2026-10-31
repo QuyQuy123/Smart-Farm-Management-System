@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { FarmingProgramsPanel } from '../features/farmshift/FarmingProgramsPanel';
 import * as service from '../services/farmingProgramService';
+import { listAllInventoryItems } from '../services/inventoryItemService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
@@ -51,6 +52,22 @@ describe('Farming programs by breed', () => {
     service.createProgram.mockImplementation(async body => { programs.push({ ...body, id: 2, code: 'CT0002', activeFlockCount: 0, steps: body.steps.map((step, i) => ({ ...step, id: 100 + i })) }); });
   });
 
+  it('lists feed names from all warehouses once, even when pack conversion is not configured', async () => {
+    listAllInventoryItems.mockResolvedValueOnce([
+      { id: 30, name: 'Cám GT2', warehouseName: 'Kho cám khu A', stock: 100 },
+      { id: 31, name: 'Cám GT2', warehouseName: 'Kho cám khu B', stock: 200 },
+      { id: 32, name: 'Cám GT3', warehouseName: 'Kho cám mới', stock: 0 },
+      { id: 33, name: 'Thuốc A', warehouseName: 'Kho thuốc', stock: 5 }
+    ]);
+    render(<FarmingProgramsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Tạo chương trình' }));
+    const select = await screen.findByRole('combobox', { name: 'Loại cám dòng 1' });
+    await waitFor(() => expect(select).toBeEnabled());
+    expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual(['Chọn loại cám', 'Cám GT2', 'Cám GT3']);
+    fireEvent.change(select, { target: { value: 'Cám GT2' } });
+    expect(select).toHaveValue('Cám GT2');
+  });
+
   it('shows a breed program with its sections and a day-of-age lookup', async () => {
     render(<FarmingProgramsPanel />);
     expect(await screen.findByRole('heading', { name: /Gà ta thả vườn/ })).toBeInTheDocument();
@@ -72,21 +89,16 @@ describe('Farming programs by breed', () => {
     fireEvent.change(within(dialog).getByLabelText(/Tên chương trình/), { target: { value: 'Gà ta thả vườn' } });
     fireEvent.change(within(dialog).getByLabelText(/Giống gà/), { target: { value: 'Gà ta' } });
     fireEvent.change(within(dialog).getByLabelText(/Thời gian nuôi/), { target: { value: '105' } });
-    fireEvent.change(within(dialog).getByLabelText('Loại cám dòng 1'), { target: { value: 'Cám gà con' } });
+    await waitFor(() => expect(within(dialog).getByLabelText('Loại cám dòng 1')).toBeEnabled());
+    fireEvent.change(within(dialog).getByLabelText('Loại cám dòng 1'), { target: { value: 'Higro 01' } });
     fireEvent.change(within(dialog).getByLabelText('Đến ngày dòng 1'), { target: { value: '21' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu chương trình' }));
     expect(await within(dialog).findByText('Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.')).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText('g/con/ngày dòng 1'), { target: { value: '15' } });
     fireEvent.change(within(dialog).getByLabelText('Số cữ/ngày dòng 1'), { target: { value: '6' } });
-    // Only stock items whose pack size converts to the ration (kg for feed) can be linked.
-    // The feed name is picked from stock: only feed items are suggested, filtered by what is typed, without stock levels.
-    const feedName = within(dialog).getByLabelText('Loại cám dòng 1');
-    fireEvent.change(feedName, { target: { value: 'higro' } });
-    const suggestions = await screen.findByRole('listbox', { name: 'Gợi ý Loại cám dòng 1' });
-    expect(within(suggestions).getAllByRole('option').map(option => option.textContent)).toEqual(['Higro 01Bao 25kg', 'Higro 02Bao 25kg']);
-    expect(suggestions).not.toHaveTextContent(/tồn/);
-    fireEvent.change(feedName, { target: { value: 'higro 01' } });
-    fireEvent.mouseDown(within(screen.getByRole('listbox')).getByRole('option', { name: /Higro 01/ }));
+    const feedName = within(dialog).getByRole('combobox', { name: 'Loại cám dòng 1' });
+    expect(within(feedName).getAllByRole('option').map(option => option.textContent)).toEqual(['Chọn loại cám', 'Higro 01', 'Higro 02']);
+    fireEvent.change(feedName, { target: { value: 'Higro 01' } });
     expect(feedName).toHaveValue('Higro 01');
 
     fireEvent.click(within(dialog).getByRole('tab', { name: /Lịch vắc-xin/ }));

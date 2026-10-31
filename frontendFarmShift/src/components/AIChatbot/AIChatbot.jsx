@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Sparkles, X, Send, Bot, RotateCcw,
+  Sparkles, X, Send, RotateCcw,
   ChevronDown, Mic, MicOff, ShieldAlert,
   Zap, ExternalLink, Volume2, VolumeX, Check, AlertCircle
 } from 'lucide-react';
 import { getSystemMessage } from '../../constants/systemMessages';
 import { transcribeAudio, sendAssistantMessage } from '../../services/aiAssistantService';
+import farmLogo from '../../assets/logo_Farm.png';
 import styles from './AIChatbot.module.css';
 
 let nextMsgId = 100;
@@ -781,7 +782,7 @@ export const AIChatbot = () => {
           <div className={styles.header}>
             <div className={styles.headerInfo}>
               <div className={styles.avatarWrapper}>
-                <Bot size={22} />
+                <img src={farmLogo} alt="FarmShift AI" className={styles.avatarLogo} />
                 <span className={styles.statusDot} />
               </div>
               <div className={styles.headerText}>
@@ -789,33 +790,10 @@ export const AIChatbot = () => {
                   <span>Trợ lý AI FarmShift</span>
                   <Sparkles size={14} color="#f59e0b" />
                 </div>
-                <div className={styles.headerSubtitle}>
-                  <span className={styles.onlineBadge}>● Đang trực tuyến</span>
-                  <span>· Thú y & Điều hành trại</span>
-                </div>
               </div>
             </div>
 
             <div className={styles.headerActions}>
-              {'speechSynthesis' in window && (
-                <button
-                  type="button"
-                  className={`${styles.ttsHeaderBtn} ${isAutoSpeakEnabled ? styles.ttsHeaderBtnActive : ''}`}
-                  title={isAutoSpeakEnabled ? 'Tắt tự động đọc giọng nói' : 'Bật tự động đọc giọng nói (Auto-TTS)'}
-                  onClick={toggleAutoSpeak}
-                  data-testid="header-tts-toggle"
-                >
-                  {isAutoSpeakEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                </button>
-              )}
-              <button
-                type="button"
-                className={styles.iconBtn}
-                title="Bắt đầu hội thoại mới"
-                onClick={handleReset}
-              >
-                <RotateCcw size={15} />
-              </button>
               <button
                 type="button"
                 className={styles.iconBtn}
@@ -836,7 +814,7 @@ export const AIChatbot = () => {
               >
                 {msg.type === 'bot' && (
                   <div className={styles.botIconSmall}>
-                    <Bot size={15} />
+                    <img src={farmLogo} alt="FarmShift AI" className={styles.botLogoSmall} />
                   </div>
                 )}
                 <div className={`${styles.message} ${msg.type === 'user' ? styles.messageUser : styles.messageBot}`}>
@@ -991,7 +969,7 @@ export const AIChatbot = () => {
             {isTyping && (
               <div className={`${styles.messageRow} ${styles.messageRowBot}`}>
                 <div className={styles.botIconSmall}>
-                  <Bot size={15} />
+                  <img src={farmLogo} alt="FarmShift AI" className={styles.botLogoSmall} />
                 </div>
                 <div className={`${styles.message} ${styles.messageBot}`}>
                   <div className={styles.typingWrapper}>
@@ -1060,26 +1038,6 @@ export const AIChatbot = () => {
               >
                 <Send size={15} />
               </button>
-            </div>
-
-            {/* Advisory Banner (MSG38) */}
-            <div style={{
-              fontSize: '12.5px',
-              color: '#92400e',
-              backgroundColor: '#fffbeb',
-              borderTop: '1px solid #fef3c7',
-              padding: '6px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              lineHeight: 1.4
-            }}>
-              <ShieldAlert size={13} color="#d97706" style={{ flexShrink: 0 }} />
-              <span>{getSystemMessage('MSG38')}</span>
-            </div>
-
-            <div className={styles.inputHint}>
-              Nhấn <strong>Enter</strong> hoặc bấm Micro 🎙️ để ra lệnh bằng giọng nói
             </div>
           </div>
         </div>

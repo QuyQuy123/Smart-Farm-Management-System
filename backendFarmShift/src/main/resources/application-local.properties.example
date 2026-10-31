@@ -31,3 +31,11 @@ sales.invoice.seller.address=
 sales.invoice.seller.phone=
 sales.invoice.seller.fax=
 sales.invoice.seller.bank-account=
+
+# Local backend automatically starts aiServiceFarmShift using venv/Scripts/python.exe.
+# Install aiServiceFarmShift/requirements.txt in that venv once before starting.
+AI_SERVICE_AUTOSTART_ENABLED=true
+# Optional overrides (otherwise detected from this checkout):
+# AI_SERVICE_DIRECTORY=D:/Smart-Farm-Management-System/aiServiceFarmShift
+# AI_SERVICE_PYTHON=D:/Smart-Farm-Management-System/aiServiceFarmShift/venv/Scripts/python.exe
+AI_SERVICE_START_TIMEOUT=45

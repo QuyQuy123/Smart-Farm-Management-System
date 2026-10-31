@@ -68,12 +68,6 @@ public class SupplierService {
 
     private SupplierResponse save(Supplier supplier, SupplierRequest request) {
         String name = Normalizer.normalize(request.name().strip(), Normalizer.Form.NFC);
-        String key = name.toLowerCase(Locale.ROOT);
-        if (repository.existsByNameKeyAndIdNot(key, supplier.getId() == null ? -1L : supplier.getId())) {
-            throw duplicate();
-        }
-        supplier.setName(name);
-        supplier.setNameKey(key);
         supplier.setRepresentative(request.representative().strip());
         supplier.setPhone(request.phone().strip());
         ProductType pt = null;
@@ -96,6 +90,10 @@ public class SupplierService {
                 throw new ResourceNotFoundException("Nhóm nhà cung cấp đã chọn không tồn tại. Vui lòng chọn lại.");
             }
         }
+        String key = nameKey(name, pt.getId());
+        if (repository.existsByNameKeyAndIdNot(key, supplier.getId() == null ? -1L : supplier.getId())) throw duplicate();
+        supplier.setName(name);
+        supplier.setNameKey(key);
         supplier.setProductType(pt);
 
         if (request.email() != null) supplier.setEmail(request.email().strip());
@@ -119,8 +117,17 @@ public class SupplierService {
         }
     }
 
+    public static String nameKey(String name, Long productTypeId) {
+        String normalized = Normalizer.normalize(name.strip(), Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
+        try {
+            String identity = productTypeId + ":" + normalized;
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(identity.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
+    }
+
     private ConflictException duplicate() {
-        return new ConflictException("Đơn vị cung cấp đã tồn tại.", "SUPPLIER_DUPLICATE", "name");
+        return new ConflictException("Đơn vị cung cấp đã tồn tại trong nhóm nhà cung cấp này.", "SUPPLIER_DUPLICATE", "name");
     }
 
     private SupplierResponse response(Supplier supplier) {

@@ -1,6 +1,6 @@
 // src/features/farmshift/PurchasesView.jsx
 // Quản lý Hóa đơn nhập hàng, Nhà cung cấp & Tags chuẩn FarmShift & DESIGN.md
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus, Search, FileSpreadsheet, Eye, ScanText,
@@ -42,9 +42,26 @@ export const PurchasesView = () => {
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'suppliers' | 'tags'
   const [purchases, setPurchases] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const supplierNameCounts = useMemo(() => {
+    const counts = new Map();
+    for (const supplier of suppliers) {
+      const key = supplier.name?.trim().toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return counts;
+  }, [suppliers]);
   const [tags, setTags] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
   const [productCategories, setProductCategories] = useState([]);
+  const productOptions = useMemo(() => {
+    const unique = new Map();
+    for (const product of productCategories) {
+      if (!product.warehouseId) continue;
+      const key = JSON.stringify([product.warehouseId, product.productId ?? product.name?.normalize('NFC').trim().toLocaleLowerCase('vi')]);
+      if (!unique.has(key)) unique.set(key, product);
+    }
+    return [...unique.values()];
+  }, [productCategories]);
   const [productLoading, setProductLoading] = useState(false);
   const [productError, setProductError] = useState('');
   const [productRevision, setProductRevision] = useState(0);
@@ -740,9 +757,10 @@ export const PurchasesView = () => {
       setOcrRotation(0);
 
       const data = await ocrPurchase(fileOrNull);
+      const matchingSuppliers = data.supplierName ? suppliers.filter(s => s.name?.trim().toLowerCase() === data.supplierName.trim().toLowerCase()) : [];
       const matchedSup = data.supplierId
         ? suppliers.find(s => s.id === data.supplierId)
-        : (data.supplierName ? suppliers.find(s => s.name?.toLowerCase() === data.supplierName?.toLowerCase()) : null);
+        : (matchingSuppliers.length === 1 ? matchingSuppliers[0] : null);
 
       const defaultTags = matchedSup?.tagIds ? [...matchedSup.tagIds] : [];
       const isNewSup = !matchedSup && !!data.supplierName;
@@ -1821,7 +1839,7 @@ export const PurchasesView = () => {
                           </option>
                         )}
                         {suppliers.map(s => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
+                          <option key={s.id} value={s.id}>{s.name}{supplierNameCounts.get(s.name?.trim().toLowerCase()) > 1 ? ` (${s.productTypeName || 'Nhóm chưa xác định'})` : ''}</option>
                         ))}
                       </select>
                     </div>
@@ -1893,7 +1911,7 @@ export const PurchasesView = () => {
                             required
                           >
                             <option value="">{productLoading ? 'Đang tải hàng hóa...' : 'Chọn hàng hóa (Kho)'}</option>
-                            {productCategories.filter(product => product.warehouseId).map(product => <option key={product.id} value={product.id}>{product.name} ({product.warehouseName})</option>)}
+                            {productOptions.map(product => <option key={product.id} value={product.id}>{product.name} ({product.warehouseName})</option>)}
                           </select>
                           )}
                         </div>

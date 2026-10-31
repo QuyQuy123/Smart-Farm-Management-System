@@ -16,9 +16,15 @@ public record SalesOrderRequest(
  BigDecimal paidAmount,
  @Size(max=5000) String note,
  @Size(max=50) String taxCode,
- @Size(max=100) String paymentMethod) {
+ @Size(max=100) String paymentMethod,
+ Long cycleId) {
  public SalesOrderRequest(String id, LocalDate date, String customer, String phone, String address, String flock,
                           int quantity, BigDecimal totalWeight, BigDecimal unitPrice, String status, BigDecimal paidAmount, String note) {
-  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,null,null);
+  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,null,null,null);
+ }
+ public SalesOrderRequest(String id, LocalDate date, String customer, String phone, String address, String flock,
+                          int quantity, BigDecimal totalWeight, BigDecimal unitPrice, String status, BigDecimal paidAmount, String note,
+                          String taxCode, String paymentMethod) {
+  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,taxCode,paymentMethod,null);
  }
 }

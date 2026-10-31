@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Phiếu Cân Bán Gà Thực Địa - Khổ A4</title>
+  <style>
+    /* Thiết lập chuẩn khổ giấy A4 in ấn */
+    @page {
+      size: A4 portrait;
+      margin: 12mm 15mm 12mm 15mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: "Times New Roman", Times, serif;
+    }
+
+    body {
+      background-color: #f3f4f6;
+      margin: 0;
+      padding: 20px 0;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* Khung giấy A4 */
+    .a4-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      background: white;
+      padding: 12mm 15mm;
+      color: #000;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* Phần đầu phiếu */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 2px solid #000;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+    }
+
+    .farm-title h3 {
+      margin: 0 0 3px 0;
+      font-size: 15px;
+      text-transform: uppercase;
+    }
+
+    .farm-title p {
+      margin: 1px 0;
+      font-size: 13px;
+    }
+
+    .doc-meta {
+      text-align: right;
+      font-size: 13px;
+    }
+
+    .title {
+      text-align: center;
+      margin: 8px 0 12px 0;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 21px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .title p {
+      margin: 3px 0 0 0;
+      font-style: italic;
+      font-size: 13px;
+    }
+
+    /* Thông tin khách hàng & chuồng nuôi */
+    .info-section {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      font-size: 14px;
+      margin-bottom: 11px;
+    }
+
+    .info-grid-2 {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      column-gap: 20px;
+    }
+
+    .info-grid-3 {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      column-gap: 16px;
+    }
+
+    .info-row {
+      display: flex;
+      align-items: flex-end;
+      white-space: nowrap;
+    }
+
+    .info-row span.label {
+      font-weight: bold;
+      white-space: nowrap;
+      margin-right: 4px;
+    }
+
+    .info-row .dots {
+      flex: 1;
+      border-bottom: 1px dotted #000;
+      height: 16px;
+      padding-left: 6px;
+      font-weight: 500;
+    }
+
+    /* Bảng mã cân chi tiết */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border: 1px solid #000;
+      padding: 5px 3px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+
+    td {
+      height: 22px; /* Chiều cao vừa vặn để viết tay bút bi */
+    }
+
+    /* Khối tổng kết thanh toán */
+    .summary-box {
+      border: 1.5px solid #000;
+      padding: 8px 12px;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.08fr 1.18fr;
+      row-gap: 8px;
+      column-gap: 16px;
+      margin-bottom: 6px;
+    }
+
+    .summary-cell {
+      display: flex;
+      align-items: flex-end;
+      white-space: nowrap;
+    }
+
+    .summary-cell .sum-label {
+      white-space: nowrap;
+    }
+
+    .summary-cell .sum-dots {
+      flex: 1;
+      border-bottom: 1px dotted #000;
+      height: 16px;
+      margin: 0 4px;
+      text-align: center;
+    }
+
+    .summary-cell .sum-unit {
+      white-space: nowrap;
+    }
+
+    .summary-line.total {
+      display: flex;
+      justify-content: space-between;
+      font-size: 16px;
+      font-weight: bold;
+      border-top: 1px solid #000;
+      padding-top: 6px;
+      margin-bottom: 4px;
+    }
+
+    /* Chữ ký xác nhận */
+    .signatures {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      text-align: center;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    .sig-title {
+      font-weight: bold;
+      margin-bottom: 3px;
+    }
+
+    .sig-sub {
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    .sig-space {
+      height: 60px;
+    }
+
+    /* Định dạng khi bấm lệnh Print / Ctrl + P */
+    @media print {
+      body {
+        background: none;
+        padding: 0;
+        margin: 0;
+      }
+      .a4-sheet {
+        box-shadow: none;
+        width: 100%;
+        min-height: 100%;
+        padding: 0;
+        margin: 0;
+      }
+      th {
+        background-color: #eee !important;
+        -webkit-print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="a4-sheet">
+    <div>
+      <!-- Đầu phiếu -->
+      <div class="header">
+        <div class="farm-title">
+          <h3>Trang Trại Gà Miền Bính</h3>
+          <p>Địa chỉ: Xã Yên Lãng, Huyện Thanh Sơn, Tỉnh Phú Thọ</p>
+          <p>Điện thoại: 0989.149.421 - 0968.311.853</p>
+        </div>
+        <div class="doc-meta">
+          <p>Mã phiếu: <b>WT-202610-001</b></p>
+          <p>Ngày cân: 30/10/2026</p>
+        </div>
+      </div>
+
+      <!-- Tiêu đề -->
+      <div class="title">
+        <h1>PHIẾU CÂN XUẤT BÁN GÀ THỊT</h1>
+        <p>(Kèm theo biên bản bàn giao và đối soát công nợ thương lái)</p>
+      </div>
+
+      <!-- Thông tin người mua và nguồn chuồng -->
+      <div class="info-section">
+        <!-- Hàng 1: Người mua & Địa chỉ -->
+        <div class="info-grid-2">
+          <div class="info-row">
+            <span class="label">Người mua:</span>
+            <span class="dots">Lê Thùy Linh</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Địa chỉ:</span>
+            <span class="dots">Quận Cầu Giấy, Hà Nội</span>
+          </div>
+        </div>
+
+        <!-- Hàng 2: SĐT & Mã số thuế -->
+        <div class="info-grid-2">
+          <div class="info-row">
+            <span class="label">SĐT:</span>
+            <span class="dots">0912.345.678</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Mã số thuế:</span>
+            <span class="dots">0109876543</span>
+          </div>
+        </div>
+
+        <!-- Hàng 3: Nguồn chuồng & Giá xuất -->
+        <div class="info-grid-3">
+          <div class="info-row">
+            <span class="label">Khu vực nuôi:</span>
+            <span class="dots">Khu trại A</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Chuồng nuôi:</span>
+            <span class="dots">Chuồng 01 (Lứa 2)</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Đơn giá bán:</span>
+            <span class="dots">65.000</span>
+            <span style="font-size: 12px; margin-left: 2px;">đ/kg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bảng 22 dòng mã cân - đã nạp 5 mã dữ liệu chuẩn xác -->
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 7%;">Mã cân</th>
+            <th style="width: 13%;">Số con<br><span style="font-size: 11px; font-weight: normal;">(con)</span></th>
+            <th style="width: 13%;">Số lồng<br><span style="font-size: 11px; font-weight: normal;">(lồng)</span></th>
+            <th style="width: 20%;">Cân cả lồng<br><span style="font-size: 11px; font-weight: normal;">(Tổng cân - kg)</span></th>
+            <th style="width: 17%;">Trọng lượng bì<br><span style="font-size: 11px; font-weight: normal;">(Bì - kg)</span></th>
+            <th style="width: 20%;">Cân thực tế<br><span style="font-size: 11px; font-weight: normal;">(Trừ bì - kg)</span></th>
+            <th style="width: 10%;">Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>22</td><td>2</td><td>58.6</td><td>7.0</td><td>51.6</td><td></td></tr>
+          <tr><td>2</td><td>20</td><td>2</td><td>54.2</td><td>7.0</td><td>47.2</td><td></td></tr>
+          <tr><td>3</td><td>21</td><td>2</td><td>56.5</td><td>7.0</td><td>49.5</td><td></td></tr>
+          <tr><td>4</td><td>20</td><td>2</td><td>53.8</td><td>7.0</td><td>46.8</td><td></td></tr>
+          <tr><td>5</td><td>22</td><td>2</td><td>57.9</td><td>7.0</td><td>50.9</td><td></td></tr>
+          <tr><td>6</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>7</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>8</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>9</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>10</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>11</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>12</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>13</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>14</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>15</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>16</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>17</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>18</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>19</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>20</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>21</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td>22</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <!-- Khối tổng kết thanh toán tính toán tự động chuẩn xác -->
+      <div class="summary-box">
+        <div class="summary-grid">
+          <div class="summary-cell">
+            <span class="sum-label">• Tổng số con:</span>
+            <span class="sum-dots"><b>105</b></span>
+            <span class="sum-unit">con</span>
+          </div>
+          <div class="summary-cell">
+            <span class="sum-label">• Tổng số lồng bắt:</span>
+            <span class="sum-dots"><b>10</b></span>
+            <span class="sum-unit">lồng</span>
+          </div>
+          <div class="summary-cell">
+            <span class="sum-label">• Bình quân:</span>
+            <span class="sum-dots"><b>2.34</b></span>
+            <span class="sum-unit">kg/con</span>
+          </div>
+          <div class="summary-cell">
+            <span class="sum-label">• Tổng cân cả bì:</span>
+            <span class="sum-dots"><b>281.0</b></span>
+            <span class="sum-unit">kg</span>
+          </div>
+          <div class="summary-cell">
+            <span class="sum-label">• Tổng khối lượng bì:</span>
+            <span class="sum-dots"><b>35.0</b></span>
+            <span class="sum-unit">kg</span>
+          </div>
+          <div class="summary-cell">
+            <span class="sum-label">• Cân thực tế (Trừ bì):</span>
+            <span class="sum-dots"><b>246.0</b></span>
+            <span class="sum-unit">kg</span>
+          </div>
+        </div>
+        <div class="summary-line total">
+          <span>TỔNG THÀNH TIỀN (Cân thực tế × Đơn giá):</span>
+          <span>15.990.000 VNĐ</span>
+        </div>
+        <div style="font-style: italic; font-size: 13px; margin-top: 3px;">
+          (Số tiền viết bằng chữ: Mười lăm triệu chín trăm chín mươi nghìn đồng chẵn./.)
+        </div>
+      </div>
+    </div>
+
+    <!-- Chữ ký 3 bên -->
+    <div class="signatures">
+      <div>
+        <div class="sig-title">NGƯỜI MUA (THƯƠNG LÁI)</div>
+        <div class="sig-sub">(Ký, ghi rõ họ tên)</div>
+        <div class="sig-space"></div>
+      </div>
+      <div>
+        <div class="sig-title">CÔNG NHÂN BẮT CÂN</div>
+        <div class="sig-sub">(Ký, ghi rõ họ tên)</div>
+        <div class="sig-space"></div>
+      </div>
+      <div>
+        <div class="sig-title">CHỦ TRẠI / KẾ TOÁN</div>
+        <div class="sig-sub">(Ký, xác nhận đối soát)</div>
+        <div class="sig-space"></div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

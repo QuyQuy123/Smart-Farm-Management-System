@@ -17,6 +17,15 @@ Phân hệ Microservice xử lý AI OCR bóc tách chứng từ hóa đơn A4, n
 
 ## 🚀 Hướng dẫn Khởi chạy
 
+### Tự chạy cùng backend local
+
+Sau khi tạo `venv` và cài `requirements.txt` một lần, chỉ cần chạy backend Spring Boot với profile `local`.
+Backend tự mở AI service bằng Python trong `venv` và chờ kiểm tra `/health`.
+Nếu AI đã chạy sẵn thì dùng lại. Khi backend dừng bình thường, tiến trình AI do backend tạo cũng được dừng.
+Log AI nằm trong `backendFarmShift/target/ai-service.log` khi chạy từ thư mục backend.
+Đặt `AI_SERVICE_AUTOSTART_ENABLED=false` nếu muốn chạy AI riêng bằng các cách bên dưới.
+
+
 ### Cách 1: Khởi chạy bằng Docker (Khuyên dùng)
 ```bash
 cd aiServiceFarmShift

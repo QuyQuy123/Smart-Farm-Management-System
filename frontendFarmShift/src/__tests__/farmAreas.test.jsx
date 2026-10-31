@@ -93,15 +93,14 @@ describe('Farm area management', () => {
     expect(mocks.showToast).toHaveBeenCalledWith('Đã thêm khu nuôi Khu A.', 'success');
   });
 
-  it('filters the area list by barn count and name', async () => {
+  it('displays the area list cleanly without column filter row and without redundant back button', async () => {
     renderAt('/areas');
     await screen.findByRole('link', { name: 'Khu Mía Thịt' });
     expect(screen.queryByLabelText('Lọc loại vật nuôi')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Lọc số chuồng'), { target: { value: '0' } });
-    expect(screen.queryByRole('link', { name: 'Khu Mía Thịt' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Lọc tên khu nuôi')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Lọc số chuồng')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Khu Mía Thịt' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Khu đông tảo' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Lọc tên khu nuôi'), { target: { value: 'mía' } });
-    expect(screen.getByText('Không có khu nuôi phù hợp với bộ lọc.')).toBeInTheDocument();
   });
 
   it('blocks deleting an area that still has barns and deletes an empty one', async () => {

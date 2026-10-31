@@ -4,6 +4,7 @@ import { render, screen, within, fireEvent, waitFor } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { InventoryView } from '../features/farmshift/InventoryView';
 import * as service from '../services/inventoryItemService';
+import { listBrands } from '../services/brandService';
 import { fileService } from '../services/fileService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
@@ -13,7 +14,7 @@ vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ sho
 vi.mock('../services/warehouseCategoryService', () => ({ WAREHOUSE_CATEGORIES_CHANGED: 'warehouse-categories-changed', listWarehouseCategories: async () => [{ id: 1, name: 'Kho cám', createdAt: '2026-10-18T12:00:00' }] }));
 vi.mock('../services/productCategoryService', () => ({ listProductCategories: async () => [{ id: 11, name: 'Cám gà', warehouseId: 1 }, { id: 12, name: 'Thuốc kho khác', warehouseId: 2 }] }));
 vi.mock('../services/measurementUnitService', () => ({ listMeasurementUnits: async () => [{ id: 7, name: 'Kg', code: 'KG' }] }));
-vi.mock('../services/brandService', () => ({ listBrands: async () => [{ id: 9, name: 'Nhãn hiệu A' }] }));
+vi.mock('../services/brandService', () => ({ listBrands: vi.fn(async () => [{ id: 9, name: 'Nhãn hiệu A' }]) }));
 vi.mock('../services/inventoryItemService', () => ({ listInventoryItems: vi.fn(), createInventoryItem: vi.fn(), updateInventoryItem: vi.fn(), deleteInventoryItem: vi.fn() }));
 vi.mock('../services/fileService', () => ({ fileService: { uploadFile: vi.fn() } }));
 const originals = {
@@ -54,6 +55,41 @@ describe('Persistent inventory CRUD', () => {
     service.deleteInventoryItem.mockImplementation(async id => { items = items.filter(item => item.id !== id); });
     fileService.uploadFile.mockResolvedValue('/img/products/upload.png');
   });
+  it('deduplicates brand names regardless of case or surrounding spaces', async () => {
+    listBrands.mockResolvedValueOnce([
+      { id: 9, name: 'Dapaco' }, { id: 10, name: ' dapaco ' }, { id: 11, name: 'Nhãn hiệu B' }
+    ]);
+    const dialog = await openCreate();
+    const select = within(dialog).getByLabelText('Nhãn hiệu');
+    expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual([
+      'Chọn nhãn hiệu (không bắt buộc)', 'Dapaco', 'Nhãn hiệu B'
+    ]);
+  });
+  it('keeps the selected brand ID when editing a duplicate brand name', async () => {
+    listBrands.mockResolvedValueOnce([{ id: 9, name: 'Dapaco' }, { id: 10, name: 'Dapaco' }]);
+    items = [{ id: 21, name: 'Cám gà', warehouseId: 1, brandId: 10, brandName: 'Dapaco', unitId: 7, unitName: 'Kg', price: 1000, stock: 0 }];
+    renderView();
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa Cám gà' }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByRole('option', { name: 'Kg (KG)' });
+    const select = within(dialog).getByLabelText('Nhãn hiệu');
+    expect(within(select).getAllByRole('option', { name: 'Dapaco' })).toHaveLength(1);
+    expect(select).toHaveValue('10');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu hàng hóa' }));
+    await waitFor(() => expect(service.updateInventoryItem).toHaveBeenCalledWith(21, expect.objectContaining({ brandId: 10 })));
+  });
+  it('formats thousands while typing and sends the numeric price without grouping dots', async () => {
+    const dialog = await openCreate();
+    const input = within(dialog).getByLabelText(/Giá tiền/);
+    fireEvent.change(input, { target: { value: '320000' } });
+    expect(input).toHaveValue('320.000');
+    fireEvent.change(input, { target: { value: '320.000,50' } });
+    expect(input).toHaveValue('320.000,50');
+    fireEvent.change(within(dialog).getByLabelText(/Tên hàng hóa/), { target: { value: 'Cám gà' } });
+    fireEvent.change(within(dialog).getByLabelText(/Đơn vị/), { target: { value: '7' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu hàng hóa' }));
+    await waitFor(() => expect(service.createInventoryItem).toHaveBeenCalledWith(expect.objectContaining({ price: '320000.50' })));
+  });
   it('uploads an image, creates with no stock input in payload, views, edits and deletes', async () => {
     let dialog = await openCreate();
     expect(within(dialog).queryByRole('option', { name: 'Thuốc kho khác' })).not.toBeInTheDocument();
@@ -61,7 +97,7 @@ describe('Persistent inventory CRUD', () => {
     expect(within(dialog).getByLabelText('Tồn kho')).toHaveAttribute('readonly');
     fireEvent.change(within(dialog).getByLabelText(/Tên hàng hóa/), { target: { value: 'Cám gà' } });
     fireEvent.change(within(dialog).getByLabelText(/Đơn vị/), { target: { value: '7' } });
-    fireEvent.change(within(dialog).getByLabelText(/Giá tiền/), { target: { value: '125000.50' } });
+    fireEvent.change(within(dialog).getByLabelText(/Giá tiền/), { target: { value: '125000,50' } });
     fireEvent.change(within(dialog).getByLabelText('Nhãn hiệu'), { target: { value: '9' } });
     fireEvent.change(within(dialog).getByLabelText('Chọn ảnh'), { target: { files: [new File(['image'], 'product.png', { type: 'image/png' })] } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu hàng hóa' }));
@@ -100,6 +136,32 @@ describe('Persistent inventory CRUD', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu hàng hóa' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Upload thất bại');
     expect(service.createInventoryItem).not.toHaveBeenCalled();
+  });
+  it('shows one summary with arithmetic average and expands original purchase history', async () => {
+    const common = { warehouseId: 1, productId: 11, name: 'Cám gà', unitId: 7, unitName: 'Kg', brandName: 'Nhãn hiệu A' };
+    items = [
+      { ...common, id: 21, price: 300000, stock: 100, receipt: { invoiceCode: 'NH000001', importedDate: '2026-10-28', quantity: 100, unit: 'Kg', price: 300000 } },
+      { ...common, id: 22, price: 400000, stock: 200, receipt: { invoiceCode: 'NH000002', importedDate: '2026-10-29', quantity: 200, unit: 'Kg', price: 400000 } }
+    ];
+    renderView();
+    const expand = await screen.findByRole('button', { name: 'Mở lịch sử Cám gà' });
+    expect(screen.getByText('1 hàng hóa')).toBeInTheDocument();
+    expect(screen.getByText('300')).toBeInTheDocument();
+    expect(screen.getByTitle('Trung bình cộng đơn giá các lần nhập')).toHaveTextContent('350.000');
+    expect(screen.queryByText('NH000001')).not.toBeInTheDocument();
+    fireEvent.click(expand);
+    expect(expand).toHaveAttribute('aria-expanded', 'true');
+    const history = screen.getByRole('region', { name: 'Lịch sử nhập Cám gà' });
+    expect(within(history).queryByRole('columnheader', { name: 'Chứng từ' })).not.toBeInTheDocument();
+    expect(within(history).queryByRole('columnheader', { name: 'Còn lại' })).not.toBeInTheDocument();
+    expect(within(history).getByText('28/10/2026')).toBeInTheDocument();
+    expect(within(history).getAllByText(/300\.000/)).toHaveLength(1);
+    fireEvent.click(within(history).getByRole('button', { name: 'Sửa Cám gà, dòng 2' }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByRole('option', { name: 'Kg (KG)' });
+    fireEvent.change(within(dialog).getByLabelText(/Giá tiền/), { target: { value: '410000' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu hàng hóa' }));
+    await waitFor(() => expect(service.updateInventoryItem).toHaveBeenCalledWith(22, expect.objectContaining({ price: '410000' })));
   });
   it('does not expose mutation buttons to workers', async () => {
     mocks.role = 'ROLE_FARM_WORKER'; renderView();
