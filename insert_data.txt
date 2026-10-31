@@ -1,7 +1,8 @@
 -- =====================================================================
 -- Dữ liệu mẫu (Seed Data) cho dự án FarmShift
 -- Lưu ý: Các câu lệnh INSERT dưới đây đã bao gồm xử lý chống trùng lặp
--- (ON CONFLICT DO NOTHING / DO UPDATE) để an toàn tuyệt đối khi chạy file nhiều lần.
+-- (ON CONFLICT DO NOTHING / DO UPDATE / WHERE NOT EXISTS) để an toàn tuyệt đối
+-- khi chạy file nhiều lần (cả trước và sau khi Backend chạy Schema Upgrade).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -60,18 +61,32 @@ UPDATE customers SET full_name = 'Miền Bính' WHERE account_id = (SELECT id FR
 -- 4. Chèn dữ liệu Thông tin cơ sở & Trang trại (Farms)
 -- ID cố định = 1 cho trang trại hiện hành
 -- ---------------------------------------------------------------------
-INSERT INTO farms (id, name, owner, phone, scale, address, type, created_at, updated_at)
-VALUES (1, 'Trang trại Gà Thịt FarmShift', 'Nguyễn Văn Chủ Trại', '0989149421', '50,000 con', 'Tam Đảo, Vĩnh Phúc', 'Nuôi gà thịt thương phẩm an toàn sinh học', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
-ON CONFLICT (id) DO NOTHING;
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS first_meal_time TIME;
+
+INSERT INTO farms (id, name, owner, phone, scale, address, type, first_meal_time, created_at, updated_at)
+VALUES (1, 'Trang trại Gà Thịt FarmShift', 'Nguyễn Văn Chủ Trại', '0989149421', '50,000 con', 'Tam Đảo, Vĩnh Phúc', 'Nuôi gà thịt thương phẩm an toàn sinh học', TIME '07:00:00', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (id) DO UPDATE SET
+  first_meal_time = COALESCE(farms.first_meal_time, EXCLUDED.first_meal_time);
 
 -- ---------------------------------------------------------------------
 -- 5. Chèn dữ liệu Danh bạ Khách hàng (Customer Contacts)
 -- ---------------------------------------------------------------------
-INSERT INTO customer_contacts (code, name, phone, created_at, updated_at)
-VALUES ('KH00000000000000000000000000001', 'Nguyễn Văn Hùng (Thương lái Lái Thiêu)', '0912345678', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
-       ('KH00000000000000000000000000002', 'Trần Thị Mai (Đại lý Gia cầm Miền Bắc)', '0987654321', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
-       ('KH00000000000000000000000000003', 'Hợp tác xã Nông nghiệp Tam Đảo', '02438221122', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
-ON CONFLICT (code) DO NOTHING;
+ALTER TABLE customer_contacts ADD COLUMN IF NOT EXISTS address VARCHAR(255);
+ALTER TABLE customer_contacts ADD COLUMN IF NOT EXISTS tax_code VARCHAR(50);
+ALTER TABLE customer_contacts ADD COLUMN IF NOT EXISTS payment_method VARCHAR(100);
+ALTER TABLE customer_contacts ADD COLUMN IF NOT EXISTS total_bought NUMERIC(19, 2);
+ALTER TABLE customer_contacts ADD COLUMN IF NOT EXISTS debt NUMERIC(19, 2);
+ALTER TABLE customer_contacts ADD COLUMN IF NOT EXISTS note TEXT;
+
+INSERT INTO customer_contacts (code, name, phone, address, tax_code, payment_method, total_bought, debt, note, created_at, updated_at)
+VALUES ('KH00000000000000000000000000001', 'Nguyễn Văn Hùng (Thương lái Lái Thiêu)', '0912345678', 'Bình Hòa, Thuận An, Bình Dương', NULL, 'Chuyển khoản', 0, 0, 'Khách sỉ thu mua gà thịt định kỳ', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('KH00000000000000000000000000002', 'Trần Thị Mai (Đại lý Gia cầm Miền Bắc)', '0987654321', 'Yên Phong, Bắc Ninh', '2300889911', 'Chuyển khoản', 0, 0, 'Đại lý phân phối gia cầm miền Bắc', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
+       ('KH00000000000000000000000000003', 'Hợp tác xã Nông nghiệp Tam Đảo', '02438221122', 'Tam Đảo, Vĩnh Phúc', '2500445566', 'Tiền mặt / Chuyển khoản', 0, 0, 'Đối tác tiêu thụ nội tỉnh Vĩnh Phúc', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+ON CONFLICT (code) DO UPDATE SET
+  address = COALESCE(customer_contacts.address, EXCLUDED.address),
+  tax_code = COALESCE(customer_contacts.tax_code, EXCLUDED.tax_code),
+  payment_method = COALESCE(customer_contacts.payment_method, EXCLUDED.payment_method),
+  note = COALESCE(customer_contacts.note, EXCLUDED.note);
 
 -- ---------------------------------------------------------------------
 -- 6. Chèn dữ liệu Danh mục Kho (Warehouse Categories)
@@ -97,12 +112,22 @@ ON CONFLICT (code_key) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- 8. Chèn dữ liệu Nhãn hiệu (Brands)
+--    Lưu ý: BrandNameKeyUpgrade băm SHA-256 cột name_key theo (name, product_type)
+--    nên dùng thêm WHERE NOT EXISTS theo (LOWER(name), LOWER(product_type)) để chống trùng.
 -- ---------------------------------------------------------------------
 INSERT INTO brands (name, name_key, product_type, quantity, note, created_at, updated_at)
-VALUES ('C.P. Việt Nam', 'c.p. việt nam', 'Thức ăn chăn nuôi', 0, 'Tập đoàn C.P. Việt Nam - Cung ứng cám Higro', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
-       ('Tập đoàn Dabaco', 'tập đoàn dabaco', 'Con giống', 0, 'Dabaco Việt Nam - Cung ứng giống gà Mía, J-Dabaco', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
-       ('Hanvet', 'hanvet', 'Thuốc thú y', 0, 'Công ty Cổ phần Dược và Vật tư Thú y Hanvet', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
-       ('FAVET', 'favet', 'Thuốc thú y', 0, 'Công ty Hóa chất Favet - Sát trùng chuồng trại BKC', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+SELECT v.name, v.name_key, v.product_type, 0, v.note, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'
+FROM (VALUES
+  ('C.P. Việt Nam', 'c.p. việt nam', 'Thức ăn chăn nuôi', 'Tập đoàn C.P. Việt Nam - Cung ứng cám Higro'),
+  ('Tập đoàn Dabaco', 'tập đoàn dabaco', 'Con giống', 'Dabaco Việt Nam - Cung ứng giống gà Mía, J-Dabaco'),
+  ('Hanvet', 'hanvet', 'Thuốc thú y', 'Công ty Cổ phần Dược và Vật tư Thú y Hanvet'),
+  ('FAVET', 'favet', 'Thuốc thú y', 'Công ty Hóa chất Favet - Sát trùng chuồng trại BKC')
+) AS v(name, name_key, product_type, note)
+WHERE NOT EXISTS (
+  SELECT 1 FROM brands b
+  WHERE LOWER(b.name) = LOWER(v.name)
+    AND LOWER(COALESCE(b.product_type, '')) = LOWER(v.product_type)
+)
 ON CONFLICT (name_key) DO NOTHING;
 
 -- ---------------------------------------------------------------------
@@ -277,6 +302,8 @@ ON CONFLICT (name_key) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- 16. Chèn dữ liệu Loại hàng hóa (Product Types) & Nhà cung cấp (Suppliers)
+--     Lưu ý: SupplierNameKeyUpgrade băm SHA-256 cột name_key theo (product_type_id, name)
+--     nên dùng ON CONFLICT (code) kết hợp WHERE NOT EXISTS để chạy an toàn nhiều lần.
 -- ---------------------------------------------------------------------
 INSERT INTO product_types (code, name, name_key, description, quantity, created_at, updated_at)
 VALUES ('LH000001', 'Thức ăn chăn nuôi', 'thức ăn chăn nuôi', 'Cám gà các giai đoạn', 0, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
@@ -294,7 +321,11 @@ FROM (VALUES
   ('NCC00000000000000000000000000004', 'Công ty Hóa chất FAVET', 'công ty hóa chất favet', 'Lê Hùng', '02436811234', 'thuốc thú y', 'favet@favet.vn', 'Thường Tín, Hà Nội', '0100987654', 'Techcombank', '19020011223344', 'Trả theo đơn', 0, 'Thuốc sát trùng chuồng trại BKC')
 ) AS v(code, name, name_key, representative, phone, pt_key, email, address, tax_code, bank_name, bank_account, payment_policy, opening_debt, note)
 JOIN product_types pt ON pt.name_key = v.pt_key
-ON CONFLICT (name_key) DO UPDATE SET
+WHERE NOT EXISTS (
+  SELECT 1 FROM suppliers s
+  WHERE LOWER(s.name) = LOWER(v.name) AND s.product_type_id = pt.id AND s.code <> v.code
+)
+ON CONFLICT (code) DO UPDATE SET
   address = EXCLUDED.address,
   note = EXCLUDED.note,
   email = EXCLUDED.email,
@@ -303,27 +334,27 @@ ON CONFLICT (name_key) DO UPDATE SET
   bank_account = EXCLUDED.bank_account,
   payment_policy = EXCLUDED.payment_policy;
 
--- Gắn thẻ Tags cho nhà cung cấp
+-- Gắn thẻ Tags cho nhà cung cấp (khớp theo cả LOWER(name) và name_key)
 INSERT INTO supplier_tag_mappings (supplier_id, tag_id)
 SELECT s.id, t.id
 FROM suppliers s, purchase_tags t
-WHERE (s.name_key = 'công ty cp chăn nuôi c.p. việt nam' AND t.name_key IN ('cám giai đoạn 1 (úm)', 'cám giai đoạn 2 (thịt)'))
-   OR (s.name_key = 'tập đoàn dabaco việt nam' AND t.name_key = 'gà giống đợt tháng 9')
-   OR (s.name_key = 'công ty thuốc thú y hanvet' AND t.name_key = 'vắc-xin phòng định kỳ')
+WHERE ((LOWER(s.name) = 'công ty cp chăn nuôi c.p. việt nam' OR s.name_key = 'công ty cp chăn nuôi c.p. việt nam') AND t.name_key IN ('cám giai đoạn 1 (úm)', 'cám giai đoạn 2 (thịt)'))
+   OR ((LOWER(s.name) = 'tập đoàn dabaco việt nam' OR s.name_key = 'tập đoàn dabaco việt nam') AND t.name_key = 'gà giống đợt tháng 9')
+   OR ((LOWER(s.name) = 'công ty thuốc thú y hanvet' OR s.name_key = 'công ty thuốc thú y hanvet') AND t.name_key = 'vắc-xin phòng định kỳ')
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- 17. Chèn dữ liệu Hóa đơn nhập hàng (Purchase Invoices)
 -- ---------------------------------------------------------------------
-INSERT INTO purchase_invoices (code, supplier_id, invoice_date, discount_amount, other_cost, total_amount, paid_amount, payment_status, stock_status, reference_code, note, created_at, updated_at)
-SELECT v.code, s.id, v.invoice_date, 0, 0, v.total_amount, v.paid_amount, v.payment_status, 'Đã nhập kho', v.ref_code, v.note, v.created_at, v.created_at
+INSERT INTO purchase_invoices (code, supplier_id, invoice_date, discount_amount, other_cost, total_amount, paid_amount, payment_status, stock_status, imported_date, reference_code, note, created_at, updated_at)
+SELECT v.code, s.id, v.invoice_date, 0, 0, v.total_amount, v.paid_amount, v.payment_status, 'Đã nhập kho', v.invoice_date, v.ref_code, v.note, v.created_at, v.created_at
 FROM (VALUES
   ('NH000000', 'công ty cp chăn nuôi c.p. việt nam', DATE '2026-09-15', 112500000, 112500000, 'Thanh toán hoàn tất', 'HD-CP-0915', 'Nhập cám gà giai đoạn 1 và giai đoạn 2 lứa tháng 9', TIMESTAMP '2026-09-15 08:30:00'),
   ('NH000001', 'tập đoàn dabaco việt nam', DATE '2026-09-18', 92500000, 92500000, 'Thanh toán hoàn tất', 'HD-DBC-0918', 'Nhập 5,000 con gà giống J-Dabaco', TIMESTAMP '2026-09-18 09:00:00'),
   ('NH000002', 'công ty thuốc thú y hanvet', DATE '2026-09-25', 8560000, 8560000, 'Thanh toán hoàn tất', 'HD-HAN-0925', 'Vắc-xin phòng Newcastle & Gumboro định kỳ', TIMESTAMP '2026-09-25 10:15:00'),
   ('NH000003', 'công ty cp chăn nuôi c.p. việt nam', DATE '2026-10-02', 68250000, 0, 'Trả sau', 'HD-CP-1002', 'Nhập đợt bổ sung cám vỗ béo Higro 03', TIMESTAMP '2026-10-02 08:45:00')
 ) AS v(code, s_key, invoice_date, total_amount, paid_amount, payment_status, ref_code, note, created_at)
-JOIN suppliers s ON s.name_key = v.s_key
+JOIN suppliers s ON (LOWER(s.name) = v.s_key OR s.name_key = v.s_key)
 ON CONFLICT (code) DO NOTHING;
 
 -- Chi tiết mặt hàng cho từng hóa đơn nhập
@@ -370,7 +401,8 @@ END $$;
 UPDATE flocks f
 SET supplier_id = s.id, source_note = s.name
 FROM suppliers s
-WHERE s.name_key = 'tập đoàn dabaco việt nam' AND f.source_type = 'PURCHASE' AND f.supplier_id IS NULL
+WHERE (LOWER(s.name) = 'tập đoàn dabaco việt nam' OR s.name_key = 'tập đoàn dabaco việt nam')
+  AND f.source_type = 'PURCHASE' AND f.supplier_id IS NULL
   AND f.import_date = DATE '2026-10-01' AND f.name LIKE '%DABACO%';
 
 -- Mỗi đàn mua ngoài có một hóa đơn nhập con giống: số con × giá con giống, gà vào thẳng chuồng (không cộng tồn kho).
@@ -418,14 +450,20 @@ ON CONFLICT (name_key) DO UPDATE SET
   specification = EXCLUDED.specification,
   product_type = EXCLUDED.product_type;
 
--- Đồng bộ ID tên hàng hóa vào chi tiết hóa đơn nhập (nếu chưa liên kết)
+-- Đồng bộ ID tên hàng hóa và kho đích vào chi tiết hóa đơn nhập (nếu chưa liên kết)
+ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS warehouse_id BIGINT;
+
 UPDATE purchase_invoice_items pii
-SET product_category_id = pc.id
+SET product_category_id = COALESCE(pii.product_category_id, pc.id),
+    warehouse_id = COALESCE(pii.warehouse_id, pc.warehouse_id)
 FROM product_categories pc
-WHERE LOWER(pii.product_name) = LOWER(pc.name) AND pii.product_category_id IS NULL;
+WHERE LOWER(pii.product_name) = LOWER(pc.name)
+  AND (pii.product_category_id IS NULL OR pii.warehouse_id IS NULL);
 
 -- ---------------------------------------------------------------------
 -- 19. Khởi tạo Tồn kho ban đầu (Inventory Items) theo từng kho
+--     Lưu ý: InventoryLotSchemaUpgrade đã gỡ uq_inventory_warehouse_product
+--     để cho phép nhiều lô nhập, nên dùng WHERE NOT EXISTS + ON CONFLICT (code).
 -- ---------------------------------------------------------------------
 ALTER TABLE inventory_items DROP COLUMN IF EXISTS product_name;
 ALTER TABLE inventory_items DROP COLUMN IF EXISTS product_name_key;
@@ -463,7 +501,11 @@ WHERE pc.name_key IN (
   'cám gà úm higro 01', 'cám gà thịt higro 02', 'cám gà vỗ béo higro 03',
   'vắc-xin newcastle lasota', 'kháng sinh doxycycline 50%', 'hạ sốt paracetamol c'
 )
-ON CONFLICT (warehouse_id, product_id) DO NOTHING;
+  AND NOT EXISTS (
+    SELECT 1 FROM inventory_items ii
+    WHERE ii.warehouse_id = pc.warehouse_id AND ii.product_id = pc.id
+  )
+ON CONFLICT (code) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- 20. Chèn dữ liệu Nhật ký cám mẫu (Feed Records) cho lứa đang nuôi
@@ -554,10 +596,14 @@ ON CONFLICT (name_key) DO NOTHING;
 INSERT INTO inventory_items (code, warehouse_id, product_id, brand_id, unit_id, price, stock, created_at, updated_at)
 SELECT 'SP' || UPPER(SUBSTRING(MD5(pc.name_key) FROM 1 FOR 12)), pc.warehouse_id, pc.id, b.id, u.id, 120000, 20.000, pc.created_at, pc.updated_at
 FROM product_categories pc
-LEFT JOIN brands b ON b.name_key = 'hanvet'
+LEFT JOIN brands b ON LOWER(b.name) = 'hanvet'
 JOIN measurement_units u ON u.code_key = 'goi1kg'
 WHERE pc.name_key = 'men tiêu hóa bio-zyme'
-ON CONFLICT (warehouse_id, product_id) DO NOTHING;
+  AND NOT EXISTS (
+    SELECT 1 FROM inventory_items ii
+    WHERE ii.warehouse_id = pc.warehouse_id AND ii.product_id = pc.id
+  )
+ON CONFLICT (code) DO NOTHING;
 
 -- Gắn hàng hóa kho vào bước chương trình nuôi (chỉ những bước chưa gắn)
 UPDATE farming_program_steps s
@@ -579,9 +625,17 @@ WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.invent
 --     Tồn kho chỉ được nâng lên mức tối thiểu (GREATEST) nên chạy lại không ghi đè số đã nhập / đã dùng thêm.
 -- ---------------------------------------------------------------------
 INSERT INTO brands (name, name_key, product_type, quantity, note, created_at, updated_at)
-VALUES ('Navetco', 'navetco', 'Thuốc thú y', 0, 'Công ty Thuốc thú y Trung ương Navetco - vắc-xin gia cầm', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
-       ('Medion', 'medion', 'Thuốc thú y', 0, 'Medion (Indonesia) - vắc-xin Gumboro, Newcastle-IB', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'),
-       ('De Heus', 'de heus', 'Thức ăn chăn nuôi', 0, 'De Heus Việt Nam - thức ăn hỗn hợp gà thịt', TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00')
+SELECT v.name, v.name_key, v.product_type, 0, v.note, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-09-01 08:00:00'
+FROM (VALUES
+  ('Navetco', 'navetco', 'Thuốc thú y', 'Công ty Thuốc thú y Trung ương Navetco - vắc-xin gia cầm'),
+  ('Medion', 'medion', 'Thuốc thú y', 'Medion (Indonesia) - vắc-xin Gumboro, Newcastle-IB'),
+  ('De Heus', 'de heus', 'Thức ăn chăn nuôi', 'De Heus Việt Nam - thức ăn hỗn hợp gà thịt')
+) AS v(name, name_key, product_type, note)
+WHERE NOT EXISTS (
+  SELECT 1 FROM brands b
+  WHERE LOWER(b.name) = LOWER(v.name)
+    AND LOWER(COALESCE(b.product_type, '')) = LOWER(v.product_type)
+)
 ON CONFLICT (name_key) DO NOTHING;
 
 -- Đơn vị đóng gói dạng lỏng cho vắc-xin tiêm (quy đổi theo ml)
@@ -626,7 +680,11 @@ FROM (VALUES
 JOIN product_categories pc ON pc.name_key = v.product_key
 JOIN measurement_units u ON u.code_key = v.unit_key
 LEFT JOIN brands b ON LOWER(b.name) = LOWER(pc.brand)
-ON CONFLICT (warehouse_id, product_id) DO NOTHING;
+WHERE NOT EXISTS (
+  SELECT 1 FROM inventory_items ii
+  WHERE ii.warehouse_id = pc.warehouse_id AND ii.product_id = pc.id
+)
+ON CONFLICT (code) DO NOTHING;
 
 -- Tồn kho đủ chạy thử nhiều ngày cho 6 chuồng (~30.000–50.000 con/chuồng); chỉ nâng lên, không hạ xuống
 UPDATE inventory_items i
@@ -668,11 +726,39 @@ JOIN inventory_items i ON i.product_id = pc.id
 WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.inventory_item_id IS NULL;
 
 -- ---------------------------------------------------------------------
--- 25. Danh mục xuất nhập nội bộ mặc định của hệ thống
+-- 25. Phân công công việc: công nhân phụ trách chuồng và việc giao mẫu
+--     (chạy sau khi backend đã khởi động để Hibernate tạo bảng barn_workers, work_tasks, work_task_checks)
+--     Chia theo khu: Khu Mía Thịt → Nguyễn Văn Ba, Khu J Thịt → Dương Văn Hùng, khu khác → Nông Thị Hằng.
+-- ---------------------------------------------------------------------
+INSERT INTO barn_workers (barn_id, account_id, assigned_by, assigned_at)
+SELECT b.id, a.id, 'seed', NOW()
+FROM barns b
+JOIN farm_areas fa ON fa.id = b.area_id
+JOIN farming_cycles c ON c.barn_id = b.id AND c.status = 'ACTIVE'
+JOIN accounts a ON a.email = CASE fa.name_key WHEN 'khu mía thịt' THEN 'congnhan@smartfarm.com'
+                                              WHEN 'khu j thịt' THEN 'hung@smartfarm.com'
+                                              ELSE 'hang@smartfarm.com' END
+WHERE NOT EXISTS (SELECT 1 FROM barn_workers w WHERE w.barn_id = b.id)
+ON CONFLICT (barn_id, account_id) DO NOTHING;
+
+-- Việc giao mẫu lặp 7 ngày kể từ hôm nay cho từng công nhân ở các chuồng họ phụ trách
+INSERT INTO work_tasks (barn_id, assignee_id, title, note, start_date, end_date, due_time, created_by, created_at)
+SELECT w.barn_id, w.account_id, v.title, v.note, CURRENT_DATE, CURRENT_DATE + 6, v.due_time, 'mienbinh@smartfarm.com', NOW()
+FROM barn_workers w
+JOIN accounts a ON a.id = w.account_id
+JOIN (VALUES
+  ('congnhan@smartfarm.com', 'Rửa máng uống', 'Rửa sạch, pha nước sát trùng theo hướng dẫn', TIME '07:00'),
+  ('congnhan@smartfarm.com', 'Kiểm tra quạt, đèn sưởi', 'Báo ngay chủ trại nếu quạt hoặc đèn hỏng', TIME '16:30'),
+  ('hung@smartfarm.com', 'Sát trùng lối đi, hố sát trùng', 'Thay nước hố sát trùng ở cửa chuồng', TIME '15:00'),
+  ('hang@smartfarm.com', 'Thay trấu ướt quanh máng', 'Rắc thêm trấu khô, gom trấu ướt ra ngoài', TIME '08:00')
+) AS v(email, title, note, due_time) ON v.email = a.email
+WHERE NOT EXISTS (SELECT 1 FROM work_tasks t WHERE t.barn_id = w.barn_id AND t.assignee_id = w.account_id AND t.title = v.title);
+
+-- ---------------------------------------------------------------------
+-- 26. Danh mục xuất nhập nội bộ mặc định của hệ thống (Internal Stock Categories)
 -- ---------------------------------------------------------------------
 INSERT INTO internal_stock_categories (movement_type, name, name_key, description, is_system, created_at, updated_at)
 VALUES
-  ('IMPORT', 'Nhập đầu kì', 'nhập đầu kì', 'Nhập số dư tồn kho ban đầu khi bắt đầu đưa phần mềm vào sử dụng hoặc khởi đầu lứa mới', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
   ('EXPORT', 'Xuất hủy', 'xuất hủy', 'Xuất hủy hàng hóa ẩm mốc, quá hạn hoặc hư hỏng trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
-  ('TRANSFER', 'Chuyển kho nội bộ', 'chuyển kho nội bộ', 'Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
+  ('TRANSFER', 'Chuyển kho nội bộ', 'chuyển kho nội bộ', 'Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00')
 ON CONFLICT (name_key) DO NOTHING;
