@@ -1,451 +1,237 @@
-// src/features/farmshift/DashboardView.jsx
-// Bảng tin - Dashboard trang chủ chuẩn FarmShift theo tiêu chuẩn DESIGN.md
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  TrendingUp, AlertTriangle, CheckCircle2, ChevronRight,
-  Plus, FileText, ShoppingCart, DollarSign, ArrowUpRight,
-  Layers, Package, Warehouse, HelpCircle, X, Sparkles, Activity,
-  Network, Zap
+  AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardList, Coins, HeartCrack, Info, ListChecks, Syringe, Truck,
+  Users, Warehouse, Wheat, Pill, Flag, RefreshCw, Map as MapIcon,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
-import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
-import { FarmSystemMap } from '../../components/FarmSystemMap';
+import { listBarns } from '../../services/farmAreaService';
+import { DashboardCharts } from './DashboardCharts';
+import { useAuth } from '../../context/AuthContext';
+import { getDashboard } from '../../services/dashboardService';
+import { formatDay } from './farmAreaOptions';
+import styles from './DashboardView.module.css';
 
-export const DashboardView = () => {
-  const [data] = useState(INITIAL_FARMSHIFT_DATA);
-  const [showWizard, setShowWizard] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'system_map' | 'energy'
+const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
+const money = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 0 })}đ`;
+const LEVEL_ICON = { DANGER: AlertTriangle, WARN: AlertTriangle, INFO: Info };
+const KIND = { VACCINE: { icon: Syringe, label: 'Vắc-xin' }, MEDICINE: { icon: Pill, label: 'Thuốc' }, FEED: { icon: Wheat, label: 'Đổi cám' },
+  HARVEST: { icon: Flag, label: 'Xuất chuồng' } };
+const STATUS = { OK: 'Ổn định', WARN: 'Cần chú ý', DANGER: 'Cần xử lý' };
 
-  const wizardSteps = [
-    { num: 1, title: 'Tìm hiểu cách sử dụng', done: true, link: '#' },
-    { num: 2, title: 'Tạo hạ tầng nuôi', done: true, link: '/areas' },
-    { num: 3, title: 'Thiết lập Kho hàng', done: true, link: '/inventory' },
-    { num: 4, title: 'Nhập hàng về kho', done: true, link: '/purchases' },
-    { num: 5, title: 'Nhập kho đầu kỳ', done: true, link: '/transfers' },
-    { num: 6, title: 'Nhập đàn - Vào giống', done: true, link: '/areas' },
-    { num: 7, title: 'Ghi nhật ký', done: true, link: '/journal' },
-    { num: 8, title: 'Tạo phiếu chi vào lứa nuôi', done: false, link: '/cashbook' },
-  ];
-
-  // Flatten active barns
-  const activeBarns = data.areas.flatMap(a =>
-    a.barns.filter(b => b.status === 'Đang nuôi').map(b => ({ ...b, areaName: a.name }))
-  );
-
-  return (
-    <FarmShiftLayout
-      pageTitle={
-        activeTab === 'system_map'
-          ? 'Sơ đồ hệ thống chuồng trại'
-          : activeTab === 'energy'
-          ? 'Điện năng & Chi phí thiết bị'
-          : 'Bảng tin tổng quan'
-      }
-      showShortcuts={true}
-    >
-      {/* ── Dashboard Sub-Navigation Tabs ───────────────────── */}
-      <div className="farmshift-tabs" style={{ marginBottom: '20px' }}>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          <Activity size={15} style={{ marginRight: '6px' }} />
-          Bảng tin tổng quan
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'system_map' ? 'active' : ''}`}
-          onClick={() => setActiveTab('system_map')}
-        >
-          <Network size={15} style={{ marginRight: '6px' }} />
-          Sơ đồ hệ thống chuồng trại (System Map)
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'energy' ? 'active' : ''}`}
-          onClick={() => setActiveTab('energy')}
-        >
-          <Zap size={15} style={{ marginRight: '6px' }} />
-          Điện năng & Chi phí thiết bị (IoT)
-        </button>
-      </div>
-
-      {/* ── TAB 2: SYSTEM MAP ──────────────────────────────── */}
-      {activeTab === 'system_map' && (
-        <FarmSystemMap />
-      )}
-
-      {/* ── TAB 3: ENERGY & POWER COST (IoT) ───────────────── */}
-      {activeTab === 'energy' && (
-        <div>
-          {/* Energy KPI Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-                ĐIỆN NĂNG TIÊU THỤ DỰ TÍNH / NGÀY
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '8px', lineHeight: 1 }}>
-                144.0 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>kWh</span>
-              </div>
-              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
-                5 chuồng nuôi đang vận hành
-              </div>
-            </div>
-
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-                ĐƠN GIÁ ĐIỆN THAM CHIẾU
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-                2.500 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>đ / kWh</span>
-              </div>
-              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
-                Biểu giá điện sản xuất kinh doanh
-              </div>
-            </div>
-
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-                CHI PHÍ TIỀN ĐIỆN / NGÀY
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '8px', lineHeight: 1 }}>
-                360.000 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>đ</span>
-              </div>
-              <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
-                Ước tính: ~10.800.000 đ / tháng
-              </div>
-            </div>
-
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-                THIẾT BỊ ĐANG TIÊU THỤ ĐIỆN
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-                10 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>thiết bị</span>
-              </div>
-              <div style={{ fontSize: '14px', color: 'var(--color-success)', marginTop: '8px' }}>
-                ✓ 5 quạt thông gió + 5 hệ giàn đèn
-              </div>
-            </div>
-          </div>
-
-          {/* Energy Table */}
-          <div className="farmshift-card">
-            <div className="farmshift-card-header">
-              <h3 className="farmshift-card-title">
-                <Zap size={18} color="var(--color-primary)" />
-                Bảng phân bổ công suất & chi phí điện năng theo từng chuồng
-              </h3>
-              <span className="farmshift-badge farmshift-badge-neutral">
-                Tháng 10/2026
-              </span>
-            </div>
-            <div className="farmshift-table-container" style={{ border: 'none' }}>
-              <table className="farmshift-table">
-                <thead>
-                  <tr>
-                    <th>Chuồng nuôi</th>
-                    <th>Thiết bị tải</th>
-                    <th>Công suất</th>
-                    <th>Thời gian chạy TB / ngày</th>
-                    <th>Điện năng / ngày</th>
-                    <th>Chi phí / ngày (đ)</th>
-                    <th>Chi phí / tháng (30 ngày)</th>
-                    <th>Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { barn: 'Nhà A1', area: 'Khu Mía Thịt', device: 'Quạt hút công nghiệp 1.2kW', power: '1.200 W', hours: '12 giờ', kwh: '14.4 kWh', dailyCost: 36000, monthCost: 1080000, status: 'Tự động theo nhiệt' },
-                    { barn: 'Nhà A1', area: 'Khu Mía Thịt', device: 'Hệ giàn đèn sưởi ấm 0.3kW', power: '300 W', hours: '4 giờ', kwh: '1.2 kWh', dailyCost: 3000, monthCost: 90000, status: 'Hẹn giờ ban đêm' },
-                    { barn: 'Nhà A2', area: 'Khu Mía Thịt', device: 'Quạt hút công nghiệp 1.2kW', power: '1.200 W', hours: '12 giờ', kwh: '14.4 kWh', dailyCost: 36000, monthCost: 1080000, status: 'Tự động theo nhiệt' },
-                    { barn: 'Nhà A2', area: 'Khu Mía Thịt', device: 'Hệ giàn đèn sưởi ấm 0.3kW', power: '300 W', hours: '4 giờ', kwh: '1.2 kWh', dailyCost: 3000, monthCost: 90000, status: 'Hẹn giờ ban đêm' },
-                    { barn: 'Nhà A3', area: 'Khu Mía Thịt', device: 'Quạt hút công nghiệp 1.2kW', power: '1.200 W', hours: '8 giờ', kwh: '9.6 kWh', dailyCost: 24000, monthCost: 720000, status: 'Điều khiển tay' },
-                    { barn: 'Nhà B1', area: 'Khu J Thịt', device: 'Quạt hút công nghiệp 1.5kW (Tốc độ cao)', power: '1.500 W', hours: '14 giờ', kwh: '21.0 kWh', dailyCost: 52500, monthCost: 1575000, status: 'Tự động quạt vỗ béo' },
-                    { barn: 'Nhà B1', area: 'Khu J Thịt', device: 'Hệ giàn đèn chiếu sáng 0.3kW', power: '300 W', hours: '4 giờ', kwh: '1.2 kWh', dailyCost: 3000, monthCost: 90000, status: 'Bật ban đêm' },
-                    { barn: 'Nhà B2', area: 'Khu J Thịt', device: 'Quạt hút công nghiệp 1.2kW', power: '1.200 W', hours: '12 giờ', kwh: '14.4 kWh', dailyCost: 36000, monthCost: 1080000, status: 'Điều khiển tay' }
-                  ].map((row, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <strong style={{ color: 'var(--color-ink)' }}>{row.barn}</strong>
-                        <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>{row.area}</div>
-                      </td>
-                      <td>{row.device}</td>
-                      <td><strong>{row.power}</strong></td>
-                      <td>{row.hours}</td>
-                      <td><span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{row.kwh}</span></td>
-                      <td>{row.dailyCost.toLocaleString('vi-VN')} đ</td>
-                      <td><strong>{row.monthCost.toLocaleString('vi-VN')} đ</strong></td>
-                      <td>
-                        <span className="farmshift-badge farmshift-badge-success">{row.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── TAB 1: OVERVIEW DASHBOARD ───────────────────────── */}
-      {activeTab === 'overview' && (
-        <>
-      {/* ── DESIGN.md Signature Cream Callout (Wizard) ────── */}
-      {showWizard && (
-        <div className="signature-cream-card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <CheckCircle2 size={20} color="var(--color-primary)" />
-              <strong style={{ fontSize: '16px', color: 'var(--color-ink)' }}>
-                Quy trình vận hành & thiết lập trang trại chuẩn
-              </strong>
-            </div>
-            <button
-              onClick={() => setShowWizard(false)}
-              style={{ background: 'none', border: 'none', color: 'var(--color-muted)', cursor: 'pointer' }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
-            {wizardSteps.map(step => (
-              <Link
-                key={step.num}
-                to={step.link}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '9px 14px',
-                  borderRadius: 'var(--rounded-md)',
-                  backgroundColor: step.done ? 'var(--color-canvas)' : 'rgba(255, 255, 255, 0.6)',
-                  border: `1px solid ${step.done ? 'var(--color-hairline)' : 'transparent'}`,
-                  textDecoration: 'none',
-                  color: step.done ? 'var(--color-ink)' : 'var(--color-muted)',
-                  fontSize: '14.5px',
-                  fontWeight: 500
-                }}
-              >
-                <span
-                  style={{
-                    width: '22px',
-                    height: '22px',
-                    borderRadius: 'var(--rounded-full)',
-                    backgroundColor: step.done ? 'var(--color-primary)' : 'var(--color-hairline)',
-                    color: step.done ? '#ffffff' : 'var(--color-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '12.5px',
-                    flexShrink: 0
-                  }}
-                >
-                  {step.done ? '✓' : step.num}
-                </span>
-                <span>{step.num}. {step.title}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── KPI Summary Cards (DESIGN.md Editorial Clean) ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-            TỔNG ĐÀN HIỆN TẠI
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-            {data.farmInfo.currentFlockTotal.toLocaleString('vi-VN')} <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>con</span>
-          </div>
-          <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Warehouse size={14} /> {activeBarns.length} chuồng đang nuôi ({data.areas.length} khu trại)
-          </div>
-        </div>
-
-        <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-            CÁM TIÊU THỤ HÔM NAY
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-            711 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>kg</span>
-          </div>
-          <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
-            Định mức 57.1g / con / ngày
-          </div>
-        </div>
-
-        <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-            HAO HỤT TRONG NGÀY
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-            3 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>con (0.02%)</span>
-          </div>
-          <div style={{ fontSize: '14px', color: 'var(--color-success)', marginTop: '8px' }}>
-            ✓ Tỷ lệ an toàn trong ngưỡng &lt; 0.05%
-          </div>
-        </div>
-
-        <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500, letterSpacing: '0.04em' }}>
-            SỐ DƯ QUỸ RÒNG
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '8px', lineHeight: 1 }}>
-            282,120,000 <span style={{ fontSize: '15px', fontWeight: 400, color: 'var(--color-muted)' }}>đ</span>
-          </div>
-          <div style={{ fontSize: '14px', color: 'var(--color-muted)', marginTop: '8px' }}>
-            MB Bank + Tiền mặt tại quỹ
-          </div>
-        </div>
-      </div>
-
-      {/* ── Active Barns Monitoring Table ───────────────── */}
-      <div className="farmshift-card">
-        <div className="farmshift-card-header">
-          <h3 className="farmshift-card-title">
-            <Activity size={18} color="var(--color-primary)" />
-            Giám sát các chuồng đang nuôi (Real-time IoT & Nhật ký)
-          </h3>
-          <Link to="/areas" className="farmshift-btn farmshift-btn-secondary" style={{ fontSize: '14.5px', padding: '6px 14px' }}>
-            Xem tất cả khu nuôi ›
-          </Link>
-        </div>
-
-        <div className="farmshift-table-container" style={{ border: 'none' }}>
-          <table className="farmshift-table">
-            <thead>
-              <tr>
-                <th>Chuồng nuôi</th>
-                <th>Khu vực</th>
-                <th>Số lượng</th>
-                <th>Ngày tuổi</th>
-                <th>Trọng lượng TB</th>
-                <th>Nhiệt độ IoT</th>
-                <th>Độ ẩm IoT</th>
-                <th>Trạng thái</th>
-                <th style={{ textAlign: 'right' }}>Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeBarns.map(b => (
-                <tr key={b.id}>
-                  <td>
-                    <strong style={{ color: 'var(--color-ink)' }}>{b.name}</strong>
-                  </td>
-                  <td>{b.areaName}</td>
-                  <td><strong>{b.current.toLocaleString()}</strong> con</td>
-                  <td>{b.ageDays} ngày</td>
-                  <td><span>{b.avgWeight}</span> kg/con</td>
-                  <td>
-                    <span style={{ color: b.temp > 29 ? 'var(--color-signature-coral)' : 'var(--color-ink)', fontWeight: 500 }}>
-                      {b.temp}°C
-                    </span>
-                  </td>
-                  <td>{b.humidity}%</td>
-                  <td>
-                    <span className="farmshift-badge farmshift-badge-success">
-                      {b.status}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Link
-                      to="/journal"
-                      className="farmshift-btn farmshift-btn-primary"
-                      style={{ fontSize: '13.5px', padding: '5px 12px' }}
-                    >
-                      Ghi nhật ký
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── Two Column: Recent Transactions & Warehouse Alerts ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
-        {/* Recent Purchases */}
-        <div className="farmshift-card" style={{ margin: 0 }}>
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">
-              <FileText size={18} color="var(--color-primary)" />
-              Hóa đơn nhập hàng gần nhất
-            </h3>
-            <Link to="/purchases" style={{ fontSize: '14.5px', color: 'var(--color-link)', textDecoration: 'none' }}>
-              Tất cả ›
-            </Link>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Mã đơn</th>
-                  <th>Nhà cung cấp</th>
-                  <th>Tổng tiền</th>
-                  <th>Thanh toán</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.purchases.slice(0, 4).map(p => (
-                  <tr key={p.id}>
-                    <td><strong style={{ color: 'var(--color-ink)', fontFamily: 'monospace' }}>{p.code}</strong></td>
-                    <td>{p.supplier}</td>
-                    <td><strong>{p.totalAmount.toLocaleString('vi-VN')} đ</strong></td>
-                    <td>
-                      <span className={`farmshift-badge ${p.paymentStatus.includes('hoàn tất') ? 'farmshift-badge-success' : 'farmshift-badge-warning'}`}>
-                        {p.paymentStatus}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Inventory Stock Alerts */}
-        <div className="farmshift-card" style={{ margin: 0 }}>
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">
-              <Package size={18} color="var(--color-primary)" />
-              Tồn kho thức ăn & vật tư thiết yếu
-            </h3>
-            <Link to="/inventory" style={{ fontSize: '14.5px', color: 'var(--color-link)', textDecoration: 'none' }}>
-              Kho hàng ›
-            </Link>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tên hàng hoá</th>
-                  <th>Kho</th>
-                  <th>Tồn kho</th>
-                  <th>Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.inventory.filter(i => i.stock > 0).slice(0, 5).map(inv => (
-                  <tr key={inv.id}>
-                    <td><strong>{inv.name}</strong></td>
-                    <td>{inv.warehouse}</td>
-                    <td><strong>{inv.stock}</strong> {inv.unit}</td>
-                    <td>
-                      <span className={`farmshift-badge ${inv.stock <= inv.minThreshold ? 'farmshift-badge-warning' : 'farmshift-badge-info'}`}>
-                        {inv.stock <= inv.minThreshold ? 'Chạm ngưỡng' : 'Đầy đủ'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-        </>
-      )}
-    </FarmShiftLayout>
-  );
+/** Việc cần xử lý mở đúng chỗ: chuồng, Phân công, hoặc Nhập hàng (công nợ). */
+const alertLink = alert => alert.type === 'DEBT' ? '/purchases' : alert.type === 'UNASSIGNED' ? '/today-tasks?view=assign'
+  : alert.barnId ? `/barns/${alert.barnId}` : null;
+/** "Chuong 3: 5 việc quá giờ chưa làm" → tên chuồng in nghiêng, phần còn lại, và con số đầu tiên làm huy hiệu. */
+const splitAlert = alert => {
+  const at = alert.barnId ? alert.title.indexOf(': ') : -1;
+  const barn = at > 0 ? alert.title.slice(0, at) : null;
+  const text = at > 0 ? alert.title.slice(at + 2) : alert.title;
+  const badge = ['OVERDUE', 'LOSS', 'DEBT'].includes(alert.type) ? text.match(/\d[\d.]*/)?.[0] : null;
+  return { barn, text, badge };
 };
+const inDaysText = days => days === 0 ? 'Hôm nay' : days === 1 ? 'Ngày mai' : `${days} ngày nữa`;
+
+/**
+ * Bảng tin: trả lời nhanh "hôm nay trại có ổn không, việc gì cần xử lý". Số liệu thật từ /api/dashboard;
+ * công nhân chỉ thấy chuồng mình phụ trách, không có tiền.
+ */
+export const DashboardView = () => {
+  const { user } = useAuth();
+  const role = user?.role;
+  const isWorker = role === 'ROLE_FARM_WORKER';
+  const [revision, setRevision] = useState(0);
+  // Kết quả gắn với lượt tải (revision); lượt mới chưa về thì đang tải.
+  const [state, setState] = useState({ revision: -1, data: null, error: '' });
+
+  useEffect(() => {
+    let cancelled = false;
+    getDashboard()
+      .then(data => { if (!cancelled) setState({ revision, data: data && data.kpis ? data : null, error: data && data.kpis ? '' : 'Không có dữ liệu bảng tin.' }); })
+      .catch(error => { if (!cancelled) setState({ revision, data: null, error: error?.response?.data?.message || 'Không tải được bảng tin. Vui lòng thử lại.' }); });
+    return () => { cancelled = true; };
+  }, [revision]);
+
+  const loading = state.revision !== revision;
+  const { data } = state;
+  const error = loading ? '' : state.error;
+  const greeting = user?.fullName ? `Chào ${user.fullName}` : 'Bảng tin';
+
+  return <FarmShiftLayout pageTitle="Bảng tin" breadcrumbTitle="Bảng tin">
+    <div className={styles.head}>
+      <div>
+        <h2>{greeting}</h2>
+        <p>{data ? `Hôm nay ${formatDay(data.date)} · ${isWorker ? 'các chuồng bạn phụ trách' : 'toàn trại'}` : 'Tình hình trại trong ngày'}</p>
+      </div>
+      <div className={styles.headActions}>
+        <Link to="/today-tasks" className="farmshift-btn farmshift-btn-mint"><ListChecks size={16} />Việc hôm nay</Link>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)} disabled={loading}
+          aria-label="Tải lại bảng tin"><RefreshCw size={15} /></button>
+      </div>
+    </div>
+
+    {loading && !data ? <p className={styles.state} role="status">Đang tải bảng tin...</p>
+      : error ? <div className={styles.state} role="alert"><p>{error}</p>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
+        : <>
+          <Kpis kpis={data.kpis} isWorker={isWorker} />
+
+          <div className={styles.columns}>
+            {/* "Cần xử lý" như một trang sổ trực trại: bìa xanh rêu, giấy ngà kẻ dòng, lề đỏ, ruy-băng — cùng kiểu sổ giao việc ở Phân công. */}
+            <section className={`${styles.card} ${styles.notebook}`} aria-label="Cần xử lý">
+              <span className={styles.rings} aria-hidden="true">{Array.from({ length: 7 }, (_, index) => <i key={index} />)}</span>
+              <div className={styles.paper}>
+                <header>
+                  <div><small className={styles.kicker}>Sổ trực trại · {formatDay(data.date)}</small><h3><ClipboardList size={17} />Cần xử lý</h3></div>
+                  <span className={styles.count}>{data.alerts.length}</span>
+                </header>
+                {data.alerts.length === 0 ? <p className={styles.allGood}><CheckCircle2 size={18} />Không có việc gì cần xử lý. Mọi chuồng đang ổn.</p>
+                  : <ul className={styles.alerts}>{data.alerts.map((alert, index) => {
+                    const Icon = LEVEL_ICON[alert.level] || Info;
+                    const link = alertLink(alert);
+                    const { barn, text, badge } = splitAlert(alert);
+                    const body = <><Icon size={16} className={styles.alertIcon} />
+                      <span><strong>{barn && <em className={styles.barnName}>{barn}</em>}{barn ? `: ${text}` : text}</strong>{alert.detail && <small>{alert.detail}</small>}</span>
+                      {badge && <b className={styles.badge}>{badge}</b>}
+                      {link && <ChevronRight size={16} className={styles.chevron} />}</>;
+                    return <li key={`${alert.type}-${alert.barnId}-${index}`} className={styles[`alert_${alert.level}`]}>
+                      {link ? <Link to={link}>{body}</Link> : <div>{body}</div>}
+                    </li>;
+                  })}</ul>}
+              </div>
+            </section>
+
+            <section className={styles.card} aria-label="7 ngày tới">
+              <header><h3><CalendarClock size={17} />7 ngày tới</h3></header>
+              {data.upcoming.length === 0 ? <p className={styles.empty}>Không có mốc vắc-xin, đổi cám hay xuất chuồng trong 7 ngày tới.</p>
+                : <ul className={styles.upcoming}>{data.upcoming.map((item, index) => {
+                  const kind = KIND[item.kind] || KIND.FEED;
+                  const Icon = kind.icon;
+                  return <li key={`${item.barnId}-${item.kind}-${index}`}>
+                    <span className={`${styles.kind} ${styles[`kind_${item.kind}`]}`}><Icon size={15} /></span>
+                    <span className={styles.upText}><strong>{item.title}</strong><small>{item.barnName} · {formatDay(item.date)}</small></span>
+                    <em>{inDaysText(item.inDays)}</em>
+                  </li>;
+                })}</ul>}
+            </section>
+          </div>
+
+          <section className={styles.card} aria-label="Các chuồng đang nuôi">
+            <header><h3><Warehouse size={17} />{isWorker ? 'Chuồng bạn phụ trách' : 'Các chuồng đang nuôi'}</h3>
+              <Link to="/areas" className={styles.more}>Khu nuôi <ChevronRight size={15} /></Link></header>
+            {data.barns.length === 0 ? <p className={styles.empty}>{isWorker ? 'Bạn chưa được giao chuồng nào.' : 'Chưa có chuồng đang nuôi.'}</p>
+              : <div className={styles.barns}>{data.barns.map(barn => <BarnTile key={barn.cycleId} barn={barn} />)}</div>}
+          </section>
+
+          {data.finance && <Finance finance={data.finance} />}
+
+          <DashboardCharts data={data} />
+
+          {/* Mặt bằng trang trại: mỗi khu một khối, chuồng thành ô tô màu theo trạng thái; công nhân không cần nên không hiện. */}
+          {!isWorker && <FarmPlan cards={data.barns} />}
+        </>}
+  </FarmShiftLayout>;
+};
+
+function Kpis({ kpis, isWorker }) {
+  const tiles = [
+    { icon: Users, label: 'Đang nuôi', value: `${num(kpis.liveQuantity)} con`, hint: `${kpis.activeBarns} chuồng có lứa` },
+    { icon: HeartCrack, label: 'Hao hụt hôm nay', value: `${num(kpis.lossToday)} con`, hint: `7 ngày: ${num(kpis.loss7d)} con (${num(kpis.loss7dRate, 2)}%)`,
+      tone: kpis.lossToday > 0 ? 'warn' : null },
+    { icon: ListChecks, label: 'Việc hôm nay', value: `${kpis.tasksDone}/${kpis.tasksTotal}`, hint: kpis.overdueTasks ? `${kpis.overdueTasks} việc quá giờ` : 'Không có việc quá giờ',
+      tone: kpis.overdueTasks ? 'warn' : null, progress: kpis.tasksTotal ? Math.round((kpis.tasksDone / kpis.tasksTotal) * 100) : 0 },
+    ...(!isWorker && kpis.supplierDebt != null ? [{ icon: Truck, label: 'Công nợ nhà cung cấp', value: money(kpis.supplierDebt),
+      hint: kpis.unpaidInvoices ? `${kpis.unpaidInvoices} hóa đơn chưa trả đủ` : 'Không còn nợ' }] : []),
+  ];
+  return <div className={styles.kpis}>{tiles.map(({ icon: Icon, label, value, hint, tone, progress }) => <div key={label}
+    className={`${styles.kpi} ${tone ? styles[`kpi_${tone}`] : ''}`}>
+    <span className={styles.kpiIcon}><Icon size={18} /></span>
+    <div><span>{label}</span><strong>{value}</strong><small>{hint}</small>
+      {progress != null && <i className={styles.bar}><b style={{ width: `${progress}%` }} /></i>}</div>
+  </div>)}</div>;
+}
+
+function BarnTile({ barn }) {
+  const progress = barn.tasksTotal ? Math.round((barn.tasksDone / barn.tasksTotal) * 100) : 0;
+  // Số chính in to (số con, ngày tuổi); cân / FCR chỉ hiện khi có số; khu và người phụ trách gộp một dòng nhỏ.
+  const extras = [Number(barn.avgWeightKg) > 0 && `Cân TB ${num(barn.avgWeightKg, 2)} kg`, Number(barn.fcr) > 0 && `FCR ${num(barn.fcr, 2)}`].filter(Boolean);
+  return <Link to={`/barns/${barn.barnId}`} className={styles.barn} aria-label={`Chuồng ${barn.barnName}`}>
+    <div className={styles.barnHead}>
+      <strong>{barn.barnName}</strong>
+      <em className={styles[`status_${barn.status}`]}><i />{STATUS[barn.status] || barn.status}</em>
+    </div>
+    <div className={styles.barnMain}>
+      <span><b>{num(barn.quantity)}</b> con</span>
+      <span className={styles.age}>Ngày tuổi <b>{barn.ageDays ?? '—'}</b></span>
+    </div>
+    {extras.length > 0 && <small className={styles.extras}>{extras.join(' · ')}</small>}
+    <div className={styles.barnFoot}>
+      <span>Việc <b>{barn.tasksDone}/{barn.tasksTotal}</b></span>
+      {barn.overdueTasks > 0 && <span className={styles.overdue}>{barn.overdueTasks} quá giờ</span>}
+      {barn.lossToday > 0 && <span className={styles.loss}>Hao hụt {num(barn.lossToday)} con</span>}
+    </div>
+    <i className={styles.bar}><b style={{ width: `${progress}%` }} /></i>
+    <small className={styles.workers}>{barn.areaName} · {barn.workers.length ? barn.workers.join(', ') : <span>Chưa có người phụ trách</span>}</small>
+  </Link>;
+}
+
+/**
+ * Sơ đồ trang trại: mọi chuồng (kể cả chuồng trống) nhóm theo khu, như mặt bằng. Trạng thái, ngày tuổi, việc quá giờ lấy từ
+ * thẻ chuồng của bảng tin; chuồng không có lứa thì xám nhạt. Bấm ô mở chuồng.
+ */
+function FarmPlan({ cards }) {
+  const [barns, setBarns] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    listBarns().then(data => { if (!cancelled) setBarns(Array.isArray(data) ? data : []); }).catch(() => { if (!cancelled) setBarns([]); });
+    return () => { cancelled = true; };
+  }, []);
+  const byBarn = new Map(cards.map(card => [card.barnId, card]));
+  const areas = [];
+  (barns || []).forEach(barn => {
+    let area = areas.find(item => item.id === barn.areaId);
+    if (!area) areas.push(area = { id: barn.areaId, name: barn.areaName, barns: [] });
+    area.barns.push(barn);
+  });
+  return <section className={styles.card} aria-label="Sơ đồ trang trại">
+    <header><h3><MapIcon size={17} />Sơ đồ trang trại</h3><Link to="/areas" className={styles.more}>Khu nuôi <ChevronRight size={15} /></Link></header>
+    {barns === null ? <p className={styles.empty} role="status">Đang tải sơ đồ...</p>
+      : areas.length === 0 ? <p className={styles.empty}>Chưa có khu nuôi nào.</p>
+        : <div className={styles.farmPlan}>{areas.map(area => {
+          const live = area.barns.reduce((sum, barn) => sum + (barn.currentQuantity || 0), 0);
+          return <div key={area.id} className={styles.planArea} aria-label={`Khu ${area.name}`} role="group">
+            <div className={styles.planHead}><strong>{area.name}</strong><small>{area.barns.length} chuồng · {num(live)} con</small></div>
+            <div className={styles.plan}>{area.barns.map(barn => {
+              const card = byBarn.get(barn.id);
+              const status = card ? card.status : 'EMPTY';
+              return <Link key={barn.id} to={`/barns/${barn.id}`} className={`${styles.planTile} ${styles[`tile_${status}`]}`}
+                aria-label={`Sơ đồ ${barn.name}`} title={card ? `${barn.name}: ${STATUS[status]}` : `${barn.name}: chuồng trống`}>
+                <strong>{barn.name}</strong>
+                {card ? <>
+                  <span><b>{num(card.quantity)}</b> con · ngày {card.ageDays ?? '—'}</span>
+                  {card.overdueTasks > 0 ? <em>{card.overdueTasks} quá giờ</em> : <small>Việc {card.tasksDone}/{card.tasksTotal}</small>}
+                </> : <small>{barn.currentQuantity > 0 ? `${num(barn.currentQuantity)} con` : 'Trống'}</small>}
+              </Link>;
+            })}</div>
+          </div>;
+        })}</div>}
+    <div className={styles.legend} aria-label="Chú thích màu">
+      {[['OK', 'Ổn định'], ['WARN', 'Cần chú ý'], ['DANGER', 'Cần xử lý'], ['EMPTY', 'Chuồng trống']].map(([key, label]) =>
+        <span key={key}><i className={styles[`dot_${key}`]} />{label}</span>)}
+    </div>
+  </section>;
+}
+
+function Finance({ finance }) {
+  const items = [
+    ['Con giống', finance.chickCost], ['Cám', finance.feedCost], ['Tổng chi phí', finance.totalCost], ['Doanh thu xuất bán', finance.revenue],
+  ];
+  const profit = Number(finance.profit || 0);
+  return <section className={styles.card} aria-label="Tài chính các lứa đang nuôi">
+    <header><h3><Coins size={17} />Tài chính các lứa đang nuôi</h3><Link to="/reports" className={styles.more}>Báo cáo <ChevronRight size={15} /></Link></header>
+    <div className={styles.finance}>
+      {items.map(([label, value]) => <div key={label}><span>{label}</span><strong>{money(value)}</strong></div>)}
+      <div className={profit >= 0 ? styles.profit : styles.lossMoney}><span>{profit >= 0 ? 'Lãi tạm tính' : 'Lỗ tạm tính'}</span><strong>{money(finance.profit)}</strong></div>
+    </div>
+  </section>;
+}

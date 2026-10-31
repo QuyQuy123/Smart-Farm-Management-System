@@ -1,0 +1,184 @@
+/* Bảng tin: nền trắng, xanh rừng cho điểm nhấn, vàng cho "cần chú ý", đỏ cho "cần xử lý" — cùng bảng màu với Việc hôm nay. */
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.head h2 { margin: 0; font-size: 20px; font-weight: 600; color: #1b4332; }
+.head p { margin: 4px 0 0; font-size: 14.5px; color: #52796f; }
+.headActions { display: flex; gap: 8px; }
+.headActions a { text-decoration: none; }
+.state { padding: 32px; text-align: center; color: #607781; }
+.state button { margin-top: 10px; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.kpi { display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px; border: 1px solid #d7ecdc; border-radius: 14px; background: #fff; }
+.kpi > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.kpi span { font-size: 13.5px; color: #52796f; }
+.kpi strong { font-size: 24px; font-weight: 700; color: #1b4332; line-height: 1.2; }
+.kpi small { font-size: 13px; color: #607781; }
+.kpiIcon { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 10px; background: #e9f6ec; color: #2d6a4f !important; }
+.kpi_warn { border-color: #f5e3a6; background: #fffdf5; }
+.kpi_warn .kpiIcon { background: #fff4d6; color: #a16207 !important; }
+.kpi_warn small { color: #a16207; font-weight: 600; }
+.bar { display: block; height: 5px; margin-top: 6px; border-radius: 999px; background: #e3efe6; overflow: hidden; }
+.bar b { display: block; height: 100%; background: linear-gradient(90deg, #2d6a4f, #74c69d); }
+
+.columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; margin-bottom: 16px; }
+.card { margin-bottom: 16px; border: 1px solid #e3ebe8; border-radius: 14px; background: #fff; overflow: hidden; }
+.columns .card { margin-bottom: 0; }
+.card > header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #edf1f0; }
+.card h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15.5px; font-weight: 600; color: #1b4332; }
+.count { min-width: 26px; padding: 1px 8px; border-radius: 999px; background: #f3faf4; color: #2d6a4f; font-size: 13px; font-weight: 700; text-align: center; }
+.more { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; color: #2d6a4f; text-decoration: none; }
+.more:hover { text-decoration: underline; }
+.empty { margin: 0; padding: 22px 18px; font-size: 14px; color: #71818a; text-align: center; }
+.allGood { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 26px 18px; color: #2d6a4f; font-size: 14.5px; }
+
+.alerts { list-style: none; margin: 0; padding: 6px 0; max-height: 360px; overflow-y: auto; }
+.alerts li > a, .alerts li > div { display: flex; align-items: flex-start; gap: 10px; padding: 10px 18px; color: inherit; text-decoration: none; }
+.alerts li > a:hover { background: #f8fbfa; }
+.alerts li span { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.alerts strong { font-size: 14.5px; font-weight: 600; color: #182b31; }
+.alerts small { font-size: 13px; color: #607781; }
+.alertIcon { flex-shrink: 0; margin-top: 2px; }
+.chevron { flex-shrink: 0; margin-top: 2px; color: #9aaab1; }
+.alert_DANGER .alertIcon { color: #c62828; }
+.alert_DANGER strong { color: #b42318; }
+.alert_WARN .alertIcon { color: #b7791f; }
+.alert_INFO .alertIcon { color: #2f57a3; }
+
+.upcoming { list-style: none; margin: 0; padding: 6px 0; max-height: 360px; overflow-y: auto; }
+.upcoming li { display: flex; align-items: center; gap: 10px; padding: 9px 18px; }
+.upText { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.upText strong { font-size: 14px; font-weight: 600; color: #182b31; }
+.upText small { font-size: 12.5px; color: #607781; }
+.upcoming em { flex-shrink: 0; font-style: normal; font-size: 12.5px; font-weight: 600; color: #2d6a4f; }
+.kind { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border-radius: 8px; background: #e9f6ec; color: #2d6a4f; }
+.kind_VACCINE { background: #e7edf9; color: #2f57a3; }
+.kind_MEDICINE { background: #fdecef; color: #b4234a; }
+.kind_HARVEST { background: #fff4d6; color: #a16207; }
+
+.barns { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; padding: 14px 18px 18px; }
+/* Thẻ chuồng nền pastel chuyển màu: xanh khi ổn, vàng khi cần chú ý, hồng khi cần xử lý. */
+.barn { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid #cfe9d8;
+  border-radius: 12px; background: linear-gradient(135deg, #f1fbf4 0%, #e3f5ea 55%, #d4efe0 100%);
+  color: inherit; text-decoration: none; transition: box-shadow 0.15s ease, transform 0.15s ease; }
+.barn:hover { box-shadow: 0 6px 18px rgba(27, 67, 50, 0.1); transform: translateY(-1px); }
+.barn .bar { height: 3px; margin-top: -4px; background: rgba(27, 67, 50, 0.1); }
+.barnHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.barnHead strong { font-size: 18px; font-weight: 700; color: #1b4332; }
+/* Trạng thái: nền thẻ luôn xanh, chỉ chấm màu và chữ nhãn đổi theo tình trạng. */
+.barnHead em { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 2px 9px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7); color: #1b4332; font-style: normal; font-size: 12px; font-weight: 600; }
+/* Chấm màu là chỗ duy nhất phân biệt trạng thái: xanh lá ổn, xám xanh cần chú ý, đỏ đất cần xử lý. */
+.barnHead em i { width: 7px; height: 7px; border-radius: 50%; }
+.status_OK i { background: #40916c; }
+.status_WARN i { background: #7d968a; }
+.status_DANGER i { background: #9b3d2e; }
+.barnMain { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: #52796f; font-size: 13.5px; }
+.barnMain b { font-size: 26px; font-weight: 700; color: #1b4332; line-height: 1.1; }
+.barnMain .age b { font-size: 18px; }
+.extras { margin-top: -6px; font-size: 12px; color: #6b8a7d; }
+.barnFoot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: #52796f; }
+.barnFoot > span:first-child { margin-right: auto; }
+.barnFoot b { color: #1b4332; }
+.overdue { color: #9b3d2e; font-weight: 600; }
+.loss { color: #9b3d2e; font-weight: 600; }
+.workers { font-size: 12px; color: #6b8a7d; }
+.workers span { color: #9b3d2e; }
+
+.finance { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; padding: 14px 18px 18px; }
+.finance div { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px; background: #f8fbfa; }
+.finance span { font-size: 13px; color: #607781; }
+.finance strong { font-size: 17px; color: #182b31; }
+.profit { background: #e9f6ec !important; }
+.profit strong { color: #2d6a4f; }
+.lossMoney { background: #fdecec !important; }
+.lossMoney strong { color: #b42318; }
+
+/* Sổ trực trại ("Cần xử lý"): bìa xanh rêu, trang giấy ngà kẻ dòng, lề đỏ, ruy-băng — như sổ giao việc ở Phân công. */
+.notebook { --paper: #fbf5e4; --paper-edge: #efe2c0; --ink: #3b2f1e; --ink-soft: #6b5a3e; --rule: rgba(150, 118, 64, 0.28);
+  position: relative; display: flex; padding: 10px; border: 0; border-radius: 16px; overflow: visible;
+  background: linear-gradient(135deg, #24533f 0%, #1b4332 55%, #143326 100%);
+  box-shadow: 0 14px 32px rgba(27, 67, 50, 0.22), inset 0 0 0 2px rgba(255, 255, 255, 0.06); }
+.paper { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 6px 10px 10px 6px; color: var(--ink);
+  background:
+    linear-gradient(90deg, transparent 50px, rgba(214, 90, 90, 0.45) 50px, rgba(214, 90, 90, 0.45) 51.5px, transparent 51.5px),
+    linear-gradient(90deg, var(--paper-edge) 0%, var(--paper) 6%, var(--paper) 100%);
+  box-shadow: 3px 3px 0 #e9dcb8, 6px 6px 0 #dccd9f; }
+/* Ruy-băng đánh dấu trang. */
+.paper::before { content: ''; position: absolute; top: -10px; right: 26px; width: 16px; height: 54px; background: #b5452f;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); }
+.notebook .paper > header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-end; padding: 18px 56px 12px 64px; border-bottom: 2px double rgba(150, 118, 64, 0.45); }
+/* Còng sổ: vòng kim loại móc từ bìa xanh qua mép giấy; giấy có lỗ đục dưới mỗi vòng. Nội dung bắt đầu sau lề đỏ nên không bị đè. */
+.rings { position: absolute; top: 18px; bottom: 18px; left: -6px; z-index: 2; display: flex; flex-direction: column; justify-content: space-between;
+  pointer-events: none; }
+.rings i { position: relative; display: block; width: 30px; height: 14px; border-radius: 9px;
+  border: 3px solid transparent; background: linear-gradient(180deg, #f1ede2, #d9d4c7 35%, #8e8778) border-box;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0) border-box;
+  mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0) border-box;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
+/* Lỗ đục trên giấy, thẳng hàng với từng vòng (cùng khoảng cách: 7 vòng cao 14px trải đều). */
+.paper::after { content: ''; position: absolute; top: 8px; bottom: 8px; left: 4px; width: 10px; pointer-events: none;
+  background: radial-gradient(circle at 50% 7px, rgba(60, 44, 18, 0.55) 0 3.5px, transparent 4px) 0 0 / 10px calc((100% - 14px) / 6) repeat-y; }
+.kicker { display: block; margin-bottom: 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #a0763a; }
+.notebook h3 { font-family: 'Lora', Georgia, 'Times New Roman', serif; font-size: 22px; font-weight: 700; color: #1b4332; }
+.notebook .count { background: #1b4332; color: #fbf5e4; font-family: 'Lora', Georgia, serif; }
+.notebook .allGood { color: #2d6a4f; font-family: 'Lora', Georgia, serif; font-style: italic; padding-left: 64px; }
+.notebook .alerts { padding: 0 0 10px; scrollbar-width: thin; scrollbar-color: #c9b07a transparent; }
+.notebook .alerts::-webkit-scrollbar { width: 8px; }
+.notebook .alerts::-webkit-scrollbar-thumb { border-radius: 8px; background: #c9b07a; }
+.notebook .alerts li > a, .notebook .alerts li > div { align-items: center; padding: 12px 18px 12px 26px; border-bottom: 1px solid var(--rule); }
+.notebook .alerts li > a:hover { background: rgba(255, 255, 255, 0.45); }
+.notebook .alertIcon { flex: 0 0 18px; margin: 0 14px 0 0; }
+.notebook .alerts strong { font-size: 15px; font-weight: 500; color: var(--ink); }
+.notebook .alerts small { font-size: 13px; font-style: italic; color: var(--ink-soft); }
+.barnName { font-family: 'Lora', Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; color: #1b4332; }
+.badge { flex-shrink: 0; min-width: 28px; padding: 2px 9px; border-radius: 999px; font-family: 'Lora', Georgia, serif; font-size: 13.5px;
+  font-weight: 700; text-align: center; background: rgba(255, 255, 255, 0.75); border: 1px solid rgba(150, 118, 64, 0.4); color: #7a5a2b; }
+.notebook .alert_DANGER .badge { background: #fbe4e1; border-color: #e7a9a1; color: #b42318; }
+.notebook .alert_WARN .badge { background: #fdf0cf; border-color: #e7c977; color: #8a5a00; }
+.notebook .alert_DANGER strong { color: #8f1d14; }
+.notebook .alert_DANGER .alertIcon { color: #b5452f; }
+.notebook .alert_WARN .alertIcon { color: #a8741a; }
+.notebook .alert_INFO .alertIcon { color: #1b4332; }
+.notebook .chevron { color: #b59a66; }
+
+/* Sơ đồ trang trại: khu là khối, chuồng là ô mặt bằng; màu theo trạng thái cùng chấm màu của thẻ chuồng (không dùng vàng). */
+.farmPlan { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding: 14px 18px 6px; }
+.planArea { border: 1px solid #d7ecdc; border-radius: 12px; background: #f6fbf7; overflow: hidden; }
+.planHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #e3efe6; }
+.planHead strong { font-size: 15px; color: #1b4332; }
+.planHead small { font-size: 12.5px; color: #52796f; }
+.plan { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; padding: 12px;
+  background-image: linear-gradient(rgba(27, 67, 50, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(27, 67, 50, 0.05) 1px, transparent 1px);
+  background-size: 14px 14px; }
+.planTile { display: flex; flex-direction: column; gap: 3px; min-height: 78px; padding: 8px 10px; border: 1px solid; border-radius: 8px;
+  color: #1b4332; text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.planTile:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(27, 67, 50, 0.12); }
+.planTile strong { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.planTile span { font-size: 12px; color: #2d6a4f; }
+.planTile span b { font-size: 14px; color: #1b4332; }
+.planTile small { font-size: 11.5px; color: #52796f; }
+.planTile em { font-style: normal; font-size: 11.5px; font-weight: 600; color: #9b3d2e; }
+.tile_OK { background: #d8f0e1; border-color: #95d5b2; }
+.tile_WARN { background: #e3ebe7; border-color: #a9bdb3; }
+.tile_DANGER { background: #f3e1dd; border-color: #d6a59b; }
+.tile_EMPTY { background: #f1f3f2; border-color: #dde3e0; border-style: dashed; color: #71818a; }
+.tile_EMPTY strong { color: #607781; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 18px 16px; font-size: 12.5px; color: #52796f; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; border: 1px solid; }
+.dot_OK { background: #d8f0e1; border-color: #95d5b2 !important; }
+.dot_WARN { background: #e3ebe7; border-color: #a9bdb3 !important; }
+.dot_DANGER { background: #f3e1dd; border-color: #d6a59b !important; }
+.dot_EMPTY { background: #f1f3f2; border-color: #dde3e0 !important; border-style: dashed !important; }
+
+@media (max-width: 900px) {
+  .columns { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .card > header, .alerts li > a, .alerts li > div, .upcoming li { padding-left: 14px; padding-right: 14px; }
+  .barns, .finance { padding: 12px; }
+}
+@media (max-width: 640px) {
+  .notebook .paper > header { padding: 14px 44px 10px 46px; }
+  .notebook .alerts li > a, .notebook .alerts li > div { padding: 10px 12px 10px 10px; }
+}
