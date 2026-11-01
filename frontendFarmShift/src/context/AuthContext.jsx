@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { getProfile } from '../services/userService';
+import { getAuthToken, setAuthToken, clearAuthToken } from '../utils/authStorage';
 
 const AuthContext = createContext(null);
 
 const getInitialUser = () => {
-  const token = sessionStorage.getItem('token');
+  const token = getAuthToken();
   if (token) {
     try {
       const decoded = jwtDecode(token);
@@ -13,12 +14,12 @@ const getInitialUser = () => {
         const role = decoded.roles && decoded.roles.length > 0 ? decoded.roles[0] : null;
         return { email: decoded.sub || decoded.email, role };
       } else {
-        sessionStorage.removeItem('token');
+        clearAuthToken();
         sessionStorage.removeItem('demo_mode');
         return null;
       }
     } catch {
-      sessionStorage.removeItem('token');
+      clearAuthToken();
       sessionStorage.removeItem('demo_mode');
       return null;
     }
@@ -41,28 +42,44 @@ const getInitialUser = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(getInitialUser);
-  const [loading, setLoading] = useState(() => Boolean(sessionStorage.getItem('token')));
+  const [loading, setLoading] = useState(() => Boolean(getAuthToken()));
+  const [activeToken, setActiveToken] = useState(getAuthToken);
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem('token');
+    clearAuthToken();
     sessionStorage.removeItem('demo_mode');
     setUser(null);
+    setActiveToken(null);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const syncSession = (event) => {
+      if (event.storageArea !== localStorage || (event.key !== 'token' && event.key !== null)) return;
+      const nextUser = getInitialUser();
+      setUser(nextUser);
+      setActiveToken(getAuthToken());
+      setLoading(Boolean(nextUser && getAuthToken()));
+    };
+    window.addEventListener('storage', syncSession);
+    return () => window.removeEventListener('storage', syncSession);
   }, []);
 
   useEffect(() => {
     let isMounted = true;
-    const token = sessionStorage.getItem('token');
+    let safetyTimer;
+    const token = getAuthToken();
 
     if (token) {
       // Safety timeout: đảm bảo màn hình loading không bị treo vĩnh viễn nếu backend chưa bật
-      const safetyTimer = setTimeout(() => {
+      safetyTimer = setTimeout(() => {
         if (isMounted) setLoading(false);
       }, 2500);
 
       // Fetch full user profile from backend
       getProfile()
         .then(profile => {
-          if (isMounted && profile) {
+          if (isMounted && profile && getAuthToken() === token) {
             setUser(prev => ({
               ...prev,
               name: profile.fullName || 'Admin',
@@ -92,33 +109,18 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimer);
       window.removeEventListener('unauthorized', handleUnauthorized);
     };
-  }, []);
+  }, [activeToken, logout]);
 
   const login = async (token, email, role) => {
-    sessionStorage.setItem('token', token);
+    setAuthToken(token);
     sessionStorage.removeItem('demo_mode');
     setUser({ email, role });
 
-    try {
-      const profile = await getProfile();
-      if (profile) {
-        setUser(prev => ({
-          ...prev,
-          name: profile.fullName || 'Admin FarmShift',
-          fullName: profile.fullName || 'Admin FarmShift',
-          avatarUrl: profile.avatarUrl,
-          phone: profile.phone,
-          citizenId: profile.citizenId,
-          address: profile.address,
-          dateOfBirth: profile.dateOfBirth,
-          role: profile.role || role
-        }));
-      }
-    } catch (err) {
-      console.warn("Could not fetch full profile post-login:", err.message);
-    }
+    setLoading(true);
+    setActiveToken(token);
   };
 
   const loginDemo = (role = 'ROLE_FARM_OWNER', name = 'Admin FarmShift', email = 'admin@farmshift.local') => {

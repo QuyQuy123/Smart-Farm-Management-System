@@ -1,0 +1,10 @@
+.saveProfileButton {
+  background-color: #e6f5ef;
+  color: #176b4b;
+  border-color: #b9dfcd;
+}
+
+.saveProfileButton:hover:not(:disabled) {
+  background-color: #d3ecdf;
+  border-color: #91c9ad;
+}

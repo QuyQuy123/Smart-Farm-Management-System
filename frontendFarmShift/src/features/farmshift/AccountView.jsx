@@ -24,6 +24,7 @@ import { AvatarPreviewModal } from '../profile/AvatarPreviewModal';
 import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 import { PasswordInput } from '../../components/PasswordInput/PasswordInput';
 import employeeFormStyles from './EmployeeForm.module.css';
+import styles from './AccountView.module.css';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
@@ -1328,7 +1329,7 @@ export const AccountView = () => {
               <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-hairline)', paddingTop: '16px' }}>
                 <button
                   type="submit"
-                  className={`farmshift-btn farmshift-btn-primary ${isSavingProfile ? 'is-loading' : ''}`}
+                  className={`farmshift-btn farmshift-btn-secondary ${styles.saveProfileButton} ${isSavingProfile ? 'is-loading' : ''}`}
                   disabled={isSavingProfile || uploadingAvatar}
                   aria-busy={isSavingProfile}
                   id="btn-save-profile"

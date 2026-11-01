@@ -64,7 +64,7 @@ export const Login = () => {
 
   return (
     <AuthLayout>
-      <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+      <div style={{ marginBottom: 'var(--auth-heading-gap, 24px)', textAlign: 'center' }}>
         <h2 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 8px', letterSpacing: '-0.01em' }}>
           Đăng nhập tài khoản
         </h2>
@@ -163,7 +163,7 @@ export const Login = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 'var(--auth-remember-gap, 24px)' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: 'var(--color-body)', cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
