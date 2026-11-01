@@ -134,6 +134,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     // Today's work sheet for the whole barn: amount to take from stock, stock shortage and temperature band.
     expect(dailyPlan.getBarnDailyPlan).toHaveBeenCalledWith(20);
     expect(screen.getByText('850 kg = 34 Bao 25kg')).toBeInTheDocument();
+    // Trang chuồng dùng bản gọn: ẩn liều lượng và phần chia theo đàn.
+    expect(screen.queryByText(/H0004: 566,667 kg/)).not.toBeInTheDocument();
     expect(screen.getByText('Kho không đủ: còn 2 Gói 1kg')).toBeInTheDocument();
     expect(screen.getByText(/Kho chỉ còn 2 Gói 1kg Men tiêu hóa/)).toBeInTheDocument();
     expect(screen.getByText('Giữ 26 – 28 °C')).toBeInTheDocument();
@@ -228,7 +230,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     renderAt('/barns/2');
     fireEvent.click(await screen.findByRole('button', { name: 'Xong Cữ 1/3 · Higro 02' }));
     await waitFor(() => expect(dailyPlan.confirmDailyTask).toHaveBeenCalledWith(20, { date: iso(0), taskKey: 'FEED:I7:M1' }));
-    expect(await screen.findByText(/Xong lúc 06:30 · owner@farm.test/)).toBeInTheDocument();
+    expect(await screen.findByText(/Xong lúc 06:30/)).toBeInTheDocument();
+    expect(screen.queryByText(/owner@farm.test/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hoàn tác Cữ 1/3 · Higro 02' })).toBeInTheDocument();
     expect(mocks.showToast).toHaveBeenCalledWith('Đã xác nhận: Higro 02.', 'success');
     await waitFor(() => expect(cycles.getCycle).toHaveBeenCalledTimes(2));
@@ -267,7 +270,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.queryByRole('button', { name: 'Kết thúc lứa nuôi' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xuất bán H0004' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ghi hao hụt H0004' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ghi cám' })).toBeInTheDocument();
+    // Cám ghi khi bấm Xong cữ ăn ở Việc hôm nay, không còn nút ghi tay ở Nhật ký.
+    expect(screen.queryByRole('button', { name: 'Ghi cám' })).not.toBeInTheDocument();
   });
 
   it('shows accountants accounting and sales but not flock imports or losses', async () => {

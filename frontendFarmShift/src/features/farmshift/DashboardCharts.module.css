@@ -1,0 +1,45 @@
+/* Biểu đồ Bảng tin: nền trắng, lưới mờ, chữ màu chữ (không lấy màu chuỗi). */
+.section { margin-bottom: 16px; border: 1px solid #e3ebe8; border-radius: 14px; background: #fff; }
+.section > header { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #edf1f0; }
+.section h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15.5px; font-weight: 600; color: #1b4332; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 14px 18px 18px; }
+.chart { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 12px 14px; border: 1px solid #edf1f0; border-radius: 12px; min-width: 0; }
+.chart figcaption { display: flex; flex-direction: column; gap: 2px; }
+.chart figcaption strong { font-size: 14.5px; color: #182b31; }
+.chart figcaption small { font-size: 12.5px; color: #607781; }
+.plot { position: relative; }
+.plot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.plot g[tabindex]:focus { outline: none; }
+.axisText { font-size: 11px; fill: #71818a; }
+.empty { margin: 0; padding: 30px 0; text-align: center; font-size: 13.5px; color: #71818a; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: #42545c; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; }
+
+.tooltip { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: 1px; min-width: 120px; padding: 7px 10px; border-radius: 8px;
+  background: #182b31; color: #fff; font-size: 12px; line-height: 1.4; pointer-events: none; transform: translate(-50%, -100%);
+  box-shadow: 0 6px 16px rgba(24, 43, 49, 0.2); white-space: nowrap; }
+.tooltip strong { font-size: 12.5px; }
+
+.donutRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 12px; }
+.donut { max-width: 230px; margin: 0 auto; }
+.donutValue { font-size: 18px; font-weight: 700; fill: #182b31; }
+.donutLegend { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; }
+.donutLegend li { display: grid; grid-template-columns: 12px 1fr auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; }
+.donutLegend i { grid-row: 1 / 3; width: 12px; height: 12px; border-radius: 3px; }
+.donutLegend span { font-size: 13.5px; color: #182b31; }
+.donutLegend b { font-size: 13.5px; color: #182b31; }
+.donutLegend small { grid-column: 2 / 4; font-size: 12px; color: #607781; }
+
+.select { position: absolute; top: 10px; right: 12px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #52796f; }
+.select select { padding: 3px 6px; border: 1px solid #d7ecdc; border-radius: 6px; background: #fff; font: inherit; color: #1b4332; }
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .donutRow { grid-template-columns: 1fr; }
+  .select { position: static; }
+}
+.barValue { font-size: 11.5px; font-weight: 600; fill: #182b31; }

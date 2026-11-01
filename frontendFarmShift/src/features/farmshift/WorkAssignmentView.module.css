@@ -1,25 +1,33 @@
-/* Phân công công việc: cột công nhân bên trái, thẻ từng chuồng bên phải. */
+/* Phân công công việc: hàng chip công nhân để lọc ở trên, sơ đồ khu / thẻ chuồng bên dưới dùng hết bề ngang. */
 .stats { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; font-size: 15px; color: #2d6a4f; }
 .stats strong { font-size: 17px; color: #1b4332; }
 .alert { padding: 4px 12px; border-radius: 999px; background: #fff4e0; color: #8a5a00; font-size: 14px; font-weight: 600; }
 .state { margin: 0; padding: 40px 20px; text-align: center; color: #4b5563; background: #fff; border: 1px solid #e3ebe8; border-radius: 14px; }
 .state p { margin: 0 0 12px; }
 
-.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 18px; align-items: start; }
-.workers { position: sticky; top: 86px; display: flex; flex-direction: column; gap: 6px; padding: 16px; background: #fff; border: 1px solid #d7ecdc; border-radius: 14px; }
-.workers h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 16px; color: #1b4332; }
-.workerRow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid transparent; border-radius: 12px;
-  background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.workerRow:hover { background: #f3faf4; }
-.workerActive, .workerActive:hover { background: #e9f6ec; border-color: #95d5b2; }
-.workerRow span:last-child { display: flex; flex-direction: column; min-width: 0; }
-.workerRow strong { font-size: 15.5px; color: #1f2933; }
-.workerRow small { font-size: 13.5px; color: #4b5563; }
-.avatar { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: #1b4332; color: #fff; font-weight: 700; }
+.layout { display: flex; flex-direction: column; gap: 16px; }
+.workerBar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.workerLabel { display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px; font-weight: 600; color: #2d6a4f; white-space: nowrap; }
+.workers { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 4px; border-radius: 12px; background: #f3faf4; border: 1px solid #d7ecdc; }
+.workerRow { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 0; border-radius: 9px;
+  background: transparent; color: #2d6a4f; font: inherit; cursor: pointer; white-space: nowrap; }
+.workerRow:hover { background: #e9f6ec; }
+.workerRow strong { font-size: 14.5px; font-weight: 600; color: #1b4332; }
+.workerRow small { font-size: 13px; color: #52796f; }
+.workerTasks { padding: 1px 8px; border-radius: 999px; background: #fff; border: 1px solid #b7e4c7; font-size: 12.5px; font-style: normal; font-weight: 700; color: #2d6a4f; }
+.workerActive, .workerActive:hover { background: #1b4332; box-shadow: 0 4px 10px rgba(27, 67, 50, 0.2); }
+.workerActive strong { color: #fff; }
+.workerActive small { color: #d8f3dc; }
+.workerActive .workerTasks { background: rgba(255, 255, 255, 0.15); border-color: transparent; color: #fff; }
+.workerActive .avatar { background: #fff3bf; color: #1b4332; }
+.avatar { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #1b4332; color: #fff; font-size: 12.5px; font-weight: 700; }
 
 .barns { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
 .barn { display: flex; flex-direction: column; gap: 12px; padding: 18px; background: #fff; border: 1px solid #d7ecdc; border-radius: 14px; }
 .barnHead { display: flex; align-items: center; gap: 12px; }
+/* Ngoài chế độ sổ, hai "trang" không tạo khung riêng. */
+.page { display: contents; }
+.bookKicker, .bookStat { display: none; }
 .barnIcon { display: grid; place-items: center; flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px; background: #e9f6ec; color: #2d6a4f; }
 .barnTitle { flex: 1; min-width: 0; }
 .barnTitle h3 { margin: 0; font-size: 17px; color: #1b4332; }
@@ -28,6 +36,10 @@
   color: #2d6a4f; font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer; }
 .ghost:hover { background: #e9f6ec; }
 .assignees { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: #f6faf7; }
+/* Thẻ chuồng thường: nhãn, tên người phụ trách rồi nút Phân công dồn về phải trên cùng một dòng. */
+.assigneeHead, .assigneeList { display: contents; }
+.assignees .chip, .assignees .none { order: 1; }
+.assignees .ghost { order: 2; margin-left: auto; }
 .label { font-size: 14px; font-weight: 700; color: #2d6a4f; }
 .chip { padding: 4px 12px; border-radius: 999px; background: #fff; border: 1px solid #b7e4c7; color: #1b4332; font-size: 14.5px; font-weight: 600; }
 .none { color: #8a5a00; font-size: 14.5px; font-weight: 600; }
@@ -42,7 +54,8 @@
 .todoIcon { flex-shrink: 0; color: #9aa7ae; margin-top: 1px; }
 .taskInfo { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .taskInfo strong { font-size: 15.5px; color: #1f2933; }
-.taskInfo small { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 14px; color: #4b5563; }
+.taskInfo small { display: block; font-size: 14px; color: #4b5563; }
+.taskInfo small svg { vertical-align: -2px; }
 .note { color: #52796f !important; }
 .taskActions { display: flex; gap: 6px; }
 .icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #e2eae7; border-radius: 10px; background: #fff; color: #4b5563; cursor: pointer; }
@@ -53,10 +66,12 @@
 /* Sơ đồ khu: mỗi khu một thẻ, chuồng vẽ thành ô như mặt bằng */
 .areaMap { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; align-content: start; }
 .areaCard { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid #d7ecdc; border-radius: 16px; background: #fff;
-  color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
-.areaCard:hover { border-color: #95d5b2; box-shadow: 0 10px 24px rgba(27, 67, 50, 0.1); transform: translateY(-2px); }
-.areaCard:focus-visible { outline: 2px solid #2d6a4f; outline-offset: 2px; }
-.areaHead { display: flex; align-items: center; gap: 12px; }
+  transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.areaCard:hover { border-color: #95d5b2; box-shadow: 0 10px 24px rgba(27, 67, 50, 0.1); }
+/* Tiêu đề khu mở cả khu; từng ô chuồng mở riêng chuồng đó. */
+.areaHead { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.areaHead:hover .areaTitle strong { text-decoration: underline; }
+.areaHead:focus-visible, .tile:focus-visible { outline: 2px solid #2d6a4f; outline-offset: 2px; }
 .areaIcon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; background: #1b4332; color: #fff; }
 .areaTitle { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .areaTitle strong { font-size: 18px; color: #1b4332; }
@@ -64,12 +79,12 @@
 .areaChevron { color: #95d5b2; }
 .plan { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; padding: 12px; border-radius: 12px;
   background: repeating-linear-gradient(45deg, #f6faf7, #f6faf7 10px, #f0f7f2 10px, #f0f7f2 20px); border: 1px dashed #c9e4d2; }
-.tile { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; min-height: 72px; padding: 8px 10px;
-  border-radius: 10px; border: 2px solid; background: #fff; }
+.tile { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; min-height: 84px; padding: 8px 10px;
+  border-radius: 10px; border: 2px solid; background: #fff; font: inherit; text-align: left; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.tile:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(27, 67, 50, 0.12); }
 .tileName { font-size: 14px; font-weight: 700; color: #1f2933; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tileWorkers { display: flex; gap: 4px; font-size: 13px; color: #9aa7ae; }
-.tileWorkers i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #1b4332; color: #fff;
-  font-size: 12px; font-style: normal; font-weight: 700; }
+.tileWorkers { font-size: 13px; font-weight: 600; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tileCount { font-size: 12px; opacity: 0.8; }
 .tileFoot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .tileTasks { padding: 1px 7px; border-radius: 999px; background: #fff; border: 1px solid currentColor;
   font-size: 12px; font-weight: 700; }
@@ -78,9 +93,9 @@
 .tile_unassigned { border-color: #e57373; background: #fff1f0; color: #b42318; }
 .tile_idle { border-color: #c9d6dc; background: #fff; color: #607781; }
 .tileDim { opacity: 0.35; }
-.areaFoot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; color: #2d6a4f; font-weight: 600; }
+.areaFoot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.areaFoot em { font-style: normal; color: #b42318; font-weight: 600; }
 .areaStats { display: inline-flex; align-items: center; gap: 10px; color: #4b5563; font-weight: 500; }
-.areaStats em { font-style: normal; color: #b42318; font-weight: 600; }
 .legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 16px; margin: 0; font-size: 14px; color: #4b5563; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { display: inline-block; width: 16px; height: 16px; border-radius: 4px; border: 2px solid; }
@@ -89,6 +104,16 @@
 .areaBar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .areaBar h3 { margin: 0; font-size: 20px; color: #1b4332; }
 .areaBar small { font-size: 14.5px; color: #4b5563; }
+.barnSwitch { display: flex; gap: 8px; flex-wrap: wrap; }
+.barnSwitch button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid #d7ecdc; border-radius: 999px; background: #fff;
+  color: #2d6a4f; font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer; }
+.barnSwitch button:hover { background: #e9f6ec; }
+.barnSwitch i { display: inline-block; width: 0; height: 0; border-radius: 50%; border: 5px solid; }
+.barnSwitch small { padding: 0 7px; border-radius: 999px; background: #f3faf4; font-size: 12.5px; color: #4b5563; }
+.barnSwitch .switchActive, .barnSwitch .switchActive:hover { background: #1b4332; border-color: #1b4332; color: #fff; }
+.barnSwitch .switchActive small { background: rgba(255, 255, 255, 0.18); color: #fff; }
+/* Một chuồng đang mở: thẻ chuồng chiếm hết bề ngang. */
+.barnsSingle { grid-template-columns: minmax(0, 1fr); }
 
 /* Dialog phân công */
 .dialogBody { padding: 20px 24px; }
@@ -105,7 +130,74 @@
 
 @media (max-width: 1000px) {
   .areaMap { grid-template-columns: 1fr; }
-  .layout { grid-template-columns: 1fr; }
-  .workers { position: static; }
   .barns { grid-template-columns: 1fr; }
+}
+
+/* ── Cuốn sổ giao việc: một chuồng đang mở ──────────────────────────────
+   Bìa da xanh rêu ôm hai trang giấy ngà; gáy sổ ở giữa, trang phải kẻ dòng có lề đỏ và dải ruy-băng đánh dấu. */
+.book { --paper: #fbf5e4; --paper-edge: #efe2c0; --ink: #3b2f1e; --ink-soft: #6b5a3e; --rule: rgba(150, 118, 64, 0.28);
+  position: relative; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0; padding: 14px;
+  border: 0; border-radius: 18px; background: linear-gradient(135deg, #24533f 0%, #1b4332 55%, #143326 100%);
+  box-shadow: 0 18px 40px rgba(27, 67, 50, 0.28), inset 0 0 0 2px rgba(255, 255, 255, 0.06); }
+.book .page { position: relative; display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 30px 30px 34px;
+  background: var(--paper); color: var(--ink); }
+.book .pageLeft { border-radius: 10px 4px 4px 10px;
+  background: linear-gradient(90deg, var(--paper) 0%, var(--paper) 86%, var(--paper-edge) 100%);
+  box-shadow: -3px 3px 0 #e9dcb8, -6px 6px 0 #dccd9f; }
+.book .pageRight { border-radius: 4px 10px 10px 4px; padding-left: 46px;
+  background:
+    linear-gradient(90deg, transparent 30px, rgba(214, 90, 90, 0.45) 30px, rgba(214, 90, 90, 0.45) 31.5px, transparent 31.5px),
+    linear-gradient(90deg, var(--paper-edge) 0%, var(--paper) 12%, var(--paper) 100%);
+  box-shadow: 3px 3px 0 #e9dcb8, 6px 6px 0 #dccd9f; }
+/* Gáy sổ: bóng tối ở giữa hai trang. */
+.book::after { content: ''; position: absolute; top: 14px; bottom: 14px; left: calc(14px + (100% - 28px) * 0.45); width: 26px; transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(80, 56, 20, 0.22) 45%, rgba(80, 56, 20, 0.3) 50%, rgba(80, 56, 20, 0.22) 55%, transparent);
+  pointer-events: none; }
+/* Ruy-băng đánh dấu trang. */
+.book .pageRight::before { content: ''; position: absolute; top: -14px; left: 6px; width: 18px; height: 64px; background: #b5452f;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); }
+
+.book .bookKicker { display: block; font-size: 12.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #a0763a; }
+.book .barnHead { align-items: center; padding-bottom: 16px; border-bottom: 2px double rgba(150, 118, 64, 0.45); }
+.book .barnIcon { width: 48px; height: 48px; border-radius: 50%; background: #1b4332; color: #fbf5e4; }
+.book .barnTitle h3 { font-family: 'Lora', Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 700; color: #1b4332; line-height: 1.2; }
+.book .barnTitle small { display: block; margin-top: 4px; font-size: 15px; font-style: italic; color: var(--ink-soft); }
+.book .ghost { background: transparent; border-color: rgba(150, 118, 64, 0.5); color: #1b4332; }
+.book .ghost:hover { background: rgba(255, 255, 255, 0.6); }
+.book .assignees { flex-direction: column; align-items: stretch; gap: 10px; padding: 0; background: none; }
+.book .assigneeHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.book .assigneeList { display: flex; flex-wrap: wrap; gap: 8px; }
+.book .assignees .ghost { margin-left: 0; padding: 6px 12px; }
+.book .label { font-family: 'Lora', Georgia, serif; font-size: 16px; font-style: italic; font-weight: 600; color: #7a5a2b; }
+.book .chip { background: rgba(255, 255, 255, 0.7); border-color: rgba(150, 118, 64, 0.4); color: var(--ink); }
+.book .bookStat { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: auto 0 0; padding-top: 16px;
+  border-top: 1px dashed rgba(150, 118, 64, 0.45); font-size: 15px; color: var(--ink-soft); }
+.book .bookStat strong { font-family: 'Lora', Georgia, serif; font-size: 34px; color: #1b4332; line-height: 1; }
+.book .bookStat span { margin-left: auto; font-style: italic; }
+
+.book .taskHead { padding-bottom: 10px; border-bottom: 2px solid rgba(150, 118, 64, 0.35); }
+.book .taskHead .label { font-size: 20px; color: #1b4332; }
+.book .tasks { gap: 0; }
+.book .tasks li { padding: 14px 4px; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; background: transparent; }
+.book .taskDone { background: transparent; }
+.book .taskDone strong { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: rgba(45, 106, 79, 0.6); }
+.book .taskInfo strong { font-size: 16.5px; color: var(--ink); }
+.book .taskInfo small { color: var(--ink-soft); }
+.book .note { font-style: italic; color: #7a5a2b !important; }
+.book .doneIcon { color: #2d6a4f; }
+.book .todoIcon { color: #b59a66; }
+.book .icon { background: transparent; border-color: rgba(150, 118, 64, 0.35); color: var(--ink-soft); }
+.book .icon:hover { background: rgba(255, 255, 255, 0.7); color: #1b4332; }
+.book .noTask { padding: 22px 12px; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; font-style: italic; color: var(--ink-soft); }
+
+/* Khung hẹp (màn nhỏ hoặc chừa chỗ cho danh sách công nhân): gập lại còn một trang, bỏ gáy sổ. */
+.barnsSingle { container-type: inline-size; }
+@container (max-width: 620px) {
+  .book { grid-template-columns: minmax(0, 1fr); padding: 10px; }
+  .book::after { display: none; }
+  .book .page { padding: 22px 18px 24px; }
+  .book .pageLeft { border-radius: 10px 10px 4px 4px; box-shadow: none; background: var(--paper); border-bottom: 2px dashed rgba(150, 118, 64, 0.4); }
+  .book .pageRight { border-radius: 4px 4px 10px 10px; padding-left: 42px; box-shadow: none; }
+  .book .pageRight::before { top: -10px; height: 46px; left: 6px; }
+  .book .barnTitle h3 { font-size: 23px; }
 }

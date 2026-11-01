@@ -667,10 +667,9 @@ export const FarmShiftLayout = ({
                                 {breadcrumbs.map((bc, idx) => (
                                     <Fragment key={idx}>
                                         {bc.path ? <Link to={bc.path}>{bc.label}</Link> : <span>{bc.label}</span>}
-                                        {idx < breadcrumbs.length - 1 && <span>›</span>}
+                                        <span>›</span>
                                     </Fragment>
                                 ))}
-                                <span>›</span>
                                 <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
                             </div>
                         </div>

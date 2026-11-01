@@ -144,14 +144,21 @@ describe('Nhập đàn: chọn nhà cung cấp và tự tạo hóa đơn nhập 
   it('shows the supplier on the flock and links the chick invoice only for roles that see costs', async () => {
     cycles.getCycle.mockResolvedValue(detail([supplierFlock]));
     const { unmount } = renderAt('/barns/2');
-    expect(await screen.findByText('Giống Dabaco')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'HĐ NH000031' })).toHaveAttribute('href', '/purchases?invoice=31');
+    // Bảng chỉ còn tên, ngày tuổi, tồn; nhà cung cấp và hóa đơn nằm trong Chi tiết đàn.
+    fireEvent.click(await screen.findByRole('button', { name: 'Chi tiết đàn H0004' }));
+    const flockDialog = await screen.findByRole('dialog', { name: 'Đàn J-DABACO TRỐNG' });
+    expect(within(flockDialog).getByText('Giống Dabaco')).toBeInTheDocument();
+    expect(within(flockDialog).getByText('11.500đ/con')).toBeInTheDocument();
+    expect(within(flockDialog).getByRole('link', { name: 'NH000031' })).toHaveAttribute('href', '/purchases?invoice=31');
     unmount();
 
     mocks.role = 'ROLE_FARM_WORKER';
     cycles.getCycle.mockResolvedValue(detail([{ ...supplierFlock, unitPrice: null, purchaseInvoiceId: null, purchaseInvoiceCode: null }]));
     renderAt('/barns/2');
-    expect(await screen.findByText('Giống Dabaco')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /HĐ NH/ })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Chi tiết đàn H0004' }));
+    const workerDetail = await screen.findByRole('dialog', { name: 'Đàn J-DABACO TRỐNG' });
+    expect(within(workerDetail).getByText('Giống Dabaco')).toBeInTheDocument();
+    expect(within(workerDetail).queryByText('Giá con giống')).not.toBeInTheDocument();
+    expect(within(workerDetail).queryByRole('link', { name: /NH/ })).not.toBeInTheDocument();
   });
 });

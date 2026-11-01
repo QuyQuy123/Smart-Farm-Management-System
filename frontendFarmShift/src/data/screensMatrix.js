@@ -604,33 +604,6 @@ export const FARMSHIFT_SCREENS = [
     notes: 'Lịch vệ sinh chuồng, sát trùng, kiểm tra thông gió định kỳ'
   },
   {
-    id: 'harvest-types',
-    group: 'Thiết lập chăn nuôi',
-    groupId: 'husbandry',
-    title: 'Loại thu hoạch & Biểu cân',
-    roles: ['owner'],
-    route: '/harvest-types',
-    notes: 'Gà thịt biểu lớn, Gà xô, Gà lọc còi cọc'
-  },
-  {
-    id: 'environment-metrics',
-    group: 'Thiết lập chăn nuôi',
-    groupId: 'husbandry',
-    title: 'Chỉ số môi trường nuôi (IoT)',
-    roles: ['owner'],
-    route: '/breeding-settings',
-    notes: 'Ngưỡng nhiệt độ 25-28.5°C, độ ẩm 60-70% chuẩn chuồng kín'
-  },
-  {
-    id: 'animal-metrics',
-    group: 'Thiết lập chăn nuôi',
-    groupId: 'husbandry',
-    title: 'Chỉ số vật nuôi theo ngày',
-    roles: ['owner'],
-    route: '/breeding-settings',
-    notes: 'Bảng theo dõi tăng trọng và lượng cám ăn/con theo giống'
-  },
-  {
     id: 'programs',
     group: 'Thiết lập chăn nuôi',
     groupId: 'husbandry',

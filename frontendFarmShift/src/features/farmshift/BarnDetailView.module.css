@@ -123,6 +123,11 @@
 }
 
 /* Today's work sheet (DailyPlanCard) inside the barn page */
+.flockDetail { display: grid; gap: 0; margin: 0; }
+.flockDetail > div { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid #edf1f0; }
+.flockDetail > div:last-child { border-bottom: 0; }
+.flockDetail dt { color: #607781; font-size: 14px; }
+.flockDetail dd { margin: 0; color: #182b31; font-size: 14.5px; font-weight: 500; }
 .programTag { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 400; text-transform: none; color: #16794a; }
 .planEmpty { margin: 6px 0 0; font-size: 13.5px; color: #71818a; }
 .dayPlan { padding: 8px; }

@@ -54,15 +54,40 @@ describe('Phân công công việc (chủ trại)', () => {
 
   it('starts on the area map, then opens the barns of an area', async () => {
     renderView();
-    const area = await screen.findByRole('button', { name: 'Mở khu Khu Mía' });
+    const area = await screen.findByRole('region', { name: 'Khu Khu Mía' });
     expect(within(area).getByText('2 chuồng · 9.000 con đang nuôi')).toBeInTheDocument();
-    expect(within(area).getByTitle('Nhà A1: Đã xong việc giao')).toBeInTheDocument();
-    expect(within(area).getByTitle('Nhà A2: Chưa có người phụ trách')).toBeInTheDocument();
+    // Workers are shown per barn, not for the whole area.
+    const a1 = within(area).getByRole('button', { name: 'Mở chuồng Nhà A1' });
+    expect(a1).toHaveAttribute('title', 'Nhà A1: Đã xong việc giao · Công nhân A');
+    expect(within(a1).getByText('A')).toBeInTheDocument();
+    expect(within(area).getByRole('button', { name: 'Mở chuồng Nhà A2' })).toHaveTextContent('Chưa có người');
+    expect(within(area).getByText('1 chuồng chưa có người phụ trách')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Phân công Nhà A1' })).not.toBeInTheDocument();
-    fireEvent.click(area);
+    // Lọc theo công nhân chỉ có ở sơ đồ khu; đang lọc rồi mở khu thì khu vẫn hiện đủ chuồng.
+    fireEvent.click(within(screen.getByRole('group', { name: 'Công nhân' })).getByRole('button', { name: /Công nhân A/ }));
+    fireEvent.click(within(area).getByRole('button', { name: 'Mở khu Khu Mía' }));
+    expect(screen.queryByRole('group', { name: 'Công nhân' })).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Phân công Nhà A1' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A2' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sơ đồ khu' }));
     expect(screen.getByRole('button', { name: 'Mở khu Khu Mía' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Công nhân' })).toBeInTheDocument();
+  });
+
+  it('opens only the barn whose tile was clicked', async () => {
+    renderView();
+    fireEvent.click(await screen.findByRole('button', { name: 'Mở chuồng Nhà A2' }));
+    expect(screen.getByRole('heading', { name: 'Khu Mía › Nhà A2' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A2' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Phân công Nhà A1' })).not.toBeInTheDocument();
+    // Switch straight to another barn of the area, or back to the whole area.
+    expect(screen.getByRole('tab', { name: /Nhà A2/ })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: /Nhà A1/ }));
+    expect(screen.getByRole('heading', { name: 'Khu Mía › Nhà A1' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Phân công Nhà A2' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Cả khu (2)' }));
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A1' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A2' })).toBeInTheDocument();
   });
 
   it('shows each barn with its workers and the tasks given for the day', async () => {
@@ -76,9 +101,8 @@ describe('Phân công công việc (chủ trại)', () => {
     const a2 = screen.getByRole('region', { name: 'Phân công Nhà A2' });
     expect(within(a2).getByText('Chưa có ai')).toBeInTheDocument();
 
-    // Filter by worker: only the barns of that worker.
-    fireEvent.click(screen.getByRole('button', { name: /Công nhân A1 chuồng/ }));
-    expect(screen.queryByRole('region', { name: 'Phân công Nhà A2' })).not.toBeInTheDocument();
+    // Trong một khu không có thanh lọc công nhân (chỉ lọc ở sơ đồ khu).
+    expect(screen.queryByRole('button', { name: /Công nhân A1 chuồng/ })).not.toBeInTheDocument();
   });
 
   it('assigns workers to a barn', async () => {
@@ -109,11 +133,38 @@ describe('Phân công công việc (chủ trại)', () => {
     expect(await within(dialog).findByText('Vui lòng nhập tên công việc.')).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Tên công việc/), { target: { value: 'Sát trùng lối đi' } });
     fireEvent.change(within(dialog).getByLabelText(/Giờ làm/), { target: { value: '16:00' } });
+    // Mặc định làm một ngày: chỉ có ô "Ngày làm".
+    expect(within(dialog).getByLabelText(/Ngày làm/)).toHaveValue(today);
+    expect(within(dialog).queryByLabelText(/Lặp mỗi ngày đến/)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText(/Lặp lại/), { target: { value: 'UNTIL' } });
+    expect(within(dialog).queryByLabelText(/Ngày làm/)).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    expect(await within(dialog).findByText('Vui lòng nhập lặp mỗi ngày đến.')).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Lặp mỗi ngày đến/), { target: { value: '2099-01-07' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await waitFor(() => expect(service.createWorkTask).toHaveBeenCalledWith({
       barnId: 1, assigneeId: 5, title: 'Sát trùng lối đi', note: '', startDate: today, endDate: '2099-01-07', dueTime: '16:00',
     }));
     expect(mocks.showToast).toHaveBeenCalledWith('Đã giao việc "Sát trùng lối đi" cho Công nhân A.', 'success');
+  });
+
+  it('gives a task only inside a date window (from … to …)', async () => {
+    renderView();
+    await openArea();
+    const a1 = await screen.findByRole('region', { name: 'Phân công Nhà A1' });
+    fireEvent.click(within(a1).getByRole('button', { name: 'Giao việc Nhà A1' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/Tên công việc/), { target: { value: 'Tiêm vắc-xin bổ sung' } });
+    fireEvent.change(within(dialog).getByLabelText(/Lặp lại/), { target: { value: 'RANGE' } });
+    fireEvent.change(within(dialog).getByLabelText(/Từ ngày/), { target: { value: '2099-02-10' } });
+    fireEvent.change(within(dialog).getByLabelText(/Đến ngày/), { target: { value: '2099-02-05' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    expect(await within(dialog).findByText('Đến ngày phải từ ngày bắt đầu trở đi.')).toBeInTheDocument();
+    expect(service.createWorkTask).not.toHaveBeenCalled();
+    fireEvent.change(within(dialog).getByLabelText(/Đến ngày/), { target: { value: '2099-02-14' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    await waitFor(() => expect(service.createWorkTask).toHaveBeenCalledWith({
+      barnId: 1, assigneeId: 5, title: 'Tiêm vắc-xin bổ sung', note: '', startDate: '2099-02-10', endDate: '2099-02-14', dueTime: null,
+    }));
   });
 });

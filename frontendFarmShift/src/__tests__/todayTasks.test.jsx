@@ -128,6 +128,8 @@ describe('Việc hôm nay: workers follow the plan and only tick tasks', () => {
     expect(screen.getByRole('tab', { name: /Phân công/ })).toHaveAttribute('aria-selected', 'true');
     // Assignments can be planned ahead, unlike the work sheet.
     expect(screen.getByRole('button', { name: 'Ngày sau' })).not.toBeDisabled();
+    // Tổng kết việc giao nằm trên thanh công cụ, cùng chỗ với tổng kết của tab Việc hôm nay.
+    expect(await screen.findByText(/việc giao đã xong/)).toHaveTextContent('0/0 việc giao đã xong');
   });
 
   it('goes back a day to catch up and cannot go into the future', async () => {
