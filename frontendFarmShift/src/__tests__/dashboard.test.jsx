@@ -76,11 +76,7 @@ describe('Bảng tin', () => {
     expect(within(cost).getByText('68,8%')).toBeInTheDocument();
     expect(within(cost).getByText('Chi khác')).toBeInTheDocument();
 
-    const tasks = within(charts).getByRole('figure', { name: 'Việc 7 ngày gần nhất' });
-    expect(within(tasks).getByText('Hôm nay')).toBeInTheDocument();
-    fireEvent.mouseEnter(within(tasks).getAllByRole('img')[0].querySelectorAll('g[tabindex]')[6]);
-    expect(within(tasks).getByRole('status')).toHaveTextContent('Đã xong 3/12');
-    expect(within(tasks).getByRole('status')).toHaveTextContent('Quá giờ 2');
+    expect(within(charts).queryByRole('figure', { name: 'Việc 7 ngày gần nhất' })).not.toBeInTheDocument();
 
     const growth = within(charts).getByRole('figure', { name: 'Tăng trọng theo ngày tuổi' });
     expect(within(growth).getByRole('img')).toHaveAccessibleName(/Nhà A1: ngày 1 0,04 kg, ngày 21 0,85 kg, ngày 28 1,4 kg/);
@@ -145,7 +141,7 @@ describe('Bảng tin', () => {
     expect(screen.queryByText(/Công nợ/)).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Tài chính các lứa đang nuôi' })).not.toBeInTheDocument();
     expect(screen.queryByRole('figure', { name: 'Cơ cấu chi phí các lứa đang nuôi' })).not.toBeInTheDocument();
-    expect(screen.getByRole('figure', { name: 'Việc 7 ngày gần nhất' })).toBeInTheDocument();
+    expect(screen.getByRole('figure', { name: 'Tăng trọng theo ngày tuổi' })).toBeInTheDocument();
   });
 
   it('says all is well when nothing needs attention, and retries after an error', async () => {

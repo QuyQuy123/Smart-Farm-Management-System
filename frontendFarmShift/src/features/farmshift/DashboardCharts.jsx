@@ -22,12 +22,6 @@ const ticks = (max, count = 4) => {
   return Array.from({ length: Math.ceil(max / step) + 1 }, (_, i) => +(i * step).toFixed(6));
 };
 
-/** Thanh có đầu bo 4px ở phía xa trục, chân vuông dính trục. */
-const barPath = (x, y, w, h, r = 4) => {
-  const rr = Math.min(r, w / 2, h);
-  return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
-};
-
 function Tooltip({ tip }) {
   if (!tip) return null;
   return <div className={styles.tooltip} style={{ left: `${tip.x}%`, top: tip.y }} role="status">
@@ -138,40 +132,7 @@ function CostDonut({ finance }) {
   </ChartCard>;
 }
 
-/** 3. Việc 7 ngày gần nhất: cột chồng đã xong + bỏ lỡ / quá giờ, khe 2px giữa hai phần. */
-function TaskHistory({ days }) {
-  const [tip, setTip] = useState(null);
-  const yTicks = ticks(Math.max(...days.map(d => d.done + d.missed), 1));
-  const max = yTicks[yTicks.length - 1];
-  const slot = plotW / days.length;
-  const bw = Math.min(34, slot * 0.55);
-  return <ChartCard title="Việc 7 ngày gần nhất" hint="Hôm nay: việc chưa xong mà đã quá giờ">
-    <div className={styles.plot} onMouseLeave={() => setTip(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={days.map(d => `${formatDay(d.date)}: xong ${d.done}/${d.total}`).join(', ')}>
-        <YGrid values={yTicks} max={max} format={v => num(v)} />
-        <line x1={PAD.l} x2={W - PAD.r} y1={PAD.t + plotH} y2={PAD.t + plotH} stroke={C.axis} />
-        {days.map((d, i) => {
-          const x = PAD.l + i * slot + (slot - bw) / 2;
-          const hDone = (d.done / max) * plotH, hMiss = (d.missed / max) * plotH;
-          const base = PAD.t + plotH;
-          const today = i === days.length - 1;
-          const show = () => setTip({ x: ((x + bw / 2) / W) * 100, y: base - hDone - hMiss - 8, title: today ? 'Hôm nay' : formatDay(d.date),
-            lines: [`Đã xong ${d.done}/${d.total}`, `${today ? 'Quá giờ' : 'Bỏ lỡ'} ${d.missed}`] });
-          return <g key={d.date} onMouseEnter={show} onFocus={show} tabIndex={0}>
-            <rect x={PAD.l + i * slot} y={PAD.t} width={slot} height={plotH} fill="transparent" />
-            {hDone > 0 && <path d={hMiss > 0 ? `M${x},${base}V${base - hDone}H${x + bw}V${base}Z` : barPath(x, base - hDone, bw, hDone)} fill={C.green} />}
-            {hMiss > 0 && <path d={barPath(x, base - hDone - hMiss, bw, Math.max(hMiss - (hDone > 0 ? 2 : 0), 1))} fill={C.earth} />}
-            <text x={x + bw / 2} y={H - 14} textAnchor="middle" className={styles.axisText}>{today ? 'Hôm nay' : formatDay(d.date).slice(0, 5)}</text>
-          </g>;
-        })}
-      </svg>
-      <Tooltip tip={tip} />
-    </div>
-    <Legend items={[[C.green, 'Đã xong'], [C.earth, 'Bỏ lỡ / quá giờ']]} />
-  </ChartCard>;
-}
-
-/** 4. Tăng trọng theo ngày tuổi: đường cân TB thực tế, mốc mục tiêu xuất chuồng nét đứt; chọn chuồng. */
+/** 3. Tăng trọng theo ngày tuổi: đường cân TB thực tế, mốc mục tiêu xuất chuồng nét đứt; chọn chuồng. */
 function GrowthChart({ growth }) {
   const usable = growth.filter(g => g.points.length > 0);
   const [barnId, setBarnId] = useState(() => (usable.find(g => g.points.length > 1) || usable[0])?.barnId);
@@ -219,16 +180,14 @@ function GrowthChart({ growth }) {
   </ChartCard>;
 }
 
-/** Mục "Biểu đồ" của Bảng tin: lưới 2×2 (điện thoại 1 cột). Cơ cấu chi phí chỉ có khi được xem tiền. */
+/** Mục "Biểu đồ" của Bảng tin: lưới 2 cột (điện thoại 1 cột). Cơ cấu chi phí chỉ có khi được xem tiền. */
 export function DashboardCharts({ data }) {
   const growth = data.growth || [];
-  const history = data.taskHistory || [];
   return <section className={styles.section} aria-label="Biểu đồ">
     <header><h3><BarChart3 size={17} />Biểu đồ</h3></header>
     <div className={styles.grid}>
       {data.barns.length > 0 && <LossRates barns={data.barns} />}
       {data.finance && <CostDonut finance={data.finance} />}
-      {history.length > 0 && <TaskHistory days={history} />}
       {growth.length > 0 && <GrowthChart growth={growth} />}
     </div>
   </section>;

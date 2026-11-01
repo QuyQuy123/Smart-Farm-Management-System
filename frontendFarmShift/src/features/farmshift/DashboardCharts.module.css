@@ -3,6 +3,8 @@
 .section > header { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #edf1f0; }
 .section h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15.5px; font-weight: 600; color: #1b4332; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 14px 18px 18px; }
+/* Số biểu đồ lẻ: biểu đồ cuối giãn hết hàng thay vì để trống nửa bên phải. */
+.grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 .chart { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 12px 14px; border: 1px solid #edf1f0; border-radius: 12px; min-width: 0; }
 .chart figcaption { display: flex; flex-direction: column; gap: 2px; }
 .chart figcaption strong { font-size: 14.5px; color: #182b31; }
