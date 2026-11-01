@@ -220,17 +220,16 @@ export const ProductTypesView = () => {
               <tr>
                 <th>Tên loại hàng</th>
                 <th>Mô tả</th>
-                <th>Số lượng</th>
                 <th>Ngày tạo</th>
                 <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className={styles.empty} role="status">Đang tải danh sách loại hàng hóa...</td></tr>
+                <tr><td colSpan={4} className={styles.empty} role="status">Đang tải danh sách loại hàng hóa...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={styles.empty}>
+                  <td colSpan={4} className={styles.empty}>
                     {query ? 'Không tìm thấy loại hàng phù hợp.' : 'Chưa có loại hàng hóa nào. Thêm loại hàng đầu tiên để bắt đầu.'}
                   </td>
                 </tr>
@@ -239,7 +238,6 @@ export const ProductTypesView = () => {
                   <tr key={item.id}>
                     <td><strong>{item.name}</strong></td>
                     <td className={styles.description}>{item.description || '—'}</td>
-                    <td><span className={styles.count}>{item.quantity ?? 0}</span></td>
                     <td className={styles.date}>{formatDate(item.createdAt)}</td>
                     <td>
                       <div className={styles.actions}>

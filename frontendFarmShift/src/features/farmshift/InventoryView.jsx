@@ -109,6 +109,7 @@ export const InventoryView = () => {
     </>}
   </div>;
   const quantity = value => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 6 }).format(value);
+  const stockQuantity = value => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(value);
   const receiptDate = lot => {
     const value = lot.receipt?.importedDate;
     if (!value) return '—';
@@ -130,8 +131,8 @@ export const InventoryView = () => {
         <tr>
           <td><div className={styles.inventoryImage}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} width={56} height={56} loading={index < 8 ? 'eager' : 'lazy'} decoding="async" /> : <Package size={25} color="#008577" />}</div></td>
           <td><div className={styles.inventoryGroupName}><button type="button" className={styles.iconButton} aria-label={`${expanded.has(item.key) ? 'Thu gọn' : 'Mở'} lịch sử ${item.name}`} aria-expanded={expanded.has(item.key)} aria-controls={`inventory-history-${item.id}`} onClick={() => toggleHistory(item.key)}>{expanded.has(item.key) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button><strong>{item.name}</strong></div></td>
-          <td title="Trung bình cộng đơn giá các lần nhập">{money(item.price, 2)}</td><td><span className={styles.count}>{quantity(item.stock)}</span></td>
-          <td title={inventoryStockKg(item) == null ? 'Chưa có quy cách khối lượng phù hợp' : `1 ${item.unitName || 'đơn vị'} = ${quantity(inventoryStockKg({ ...item, stock: 1 }))} kg`}>{inventoryStockKg(item) == null ? '—' : `${quantity(inventoryStockKg(item))} kg`}</td>
+          <td title="Trung bình cộng đơn giá các lần nhập">{money(item.price, 2)}</td><td><span className={styles.count}>{stockQuantity(item.stock)}</span></td>
+          <td title={inventoryStockKg(item) == null ? 'Chưa có quy cách khối lượng phù hợp' : `1 ${item.unitName || 'đơn vị'} = ${quantity(inventoryStockKg({ ...item, stock: 1 }))} kg`}>{inventoryStockKg(item) == null ? '—' : `${stockQuantity(inventoryStockKg(item))} kg`}</td>
           <td>{item.unitName || '—'}</td><td>{item.brandName || '—'}</td>
           <td>{item.lots.length === 1 ? actions(item.lots[0]) : <button type="button" className={styles.iconButton} title="Xem lịch sử nhập" aria-label={`Xem ${item.name}`} onClick={() => toggleHistory(item.key)}><Eye size={16} /></button>}</td>
         </tr>

@@ -106,12 +106,12 @@ export const WarehouseCategoriesView = () => {
     {error ? <div role="alert" className={styles.empty}><p>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div> :
       <div className="farmshift-table-container" style={{ border: 0 }}>
         <table className={`farmshift-table ${styles.table}`}>
-          <thead><tr><th>Mã danh mục</th><th>Tên danh mục</th><th>Mô tả</th><th>SL hàng hóa</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
+          <thead><tr><th>Mã danh mục</th><th>Tên danh mục</th><th>Mô tả</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={6} className={styles.empty} role="status">Đang tải danh mục kho...</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className={styles.empty}>{query ? 'Không tìm thấy danh mục phù hợp.' : 'Chưa có danh mục kho. Thêm danh mục đầu tiên để bắt đầu.'}</td></tr> :
+            {loading ? <tr><td colSpan={5} className={styles.empty} role="status">Đang tải danh mục kho...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className={styles.empty}>{query ? 'Không tìm thấy danh mục phù hợp.' : 'Chưa có danh mục kho. Thêm danh mục đầu tiên để bắt đầu.'}</td></tr> :
               filtered.map(category => <tr key={category.id}>
                 <td><span className={styles.code}>{category.code}</span></td><td><strong>{category.name}</strong></td><td className={styles.description}>{category.description || '—'}</td>
-                <td><span className={styles.count}>{category.itemCount}</span></td><td className={styles.date}>{formatDate(category.createdAt)}</td>
+                <td className={styles.date}>{formatDate(category.createdAt)}</td>
                 <td><div className={styles.actions}>
                   <button type="button" className={styles.iconButton} onClick={() => open('view', category)} aria-label={`Xem ${category.name}`} title="Xem chi tiết"><Eye size={16} /></button>
                   {canEdit && <><button type="button" className={styles.iconButton} onClick={() => open('edit', category)} aria-label={`Sửa ${category.name}`} title="Chỉnh sửa"><Pencil size={16} /></button>
