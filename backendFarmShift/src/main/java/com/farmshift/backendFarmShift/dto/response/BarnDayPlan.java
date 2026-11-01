@@ -28,8 +28,10 @@ public record BarnDayPlan(Long cycleId, String cycleCode, Long barnId, String ba
                        AdministrationMethod method, String doseText, BigDecimal plannedQuantity, String unit,
                        BigDecimal plannedStock, String stockUnit, Long inventoryItemId, String inventoryItemName,
                        BigDecimal stockOnHand, Boolean stockEnough, BigDecimal tempMin, BigDecimal tempMax, String note,
-                       List<Share> shares, Done done) {
+                       List<Share> shares, Done done, List<StockSource> stockSources) {
     }
+
+    public record StockSource(Long itemId, String warehouseName, String unitName, BigDecimal stock) {}
 
     /** Phần của từng đàn trong lượng cả chuồng. */
     public record Share(Long flockId, String flockCode, int ageDays, int quantity, BigDecimal plannedQuantity) {

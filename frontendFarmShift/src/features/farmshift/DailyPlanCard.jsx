@@ -29,6 +29,7 @@ const amountText = (quantity, unit, stock, stockUnit) => {
 export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, onConfirmAssigned, onUndoAssigned, showHeader = true, hideDone = false, compact = false }) {
   const [editing, setEditing] = useState(null);
   const [errors, setErrors] = useState({});
+  const [sourceSelections, setSourceSelections] = useState({});
   const isOwner = role === 'ROLE_FARM_OWNER';
   const canAct = isOwner || role === 'ROLE_FARM_WORKER';
   const assigned = plan.assignedTasks || [];
@@ -43,10 +44,12 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     if (message) setErrors(current => ({ ...current, [task.key]: message }));
     else if (editing?.key === task.key) setEditing(null);
   };
-  const quickDone = task => run(task, () => onConfirm(plan, task, {}));
+  const sourceExtra = task => sourceSelections[task.key] ? { sourceItemId: Number(sourceSelections[task.key]) } : {};
+  const quickDone = task => run(task, () => onConfirm(plan, task, sourceExtra(task)));
   const saveDifferent = task => run(task, () => onConfirm(plan, task, {
     actualQuantity: MEASURED.includes(task.category) && editing.quantity !== '' ? Number(editing.quantity) : undefined,
     note: editing.note.trim() || undefined,
+    ...sourceExtra(task),
   }));
   const undo = task => run(task, () => onUndo(plan, task));
   const canUndo = done => isOwner || (role === 'ROLE_FARM_WORKER' && done.doneBy === userEmail && plan.date === todayIso());
@@ -94,6 +97,14 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
           {task.shares.length > 1 && task.plannedQuantity != null && <> · {task.shares.map(share => `${share.flockCode}: ${formatAmount(share.plannedQuantity)} ${task.unit}`).join(', ')}</>}
         </small>}
         {task.stockEnough === false && !done && <small className={styles.short}>Kho không đủ: còn {formatAmount(task.stockOnHand)} {task.stockUnit}</small>}
+        {!done && task.stockSources?.length === 1 && <small>Kho nguồn: {task.stockSources[0].warehouseName}</small>}
+        {!done && task.stockSources?.length > 1 && <label>Kho nguồn
+          <select className="farmshift-form-control" value={sourceSelections[task.key] || ''} disabled={busy || !canAct}
+            aria-label={`Kho nguồn ${title(task)}`} onChange={event => setSourceSelections(current => ({ ...current, [task.key]: event.target.value }))}>
+            <option value="">Chọn kho lấy hàng...</option>
+            {task.stockSources.map(source => <option key={source.itemId} value={source.itemId}>{source.warehouseName} · còn {formatAmount(source.stock)} {source.unitName}</option>)}
+          </select>
+        </label>}
         {done && <small className={styles.doneLine}>
           <Check size={13} />Xong lúc {time(done.doneAt)}{!compact && <>
           {` · ${done.doneBy}`}

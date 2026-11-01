@@ -17,3 +17,12 @@ export function groupInventoryItems(items) {
       imageUrl: lots.find(lot => lot.imageUrl)?.imageUrl, brandName: brands.join(', ') };
   });
 }
+
+/** Weight is derived from the item's own package specification; volume/dose units are not kg. */
+export function inventoryStockKg(item) {
+  const content = Number(item.unitContentQuantity);
+  const stock = Number(item.stock);
+  const factor = { KG: 1, G: 0.001 }[item.unitContentUnit];
+  return factor && Number.isFinite(content) && content > 0 && Number.isFinite(stock)
+    ? Math.round(stock * content * factor * 1e6) / 1e6 : null;
+}

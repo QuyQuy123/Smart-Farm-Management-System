@@ -7,7 +7,8 @@ import { useNotification } from '../../context/NotificationContext';
 import { listWarehouseCategories, WAREHOUSE_CATEGORIES_CHANGED } from '../../services/warehouseCategoryService';
 import { sortWarehouseCategories } from '../../utils/warehouseCategoryOrder';
 import { listInventoryItems } from '../../services/inventoryItemService';
-import { groupInventoryItems } from '../../utils/inventoryGroups';
+import { INVENTORY_CHANGED } from '../../utils/inventoryEvents';
+import { groupInventoryItems, inventoryStockKg } from '../../utils/inventoryGroups';
 import { InventoryItemDialog } from './InventoryItemDialog';
 import styles from './WarehouseCategoriesView.module.css';
 
@@ -27,6 +28,17 @@ export const InventoryView = () => {
   const [itemsRevision, setItemsRevision] = useState(0);
   const [expanded, setExpanded] = useState(new Set());
   const [search, setSearch] = useState(''), [modal, setModal] = useState(null);
+
+  useEffect(() => {
+    const refresh = () => setItemsRevision(value => value + 1);
+    const onStorage = event => { if (event.key === INVENTORY_CHANGED) refresh(); };
+    window.addEventListener(INVENTORY_CHANGED, refresh);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(INVENTORY_CHANGED, refresh);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false, requestId = 0;
@@ -96,7 +108,7 @@ export const InventoryView = () => {
       <button type="button" className={`${styles.iconButton} ${styles.danger}`} title="Xóa hàng hóa" aria-label={`Xóa ${item.name}${suffix}`} onClick={() => open('delete', item)}><Trash2 size={16} /></button>
     </>}
   </div>;
-  const quantity = value => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }).format(value);
+  const quantity = value => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 6 }).format(value);
   const receiptDate = lot => {
     const value = lot.receipt?.importedDate;
     if (!value) return '—';
@@ -113,15 +125,17 @@ export const InventoryView = () => {
     <div className={`farmshift-card ${styles.card}`}>
       <div className={styles.searchRow}><div className={styles.search}><Search size={17} /><input aria-label="Tìm hàng hóa" placeholder="Tìm theo tên hàng hóa, nhãn hiệu..." value={search} onChange={event => setSearch(event.target.value)} /></div>{!loadingItems && !itemError && <span className={styles.total}>{filtered.length} hàng hóa</span>}</div>
       {itemError ? <div role="alert" className={styles.empty}><p>{itemError}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setItemsRevision(value => value + 1)}>Tải lại hàng hóa</button></div> : <div className="farmshift-table-container" style={{ border: 0 }}><table className={`farmshift-table ${styles.table}`}>
-        <thead><tr><th>Ảnh</th><th>Tên hàng hóa</th><th>Giá trung bình</th><th>Tồn kho</th><th>Đơn vị</th><th>Nhãn hiệu</th><th>Thao tác</th></tr></thead>
-        <tbody>{loadingItems || loadingCategories ? <tr><td colSpan={7} className={styles.empty} role="status">Đang tải hàng hóa...</td></tr> : !filtered.length ? <tr><td colSpan={7} className={styles.empty}>{search ? 'Không tìm thấy hàng hóa phù hợp.' : 'Chưa có hàng hóa thuộc danh mục kho này.'}</td></tr> : filtered.map((item, index) => <Fragment key={item.key}>
+        <thead><tr><th>Ảnh</th><th>Tên hàng hóa</th><th>Giá trung bình</th><th>Tồn kho</th><th>Tồn kho (kg)</th><th>Đơn vị</th><th>Nhãn hiệu</th><th>Thao tác</th></tr></thead>
+        <tbody>{loadingItems || loadingCategories ? <tr><td colSpan={8} className={styles.empty} role="status">Đang tải hàng hóa...</td></tr> : !filtered.length ? <tr><td colSpan={8} className={styles.empty}>{search ? 'Không tìm thấy hàng hóa phù hợp.' : 'Chưa có hàng hóa thuộc danh mục kho này.'}</td></tr> : filtered.map((item, index) => <Fragment key={item.key}>
         <tr>
           <td><div className={styles.inventoryImage}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} width={56} height={56} loading={index < 8 ? 'eager' : 'lazy'} decoding="async" /> : <Package size={25} color="#008577" />}</div></td>
           <td><div className={styles.inventoryGroupName}><button type="button" className={styles.iconButton} aria-label={`${expanded.has(item.key) ? 'Thu gọn' : 'Mở'} lịch sử ${item.name}`} aria-expanded={expanded.has(item.key)} aria-controls={`inventory-history-${item.id}`} onClick={() => toggleHistory(item.key)}>{expanded.has(item.key) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button><strong>{item.name}</strong></div></td>
-          <td title="Trung bình cộng đơn giá các lần nhập">{money(item.price, 2)}</td><td><span className={styles.count}>{quantity(item.stock)}</span></td><td>{item.unitName || '—'}</td><td>{item.brandName || '—'}</td>
+          <td title="Trung bình cộng đơn giá các lần nhập">{money(item.price, 2)}</td><td><span className={styles.count}>{quantity(item.stock)}</span></td>
+          <td title={inventoryStockKg(item) == null ? 'Chưa có quy cách khối lượng phù hợp' : `1 ${item.unitName || 'đơn vị'} = ${quantity(inventoryStockKg({ ...item, stock: 1 }))} kg`}>{inventoryStockKg(item) == null ? '—' : `${quantity(inventoryStockKg(item))} kg`}</td>
+          <td>{item.unitName || '—'}</td><td>{item.brandName || '—'}</td>
           <td>{item.lots.length === 1 ? actions(item.lots[0]) : <button type="button" className={styles.iconButton} title="Xem lịch sử nhập" aria-label={`Xem ${item.name}`} onClick={() => toggleHistory(item.key)}><Eye size={16} /></button>}</td>
         </tr>
-        {expanded.has(item.key) && <tr className={styles.inventoryHistoryRow}><td colSpan={7}>
+        {expanded.has(item.key) && <tr className={styles.inventoryHistoryRow}><td colSpan={8}>
           <section id={`inventory-history-${item.id}`} className={styles.inventoryHistory} aria-label={`Lịch sử nhập ${item.name}`}>
             <h3>Lịch sử nhập — {item.name}</h3>
             <p>Giá trung bình = tổng đơn giá các lần nhập / số lần nhập. Tồn kho là tổng số lượng còn lại.</p>

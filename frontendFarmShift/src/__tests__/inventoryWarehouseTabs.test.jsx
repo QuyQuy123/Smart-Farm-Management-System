@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { InventoryView } from '../features/farmshift/InventoryView';
 import { listInventoryItems } from '../services/inventoryItemService';
 import { listWarehouseCategories, WAREHOUSE_CATEGORIES_CHANGED } from '../services/warehouseCategoryService';
+import { INVENTORY_CHANGED } from '../utils/inventoryEvents';
 
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children, actions }) => <div>{actions}{children}</div> }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: 'ROLE_FARM_OWNER' } }) }));
@@ -15,6 +16,18 @@ const category = { id: 5, name: 'Kho mới từ database' };
 const renderView = () => render(<MemoryRouter><InventoryView /></MemoryRouter>);
 
 describe('Inventory warehouse category tabs', () => {
+  it('shows kg next to packages and refreshes both after a feeding stock event', async () => {
+    const item = { id: 99, warehouseId: 5, productId: 9, name: 'Cám GT2', stock: 100, price: 310000,
+      unitId: 1, unitName: 'Bao', unitContentQuantity: 25, unitContentUnit: 'KG' };
+    listInventoryItems.mockResolvedValue([item]);
+    renderView();
+    expect(await screen.findByText('2.500 kg')).toBeInTheDocument();
+    expect(screen.getByText('100')).toBeInTheDocument();
+    listInventoryItems.mockResolvedValue([{ ...item, stock: 97.72 }]);
+    await act(async () => { window.dispatchEvent(new Event(INVENTORY_CHANGED)); });
+    expect(await screen.findByText('2.443 kg')).toBeInTheDocument();
+    expect(screen.getByText('97,72')).toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     listInventoryItems.mockResolvedValue([]);

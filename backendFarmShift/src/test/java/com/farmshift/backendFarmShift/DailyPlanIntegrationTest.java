@@ -44,6 +44,7 @@ class DailyPlanIntegrationTest {
     @Autowired InventoryItemRepository inventory;
     @Autowired com.farmshift.backendFarmShift.repository.AccountRepository accounts;
     @Autowired com.farmshift.backendFarmShift.repository.RoleRepository roles;
+    @Autowired com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouses;
 
     long feedItem, vaccineItem, medicineItem, bagUnit, vialUnit, plainUnit, plainItem, programId, barnId, cycleId, maleFlock, femaleFlock;
 
@@ -118,7 +119,12 @@ class DailyPlanIntegrationTest {
         account.setFullName(email);
         account.setRole(role);
         account.setIsActive(true);
-        return accounts.save(account).getId();
+        var saved = accounts.saveAndFlush(account);
+        for (var warehouse : warehouses.findAll()) {
+            warehouse.getWorkers().add(saved);
+            warehouses.saveAndFlush(warehouse);
+        }
+        return saved.getId();
     }
 
     private String plan() { return "/api/cycles/" + cycleId + "/daily-plan"; }
@@ -325,4 +331,76 @@ class DailyPlanIntegrationTest {
         mvc.perform(get("/api/inventory-items"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data[?(@.id == " + feedItem + ")].unitContentQuantity").value(25));
     }
+    @Test
+    void unlinkedFeedUsesAssignedWarehouseAndConverts57KgTo228Bags() throws Exception {
+        long workerId = workerAccount("auto.feed@farm.test");
+        send(put("/api/barns/" + barnId + "/workers"), Map.of("workerIds", List.of(workerId))).andExpect(status().isOk());
+        send(put("/api/farming-programs/" + programId), Map.of("name", "Gà Mía phiếu việc", "breed", "Gà Mía", "durationDays", 90,
+                "steps", List.of(Map.of("category", "FEED", "name", "Higro 02 test", "dayFrom", 1, "dayTo", 90, "quantity", 80, "mealsPerDay", 4))))
+                .andExpect(status().isOk());
+        String key = "FEED:Nhigro 02 test:M1";
+        mvc.perform(get(plan())).andExpect(jsonPath("$.data.tasks[0].inventoryItemId").value((int) feedItem))
+                .andExpect(jsonPath("$.data.warnings").isEmpty());
+        confirm(key, 57, "Lượng thực tế cho ăn").andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("97.72");
+        // Undo must return stock to the original lot after the worker is unassigned from the warehouse.
+        send(put("/api/warehouse-categories/" + inventory.findById(feedItem).orElseThrow().getWarehouse().getId() + "/workers"), Map.of("workerIds", List.of()))
+                .andExpect(status().isOk());
+        mvc.perform(delete(plan() + "/tasks").param("date", TODAY.toString()).param("taskKey", key)).andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void consumesMultipleReceiptLotsAndUndoesEachOriginalLot() throws Exception {
+        long workerId = workerAccount("lots.feed@farm.test");
+        send(put("/api/barns/" + barnId + "/workers"), Map.of("workerIds", List.of(workerId))).andExpect(status().isOk());
+        stock(feedItem, "1");
+        var original = inventory.findById(feedItem).orElseThrow();
+        var lot = new com.farmshift.backendFarmShift.entity.InventoryItem();
+        lot.setWarehouse(original.getWarehouse()); lot.setProduct(original.getProduct()); lot.setUnit(original.getUnit());
+        lot.setPrice(new BigDecimal("400000")); lot.setStock(new BigDecimal("3"));
+        long secondLot = inventory.saveAndFlush(lot).getId();
+        confirm(feedKey(1), null, null).andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("0");
+        org.assertj.core.api.Assertions.assertThat(stockOf(secondLot)).isEqualByComparingTo("2");
+        mvc.perform(delete(plan() + "/tasks").param("date", TODAY.toString()).param("taskKey", feedKey(1))).andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("1");
+        org.assertj.core.api.Assertions.assertThat(stockOf(secondLot)).isEqualByComparingTo("3");
+    }
+
+    @Test
+    void workerCannotDeductFromAnUnassignedWarehouseEvenWhenProgramLinksToIt() throws Exception {
+        long workerId = workerAccount("restricted.feed@farm.test");
+        send(put("/api/barns/" + barnId + "/workers"), Map.of("workerIds", List.of(workerId))).andExpect(status().isOk());
+        send(put("/api/warehouse-categories/" + inventory.findById(feedItem).orElseThrow().getWarehouse().getId() + "/workers"), Map.of("workerIds", List.of()))
+                .andExpect(status().isOk());
+        mvc.perform(post(plan() + "/tasks").with(user("restricted.feed@farm.test").authorities(() -> "ROLE_FARM_WORKER"))
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of("date", TODAY.toString(), "taskKey", feedKey(1)))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("STOCK_SOURCE_REQUIRED"));
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void fractionalFeedQuantitiesAreNotRoundedDownToZeroBags() throws Exception {
+        confirm(feedKey(1), new BigDecimal("0.001"), "Thử lượng nhỏ").andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("99.99996");
+    }
+
+    @Test
+    void multipleAssignedSourcesRequireAChoiceAndCannotUseAnUnrelatedItem() throws Exception {
+        long workerId = workerAccount("multiple.feed@farm.test");
+        send(put("/api/barns/" + barnId + "/workers"), Map.of("workerIds", List.of(workerId))).andExpect(status().isOk());
+        long otherStore = id(send(post("/api/warehouse-categories"), Map.of("name", "Kho cám thứ hai")));
+        long otherItem = id(send(post("/api/inventory-items"), Map.of("warehouseId", otherStore, "name", "Higro 02 test", "unitId", bagUnit, "price", 320000)));
+        stock(otherItem, "20");
+        send(put("/api/warehouse-categories/" + otherStore + "/workers"), Map.of("workerIds", List.of(workerId))).andExpect(status().isOk());
+        mvc.perform(get(plan())).andExpect(jsonPath("$.data.tasks[0].stockSources.length()").value(2));
+        confirm(feedKey(1), null, null).andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("STOCK_SOURCE_REQUIRED"));
+        send(post(plan() + "/tasks"), Map.of("date", TODAY.toString(), "taskKey", feedKey(1), "sourceItemId", medicineItem))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("STOCK_SOURCE_INVALID"));
+        send(post(plan() + "/tasks"), Map.of("date", TODAY.toString(), "taskKey", feedKey(1), "sourceItemId", otherItem)).andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("100");
+        org.assertj.core.api.Assertions.assertThat(stockOf(otherItem)).isEqualByComparingTo("18");
+    }
+
 }

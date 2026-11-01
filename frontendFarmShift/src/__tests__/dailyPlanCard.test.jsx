@@ -20,6 +20,18 @@ const plan = {
 };
 
 describe('DailyPlanCard', () => {
+  it('sends the chosen warehouse source when more than one is available', async () => {
+    const onConfirm = vi.fn().mockResolvedValue(null);
+    const feed = { ...plan.tasks[0], stockSources: [
+      { itemId: 7, warehouseName: 'Kho A', unitName: 'Bao', stock: 100 },
+      { itemId: 8, warehouseName: 'Kho B', unitName: 'Bao', stock: 200 },
+    ] };
+    const current = { ...plan, tasks: [feed] };
+    render(<DailyPlanCard plan={current} role="ROLE_FARM_OWNER" busyKey={null} onConfirm={onConfirm} onUndo={vi.fn()} />);
+    fireEvent.change(screen.getByRole('combobox', { name: /Kho nguồn/ }), { target: { value: '8' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Xong Cữ 1/3 · Higro 02' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(current, feed, { sourceItemId: 8 }));
+  });
   it('full card shows dose, per-flock split and records a different amount with a reason', async () => {
     const onConfirm = vi.fn().mockResolvedValueOnce('Lượng thực tế lệch -50% so với kế hoạch (5.100 g). Vui lòng ghi lý do.');
     render(<DailyPlanCard plan={plan} role="ROLE_FARM_OWNER" userEmail="owner@farm.test" busyKey={null} onConfirm={onConfirm} onUndo={vi.fn()} />);

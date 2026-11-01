@@ -53,7 +53,7 @@ public class InventoryItemService {
     @Transactional public void delete(Long id) {
         var item = find(id);
         if (item.getStock().signum() != 0) throw new ConflictException("Không thể xóa hàng hóa đang còn tồn kho.", "INVENTORY_IN_USE", null);
-        if (programSteps.existsByInventoryItemId(id) || taskLogs.existsByInventoryItemId(id)) {
+        if (programSteps.existsByInventoryItemId(id) || taskLogs.existsByInventoryItemId(id) || taskLogs.existsByStockAllocations_Item_Id(id)) {
             throw new ConflictException("Hàng hóa đang được dùng trong chương trình nuôi hoặc phiếu việc nên không thể xóa.", "INVENTORY_IN_USE", null);
         }
         repository.delete(item);

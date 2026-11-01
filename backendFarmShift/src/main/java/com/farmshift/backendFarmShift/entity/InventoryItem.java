@@ -27,7 +27,7 @@ public class InventoryItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "unit_id", foreignKey = @ForeignKey(name = "fk_inventory_unit")) private MeasurementUnit unit;
     @Column(nullable = false, precision = 19, scale = 2) private BigDecimal price;
-    @Column(nullable = false, precision = 19, scale = 3) private BigDecimal stock = BigDecimal.ZERO;
+    @Column(nullable = false, precision = 19, scale = 6) private BigDecimal stock = BigDecimal.ZERO;
     @CreationTimestamp @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
     @UpdateTimestamp @Column(name = "updated_at") private LocalDateTime updatedAt;
     @PrePersist void assignCode() { code = "SP" + UUID.randomUUID().toString().replace("-", "").toUpperCase(java.util.Locale.ROOT); }

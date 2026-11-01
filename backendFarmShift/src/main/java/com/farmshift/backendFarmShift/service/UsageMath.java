@@ -60,13 +60,13 @@ final class UsageMath {
 
     /**
      * Số đơn vị tồn kho ứng với một lượng dùng. Vắc-xin mở lọ là dùng hết nên làm tròn lên cả lọ;
-     * cám, thuốc được trừ lẻ (3 số thập phân).
+     * cám, thuốc được trừ lẻ (6 số thập phân).
      */
     static BigDecimal toStock(BigDecimal quantity, UsageUnit unit, InventoryItem item, boolean wholePacks) {
         MeasurementUnit stockUnit = item.getUnit();
         BigDecimal perPack = stockUnit.getContentUnit().toBase(stockUnit.getContentQuantity());
         BigDecimal packs = unit.toBase(quantity).divide(perPack, 6, RoundingMode.HALF_UP);
-        return wholePacks ? packs.setScale(0, RoundingMode.CEILING).setScale(3) : packs.setScale(3, RoundingMode.HALF_UP);
+        return wholePacks ? packs.setScale(0, RoundingMode.CEILING).setScale(6) : packs.setScale(6, RoundingMode.HALF_UP);
     }
 
     /** Giá trên 1 kg cám từ giá của một đơn vị tồn kho (ví dụ 335.000 đ/bao 25kg → 13.400 đ/kg). */
