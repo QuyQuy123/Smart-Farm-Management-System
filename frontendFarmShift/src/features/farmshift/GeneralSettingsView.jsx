@@ -13,6 +13,7 @@ import { INITIAL_FARMSHIFT_DATA, getFarmInfo, saveFarmInfo } from '../../data/fa
 import { FARMSHIFT_SCREENS } from '../../data/screensMatrix';
 import { getFarm, updateFarm } from '../../services/farmService';
 import { BarnResponsibilities } from './BarnResponsibilities';
+import { WarehouseResponsibilities } from './WarehouseResponsibilities';
 
 export const GeneralSettingsView = () => {
   const { user } = useAuth();
@@ -340,56 +341,7 @@ export const GeneralSettingsView = () => {
       {activeTab === 'barn_roles' && <BarnResponsibilities canEdit={canEditFarm} />}
 
       {/* ── Tab 4: Phân vai trò trong kho hàng ──────────────── */}
-      {activeTab === 'warehouse_roles' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Phân quyền thủ kho & Quản lý kho hàng</h3>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tên kho hàng</th>
-                  <th>Thủ kho chính</th>
-                  <th>Quyền nhập kho</th>
-                  <th>Quyền xuất kho</th>
-                  <th>Quyền kiểm kê điều chỉnh</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>Kho Cám & Thức ăn</strong></td>
-                  <td>Nguyễn Thị Thu Hà</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                </tr>
-                <tr>
-                  <td><strong>Kho Thuốc thú y & Vắc-xin</strong></td>
-                  <td>Nguyễn Hiệp (Kỹ thuật)</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                </tr>
-                <tr>
-                  <td><strong>Kho Hóa chất sát trùng</strong></td>
-                  <td>Trần Văn Bình</td>
-                  <td><span className="farmshift-badge farmshift-badge-neutral">Theo lệnh</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-neutral">Chỉ xem</span></td>
-                </tr>
-                <tr>
-                  <td><strong>Kho Con giống & Thành phẩm</strong></td>
-                  <td>Nguyễn Hiệp</td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Có</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'warehouse_roles' && <WarehouseResponsibilities canEdit={canEditFarm} />}
 
       {/* ── Tab 5: Thông báo cá nhân & Cảnh báo ─────────────── */}
       {activeTab === 'notifications' && (
