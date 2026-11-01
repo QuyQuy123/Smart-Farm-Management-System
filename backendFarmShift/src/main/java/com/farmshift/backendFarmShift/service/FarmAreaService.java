@@ -28,6 +28,7 @@ public class FarmAreaService {
 
     private final FarmAreaRepository repository;
     private final BarnRepository barnRepository;
+    private final AreaWarehouseService areaWarehouses;
 
     public List<FarmAreaResponse> list() {
         Map<Long, long[]> summaries = summaries();
@@ -57,6 +58,7 @@ public class FarmAreaService {
             throw new ConflictException("Khu nuôi đang có " + barns + " chuồng. Hãy xóa hoặc chuyển các chuồng sang khu khác trước khi xóa khu nuôi.",
                     "FARM_AREA_HAS_BARNS", null);
         }
+        areaWarehouses.release(area);
         repository.delete(area);
     }
 
@@ -79,8 +81,12 @@ public class FarmAreaService {
         area.setEnvironmentMetrics(String.join(",", metrics(request.environmentMetrics(), ENVIRONMENT_METRICS, "môi trường")));
         area.setAnimalMetrics(String.join(",", metrics(request.animalMetrics(), ANIMAL_METRICS, "vật nuôi")));
         area.setDescription(request.description() == null ? "" : request.description().strip());
+        boolean created = area.getId() == null;
         try {
             FarmArea saved = repository.saveAndFlush(area);
+            // Mỗi khu có kho cám và kho thuốc riêng; đổi tên khu thì đổi tên kho theo.
+            if (created) areaWarehouses.ensure(saved);
+            else areaWarehouses.rename(saved);
             return response(saved, summaries().get(saved.getId()));
         } catch (DataIntegrityViolationException exception) {
             throw duplicateName();

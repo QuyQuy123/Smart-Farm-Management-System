@@ -26,7 +26,9 @@ public class WarehouseResponsibilityService {
         return new WarehouseResponsibilities(activeWorkers().stream().map(BarnResponsibilityService::ref).toList(),
                 warehouses.findAll(Sort.by("createdAt", "id")).stream()
                         .map(warehouse -> new WarehouseResponsibilities.Warehouse(warehouse.getId(), warehouse.getName(),
-                                warehouse.getWorkers().stream().map(BarnResponsibilityService::ref).toList())).toList());
+                                warehouse.getWorkers().stream().map(BarnResponsibilityService::ref).toList(),
+                                warehouse.getArea() == null ? null : warehouse.getArea().getId(),
+                                warehouse.getArea() == null ? null : warehouse.getArea().getName(), warehouse.getKind())).toList());
     }
 
     @Transactional

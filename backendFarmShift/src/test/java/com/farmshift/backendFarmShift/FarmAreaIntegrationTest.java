@@ -81,6 +81,32 @@ class FarmAreaIntegrationTest {
         return cycleId;
     }
 
+    private java.util.Map<String, String> warehousesOfArea(String areaName) throws Exception {
+        var body = mapper.readTree(mvc.perform(get("/api/warehouse-categories")).andReturn().getResponse().getContentAsString());
+        java.util.Map<String, String> byKind = new java.util.TreeMap<>();
+        for (var warehouse : body.path("data")) {
+            if (areaName.equals(warehouse.path("areaName").asText())) byKind.put(warehouse.path("kind").asText(), warehouse.path("name").asText());
+        }
+        return byKind;
+    }
+
+    @Test
+    void eachAreaGetsItsOwnFeedAndMedicineWarehouse() throws Exception {
+        long id = create(AREAS, area("Khu Gà Hồ"));
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("FEED", "Kho cám Gà Hồ", "MEDICINE", "Kho thuốc Gà Hồ"), warehousesOfArea("Khu Gà Hồ"));
+
+        // Đổi tên khu thì hai kho đổi tên theo.
+        mvc.perform(put(AREAS + "/" + id).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(area("Khu Gà Đồi"))))
+            .andExpect(status().isOk());
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("FEED", "Kho cám Gà Đồi", "MEDICINE", "Kho thuốc Gà Đồi"), warehousesOfArea("Khu Gà Đồi"));
+
+        // Xóa khu chưa có chuồng: hai kho còn trống cũng được xóa.
+        mvc.perform(delete(AREAS + "/" + id)).andExpect(status().isOk());
+        org.junit.jupiter.api.Assertions.assertTrue(warehousesOfArea("Khu Gà Đồi").isEmpty());
+        var body = mapper.readTree(mvc.perform(get("/api/warehouse-categories")).andReturn().getResponse().getContentAsString());
+        for (var warehouse : body.path("data")) org.junit.jupiter.api.Assertions.assertFalse(warehouse.path("name").asText().contains("Gà Đồi"));
+    }
+
     @Test
     void createsAreaWithBarnsAndReportsLiveSummary() throws Exception {
         mvc.perform(post(AREAS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(area("  Khu   Mía Thịt "))))

@@ -249,3 +249,17 @@ export const addDaysIso = (iso, days) => {
 };
 
 export const formatDay = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
+
+// ---------------------------------------------------------------- kho theo khu (mỗi khu một kho cám, một kho thuốc)
+
+export const WAREHOUSE_KINDS = [{ value: 'FEED', label: 'Kho cám' }, { value: 'MEDICINE', label: 'Kho thuốc' }];
+export const kindLabel = kind => WAREHOUSE_KINDS.find(item => item.value === kind)?.label || 'Khác';
+
+/** Các khu có kho, theo thứ tự tên; kho không thuộc khu nào gom vào "Không thuộc khu". */
+export const warehouseAreas = warehouses => [...new Map(warehouses.map(warehouse =>
+  [warehouse.areaId ?? 'none', warehouse.areaName || 'Không thuộc khu'])).entries()]
+  .sort((a, b) => a[1].localeCompare(b[1], 'vi'));
+
+/** Lọc kho theo khu ('' là tất cả) và loại kho ('' là tất cả). */
+export const filterWarehouses = (warehouses, { area, kind }) => warehouses.filter(warehouse =>
+  (!area || String(warehouse.areaId ?? 'none') === area) && (!kind || warehouse.kind === kind));
