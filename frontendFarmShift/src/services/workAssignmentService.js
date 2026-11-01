@@ -6,6 +6,10 @@ const data = async request => (await request).data.data;
 export const getWorkBoard = date => data(api.get('/work-assignments', { params: date ? { date } : {} }));
 /** Thay toàn bộ công nhân phụ trách chuồng. */
 export const setBarnWorkers = (barnId, workerIds) => data(api.put(`/barns/${barnId}/workers`, { workerIds }));
+export const getBarnResponsibilities = () => data(api.get('/barn-responsibilities'));
+export const setAreaWorkers = (areaId, workerIds) => data(api.put(`/farm-areas/${areaId}/workers`, { workerIds }));
+export const saveAreaWorkerAssignments = (areaId, body) => data(api.put(`/farm-areas/${areaId}/worker-assignments`, body));
+export const inheritAreaWorkers = barnId => data(api.delete(`/barns/${barnId}/workers/override`));
 /** body: { barnId, assigneeId, title, note, startDate, endDate?, dueTime? } */
 export const createWorkTask = body => data(api.post('/work-tasks', body));
 export const updateWorkTask = (id, body) => data(api.put(`/work-tasks/${id}`, body));

@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
         indexes = @Index(name = "idx_daily_task_logs_date", columnList = "task_date"))
 @Data
 public class DailyTaskLog {
+    @ElementCollection
+    @CollectionTable(name = "daily_stock_allocations", joinColumns = @JoinColumn(name = "log_id"))
+    private java.util.List<DailyStockAllocation> stockAllocations = new java.util.ArrayList<>();
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -48,7 +51,7 @@ public class DailyTaskLog {
     @JoinColumn(name = "inventory_item_id")
     private InventoryItem inventoryItem;
     /** Số đơn vị tồn kho đã trừ (bao, lọ, chai...). */
-    @Column(name = "stock_quantity", precision = 14, scale = 3)
+    @Column(name = "stock_quantity", precision = 19, scale = 6)
     private BigDecimal stockQuantity;
     /** Giá một đơn vị tồn kho lúc xác nhận và thành tiền đã ghi vào chi phí lứa. */
     @Column(name = "unit_price", precision = 19, scale = 2)

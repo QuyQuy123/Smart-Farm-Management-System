@@ -1,5 +1,6 @@
 // d:\Smart-Farm-Management-System\frontendFarmShift\src\utils\api.js
 import axios from 'axios';
+import { getAuthToken, clearAuthToken } from './authStorage';
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -12,7 +13,7 @@ export const api = axios.create({
 // Request interceptor to attach JWT token to every request
 api.interceptors.request.use(
   (config) => {
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -27,7 +28,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       // Clear token and force re-login if unauthorized
-      sessionStorage.removeItem('token');
+      clearAuthToken();
       // Dispatch event for AuthContext to catch and clear user state
       window.dispatchEvent(new Event('unauthorized'));
     }

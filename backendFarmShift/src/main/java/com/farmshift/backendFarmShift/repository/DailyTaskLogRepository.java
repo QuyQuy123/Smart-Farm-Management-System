@@ -13,4 +13,5 @@ public interface DailyTaskLogRepository extends JpaRepository<DailyTaskLog, Long
     boolean existsByFeedRecordId(Long feedRecordId);
     boolean existsByExpenseId(Long expenseId);
     boolean existsByInventoryItemId(Long inventoryItemId);
+    boolean existsByStockAllocations_Item_Id(Long inventoryItemId);
 }

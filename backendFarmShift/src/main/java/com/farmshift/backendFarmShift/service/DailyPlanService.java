@@ -45,6 +45,7 @@ public class DailyPlanService {
     private final jakarta.persistence.EntityManager entityManager;
     private final WorkAssignmentService workAssignment;
     private final FarmService farmService;
+    private final DailyStockSources stockSources;
 
     /** Phiếu việc của mọi chuồng đang có lứa nuôi trong một ngày (mặc định hôm nay). */
     public List<BarnDayPlan> farm(LocalDate date, boolean canSeeFinance) {
@@ -61,7 +62,7 @@ public class DailyPlanService {
                 .filter(cycle -> barns == null || barns.contains(cycle.getBarn().getId()))
                 .sorted(Comparator.comparing((FarmingCycle cycle) -> cycle.getBarn().getArea().getName())
                         .thenComparing(cycle -> cycle.getBarn().getName()))
-                .map(cycle -> response(cycle, day, compute(cycle, day), canSeeFinance, workerEmail))
+                .map(cycle -> response(cycle, day, compute(cycle, day, workerEmail), canSeeFinance, workerEmail))
                 .filter(plan -> !plan.flocks().isEmpty() || !plan.tasks().isEmpty() || !plan.assignedTasks().isEmpty())
                 .toList();
     }
@@ -77,7 +78,7 @@ public class DailyPlanService {
         if (day.isBefore(cycle.getStartDate()) || day.isAfter(last)) {
             throw new BadRequestException("Ngày xem phiếu việc phải từ " + format(cycle.getStartDate()) + " đến " + format(last) + ".", "CYCLE_DATE_OUT_OF_RANGE");
         }
-        return response(cycle, day, compute(cycle, day), canSeeFinance, workerEmail);
+        return response(cycle, day, compute(cycle, day, workerEmail), canSeeFinance, workerEmail);
     }
 
     /** Lứa nuôi thuộc chuồng nào (để kiểm tra công nhân có phụ trách chuồng không). */
@@ -102,7 +103,7 @@ public class DailyPlanService {
         if (logRepository.existsByCycleIdAndTaskDateAndTaskKey(cycleId, day, request.taskKey())) {
             throw new ConflictException("Việc này đã được xác nhận.", "DAILY_TASK_ALREADY_DONE", null);
         }
-        Planned task = compute(cycle, day).tasks().stream().filter(item -> item.key.equals(request.taskKey())).findFirst()
+        Planned task = compute(cycle, day, workerEmail).tasks().stream().filter(item -> item.key.equals(request.taskKey())).findFirst()
                 .orElseThrow(() -> new BadRequestException("Việc không có trong phiếu việc ngày " + format(day) + ".", "DAILY_TASK_NOT_FOUND"));
 
         boolean measured = task.category == ProgramStepCategory.FEED || task.category == ProgramStepCategory.MEDICINE
@@ -134,19 +135,42 @@ public class DailyPlanService {
         log.setDoneAt(LocalDateTime.now());
 
         BigDecimal cost = BigDecimal.ZERO;
-        if (task.item != null && actual != null && actual.signum() > 0) {
-            InventoryItem item = task.item;
-            BigDecimal packs = UsageMath.toStock(actual, task.unit, item, task.category == ProgramStepCategory.VACCINE);
-            boolean taken = inventoryRepository.takeStock(item.getId(), packs) == 1;
-            entityManager.refresh(item);
-            if (!taken) {
-                throw new BadRequestException("Kho chỉ còn " + amount(item.getStock()) + " " + stockUnit(item) + " " + item.getProduct().getName()
-                        + ", cần " + amount(packs) + ". Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
+        if (measured && actual != null && actual.signum() > 0) {
+            if (request.sourceItemId() != null) {
+                task.lots = task.sources.stream().filter(lots -> lots.getFirst().getId().equals(request.sourceItemId())).findFirst()
+                        .orElseThrow(() -> new BadRequestException("Kho nguồn không thuộc phân công hoặc hàng hóa không phù hợp. Vui lòng tải lại phiếu việc.", "STOCK_SOURCE_INVALID"));
+                task.item = task.lots.getFirst();
             }
-            cost = packs.multiply(item.getPrice()).setScale(0, RoundingMode.HALF_UP);
-            log.setInventoryItem(item);
+            if (task.item == null) throw new BadRequestException(task.sources.size() > 1
+                    ? "Có nhiều kho/hàng hóa phù hợp. Vui lòng chọn nguồn trước khi xác nhận."
+                    : "Không tìm thấy hàng hóa có quy cách phù hợp trong kho được phân công.", "STOCK_SOURCE_REQUIRED");
+            BigDecimal packs = UsageMath.toStock(actual, task.unit, task.item, task.category == ProgramStepCategory.VACCINE);
+            if (sourceStock(task.lots).compareTo(packs) < 0) throw new BadRequestException("Kho chỉ còn "
+                    + amount(sourceStock(task.lots)) + " " + stockUnit(task.item) + ", cần " + amount(packs)
+                    + ". Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
+            BigDecimal remaining = packs;
+            for (InventoryItem item : task.lots) {
+                if (remaining.signum() <= 0) break;
+                entityManager.refresh(item);
+                BigDecimal take = item.getStock().min(remaining);
+                if (take.signum() <= 0) continue;
+                if (inventoryRepository.takeStock(item.getId(), take) != 1) {
+                    throw new ConflictException("Tồn kho vừa thay đổi. Vui lòng tải lại và xác nhận lại.", "STOCK_CHANGED", null);
+                }
+                entityManager.refresh(item);
+                DailyStockAllocation allocation = new DailyStockAllocation();
+                allocation.setItem(item);
+                allocation.setQuantity(take);
+                log.getStockAllocations().add(allocation);
+                cost = cost.add(take.multiply(item.getPrice()));
+                remaining = remaining.subtract(take);
+            }
+            if (remaining.signum() > 0) throw new BadRequestException("Kho không đủ " + task.name + ", cần "
+                    + amount(packs) + " " + stockUnit(task.item) + ". Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
+            cost = cost.setScale(0, RoundingMode.HALF_UP);
+            log.setInventoryItem(task.item);
             log.setStockQuantity(packs);
-            log.setUnitPrice(item.getPrice());
+            log.setUnitPrice(packs.signum() == 0 ? BigDecimal.ZERO : cost.divide(packs, 2, RoundingMode.HALF_UP));
             log.setCost(cost);
         }
         String source = "Việc hôm nay" + (task.meal != null ? " · cữ " + task.meal + "/" + task.meals : "") + (note.isEmpty() ? "" : " · " + note);
@@ -156,7 +180,7 @@ public class DailyPlanService {
             record.setRecordDate(day);
             record.setFeedName(task.item != null ? task.item.getProduct().getName() : task.name);
             record.setQuantityKg(actual);
-            record.setUnitPrice(task.item != null ? UsageMath.pricePerKg(log.getInventoryItem()) : BigDecimal.ZERO);
+            record.setUnitPrice(actual.signum() > 0 ? cost.divide(actual, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO);
             record.setNote(source);
             record.setCreatedBy(user);
             log.setFeedRecord(feedRepository.save(record));
@@ -171,7 +195,7 @@ public class DailyPlanService {
             log.setExpense(expenseRepository.save(expense));
         }
         logRepository.saveAndFlush(log);
-        return response(cycle, day, compute(cycle, day), canSeeFinance, workerEmail);
+        return response(cycle, day, compute(cycle, day, workerEmail), canSeeFinance, workerEmail);
     }
 
     /** Hoàn tác xác nhận nhầm: hoàn lại tồn kho, xóa nhật ký cám / khoản chi đã sinh ra. Công nhân chỉ hoàn tác việc của mình trong hôm nay. */
@@ -188,7 +212,12 @@ public class DailyPlanService {
         if (!owner && (!log.getDoneBy().equalsIgnoreCase(user) || !date.equals(today()))) {
             throw new ConflictException("Công nhân chỉ hoàn tác được việc do mình xác nhận trong hôm nay.", "DAILY_TASK_UNDO_FORBIDDEN", null);
         }
-        if (log.getInventoryItem() != null && log.getStockQuantity() != null) {
+        if (!log.getStockAllocations().isEmpty()) {
+            for (DailyStockAllocation allocation : log.getStockAllocations()) {
+                inventoryRepository.returnStock(allocation.getItem().getId(), allocation.getQuantity());
+                entityManager.refresh(allocation.getItem());
+            }
+        } else if (log.getInventoryItem() != null && log.getStockQuantity() != null) {
             inventoryRepository.returnStock(log.getInventoryItem().getId(), log.getStockQuantity());
             entityManager.refresh(log.getInventoryItem());
         }
@@ -198,7 +227,7 @@ public class DailyPlanService {
         logRepository.flush();
         if (record != null) feedRepository.delete(record);
         if (expense != null) expenseRepository.delete(expense);
-        return response(cycle, date, compute(cycle, date), canSeeFinance, workerEmail);
+        return response(cycle, date, compute(cycle, date, workerEmail), canSeeFinance, workerEmail);
     }
 
     // ---------------------------------------------------------------- plan
@@ -218,6 +247,8 @@ public class DailyPlanService {
         AdministrationMethod method;
         UsageUnit unit;
         InventoryItem item;
+        List<List<InventoryItem>> sources = List.of();
+        List<InventoryItem> lots = List.of();
         /** Hàng hóa đã gắn nhưng chưa có quy cách đơn vị (không quy đổi được nên chưa trừ kho). */
         String itemWithoutContent;
         BigDecimal tempMin;
@@ -232,7 +263,7 @@ public class DailyPlanService {
         final Map<Long, BigDecimal> shares = new LinkedHashMap<>();
     }
 
-    private Plan compute(FarmingCycle cycle, LocalDate day) {
+    private Plan compute(FarmingCycle cycle, LocalDate day, String workerEmail) {
         List<Flock> flocks = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId());
         List<FlockMovement> movements = movementRepository.findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(cycle.getId());
         List<String> warnings = new ArrayList<>();
@@ -260,7 +291,7 @@ public class DailyPlanService {
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             for (FarmingProgramStep step : steps) {
                 String groupKey = step.getCategory().name() + ":" + identity(step);
-                Planned group = groups.computeIfAbsent(groupKey, key -> newGroup(key, step));
+                Planned group = groups.computeIfAbsent(groupKey, key -> newGroup(key, step, cycle, workerEmail));
                 if (step.getMealsPerDay() != null) group.meals = Math.max(group.meals == null ? 1 : group.meals, step.getMealsPerDay());
                 if (step.getQuantity() != null) group.doses.add(step.getQuantity().stripTrailingZeros());
                 BigDecimal share = share(step, flockDay, feedKg);
@@ -278,8 +309,10 @@ public class DailyPlanService {
                 warnings.add(label(group.category) + " \"" + group.name + "\": chưa tính được lượng vì thiếu liều, đơn vị liều chưa rõ hoặc không có cám để trộn.");
             } else if (measured && group.item == null && group.itemWithoutContent != null) {
                 warnings.add("Hàng hóa " + group.itemWithoutContent + " chưa có quy cách đơn vị (ví dụ Bao 25kg = 25 kg) nên chưa trừ kho và chưa tính tiền.");
+            } else if (measured && group.sources.size() > 1) {
+                warnings.add(label(group.category) + " \"" + group.name + "\": có nhiều nguồn phù hợp. Chọn kho nguồn khi xác nhận.");
             } else if (measured && group.item == null) {
-                warnings.add(label(group.category) + " \"" + group.name + "\" chưa gắn hàng hóa kho nên chưa trừ kho và chưa tính tiền.");
+                warnings.add(label(group.category) + " \"" + group.name + "\" chưa xác định được hàng hóa có quy cách phù hợp trong kho được phân công nên chưa trừ kho và chưa tính tiền.");
             }
             if (group.category == ProgramStepCategory.FEED) {
                 int meals = group.meals == null ? 1 : group.meals;
@@ -360,16 +393,19 @@ public class DailyPlanService {
         return "N" + (name.length() > 90 ? name.substring(0, 90) : name);
     }
 
-    private static Planned newGroup(String key, FarmingProgramStep step) {
+    private Planned newGroup(String key, FarmingProgramStep step, FarmingCycle cycle, String workerEmail) {
         Planned group = new Planned();
         group.groupKey = key;
         group.category = step.getCategory();
         group.name = step.getInventoryItem() != null ? step.getInventoryItem().getProduct().getName() : step.getName();
         group.method = step.getMethod();
         group.unit = UsageMath.displayUnit(step.getCategory(), step.getUnit());
-        group.item = step.getInventoryItem() != null && UsageMath.compatible(step.getInventoryItem(),
-                UsageMath.usageUnit(step.getCategory(), step.getUnit())) ? step.getInventoryItem() : null;
-        if (step.getInventoryItem() != null && group.item == null) group.itemWithoutContent = step.getInventoryItem().getProduct().getName();
+        group.sources = stockSources.resolve(cycle, step, workerEmail);
+        if (group.sources.size() == 1) {
+            group.lots = group.sources.getFirst();
+            group.item = group.lots.getFirst();
+        }
+        if (step.getInventoryItem() != null && !UsageMath.hasContent(step.getInventoryItem())) group.itemWithoutContent = step.getInventoryItem().getProduct().getName();
         group.tempMin = step.getTempMin();
         group.tempMax = step.getTempMax();
         group.note = step.getNote();
@@ -389,6 +425,8 @@ public class DailyPlanService {
         task.method = group.method;
         task.unit = group.unit;
         task.item = group.item;
+        task.sources = group.sources;
+        task.lots = group.lots;
         task.unknown = group.unknown;
         task.tempMin = group.tempMin;
         task.tempMax = group.tempMax;
@@ -419,6 +457,7 @@ public class DailyPlanService {
         List<String> warnings = new ArrayList<>(plan.warnings());
         Map<Long, BigDecimal> remainingByItem = new LinkedHashMap<>();
         Map<Long, InventoryItem> items = new LinkedHashMap<>();
+        Map<Long, BigDecimal> available = new LinkedHashMap<>();
         List<BarnDayPlan.Task> tasks = new ArrayList<>();
         for (Planned task : plan.tasks()) {
             DailyTaskLog log = logs.remove(task.key);
@@ -427,21 +466,24 @@ public class DailyPlanService {
             if (log == null && stock != null) {
                 remainingByItem.merge(task.item.getId(), stock, BigDecimal::add);
                 items.put(task.item.getId(), task.item);
+                available.put(task.item.getId(), sourceStock(task.lots));
             }
             String time = task.category == ProgramStepCategory.FEED && task.meal != null && task.meals != null
                     ? FarmService.mealTime(firstMeal, task.meal, task.meals).toString() : null;
             tasks.add(new BarnDayPlan.Task(task.key, task.category, task.name, task.meal, task.meals, time, task.method, doseText(task),
                     task.total, task.unit == null ? null : task.unit.label(), stock, task.item == null ? null : stockUnit(task.item),
                     task.item == null ? null : task.item.getId(), task.item == null ? null : task.item.getProduct().getName(),
-                    task.item == null ? null : task.item.getStock(),
-                    task.item == null || stock == null || log != null ? null : task.item.getStock().compareTo(stock) >= 0,
+                    task.item == null ? null : sourceStock(task.lots),
+                    task.item == null || stock == null || log != null ? null : sourceStock(task.lots).compareTo(stock) >= 0,
                     task.tempMin, task.tempMax, task.note,
                     task.shares.entrySet().stream().map(entry -> {
                         FlockDay flockDay = flocks.get(entry.getKey());
                         return new BarnDayPlan.Share(entry.getKey(), flockCode(flockDay.flock()), flockDay.age(), flockDay.heads(),
                                 task.unknown ? null : entry.getValue());
                     }).toList(),
-                    log == null ? null : done(log, canSeeFinance)));
+                    log == null ? null : done(log, canSeeFinance),
+                    task.sources.stream().map(lots -> new BarnDayPlan.StockSource(lots.getFirst().getId(),
+                            lots.getFirst().getWarehouse().getName(), stockUnit(lots.getFirst()), sourceStock(lots))).toList()));
         }
         // Việc đã xác nhận nhưng không còn trong kế hoạch (đổi chương trình, đàn đã bán hết...) vẫn hiện để xem và hoàn tác.
         for (DailyTaskLog log : logs.values()) {
@@ -450,12 +492,12 @@ public class DailyPlanService {
                     log.getInventoryItem() == null ? null : stockUnit(log.getInventoryItem()),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getId(),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getProduct().getName(), null, null, null, null,
-                    "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance)));
+                    "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance), List.of()));
         }
         remainingByItem.forEach((id, need) -> {
             InventoryItem item = items.get(id);
-            if (item.getStock().compareTo(need) < 0) {
-                warnings.add("Kho chỉ còn " + amount(item.getStock()) + " " + stockUnit(item) + " " + item.getProduct().getName()
+            if (available.get(id).compareTo(need) < 0) {
+                warnings.add("Kho chỉ còn " + amount(available.get(id)) + " " + stockUnit(item) + " " + item.getProduct().getName()
                         + ", các việc còn lại trong ngày cần " + amount(need) + ".");
             }
         });
@@ -483,6 +525,10 @@ public class DailyPlanService {
         List<BigDecimal> doses = new ArrayList<>(task.doses);
         String low = amount(doses.get(0)), high = amount(doses.get(doses.size() - 1));
         return (low.equals(high) ? low : low + "–" + high) + " " + task.doseUnit;
+    }
+
+    private static BigDecimal sourceStock(List<InventoryItem> lots) {
+        return lots.stream().map(InventoryItem::getStock).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private static String stockUnit(InventoryItem item) {

@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { groupInventoryItems } from '../utils/inventoryGroups';
+import { groupInventoryItems, inventoryStockKg } from '../utils/inventoryGroups';
 
 describe('inventory summaries', () => {
+  it('keeps package and kg balances consistent after feeding and undo', () => {
+    const bag = { unitContentQuantity: 25, unitContentUnit: 'KG' };
+    expect(inventoryStockKg({ ...bag, stock: 100 })).toBe(2500);
+    expect(inventoryStockKg({ ...bag, stock: 97.72 })).toBe(2443);
+    expect(inventoryStockKg({ ...bag, stock: 99.99996 })).toBe(2499.999);
+    expect(inventoryStockKg({ stock: 2, unitContentQuantity: 500, unitContentUnit: 'G' })).toBe(1);
+    expect(inventoryStockKg({ stock: 2, unitContentQuantity: 25, unitContentUnit: 'L' })).toBeNull();
+    expect(inventoryStockKg({ stock: 2 })).toBeNull();
+  });
   const base = { warehouseId: 1, productId: 10, name: 'Cám', unitId: 1 };
   it('averages receipt prices equally, including depleted receipts, using original invoice prices', () => {
     const result = groupInventoryItems([

@@ -13,5 +13,9 @@ public record DailyTaskConfirmRequest(
         @NotBlank(message = "Thiếu mã việc.") @Size(max = 120, message = "Mã việc không hợp lệ.") String taskKey,
         @DecimalMin(value = "0", message = "Lượng thực tế không được âm.")
         @Digits(integer = 11, fraction = 3, message = "Lượng thực tế tối đa 11 chữ số và 3 số thập phân.") BigDecimal actualQuantity,
-        @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note) {
+        @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note,
+        @Positive Long sourceItemId) {
+    public DailyTaskConfirmRequest(LocalDate date, String taskKey, BigDecimal actualQuantity, String note) {
+        this(date, taskKey, actualQuantity, note, null);
+    }
 }

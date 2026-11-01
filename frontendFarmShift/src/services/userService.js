@@ -1,6 +1,7 @@
 // src/services/userService.js
 // User profile & settings API service connected to Spring Boot backend
 import { api } from '../utils/api';
+import { setAuthToken } from '../utils/authStorage';
 
 export const getProfile = async () => {
   const response = await api.get('/user/profile');
@@ -10,7 +11,7 @@ export const getProfile = async () => {
 export const updateProfile = async (profileData) => {
   const response = await api.put('/user/profile', profileData);
   const profile = response.data?.data || response.data;
-  if (profile.token) sessionStorage.setItem('token', profile.token);
+  if (profile.token) setAuthToken(profile.token);
   return profile;
 };
 
