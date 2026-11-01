@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardList, Coins, HeartCrack, Info, ListChecks, Syringe, Truck,
-  Users, Warehouse, Wheat, Pill, Flag, RefreshCw, Map as MapIcon,
+  AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Coins, HeartCrack, Info, ListChecks, Syringe, Truck,
+  Users, Warehouse, Wheat, Pill, Flag, RefreshCw, Map as MapIcon, PackageOpen,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { listBarns } from '../../services/farmAreaService';
@@ -30,7 +30,8 @@ const splitAlert = alert => {
   const badge = ['OVERDUE', 'LOSS', 'DEBT'].includes(alert.type) ? text.match(/\d[\d.]*/)?.[0] : null;
   return { barn, text, badge };
 };
-const inDaysText = days => days === 0 ? 'Hôm nay' : days === 1 ? 'Ngày mai' : `${days} ngày nữa`;
+/** Hết hàng / thiếu cho hôm nay / còn đủ mấy ngày theo lượng dùng của phiếu việc hôm nay. */
+const restockText = item => Number(item.stock) <= 0 ? 'Hết hàng' : item.daysLeft === 0 ? 'Thiếu hôm nay' : `Đủ ${item.daysLeft} ngày`;
 
 /**
  * Bảng tin: trả lời nhanh "hôm nay trại có ổn không, việc gì cần xử lý". Số liệu thật từ /api/dashboard;
@@ -101,16 +102,17 @@ export const DashboardView = () => {
               </div>
             </section>
 
-            <section className={styles.card} aria-label="7 ngày tới">
-              <header><h3><CalendarClock size={17} />7 ngày tới</h3></header>
-              {data.upcoming.length === 0 ? <p className={styles.empty}>Không có mốc vắc-xin, đổi cám hay xuất chuồng trong 7 ngày tới.</p>
-                : <ul className={styles.upcoming}>{data.upcoming.map((item, index) => {
-                  const kind = KIND[item.kind] || KIND.FEED;
-                  const Icon = kind.icon;
-                  return <li key={`${item.barnId}-${item.kind}-${index}`}>
-                    <span className={`${styles.kind} ${styles[`kind_${item.kind}`]}`}><Icon size={15} /></span>
-                    <span className={styles.upText}><strong>{item.title}</strong><small>{item.barnName} · {formatDay(item.date)}</small></span>
-                    <em>{inDaysText(item.inDays)}</em>
+            <section className={styles.card} aria-label="Kho cần bổ sung">
+              <header><h3><PackageOpen size={17} />Kho cần bổ sung</h3>
+                <Link to="/inventory" className={styles.more}>Kho hàng <ChevronRight size={15} /></Link></header>
+              {(data.restock || []).length === 0 ? <p className={styles.empty}>Kho đủ dùng cho tuần tới theo phiếu việc hôm nay.</p>
+                : <ul className={styles.upcoming}>{data.restock.map(item => {
+                  const Icon = (KIND[item.category] || KIND.FEED).icon;
+                  return <li key={item.itemId}>
+                    <span className={`${styles.kind} ${styles[`kind_${item.category}`]}`}><Icon size={15} /></span>
+                    <span className={styles.upText}><strong>{item.productName}</strong>
+                      <small>{item.warehouseName} · còn {num(item.stock, 1)} {item.unitName} · dùng {num(item.dailyNeed, 1)} {item.unitName}/ngày</small></span>
+                    <em className={styles[`restock_${item.level}`]}>{restockText(item)}</em>
                   </li>;
                 })}</ul>}
             </section>

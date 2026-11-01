@@ -54,6 +54,8 @@
 .kind_VACCINE { background: #e7edf9; color: #2f57a3; }
 .kind_MEDICINE { background: #fdecef; color: #b4234a; }
 .kind_HARVEST { background: #fff4d6; color: #a16207; }
+.upcoming em.restock_WARN { padding: 2px 9px; border-radius: 999px; background: #fff4d6; color: #a16207; }
+.upcoming em.restock_DANGER { padding: 2px 9px; border-radius: 999px; background: #fdecef; color: #b4234a; }
 
 .barns { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; padding: 14px 18px 18px; }
 /* Thẻ chuồng nền pastel chuyển màu: xanh khi ổn, vàng khi cần chú ý, hồng khi cần xử lý. */

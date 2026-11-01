@@ -32,6 +32,12 @@ const dashboard = (extra = {}) => ({
     { date: '2026-11-01', inDays: 2, barnId: 1, barnName: 'Nhà A1', kind: 'VACCINE', title: 'Vắc-xin Gumboro (ngày tuổi 31)' },
     { date: '2026-11-04', inDays: 5, barnId: 2, barnName: 'Nhà A2', kind: 'HARVEST', title: 'Dự kiến xuất chuồng · Gà Mía 35 ngày' },
   ],
+  restock: [
+    { itemId: 7, warehouseName: 'Kho cám gà Mía', productName: 'Cám Gà thịt Higro 02', category: 'FEED', unitName: 'Bao (25kg)',
+      stock: 60, dailyNeed: 24, daysLeft: 2, level: 'DANGER' },
+    { itemId: 9, warehouseName: 'Kho thuốc gà J', productName: 'Vắc-xin Gumboro', category: 'VACCINE', unitName: 'Lọ 1000 liều',
+      stock: 0, dailyNeed: 3, daysLeft: 0, level: 'DANGER' },
+  ],
   finance: { chickCost: 1100000000, feedCost: 450000000, totalCost: 1600000000, revenue: 0, profit: -1600000000, otherCost: 50000000 },
   taskHistory: ['2026-10-24', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30']
     .map((date, index) => ({ date, done: index === 6 ? 3 : 10, total: 12, missed: index === 6 ? 2 : 2 })),
@@ -112,9 +118,12 @@ describe('Bảng tin', () => {
     expect(within(todo).getByRole('link', { name: /chưa có người phụ trách/ })).toHaveAttribute('href', '/today-tasks?view=assign');
     expect(within(todo).getByRole('link', { name: /hóa đơn còn nợ/ })).toHaveAttribute('href', '/purchases');
 
-    const next = screen.getByRole('region', { name: '7 ngày tới' });
-    expect(within(next).getByText('Vắc-xin Gumboro (ngày tuổi 31)')).toBeInTheDocument();
-    expect(within(next).getByText('2 ngày nữa')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '7 ngày tới' })).not.toBeInTheDocument();
+    const restock = screen.getByRole('region', { name: 'Kho cần bổ sung' });
+    expect(within(restock).getByText('Cám Gà thịt Higro 02')).toBeInTheDocument();
+    expect(within(restock).getByText(/Kho cám gà Mía · còn 60 Bao \(25kg\) · dùng 24 Bao \(25kg\)\/ngày/)).toBeInTheDocument();
+    expect(within(restock).getByText('Đủ 2 ngày')).toBeInTheDocument();
+    expect(within(restock).getByText('Hết hàng')).toBeInTheDocument();
 
     const barns = screen.getByRole('region', { name: 'Các chuồng đang nuôi' });
     expect(within(barns).getByRole('link', { name: 'Chuồng Nhà A1' })).toHaveAttribute('href', '/barns/1');
@@ -143,10 +152,10 @@ describe('Bảng tin', () => {
     service.getDashboard.mockRejectedValueOnce({ response: { data: { message: 'Máy chủ bận.' } } });
     renderView();
     expect(await screen.findByRole('alert')).toHaveTextContent('Máy chủ bận.');
-    service.getDashboard.mockResolvedValueOnce(dashboard({ alerts: [], upcoming: [] }));
+    service.getDashboard.mockResolvedValueOnce(dashboard({ alerts: [], upcoming: [], restock: [] }));
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
     expect(await screen.findByText(/Không có việc gì cần xử lý/)).toBeInTheDocument();
-    expect(screen.getByText(/Không có mốc vắc-xin/)).toBeInTheDocument();
+    expect(screen.getByText(/Kho đủ dùng cho tuần tới/)).toBeInTheDocument();
     await waitFor(() => expect(service.getDashboard).toHaveBeenCalledTimes(2));
   });
 });
