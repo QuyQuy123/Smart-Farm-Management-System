@@ -762,3 +762,73 @@ VALUES
   ('EXPORT', 'Xuất hủy', 'xuất hủy', 'Xuất hủy hàng hóa ẩm mốc, quá hạn hoặc hư hỏng trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
   ('TRANSFER', 'Chuyển kho nội bộ', 'chuyển kho nội bộ', 'Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00')
 ON CONFLICT (name_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 27. Kho riêng cho từng khu: kho cám / kho thuốc gà Mía, kho cám / kho thuốc gà J
+--     Mỗi kho có tồn riêng của cùng mặt hàng (tên hàng dùng chung); phiếu việc trừ kho
+--     theo kho mà công nhân phụ trách chuồng được phân công.
+-- ---------------------------------------------------------------------
+INSERT INTO warehouse_categories (name, name_key, description, created_at, updated_at)
+VALUES ('Kho cám gà Mía', 'kho cám gà mía', 'Cám cho các chuồng Khu Mía Thịt', NOW(), NOW()),
+       ('Kho thuốc gà Mía', 'kho thuốc gà mía', 'Thuốc thú y và vắc-xin cho Khu Mía Thịt', NOW(), NOW()),
+       ('Kho cám gà J', 'kho cám gà j', 'Cám cho các chuồng Khu J Thịt', NOW(), NOW()),
+       ('Kho thuốc gà J', 'kho thuốc gà j', 'Thuốc thú y và vắc-xin cho Khu J Thịt', NOW(), NOW())
+ON CONFLICT (name_key) DO NOTHING;
+
+-- Tồn đầu kỳ; đơn vị, nhãn hàng, giá lấy theo dòng tồn sẵn có của cùng mặt hàng
+INSERT INTO inventory_items (code, warehouse_id, product_id, unit_id, brand_id, price, stock, created_at, updated_at)
+SELECT 'SP' || upper(substr(md5(w.name_key || ':' || p.name_key), 1, 12)), w.id, p.id, src.unit_id, src.brand_id, src.price, v.stock, NOW(), NOW()
+FROM (VALUES
+  ('kho cám gà mía', 'cám gà úm higro 01', 600),
+  ('kho cám gà mía', 'cám gà thịt higro 02', 1200),
+  ('kho cám gà mía', 'cám gà vỗ béo higro 03', 1200),
+  ('kho cám gà j', 'cám gà úm higro 01', 400),
+  ('kho cám gà j', 'cám gà thịt higro 02', 800),
+  ('kho cám gà j', 'cám gà vỗ béo higro 03', 800),
+  ('kho thuốc gà mía', 'amoxicillin 10% (hanmoxy)', 60),
+  ('kho thuốc gà mía', 'men tiêu hóa bio-zyme', 50),
+  ('kho thuốc gà mía', 'toltrazuril 2.5% (han-coc)', 30),
+  ('kho thuốc gà mía', 'vitamin c + điện giải (han-electrolyte)', 80),
+  ('kho thuốc gà mía', 'kháng sinh doxycycline 50%', 5),
+  ('kho thuốc gà mía', 'hạ sốt paracetamol c', 10),
+  ('kho thuốc gà mía', 'vắc-xin cúm gia cầm h5n1 (navet-vifluvac)', 40),
+  ('kho thuốc gà mía', 'vắc-xin đậu gà', 30),
+  ('kho thuốc gà mía', 'vắc-xin gumboro (medivac gumboro a)', 80),
+  ('kho thuốc gà mía', 'vắc-xin marek (hvt)', 30),
+  ('kho thuốc gà mía', 'vắc-xin newcastle lasota', 80),
+  ('kho thuốc gà mía', 'vắc-xin newcastle hệ i (m)', 150),
+  ('kho thuốc gà mía', 'vắc-xin rụt mỏ (parvo)', 50),
+  ('kho thuốc gà j', 'amoxicillin 10% (hanmoxy)', 40),
+  ('kho thuốc gà j', 'men tiêu hóa bio-zyme', 40),
+  ('kho thuốc gà j', 'toltrazuril 2.5% (han-coc)', 20),
+  ('kho thuốc gà j', 'vitamin c + điện giải (han-electrolyte)', 60),
+  ('kho thuốc gà j', 'kháng sinh doxycycline 50%', 5),
+  ('kho thuốc gà j', 'hạ sốt paracetamol c', 10),
+  ('kho thuốc gà j', 'vắc-xin cúm gia cầm h5n1 (navet-vifluvac)', 30),
+  ('kho thuốc gà j', 'vắc-xin đậu gà', 20),
+  ('kho thuốc gà j', 'vắc-xin gumboro (medivac gumboro a)', 60),
+  ('kho thuốc gà j', 'vắc-xin marek (hvt)', 20),
+  ('kho thuốc gà j', 'vắc-xin newcastle lasota', 60),
+  ('kho thuốc gà j', 'vắc-xin newcastle hệ i (m)', 100),
+  ('kho thuốc gà j', 'vắc-xin rụt mỏ (parvo)', 40)
+) AS v(wh_key, product_key, stock)
+JOIN warehouse_categories w ON w.name_key = v.wh_key
+JOIN product_categories p ON p.name_key = v.product_key
+JOIN LATERAL (SELECT i.unit_id, i.brand_id, i.price FROM inventory_items i WHERE i.product_id = p.id ORDER BY i.id LIMIT 1) src ON TRUE
+WHERE NOT EXISTS (SELECT 1 FROM inventory_items x WHERE x.warehouse_id = w.id AND x.product_id = p.id)
+ON CONFLICT (code) DO NOTHING;
+
+-- Thủ kho: công nhân lấy hàng từ kho của khu mình (Khu Gà Hồ dùng kho cám / kho thuốc chung)
+INSERT INTO warehouse_workers (warehouse_id, account_id)
+SELECT w.id, a.id
+FROM (VALUES
+  ('kho cám gà mía', 'congnhan@smartfarm.com'),
+  ('kho thuốc gà mía', 'congnhan@smartfarm.com'),
+  ('kho cám gà j', 'hung@smartfarm.com'),
+  ('kho thuốc gà j', 'hung@smartfarm.com'),
+  ('kho cám', 'hang@smartfarm.com'),
+  ('kho thuốc & vắc-xin', 'hang@smartfarm.com')
+) AS v(wh_key, email)
+JOIN warehouse_categories w ON w.name_key = v.wh_key
+JOIN accounts a ON a.email = v.email
+ON CONFLICT ON CONSTRAINT uk_warehouse_workers DO NOTHING;

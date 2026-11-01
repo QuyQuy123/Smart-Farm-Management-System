@@ -458,11 +458,21 @@ public class DailyPlanService {
         Map<Long, BigDecimal> remainingByItem = new LinkedHashMap<>();
         Map<Long, InventoryItem> items = new LinkedHashMap<>();
         Map<Long, BigDecimal> available = new LinkedHashMap<>();
+        Map<String, BigDecimal> averages = new HashMap<>();
+        BigDecimal plannedTotal = BigDecimal.ZERO;
         List<BarnDayPlan.Task> tasks = new ArrayList<>();
         for (Planned task : plan.tasks()) {
             DailyTaskLog log = logs.remove(task.key);
             BigDecimal stock = task.item != null && task.total != null
                     ? UsageMath.toStock(task.total, task.unit, task.item, task.category == ProgramStepCategory.VACCINE) : null;
+            // Hoạch định chi phí theo giá trung bình các kho; chưa chọn được kho nguồn thì lấy quy cách của nguồn đầu tiên.
+            InventoryItem priced = task.item != null ? task.item : task.sources.isEmpty() ? null : task.sources.getFirst().getFirst();
+            BigDecimal pricedStock = stock != null ? stock : priced != null && task.total != null
+                    ? UsageMath.toStock(task.total, task.unit, priced, task.category == ProgramStepCategory.VACCINE) : null;
+            BigDecimal averagePrice = canSeeFinance && priced != null ? averagePrice(priced, averages) : null;
+            BigDecimal plannedCost = averagePrice != null && pricedStock != null
+                    ? pricedStock.multiply(averagePrice).setScale(0, RoundingMode.HALF_UP) : null;
+            if (plannedCost != null) plannedTotal = plannedTotal.add(plannedCost);
             if (log == null && stock != null) {
                 remainingByItem.merge(task.item.getId(), stock, BigDecimal::add);
                 items.put(task.item.getId(), task.item);
@@ -483,7 +493,8 @@ public class DailyPlanService {
                     }).toList(),
                     log == null ? null : done(log, canSeeFinance),
                     task.sources.stream().map(lots -> new BarnDayPlan.StockSource(lots.getFirst().getId(),
-                            lots.getFirst().getWarehouse().getName(), stockUnit(lots.getFirst()), sourceStock(lots))).toList()));
+                            lots.getFirst().getWarehouse().getName(), stockUnit(lots.getFirst()), sourceStock(lots))).toList(),
+                    averagePrice, plannedCost));
         }
         // Việc đã xác nhận nhưng không còn trong kế hoạch (đổi chương trình, đàn đã bán hết...) vẫn hiện để xem và hoàn tác.
         for (DailyTaskLog log : logs.values()) {
@@ -492,7 +503,7 @@ public class DailyPlanService {
                     log.getInventoryItem() == null ? null : stockUnit(log.getInventoryItem()),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getId(),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getProduct().getName(), null, null, null, null,
-                    "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance), List.of()));
+                    "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance), List.of(), null, null));
         }
         remainingByItem.forEach((id, need) -> {
             InventoryItem item = items.get(id);
@@ -509,8 +520,26 @@ public class DailyPlanService {
                 plan.flocks().stream().mapToInt(FlockDay::heads).sum(),
                 plan.flocks().stream().map(f -> new BarnDayPlan.FlockLine(f.flock().getId(), flockCode(f.flock()), f.flock().getName(),
                         f.flock().getProgram() == null ? null : f.flock().getProgram().getName(), f.age(), f.heads())).toList(),
-                tasks, all.size(), cost, warnings, workAssignment.workersOf(barn.getId()),
+                tasks, all.size(), cost, canSeeFinance ? plannedTotal : null, warnings, workAssignment.workersOf(barn.getId()),
                 workAssignment.tasksOf(barn.getId(), day, workerEmail));
+    }
+
+    /** Giá trung bình một đơn vị tồn của mặt hàng (cùng quy cách) trên mọi kho: bình quân theo tồn, hết tồn thì trung bình giá. */
+    private BigDecimal averagePrice(InventoryItem item, Map<String, BigDecimal> cache) {
+        Long unitId = item.getUnit() == null ? null : item.getUnit().getId();
+        return cache.computeIfAbsent(item.getProduct().getId() + ":" + unitId, ignored -> {
+            List<InventoryItem> same = inventoryRepository.findByProduct_Id(item.getProduct().getId()).stream()
+                    .filter(other -> Objects.equals(other.getUnit() == null ? null : other.getUnit().getId(), unitId)).toList();
+            List<InventoryItem> inStock = same.stream().filter(other -> other.getStock().signum() > 0).toList();
+            BigDecimal stock = inStock.stream().map(InventoryItem::getStock).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (stock.signum() > 0) {
+                return inStock.stream().map(other -> other.getPrice().multiply(other.getStock())).reduce(BigDecimal.ZERO, BigDecimal::add)
+                        .divide(stock, 2, RoundingMode.HALF_UP);
+            }
+            if (same.isEmpty()) return item.getPrice();
+            return same.stream().map(InventoryItem::getPrice).reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(same.size()), 2, RoundingMode.HALF_UP);
+        });
     }
 
     private static BarnDayPlan.Done done(DailyTaskLog log, boolean canSeeFinance) {

@@ -145,6 +145,20 @@ export const stockKind = item => {
 /** Hàng hóa gợi ý cho một dòng chương trình: đúng nhóm (cám / vắc-xin / thuốc) và quy đổi được đơn vị. */
 export const itemsForStep = (items, category, unit) => items.filter(item => stockKind(item) === category && itemFitsStep(item, category, unit));
 
+/**
+ * Một dòng cho mỗi tên hàng dù hàng có ở nhiều kho: chương trình nuôi chỉ chọn tên, kho nào trừ do phân công kho quyết định.
+ * Giữ dòng đang được gắn (preferredId) để ô chọn vẫn nhận ra lựa chọn cũ.
+ */
+export const uniqueByName = (items, preferredId) => {
+  const byName = new Map();
+  for (const item of items) {
+    const name = String(item.name || '').normalize('NFC').trim().toLocaleLowerCase('vi');
+    if (!name) continue;
+    if (!byName.has(name) || String(item.id) === String(preferredId)) byName.set(name, item);
+  }
+  return [...byName.values()];
+};
+
 /** Hàng hóa dùng được cho một nội dung khi có quy cách và cùng loại đại lượng với định mức. */
 export const itemFitsStep = (item, category, unit) => {
   if (!item?.unitContentUnit) return false;
