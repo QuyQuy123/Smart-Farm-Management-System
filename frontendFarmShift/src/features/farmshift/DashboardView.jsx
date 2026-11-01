@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Coins, HeartCrack, Info, ListChecks, Syringe, Truck,
-  Users, Warehouse, Wheat, Pill, Flag, RefreshCw, Map as MapIcon, PackageOpen,
+  Users, Wheat, Pill, Flag, RefreshCw, Map as MapIcon, PackageOpen,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { listBarns } from '../../services/farmAreaService';
@@ -118,19 +118,13 @@ export const DashboardView = () => {
             </section>
           </div>
 
-          <section className={styles.card} aria-label="Các chuồng đang nuôi">
-            <header><h3><Warehouse size={17} />{isWorker ? 'Chuồng bạn phụ trách' : 'Các chuồng đang nuôi'}</h3>
-              <Link to="/areas" className={styles.more}>Khu nuôi <ChevronRight size={15} /></Link></header>
-            {data.barns.length === 0 ? <p className={styles.empty}>{isWorker ? 'Bạn chưa được giao chuồng nào.' : 'Chưa có chuồng đang nuôi.'}</p>
-              : <div className={styles.barns}>{data.barns.map(barn => <BarnTile key={barn.cycleId} barn={barn} />)}</div>}
-          </section>
+          {/* Mặt bằng trang trại: chuồng 3D theo khu, mái theo trạng thái; công nhân chỉ thấy chuồng mình phụ trách. */}
+          <FarmPlan cards={data.barns} isWorker={isWorker} />
 
           {data.finance && <Finance finance={data.finance} />}
 
           <DashboardCharts data={data} />
 
-          {/* Mặt bằng trang trại: mỗi khu một khối, chuồng thành ô tô màu theo trạng thái; công nhân không cần nên không hiện. */}
-          {!isWorker && <FarmPlan cards={data.barns} />}
         </>}
   </FarmShiftLayout>;
 };
@@ -153,35 +147,38 @@ function Kpis({ kpis, isWorker }) {
   </div>)}</div>;
 }
 
-function BarnTile({ barn }) {
-  const progress = barn.tasksTotal ? Math.round((barn.tasksDone / barn.tasksTotal) * 100) : 0;
-  // Số chính in to (số con, ngày tuổi); cân / FCR chỉ hiện khi có số; khu và người phụ trách gộp một dòng nhỏ.
-  const extras = [Number(barn.avgWeightKg) > 0 && `Cân TB ${num(barn.avgWeightKg, 2)} kg`, Number(barn.fcr) > 0 && `FCR ${num(barn.fcr, 2)}`].filter(Boolean);
-  return <Link to={`/barns/${barn.barnId}`} className={styles.barn} aria-label={`Chuồng ${barn.barnName}`}>
-    <div className={styles.barnHead}>
-      <strong>{barn.barnName}</strong>
-      <em className={styles[`status_${barn.status}`]}><i />{STATUS[barn.status] || barn.status}</em>
-    </div>
-    <div className={styles.barnMain}>
-      <span><b>{num(barn.quantity)}</b> con</span>
-      <span className={styles.age}>Ngày tuổi <b>{barn.ageDays ?? '—'}</b></span>
-    </div>
-    {extras.length > 0 && <small className={styles.extras}>{extras.join(' · ')}</small>}
-    <div className={styles.barnFoot}>
-      <span>Việc <b>{barn.tasksDone}/{barn.tasksTotal}</b></span>
-      {barn.overdueTasks > 0 && <span className={styles.overdue}>{barn.overdueTasks} quá giờ</span>}
-      {barn.lossToday > 0 && <span className={styles.loss}>Hao hụt {num(barn.lossToday)} con</span>}
-    </div>
-    <i className={styles.bar}><b style={{ width: `${progress}%` }} /></i>
-    <small className={styles.workers}>{barn.areaName} · {barn.workers.length ? barn.workers.join(', ') : <span>Chưa có người phụ trách</span>}</small>
-  </Link>;
+/** Một dòng cần chú ý nhất của chuồng: hao hụt hôm nay > việc quá giờ > chưa có người phụ trách > tiến độ việc. */
+const barnNote = card => card.lossToday > 0 ? { text: `Hao hụt ${num(card.lossToday)} con`, bad: true }
+  : card.overdueTasks > 0 ? { text: `${card.overdueTasks} quá giờ`, bad: true }
+    : !card.workers.length ? { text: 'Chưa có người phụ trách', bad: true }
+      : { text: `Việc ${card.tasksDone}/${card.tasksTotal}`, bad: false };
+
+/** Cửa sổ dọc tường dài của nhà chuồng (tường nghiêng 15/60). */
+const BARN_WINDOWS = [14, 26, 38, 50];
+
+/**
+ * Nhà chuồng vẽ nghiêng kiểu 3D (tường dài, tường hồi, mái hai mái). Mái tô theo trạng thái chuồng; chuồng trống mờ, viền nét đứt.
+ */
+function Barn3D({ status }) {
+  return <svg viewBox="0 0 112 82" className={styles.barn3d} aria-hidden="true">
+    <ellipse cx="56" cy="70" rx="50" ry="9" className={styles.barnShadow} />
+    <polygon points="26,15 86,30 106,37 46,22" className={styles.roofBack} />
+    <polygon points="66,73 106,59 106,37 66,51" className={styles.wallSide} />
+    <polygon points="66,51 106,37 86,30" className={styles.gable} />
+    <polygon points="78,68.8 88,65.3 88,53.3 78,56.8" className={styles.door} />
+    <polygon points="6,58 66,73 66,51 6,36" className={styles.wallFront} />
+    {BARN_WINDOWS.map(x => <polygon key={x} points={`${x},${50 + x / 4} ${x + 6},${51.5 + x / 4} ${x + 6},${45.5 + x / 4} ${x},${44 + x / 4}`}
+      className={styles.window} />)}
+    <polygon points="3,36.5 67,52.5 87,29 25,13.5" className={`${styles.roof} ${styles[`roof_${status}`]}`} />
+    <line x1="25" y1="13.5" x2="87" y2="29" className={styles.ridge} />
+  </svg>;
 }
 
 /**
  * Sơ đồ trang trại: mọi chuồng (kể cả chuồng trống) nhóm theo khu, như mặt bằng. Trạng thái, ngày tuổi, việc quá giờ lấy từ
  * thẻ chuồng của bảng tin; chuồng không có lứa thì xám nhạt. Bấm ô mở chuồng.
  */
-function FarmPlan({ cards }) {
+function FarmPlan({ cards, isWorker }) {
   const [barns, setBarns] = useState(null);
   useEffect(() => {
     let cancelled = false;
@@ -190,15 +187,16 @@ function FarmPlan({ cards }) {
   }, []);
   const byBarn = new Map(cards.map(card => [card.barnId, card]));
   const areas = [];
-  (barns || []).forEach(barn => {
+  // Công nhân chỉ thấy chuồng đang nuôi mình phụ trách (có trong thẻ chuồng của bảng tin).
+  (barns || []).filter(barn => !isWorker || byBarn.has(barn.id)).forEach(barn => {
     let area = areas.find(item => item.id === barn.areaId);
     if (!area) areas.push(area = { id: barn.areaId, name: barn.areaName, barns: [] });
     area.barns.push(barn);
   });
   return <section className={styles.card} aria-label="Sơ đồ trang trại">
-    <header><h3><MapIcon size={17} />Sơ đồ trang trại</h3><Link to="/areas" className={styles.more}>Khu nuôi <ChevronRight size={15} /></Link></header>
+    <header><h3><MapIcon size={17} />{isWorker ? 'Chuồng bạn phụ trách' : 'Sơ đồ trang trại'}</h3><Link to="/areas" className={styles.more}>Khu nuôi <ChevronRight size={15} /></Link></header>
     {barns === null ? <p className={styles.empty} role="status">Đang tải sơ đồ...</p>
-      : areas.length === 0 ? <p className={styles.empty}>Chưa có khu nuôi nào.</p>
+      : areas.length === 0 ? <p className={styles.empty}>{isWorker ? 'Bạn chưa được giao chuồng nào.' : 'Chưa có khu nuôi nào.'}</p>
         : <div className={styles.farmPlan}>{areas.map(area => {
           const live = area.barns.reduce((sum, barn) => sum + (barn.currentQuantity || 0), 0);
           return <div key={area.id} className={styles.planArea} aria-label={`Khu ${area.name}`} role="group">
@@ -208,10 +206,11 @@ function FarmPlan({ cards }) {
               const status = card ? card.status : 'EMPTY';
               return <Link key={barn.id} to={`/barns/${barn.id}`} className={`${styles.planTile} ${styles[`tile_${status}`]}`}
                 aria-label={`Sơ đồ ${barn.name}`} title={card ? `${barn.name}: ${STATUS[status]}` : `${barn.name}: chuồng trống`}>
+                <Barn3D status={status} />
                 <strong>{barn.name}</strong>
                 {card ? <>
-                  <span><b>{num(card.quantity)}</b> con · ngày {card.ageDays ?? '—'}</span>
-                  {card.overdueTasks > 0 ? <em>{card.overdueTasks} quá giờ</em> : <small>Việc {card.tasksDone}/{card.tasksTotal}</small>}
+                  <span><b>{num(card.quantity)}</b> con · <b>{card.ageDays ?? '—'}</b> ngày</span>
+                  {barnNote(card).bad ? <em>{barnNote(card).text}</em> : <small>{barnNote(card).text}</small>}
                 </> : <small>{barn.currentQuantity > 0 ? `${num(barn.currentQuantity)} con` : 'Trống'}</small>}
               </Link>;
             })}</div>

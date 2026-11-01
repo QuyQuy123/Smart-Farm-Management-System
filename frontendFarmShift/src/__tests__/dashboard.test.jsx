@@ -97,7 +97,9 @@ describe('Bảng tin', () => {
     const a1 = within(mia).getByRole('link', { name: 'Sơ đồ Nhà A1' });
     expect(a1).toHaveAttribute('href', '/barns/1');
     expect(a1).toHaveAttribute('title', 'Nhà A1: Cần xử lý');
+    // Mỗi chuồng một dòng cần chú ý nhất: Nhà A2 vừa quá giờ vừa chưa có người phụ trách → hiện quá giờ.
     expect(within(mia).getByRole('link', { name: 'Sơ đồ Nhà A2' })).toHaveTextContent('2 quá giờ');
+    expect(a1).toHaveTextContent('Hao hụt 12 con');
     const empty = within(plan).getByRole('link', { name: 'Sơ đồ Nhà B9' });
     expect(empty).toHaveTextContent('Trống');
     expect(empty).toHaveAttribute('title', 'Nhà B9: chuồng trống');
@@ -126,10 +128,8 @@ describe('Bảng tin', () => {
     expect(within(restock).getByText('Đủ 2 ngày')).toBeInTheDocument();
     expect(within(restock).getByText('Hết hàng')).toBeInTheDocument();
 
-    const barns = screen.getByRole('region', { name: 'Các chuồng đang nuôi' });
-    expect(within(barns).getByRole('link', { name: 'Chuồng Nhà A1' })).toHaveAttribute('href', '/barns/1');
-    expect(within(barns).getByText('Cần xử lý')).toBeInTheDocument();
-    expect(within(barns).getByText('Chưa có người phụ trách')).toBeInTheDocument();
+    // Chuồng chỉ hiện một lần, trên sơ đồ trang trại (không còn mục "Các chuồng đang nuôi" trùng thông tin).
+    expect(screen.queryByRole('region', { name: 'Các chuồng đang nuôi' })).not.toBeInTheDocument();
 
     const money = screen.getByRole('region', { name: 'Tài chính các lứa đang nuôi' });
     expect(within(money).getByText('Lỗ tạm tính')).toBeInTheDocument();
@@ -142,7 +142,10 @@ describe('Bảng tin', () => {
       alerts: [dashboard().alerts[0]], barns: [barn(1, 'Nhà A1')],
     }));
     renderView();
-    expect(await screen.findByRole('region', { name: 'Các chuồng đang nuôi' })).toHaveTextContent('Chuồng bạn phụ trách');
+    const plan = await screen.findByRole('region', { name: 'Sơ đồ trang trại' });
+    expect(plan).toHaveTextContent('Chuồng bạn phụ trách');
+    expect(await within(plan).findByRole('link', { name: 'Sơ đồ Nhà A1' })).toBeInTheDocument();
+    expect(within(plan).queryByRole('link', { name: 'Sơ đồ Nhà B9' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Công nợ/)).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Tài chính các lứa đang nuôi' })).not.toBeInTheDocument();
     expect(screen.queryByRole('figure', { name: 'Cơ cấu chi phí các lứa đang nuôi' })).not.toBeInTheDocument();
