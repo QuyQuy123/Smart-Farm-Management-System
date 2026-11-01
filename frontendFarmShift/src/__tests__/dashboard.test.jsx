@@ -79,9 +79,14 @@ describe('Bảng tin', () => {
     expect(within(charts).queryByRole('figure', { name: 'Việc 7 ngày gần nhất' })).not.toBeInTheDocument();
 
     const growth = within(charts).getByRole('figure', { name: 'Tăng trọng theo ngày tuổi' });
-    expect(within(growth).getByRole('img')).toHaveAccessibleName(/Nhà A1: ngày 1 0,04 kg, ngày 21 0,85 kg, ngày 28 1,4 kg/);
-    fireEvent.change(within(growth).getByLabelText('Chọn chuồng xem tăng trọng'), { target: { value: '2' } });
-    expect(within(growth).getByText(/Chưa có lần cân mẫu/)).toBeInTheDocument();
+    // Mỗi chuồng đang nuôi một đường trên cùng biểu đồ, không còn ô chọn chuồng.
+    expect(within(growth).getByRole('img')).toHaveAccessibleName(/Nhà A1: ngày 1 0,04 kg, ngày 21 0,85 kg, ngày 28 1,4 kg; Nhà A2: ngày 1 0,04 kg/);
+    expect(within(growth).queryByLabelText('Chọn chuồng xem tăng trọng')).not.toBeInTheDocument();
+    expect(within(growth).getByText(/1\/2 chuồng đã có lần cân mẫu/)).toBeInTheDocument();
+    const a2 = within(growth).getByRole('button', { name: 'Nhà A2' });
+    fireEvent.mouseEnter(a2);
+    expect(a2).toHaveAttribute('aria-pressed', 'true');
+    expect(within(growth).getByRole('img').querySelector('[data-barn="Nhà A1"]')).toHaveAttribute('opacity', '0.18');
   });
 
   it('draws the farm plan: every barn by area, coloured by status, empty barns in grey', async () => {
