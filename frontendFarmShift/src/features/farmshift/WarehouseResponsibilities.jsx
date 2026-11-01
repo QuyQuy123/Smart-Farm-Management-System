@@ -78,11 +78,11 @@ export function WarehouseResponsibilities({ canEdit }) {
   return <section className="farmshift-card">
     <header className={`farmshift-card-header ${styles.header}`}>
       <div><h3 className="farmshift-card-title">Phân công công nhân phụ trách kho</h3><p>Chọn công nhân phụ trách cho từng kho hàng của trang trại.</p></div>
-      <span className={styles.summary}><Users size={16} />{data?.workers.length || 0} công nhân đang hoạt động</span>
+      <span className={styles.summary}><Users size={16} />{data?.workers?.length || 0} công nhân đang hoạt động</span>
     </header>
     {loading ? <p role="status" className={styles.empty}>Đang tải danh sách kho...</p>
       : error ? <div className={styles.empty}><p role="alert" className={styles.error}>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={retry}>Thử lại</button></div>
-      : !data?.warehouses.length ? <p className={styles.empty}>Chưa có kho hàng. Thêm kho tại Thiết lập danh mục trước khi phân công.</p>
+      : !data?.warehouses?.length ? <p className={styles.empty}>Chưa có kho hàng. Thêm kho tại Thiết lập danh mục trước khi phân công.</p>
       : <div className="farmshift-table-container" style={{ border: 'none' }}><table className="farmshift-table">
         <thead><tr><th>Tên kho hàng</th><th>Công nhân phụ trách</th></tr></thead>
         <tbody>{data.warehouses.map(warehouse => <tr key={warehouse.id}>
