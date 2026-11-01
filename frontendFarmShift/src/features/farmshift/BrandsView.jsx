@@ -279,17 +279,16 @@ export const BrandsView = () => {
               <tr>
                 <th>Tên nhãn hiệu</th>
                 <th>Loại hàng hóa</th>
-                <th>Số lượng</th>
                 <th>Ghi chú</th>
                 <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className={styles.empty} role="status">Đang tải danh sách nhãn hiệu...</td></tr>
+                <tr><td colSpan={4} className={styles.empty} role="status">Đang tải danh sách nhãn hiệu...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={styles.empty}>
+                  <td colSpan={4} className={styles.empty}>
                     {query ? 'Không tìm thấy nhãn hiệu phù hợp.' : 'Chưa có nhãn hiệu nào. Thêm nhãn hiệu đầu tiên để bắt đầu.'}
                   </td>
                 </tr>
@@ -298,7 +297,6 @@ export const BrandsView = () => {
                   <tr key={item.id}>
                     <td><strong>{item.name}</strong></td>
                     <td>{item.productType || '—'}</td>
-                    <td><span className={styles.count}>{item.quantity ?? 0}</span></td>
                     <td className={styles.description}>{item.note || '—'}</td>
                     <td>
                       <div className={styles.actions}>
