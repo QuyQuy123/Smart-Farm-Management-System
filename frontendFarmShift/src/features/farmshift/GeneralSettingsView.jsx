@@ -12,6 +12,7 @@ import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA, getFarmInfo, saveFarmInfo } from '../../data/farmshiftMockData';
 import { FARMSHIFT_SCREENS } from '../../data/screensMatrix';
 import { getFarm, updateFarm } from '../../services/farmService';
+import { BarnResponsibilities } from './BarnResponsibilities';
 
 export const GeneralSettingsView = () => {
   const { user } = useAuth();
@@ -336,46 +337,7 @@ export const GeneralSettingsView = () => {
       )}
 
       {/* ── Tab 3: Phân vai trò trong khu nuôi ──────────────── */}
-      {activeTab === 'barn_roles' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header">
-            <h3 className="farmshift-card-title">Vai trò khu nuôi</h3>
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Chuồng nuôi</th>
-                  <th>Khu nuôi</th>
-                  <th>Công nhân phụ trách chính</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>Nhà A1</strong></td>
-                  <td>Khu Mía Thịt</td>
-                  <td>Trần Văn Bình</td>
-                </tr>
-                <tr>
-                  <td><strong>Nhà A2</strong></td>
-                  <td>Khu Mía Thịt</td>
-                  <td>Trần Văn Bình</td>
-                </tr>
-                <tr>
-                  <td><strong>Nhà B1</strong></td>
-                  <td>Khu J Thịt</td>
-                  <td>Trần Thị Mai</td>
-                </tr>
-                <tr>
-                  <td><strong>Nhà B2</strong></td>
-                  <td>Khu J Thịt</td>
-                  <td>Lê Văn Cường</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'barn_roles' && <BarnResponsibilities canEdit={canEditFarm} />}
 
       {/* ── Tab 4: Phân vai trò trong kho hàng ──────────────── */}
       {activeTab === 'warehouse_roles' && (

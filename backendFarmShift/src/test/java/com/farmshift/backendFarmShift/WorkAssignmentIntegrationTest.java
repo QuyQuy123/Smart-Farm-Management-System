@@ -45,7 +45,7 @@ class WorkAssignmentIntegrationTest {
     @Autowired AccountRepository accounts;
     @Autowired RoleRepository roles;
 
-    long workerA, workerB, accountantId, barn1, barn2, cycle1, cycle2;
+    long workerA, workerB, accountantId, area, barn1, barn2, cycle1, cycle2;
     final RequestPostProcessor asA = SecurityMockMvcRequestPostProcessors.user(WORKER_A).authorities(() -> RoleNames.FARM_WORKER);
     final RequestPostProcessor asB = SecurityMockMvcRequestPostProcessors.user(WORKER_B).authorities(() -> RoleNames.FARM_WORKER);
 
@@ -56,7 +56,7 @@ class WorkAssignmentIntegrationTest {
         accountantId = account("ketoan.assign@farm.test", "Kế toán", RoleNames.ACCOUNTANT);
         long program = id(send(post("/api/farming-programs"), Map.of("name", "Gà Mía phân công", "breed", "Gà Mía", "durationDays", 90,
                 "steps", List.of(Map.of("category", "FEED", "name", "Higro 01", "dayFrom", 1, "dayTo", 90, "quantity", 40, "mealsPerDay", 2)))));
-        long area = id(send(post("/api/farm-areas"), Map.of("name", "Khu phân công")));
+        area = id(send(post("/api/farm-areas"), Map.of("name", "Khu phân công")));
         barn1 = id(send(post("/api/barns"), Map.of("areaId", area, "name", "Chuồng 1", "capacity", 10000, "areaM2", 500)));
         barn2 = id(send(post("/api/barns"), Map.of("areaId", area, "name", "Chuồng 2", "capacity", 10000, "areaM2", 500)));
         cycle1 = startWithFlock(barn1, program);
@@ -207,4 +207,109 @@ class WorkAssignmentIntegrationTest {
         assign(barn1).andExpect(status().isOk()).andExpect(jsonPath("$.data").isEmpty());
         mvc.perform(get("/api/daily-plan").with(asA)).andExpect(jsonPath("$.data").isEmpty());
     }
+    @Test
+    void areaAssignmentsAreInheritedAndAppliedToRealWorkerPermissions() throws Exception {
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(workerA, workerB)))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/barn-responsibilities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.areas[?(@.id == " + area + ")].workers[*].id").value(containsInAnyOrder((int) workerA, (int) workerB)));
+        mvc.perform(get("/api/daily-plan").with(asA)).andExpect(jsonPath("$.data.length()").value(2));
+        mvc.perform(get("/api/daily-plan").with(asB)).andExpect(jsonPath("$.data.length()").value(2));
+        giveTask(barn1, workerA, "Inherited worker task");
+        mvc.perform(get("/api/work-assignments"))
+                .andExpect(jsonPath("$.data.workers[?(@.id == " + workerA + ")].barnCount").value(2));
+    }
+
+    @Test
+    void barnOverridesSurviveAreaChangesAndCanReturnToInheritance() throws Exception {
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(workerA))).andExpect(status().isOk());
+        assign(barn1, workerB).andExpect(status().isOk());
+        mvc.perform(get("/api/daily-plan").with(asA)).andExpect(jsonPath("$.data.length()").value(1));
+        mvc.perform(get("/api/daily-plan").with(asB)).andExpect(jsonPath("$.data.length()").value(1));
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of())).andExpect(status().isOk());
+        mvc.perform(get("/api/daily-plan").with(asB)).andExpect(jsonPath("$.data.length()").value(1));
+        mvc.perform(delete("/api/barns/" + barn1 + "/workers/override")).andExpect(status().isOk());
+        mvc.perform(get("/api/daily-plan").with(asB)).andExpect(jsonPath("$.data").isEmpty());
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(workerA))).andExpect(status().isOk());
+        mvc.perform(get("/api/daily-plan").with(asA)).andExpect(jsonPath("$.data.length()").value(2));
+    }
+
+    @Test
+    void anEmptyBarnOverrideDoesNotFallBackToAreaWorkers() throws Exception {
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(workerA))).andExpect(status().isOk());
+        assign(barn1).andExpect(status().isOk());
+        mvc.perform(get("/api/cycles/" + cycle1 + "/daily-plan").with(asA)).andExpect(status().isConflict());
+        mvc.perform(get("/api/cycles/" + cycle2 + "/daily-plan").with(asA)).andExpect(status().isOk());
+    }
+
+    @Test
+    void changingAreaWorkersOrResettingABarnCannotOrphanOpenTasks() throws Exception {
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(workerA))).andExpect(status().isOk());
+        giveTask(barn1, workerA, "Keep assigned worker");
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(workerB)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("WORKER_HAS_TASKS"));
+        mvc.perform(get("/api/daily-plan").with(asA)).andExpect(jsonPath("$.data.length()").value(2));
+        assign(barn2, workerB).andExpect(status().isOk());
+        giveTask(barn2, workerB, "Keep override");
+        mvc.perform(delete("/api/barns/" + barn2 + "/workers/override"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("WORKER_HAS_TASKS"));
+    }
+
+    @Test
+    void onlyOwnersCanManageResponsibilitiesAndOnlyActiveWorkersCanBeAssigned() throws Exception {
+        mvc.perform(get("/api/barn-responsibilities").with(asA)).andExpect(status().isForbidden());
+        mvc.perform(put("/api/farm-areas/" + area + "/workers").with(asA).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("workerIds", List.of(workerA))))).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/barns/" + barn1 + "/workers/override").with(asA)).andExpect(status().isForbidden());
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(accountantId))).andExpect(status().isBadRequest());
+        Account inactive = accounts.findById(workerB).orElseThrow();
+        inactive.setIsActive(false);
+        accounts.saveAndFlush(inactive);
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(workerB))).andExpect(status().isBadRequest());
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(99999999L))).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void bulkAreaAssignmentReplacesOverridesAndRestoresInheritance() throws Exception {
+        assign(barn1, workerB).andExpect(status().isOk());
+        send(put("/api/farm-areas/" + area + "/worker-assignments"), Map.of(
+                "workerIds", List.of(workerA), "applyToAll", true, "barns", List.of()))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/daily-plan").with(asA)).andExpect(jsonPath("$.data.length()").value(2));
+        mvc.perform(get("/api/daily-plan").with(asB)).andExpect(jsonPath("$.data").isEmpty());
+        send(put("/api/farm-areas/" + area + "/workers"), Map.of("workerIds", List.of(workerB))).andExpect(status().isOk());
+        mvc.perform(get("/api/daily-plan").with(asB)).andExpect(jsonPath("$.data.length()").value(2));
+    }
+
+    @Test
+    void bulkAreaAssignmentSavesDifferentWorkersPerBarnAndRejectsInvalidBarns() throws Exception {
+        send(put("/api/farm-areas/" + area + "/worker-assignments"), Map.of(
+                "workerIds", List.of(workerA, workerB), "applyToAll", false, "barns", List.of(
+                        Map.of("barnId", barn1, "workerIds", List.of(workerA)),
+                        Map.of("barnId", barn2, "workerIds", List.of(workerB)))))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/daily-plan").with(asA)).andExpect(jsonPath("$.data.length()").value(1));
+        mvc.perform(get("/api/daily-plan").with(asB)).andExpect(jsonPath("$.data.length()").value(1));
+        send(put("/api/farm-areas/" + area + "/worker-assignments"), Map.of(
+                "workerIds", List.of(workerA), "applyToAll", false, "barns", List.of(
+                        Map.of("barnId", 99999999, "workerIds", List.of(workerA)))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("BARN_ASSIGNMENT_INVALID"));
+    }
+
+    @Test
+    void bulkChangesCannotRemoveWorkersWithOpenTasksOrPartiallyUpdateTheArea() throws Exception {
+        assign(barn1, workerA).andExpect(status().isOk());
+        giveTask(barn1, workerA, "Preserve bulk assignment");
+        send(put("/api/farm-areas/" + area + "/worker-assignments"), Map.of(
+                "workerIds", List.of(workerB), "applyToAll", true, "barns", List.of()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("WORKER_HAS_TASKS"));
+        mvc.perform(get("/api/daily-plan").with(asA)).andExpect(jsonPath("$.data.length()").value(1));
+        mvc.perform(get("/api/daily-plan").with(asB)).andExpect(jsonPath("$.data").isEmpty());
+        mvc.perform(put("/api/farm-areas/" + area + "/worker-assignments").with(asA)
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
+                        "workerIds", List.of(workerA), "applyToAll", true, "barns", List.of()))))
+                .andExpect(status().isForbidden());
+    }
+
 }

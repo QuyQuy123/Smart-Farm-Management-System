@@ -38,7 +38,7 @@ public class WorkAssignmentService {
     private final BarnService barnService;
     private final AccountRepository accountRepository;
     private final FarmingCycleRepository cycleRepository;
-    private final BarnWorkerRepository barnWorkerRepository;
+    private final BarnResponsibilityService responsibilities;
     private final WorkTaskRepository taskRepository;
     private final WorkTaskCheckRepository checkRepository;
 
@@ -47,8 +47,7 @@ public class WorkAssignmentService {
     public WorkBoard board(LocalDate date) {
         LocalDate day = date == null ? today() : date;
         List<Account> workers = activeWorkers();
-        Map<Long, List<BarnWorker>> workersByBarn = barnWorkerRepository.findAllByOrderByIdAsc().stream()
-                .collect(Collectors.groupingBy(link -> link.getBarn().getId(), LinkedHashMap::new, Collectors.toList()));
+        Map<Long, List<Account>> workersByBarn = responsibilities.effectiveByBarn();
         List<WorkTask> tasks = taskRepository.findActiveOn(day);
         Map<Long, WorkTaskCheck> checks = checksFor(tasks, day);
         Map<Long, List<WorkTask>> tasksByBarn = tasks.stream()
@@ -60,12 +59,12 @@ public class WorkAssignmentService {
                 .sorted(Comparator.comparing((Barn barn) -> barn.getArea().getName()).thenComparing(Barn::getName))
                 .map(barn -> new WorkBoard.BarnAssignment(barn.getId(), barn.getName(), barn.getArea().getId(), barn.getArea().getName(),
                         activeCycles.get(barn.getId()), barn.getCurrentQuantity(),
-                        workersByBarn.getOrDefault(barn.getId(), List.of()).stream().map(link -> ref(link.getWorker())).toList(),
+                        workersByBarn.getOrDefault(barn.getId(), List.of()).stream().map(WorkAssignmentService::ref).toList(),
                         tasksByBarn.getOrDefault(barn.getId(), List.of()).stream().map(task -> response(task, checks.get(task.getId()))).toList()))
                 .toList();
 
         List<WorkBoard.WorkerSummary> summaries = workers.stream().map(worker -> {
-            int barnCount = (int) workersByBarn.values().stream().flatMap(List::stream).filter(link -> link.getWorker().getId().equals(worker.getId())).count();
+            int barnCount = (int) workersByBarn.values().stream().flatMap(List::stream).filter(assigned -> assigned.getId().equals(worker.getId())).count();
             List<WorkTask> own = tasks.stream().filter(task -> task.getAssignee().getId().equals(worker.getId())).toList();
             int done = (int) own.stream().filter(task -> checks.containsKey(task.getId())).count();
             return new WorkBoard.WorkerSummary(worker.getId(), name(worker), worker.getEmail(), barnCount, own.size(), done);
@@ -76,35 +75,7 @@ public class WorkAssignmentService {
     /** Thay toàn bộ công nhân phụ trách chuồng. Không bỏ được người còn việc được giao ở chuồng này. */
     @Transactional
     public List<WorkBoard.WorkerRef> setBarnWorkers(Long barnId, BarnWorkersRequest request, String user) {
-        Barn barn = barnService.find(barnId);
-        Set<Long> wanted = new LinkedHashSet<>(request.workerIds());
-        Map<Long, Account> workers = activeWorkers().stream().collect(Collectors.toMap(Account::getId, Function.identity()));
-        for (Long id : wanted) {
-            if (!workers.containsKey(id)) {
-                throw new BadRequestException("Chỉ phân công được tài khoản công nhân đang hoạt động.", "WORKER_NOT_AVAILABLE");
-            }
-        }
-        List<BarnWorker> current = barnWorkerRepository.findAllByBarnIdOrderByIdAsc(barnId);
-        for (BarnWorker link : current) {
-            Account worker = link.getWorker();
-            if (!wanted.contains(worker.getId())
-                    && taskRepository.existsByBarnIdAndAssigneeIdAndEndDateGreaterThanEqual(barnId, worker.getId(), today())) {
-                throw new ConflictException("Công nhân " + name(worker) + " còn việc được giao ở chuồng " + barn.getName()
-                        + ". Hãy giao lại hoặc xóa các việc đó trước khi bỏ phân công.", "WORKER_HAS_TASKS", null);
-            }
-        }
-        Set<Long> existing = current.stream().map(link -> link.getWorker().getId()).collect(Collectors.toSet());
-        current.stream().filter(link -> !wanted.contains(link.getWorker().getId())).forEach(barnWorkerRepository::delete);
-        for (Long id : wanted) {
-            if (existing.contains(id)) continue;
-            BarnWorker link = new BarnWorker();
-            link.setBarn(barn);
-            link.setWorker(workers.get(id));
-            link.setAssignedBy(user);
-            barnWorkerRepository.save(link);
-        }
-        barnWorkerRepository.flush();
-        return workersOf(barnId);
+        return responsibilities.setBarn(barnId, request.workerIds(), user);
     }
 
     // ---------------------------------------------------------------- tasks
@@ -179,7 +150,7 @@ public class WorkAssignmentService {
     // ---------------------------------------------------------------- used by the daily plan
 
     public boolean isWorkerOfBarn(String email, Long barnId) {
-        return barnWorkerRepository.existsByBarnIdAndWorkerEmailIgnoreCase(barnId, email);
+        return responsibilities.workersOf(barnId).stream().anyMatch(worker -> worker.getEmail().equalsIgnoreCase(email));
     }
 
     /** Công nhân chỉ ghi nhật ký / xác nhận việc cho chuồng mình phụ trách; chủ trại và kế toán không bị giới hạn. */
@@ -191,11 +162,13 @@ public class WorkAssignmentService {
     }
 
     public Set<Long> barnIdsOf(String email) {
-        return barnWorkerRepository.findAllByWorkerEmailIgnoreCase(email).stream().map(link -> link.getBarn().getId()).collect(Collectors.toSet());
+        return responsibilities.effectiveByBarn().entrySet().stream()
+                .filter(entry -> entry.getValue().stream().anyMatch(worker -> worker.getEmail().equalsIgnoreCase(email)))
+                .map(Map.Entry::getKey).collect(Collectors.toSet());
     }
 
     public List<WorkBoard.WorkerRef> workersOf(Long barnId) {
-        return barnWorkerRepository.findAllByBarnIdOrderByIdAsc(barnId).stream().map(link -> ref(link.getWorker())).toList();
+        return responsibilities.workersOf(barnId).stream().map(WorkAssignmentService::ref).toList();
     }
 
     /** Việc được giao của chuồng trong ngày; workerEmail khác null thì chỉ lấy việc của công nhân đó. */
@@ -212,7 +185,7 @@ public class WorkAssignmentService {
         Barn barn = barnService.find(request.barnId());
         Account assignee = accountRepository.findById(request.assigneeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công nhân."));
-        if (!barnWorkerRepository.existsByBarnIdAndWorkerId(barn.getId(), assignee.getId())) {
+        if (!isWorkerOfBarn(assignee.getEmail(), barn.getId())) {
             throw new BadRequestException(name(assignee) + " chưa phụ trách chuồng " + barn.getName()
                     + ". Hãy phân công công nhân cho chuồng trước khi giao việc.", "WORK_ASSIGNEE_NOT_IN_BARN");
         }

@@ -36,6 +36,9 @@ public class Barn {
     private BigDecimal targetWeight;
     @Column(length = 1000)
     private String description;
+    /** Null preserves legacy direct assignments; false explicitly inherits, true uses the barn's own list (even empty). */
+    @Column(name = "workers_override")
+    private Boolean workersOverride;
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

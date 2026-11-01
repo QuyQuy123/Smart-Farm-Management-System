@@ -5,6 +5,8 @@ import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "farm_areas")
@@ -25,6 +27,11 @@ public class FarmArea {
     private String animalMetrics;
     @Column(length = 1000)
     private String description;
+    @ManyToMany
+    @JoinTable(name = "farm_area_workers", joinColumns = @JoinColumn(name = "area_id"),
+            inverseJoinColumns = @JoinColumn(name = "account_id"),
+            uniqueConstraints = @UniqueConstraint(name = "uk_farm_area_workers", columnNames = {"area_id", "account_id"}))
+    private List<Account> workers = new ArrayList<>();
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
