@@ -20,6 +20,16 @@ const plan = {
 };
 
 describe('DailyPlanCard', () => {
+  it('rounds feed display in barn details without changing the confirmation amount', async () => {
+    const feed = { ...plan.tasks[0], plannedQuantity: 56.955, plannedStock: 2.2782, stockUnit: 'Bao' };
+    const current = { ...plan, tasks: [feed] };
+    const onConfirm = vi.fn().mockResolvedValue(null);
+    render(<DailyPlanCard compact plan={current} role="ROLE_FARM_OWNER" busyKey={null} onConfirm={onConfirm} onUndo={vi.fn()} />);
+    expect(screen.getByText('57 kg = 2,3 Bao')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xong Cữ 1/3 · Higro 02' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(current, feed, {}));
+    expect(feed.plannedQuantity).toBe(56.955);
+  });
   it('sends the chosen warehouse source when more than one is available', async () => {
     const onConfirm = vi.fn().mockResolvedValue(null);
     const feed = { ...plan.tasks[0], stockSources: [

@@ -16,10 +16,13 @@ const time = value => (value ? new Date(value).toLocaleTimeString('vi-VN', { hou
 const title = task => (task.category === 'FEED' && task.meal ? `Cữ ${task.meal}${task.mealsPerDay ? `/${task.mealsPerDay}` : ''} · ${task.name}` : task.name);
 
 /** "50 kg = 2 Bao 25kg" — lượng cả chuồng kèm số đơn vị kho cần lấy. */
-const amountText = (quantity, unit, stock, stockUnit) => {
+const amountText = (quantity, unit, stock, stockUnit, roundFeed = false) => {
   if (quantity == null) return null;
-  const main = `${formatAmount(quantity)} ${unit || ''}`.trim();
-  return stock != null && stockUnit ? `${main} = ${formatAmount(stock)} ${stockUnit}` : main;
+  const mainQuantity = roundFeed ? Number(quantity).toLocaleString('vi-VN', { maximumFractionDigits: 0 }) : formatAmount(quantity);
+  const main = `${mainQuantity} ${unit || ''}`.trim();
+  const stockQuantity = roundFeed && /^bao\b/i.test(stockUnit || '')
+    ? Number(stock).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : formatAmount(stock);
+  return stock != null && stockUnit ? `${main} = ${stockQuantity} ${stockUnit}` : main;
 };
 
 /**
@@ -84,7 +87,8 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     const done = task.done;
     const busy = busyKey === `${plan.cycleId}:${task.key}`;
     const isEditing = editing?.key === task.key;
-    const planned = amountText(task.plannedQuantity, task.unit, task.plannedStock, task.stockUnit);
+    const roundFeed = compact && task.category === 'FEED';
+    const planned = amountText(task.plannedQuantity, task.unit, task.plannedStock, task.stockUnit, roundFeed);
     return <li key={task.key} className={`${styles.task} ${done ? styles.done : ''} ${done?.deviated ? styles.deviated : ''}`}>
       <div className={styles.info}>
         <strong>{title(task)}</strong>
@@ -109,7 +113,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
           <Check size={13} />Xong lúc {time(done.doneAt)}{!compact && <>
           {` · ${done.doneBy}`}
           {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity))
-            && ` · thực tế ${amountText(done.actualQuantity, task.unit, done.stockQuantity, task.stockUnit)}`}
+            && ` · thực tế ${amountText(done.actualQuantity, task.unit, done.stockQuantity, task.stockUnit, roundFeed)}`}
           {done.cost != null && Number(done.cost) > 0 && ` · ${money(done.cost)}`}
           {done.note && ` · ${done.note}`}</>}
         </small>}
