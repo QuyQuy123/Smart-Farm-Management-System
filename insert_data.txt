@@ -762,3 +762,111 @@ VALUES
   ('EXPORT', 'Xuất hủy', 'xuất hủy', 'Xuất hủy hàng hóa ẩm mốc, quá hạn hoặc hư hỏng trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00'),
   ('TRANSFER', 'Chuyển kho nội bộ', 'chuyển kho nội bộ', 'Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại', TRUE, TIMESTAMP '2026-10-19 08:00:00', TIMESTAMP '2026-10-19 08:00:00')
 ON CONFLICT (name_key) DO NOTHING;
+
+-- ---------------------------------------------------------------------
+-- 27. Kho theo khu: mỗi khu một kho cám và một kho thuốc, không còn kho chung
+--     ("Khu Gà Hồ" → "Kho cám Gà Hồ", "Kho thuốc Gà Hồ"). Backend cũng tự tạo hai kho này khi thêm khu.
+--     Phiếu việc trừ kho theo kho mà công nhân phụ trách chuồng được phân công. Chạy lại nhiều lần không trùng.
+-- ---------------------------------------------------------------------
+ALTER TABLE warehouse_categories ADD COLUMN IF NOT EXISTS area_id bigint REFERENCES farm_areas(id);
+ALTER TABLE warehouse_categories ADD COLUMN IF NOT EXISTS kind varchar(20);
+
+-- Bản seed cũ đặt tên "Kho cám gà Mía"...: đổi sang tên theo khu để không sinh kho trùng
+UPDATE warehouse_categories w SET name = v.new_name, name_key = lower(v.new_name), updated_at = NOW()
+FROM (VALUES
+  ('kho cám gà mía', 'Kho cám Mía Thịt'),
+  ('kho thuốc gà mía', 'Kho thuốc Mía Thịt'),
+  ('kho cám gà j', 'Kho cám J Thịt'),
+  ('kho thuốc gà j', 'Kho thuốc J Thịt')
+) AS v(old_key, new_name)
+WHERE w.name_key = v.old_key
+  AND NOT EXISTS (SELECT 1 FROM warehouse_categories x WHERE x.name_key = lower(v.new_name));
+
+-- Hai kho cho mỗi khu (đã có thì chỉ gắn khu / loại kho)
+INSERT INTO warehouse_categories (name, name_key, description, area_id, kind, created_at, updated_at)
+SELECT k.prefix || regexp_replace(fa.name, '^[Kk]hu\s+', ''), lower(k.prefix || regexp_replace(fa.name, '^[Kk]hu\s+', '')),
+       k.note || fa.name, fa.id, k.kind, NOW(), NOW()
+FROM farm_areas fa
+CROSS JOIN (VALUES ('Kho cám ', 'FEED', 'Cám cho các chuồng '), ('Kho thuốc ', 'MEDICINE', 'Thuốc thú y và vắc-xin cho ')) AS k(prefix, kind, note)
+WHERE NOT EXISTS (SELECT 1 FROM warehouse_categories w WHERE w.area_id = fa.id AND w.kind = k.kind)
+ON CONFLICT (name_key) DO UPDATE SET area_id = EXCLUDED.area_id, kind = EXCLUDED.kind;
+
+-- Hàng của kho chung (Kho cám, Kho thuốc & Vắc-xin) đang phục vụ Khu Gà Hồ: chuyển sang kho của Khu Gà Hồ, giữ nguyên lịch sử
+DROP TABLE IF EXISTS tmp_wh_move;
+CREATE TEMP TABLE tmp_wh_move AS
+SELECT src.id AS from_id, dst.id AS to_id
+FROM (VALUES ('kho cám', 'FEED'), ('kho thuốc & vắc-xin', 'MEDICINE')) AS v(src_key, kind)
+JOIN warehouse_categories src ON src.name_key = v.src_key AND src.area_id IS NULL
+JOIN farm_areas fa ON fa.name_key = 'khu gà hồ'
+JOIN warehouse_categories dst ON dst.area_id = fa.id AND dst.kind = v.kind;
+
+UPDATE inventory_items i SET warehouse_id = m.to_id FROM tmp_wh_move m WHERE i.warehouse_id = m.from_id;
+UPDATE product_categories p SET warehouse_id = m.to_id FROM tmp_wh_move m WHERE p.warehouse_id = m.from_id;
+UPDATE purchase_invoice_items p SET warehouse_id = m.to_id FROM tmp_wh_move m WHERE p.warehouse_id = m.from_id;
+UPDATE internal_stock_vouchers s SET source_warehouse_id = m.to_id FROM tmp_wh_move m WHERE s.source_warehouse_id = m.from_id;
+UPDATE internal_stock_vouchers s SET target_warehouse_id = m.to_id FROM tmp_wh_move m WHERE s.target_warehouse_id = m.from_id;
+DELETE FROM warehouse_workers ww USING tmp_wh_move m WHERE ww.warehouse_id = m.from_id;
+DELETE FROM warehouse_categories w USING tmp_wh_move m WHERE w.id = m.from_id;
+DROP TABLE tmp_wh_move;
+
+-- Kho chung khác (Kho vật tư & thiết bị) không thuộc khu nào: gỡ khi không còn hàng hay chứng từ nào dùng tới
+DELETE FROM warehouse_categories w
+WHERE w.area_id IS NULL AND w.name_key = 'kho vật tư & thiết bị'
+  AND NOT EXISTS (SELECT 1 FROM inventory_items i WHERE i.warehouse_id = w.id)
+  AND NOT EXISTS (SELECT 1 FROM product_categories p WHERE p.warehouse_id = w.id)
+  AND NOT EXISTS (SELECT 1 FROM purchase_invoice_items p WHERE p.warehouse_id = w.id)
+  AND NOT EXISTS (SELECT 1 FROM internal_stock_vouchers s WHERE s.source_warehouse_id = w.id OR s.target_warehouse_id = w.id)
+  AND NOT EXISTS (SELECT 1 FROM warehouse_workers ww WHERE ww.warehouse_id = w.id);
+
+-- Tồn đầu kỳ cho kho của Khu Mía Thịt và Khu J Thịt; đơn vị, nhãn hàng, giá lấy theo dòng tồn sẵn có của cùng mặt hàng
+INSERT INTO inventory_items (code, warehouse_id, product_id, unit_id, brand_id, price, stock, created_at, updated_at)
+SELECT 'SP' || upper(substr(md5(w.name_key || ':' || p.name_key), 1, 12)), w.id, p.id, src.unit_id, src.brand_id, src.price, v.stock, NOW(), NOW()
+FROM (VALUES
+  ('khu mía thịt', 'FEED', 'cám gà úm higro 01', 600),
+  ('khu mía thịt', 'FEED', 'cám gà thịt higro 02', 1200),
+  ('khu mía thịt', 'FEED', 'cám gà vỗ béo higro 03', 1200),
+  ('khu j thịt', 'FEED', 'cám gà úm higro 01', 400),
+  ('khu j thịt', 'FEED', 'cám gà thịt higro 02', 800),
+  ('khu j thịt', 'FEED', 'cám gà vỗ béo higro 03', 800),
+  ('khu mía thịt', 'MEDICINE', 'amoxicillin 10% (hanmoxy)', 60),
+  ('khu mía thịt', 'MEDICINE', 'men tiêu hóa bio-zyme', 50),
+  ('khu mía thịt', 'MEDICINE', 'toltrazuril 2.5% (han-coc)', 30),
+  ('khu mía thịt', 'MEDICINE', 'vitamin c + điện giải (han-electrolyte)', 80),
+  ('khu mía thịt', 'MEDICINE', 'kháng sinh doxycycline 50%', 5),
+  ('khu mía thịt', 'MEDICINE', 'hạ sốt paracetamol c', 10),
+  ('khu mía thịt', 'MEDICINE', 'vắc-xin cúm gia cầm h5n1 (navet-vifluvac)', 40),
+  ('khu mía thịt', 'MEDICINE', 'vắc-xin đậu gà', 30),
+  ('khu mía thịt', 'MEDICINE', 'vắc-xin gumboro (medivac gumboro a)', 80),
+  ('khu mía thịt', 'MEDICINE', 'vắc-xin marek (hvt)', 30),
+  ('khu mía thịt', 'MEDICINE', 'vắc-xin newcastle lasota', 80),
+  ('khu mía thịt', 'MEDICINE', 'vắc-xin newcastle hệ i (m)', 150),
+  ('khu mía thịt', 'MEDICINE', 'vắc-xin rụt mỏ (parvo)', 50),
+  ('khu j thịt', 'MEDICINE', 'amoxicillin 10% (hanmoxy)', 40),
+  ('khu j thịt', 'MEDICINE', 'men tiêu hóa bio-zyme', 40),
+  ('khu j thịt', 'MEDICINE', 'toltrazuril 2.5% (han-coc)', 20),
+  ('khu j thịt', 'MEDICINE', 'vitamin c + điện giải (han-electrolyte)', 60),
+  ('khu j thịt', 'MEDICINE', 'kháng sinh doxycycline 50%', 5),
+  ('khu j thịt', 'MEDICINE', 'hạ sốt paracetamol c', 10),
+  ('khu j thịt', 'MEDICINE', 'vắc-xin cúm gia cầm h5n1 (navet-vifluvac)', 30),
+  ('khu j thịt', 'MEDICINE', 'vắc-xin đậu gà', 20),
+  ('khu j thịt', 'MEDICINE', 'vắc-xin gumboro (medivac gumboro a)', 60),
+  ('khu j thịt', 'MEDICINE', 'vắc-xin marek (hvt)', 20),
+  ('khu j thịt', 'MEDICINE', 'vắc-xin newcastle lasota', 60),
+  ('khu j thịt', 'MEDICINE', 'vắc-xin newcastle hệ i (m)', 100),
+  ('khu j thịt', 'MEDICINE', 'vắc-xin rụt mỏ (parvo)', 40)
+) AS v(area_key, kind, product_key, stock)
+JOIN farm_areas fa ON fa.name_key = v.area_key
+JOIN warehouse_categories w ON w.area_id = fa.id AND w.kind = v.kind
+JOIN product_categories p ON p.name_key = v.product_key
+JOIN LATERAL (SELECT i.unit_id, i.brand_id, i.price FROM inventory_items i WHERE i.product_id = p.id ORDER BY i.id LIMIT 1) src ON TRUE
+WHERE NOT EXISTS (SELECT 1 FROM inventory_items x WHERE x.warehouse_id = w.id AND x.product_id = p.id)
+ON CONFLICT (code) DO NOTHING;
+
+-- Thủ kho: công nhân phụ trách khu nào thì lấy hàng ở kho cám / kho thuốc của khu đó
+INSERT INTO warehouse_workers (warehouse_id, account_id)
+SELECT w.id, a.id
+FROM (VALUES ('khu mía thịt', 'congnhan@smartfarm.com'), ('khu j thịt', 'hung@smartfarm.com'), ('khu gà hồ', 'hang@smartfarm.com')) AS v(area_key, email)
+JOIN farm_areas fa ON fa.name_key = v.area_key
+JOIN warehouse_categories w ON w.area_id = fa.id
+JOIN accounts a ON a.email = v.email
+ON CONFLICT ON CONSTRAINT uk_warehouse_workers DO NOTHING;

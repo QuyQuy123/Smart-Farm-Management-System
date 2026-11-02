@@ -39,6 +39,7 @@ class DashboardIntegrationTest {
     @Autowired DashboardService dashboard;
     @Autowired com.farmshift.backendFarmShift.repository.AccountRepository accounts;
     @Autowired com.farmshift.backendFarmShift.repository.RoleRepository roles;
+    @Autowired com.farmshift.backendFarmShift.repository.InventoryItemRepository inventory;
     long barnA;
     long barnB;
     long workerId;
@@ -131,6 +132,40 @@ class DashboardIntegrationTest {
         assertTrue(upcoming.contains("\"inDays\":3"), upcoming);
         assertTrue(upcoming.contains("Dự kiến xuất chuồng"), upcoming);
         assertTrue(d.path("finance").path("chickCost").decimalValue().signum() > 0);
+    }
+
+    @Test
+    void listsStockThatRunsOutWithinAWeek() throws Exception {
+        // Nhà T1: 990 con × 30 g = 29,7 kg/ngày ≈ 1,19 bao 25 kg; kho chỉ còn 3 bao → đủ 2 ngày, báo đỏ.
+        // Tạo khu "Khu Bảng Tin" đã tự tạo "Kho cám Bảng Tin" và "Kho thuốc Bảng Tin" cho khu đó.
+        long store = -1;
+        for (JsonNode warehouse : data(mvc.perform(get("/api/warehouse-categories")))) {
+            if ("Kho cám Bảng Tin".equals(warehouse.path("name").asText())) {
+                store = warehouse.path("id").asLong();
+                assertEquals("FEED", warehouse.path("kind").asText());
+                assertEquals("Khu Bảng Tin", warehouse.path("areaName").asText());
+            }
+        }
+        assertTrue(store > 0, "kho cám của khu được tạo cùng khu");
+        long bag = id(send("/api/measurement-units", Map.of("code", "BAO25BT", "name", "Bao 25kg BT", "contentQuantity", 25, "contentUnit", "KG")));
+        long feed = id(send("/api/inventory-items", Map.of("warehouseId", store, "name", "Higro 01", "unitId", bag, "price", 345000)));
+        var item = inventory.findById(feed).orElseThrow();
+        item.setStock(new java.math.BigDecimal("3"));
+        inventory.saveAndFlush(item);
+        mvc.perform(put("/api/warehouse-categories/" + store + "/workers").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("workerIds", List.of(workerId))))).andExpect(status().isOk());
+
+        JsonNode restock = data(mvc.perform(get("/api/dashboard"))).path("restock");
+        assertEquals(1, restock.size(), restock.toString());
+        assertEquals("Kho cám Bảng Tin", restock.get(0).path("warehouseName").asText());
+        assertEquals("Higro 01", restock.get(0).path("productName").asText());
+        assertEquals(2, restock.get(0).path("daysLeft").asInt());
+        assertEquals("DANGER", restock.get(0).path("level").asText());
+
+        // Nhập thêm đủ dùng hơn một tuần thì không còn trong danh sách.
+        item.setStock(new java.math.BigDecimal("100"));
+        inventory.saveAndFlush(item);
+        assertEquals(0, data(mvc.perform(get("/api/dashboard"))).path("restock").size());
     }
 
     @Test

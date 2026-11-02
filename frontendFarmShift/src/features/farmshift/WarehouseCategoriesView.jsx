@@ -3,6 +3,8 @@ import { Plus, Search, Eye, Pencil, Trash2, X, Warehouse, AlertCircle } from 'lu
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listWarehouseCategories, createWarehouseCategory, updateWarehouseCategory, deleteWarehouseCategory } from '../../services/warehouseCategoryService';
+import { filterWarehouses } from './farmAreaOptions';
+import { AreaWarehouseFilter, KindTag } from './AreaWarehouseFilter';
 import styles from './WarehouseCategoriesView.module.css';
 
 const formatDate = value => value ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
@@ -76,6 +78,7 @@ export const WarehouseCategoriesView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  const [areaFilter, setAreaFilter] = useState({ area: '', kind: '' });
   const [modal, setModal] = useState(null);
   const [revision, setRevision] = useState(0);
 
@@ -91,26 +94,28 @@ export const WarehouseCategoriesView = () => {
 
   const needle = query.trim().toLocaleLowerCase('vi');
   const safeCategories = Array.isArray(categories) ? categories : [];
-  const filtered = safeCategories.filter(category => [category.code, category.name, category.description].some(value => value?.toLocaleLowerCase('vi').includes(needle)));
+  const filtered = filterWarehouses(safeCategories, areaFilter)
+    .filter(category => [category.code, category.name, category.description, category.areaName].some(value => value?.toLocaleLowerCase('vi').includes(needle)));
   const open = (mode, category) => { setModal({ mode, category }); };
 
   return <div className={`farmshift-card ${styles.card}`}>
     <div className={styles.toolbar}>
-      <div className={styles.heading}><span className={styles.headingIcon}><Warehouse size={21} /></span><div><h2>Danh mục kho</h2><p>Quản lý các nhóm lưu trữ hàng hóa</p></div></div>
+      <div className={styles.heading}><span className={styles.headingIcon}><Warehouse size={21} /></span><div><h2>Danh mục kho</h2><p>Mỗi khu nuôi có một kho cám và một kho thuốc, tự tạo khi thêm khu</p></div></div>
       {canEdit && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => open('create')}><Plus size={16} />Thêm danh mục kho</button>}
     </div>
     <div className={styles.searchRow}>
       <div className={styles.search}><Search size={17} /><input aria-label="Tìm danh mục kho" placeholder="Tìm theo mã, tên hoặc mô tả..." value={query} onChange={event => setQuery(event.target.value)} /></div>
       {!loading && !error && <span className={styles.total}>{filtered.length} danh mục</span>}
     </div>
+    {!loading && !error && safeCategories.length > 0 && <AreaWarehouseFilter warehouses={safeCategories} value={areaFilter} onChange={setAreaFilter} />}
     {error ? <div role="alert" className={styles.empty}><p>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div> :
       <div className="farmshift-table-container" style={{ border: 0 }}>
         <table className={`farmshift-table ${styles.table}`}>
-          <thead><tr><th>Mã danh mục</th><th>Tên danh mục</th><th>Mô tả</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
+          <thead><tr><th>Mã danh mục</th><th>Tên danh mục</th><th>Khu</th><th>Loại</th><th>Mô tả</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={5} className={styles.empty} role="status">Đang tải danh mục kho...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className={styles.empty}>{query ? 'Không tìm thấy danh mục phù hợp.' : 'Chưa có danh mục kho. Thêm danh mục đầu tiên để bắt đầu.'}</td></tr> :
+            {loading ? <tr><td colSpan={7} className={styles.empty} role="status">Đang tải danh mục kho...</td></tr> : filtered.length === 0 ? <tr><td colSpan={7} className={styles.empty}>{query || areaFilter.area || areaFilter.kind ? 'Không tìm thấy danh mục phù hợp.' : 'Chưa có danh mục kho. Thêm danh mục đầu tiên để bắt đầu.'}</td></tr> :
               filtered.map(category => <tr key={category.id}>
-                <td><span className={styles.code}>{category.code}</span></td><td><strong>{category.name}</strong></td><td className={styles.description}>{category.description || '—'}</td>
+                <td><span className={styles.code}>{category.code}</span></td><td><strong>{category.name}</strong></td><td>{category.areaName || '—'}</td><td><KindTag kind={category.kind} /></td><td className={styles.description}>{category.description || '—'}</td>
                 <td className={styles.date}>{formatDate(category.createdAt)}</td>
                 <td><div className={styles.actions}>
                   <button type="button" className={styles.iconButton} onClick={() => open('view', category)} aria-label={`Xem ${category.name}`} title="Xem chi tiết"><Eye size={16} /></button>

@@ -108,3 +108,4 @@
   .compact .slot { grid-template-columns: 1fr; }
   .compact .slotTime { border-right: 0; padding: 6px 10px; }
 }
+.planned { color: #0f5f8c; font-weight: 600; }

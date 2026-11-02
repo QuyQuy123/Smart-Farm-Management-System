@@ -22,12 +22,6 @@ const ticks = (max, count = 4) => {
   return Array.from({ length: Math.ceil(max / step) + 1 }, (_, i) => +(i * step).toFixed(6));
 };
 
-/** Thanh có đầu bo 4px ở phía xa trục, chân vuông dính trục. */
-const barPath = (x, y, w, h, r = 4) => {
-  const rr = Math.min(r, w / 2, h);
-  return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
-};
-
 function Tooltip({ tip }) {
   if (!tip) return null;
   return <div className={styles.tooltip} style={{ left: `${tip.x}%`, top: tip.y }} role="status">
@@ -47,12 +41,12 @@ function ChartCard({ title, hint, children }) {
 }
 
 const W = 520, H = 220, PAD = { l: 52, r: 12, t: 12, b: 34 };
-const plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
+const plotH = H - PAD.t - PAD.b;
 
-function YGrid({ values, max, format }) {
+function YGrid({ values, max, format, width = W, height = plotH }) {
   return values.map(v => {
-    const y = PAD.t + plotH - (v / max) * plotH;
-    return <g key={v}><line x1={PAD.l} x2={W - PAD.r} y1={y} y2={y} stroke={C.grid} />
+    const y = PAD.t + height - (v / max) * height;
+    return <g key={v}><line x1={PAD.l} x2={width - PAD.r} y1={y} y2={y} stroke={C.grid} />
       <text x={PAD.l - 8} y={y + 4} textAnchor="end" className={styles.axisText}>{format(v)}</text></g>;
   });
 }
@@ -138,97 +132,82 @@ function CostDonut({ finance }) {
   </ChartCard>;
 }
 
-/** 3. Việc 7 ngày gần nhất: cột chồng đã xong + bỏ lỡ / quá giờ, khe 2px giữa hai phần. */
-function TaskHistory({ days }) {
-  const [tip, setTip] = useState(null);
-  const yTicks = ticks(Math.max(...days.map(d => d.done + d.missed), 1));
-  const max = yTicks[yTicks.length - 1];
-  const slot = plotW / days.length;
-  const bw = Math.min(34, slot * 0.55);
-  return <ChartCard title="Việc 7 ngày gần nhất" hint="Hôm nay: việc chưa xong mà đã quá giờ">
-    <div className={styles.plot} onMouseLeave={() => setTip(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={days.map(d => `${formatDay(d.date)}: xong ${d.done}/${d.total}`).join(', ')}>
-        <YGrid values={yTicks} max={max} format={v => num(v)} />
-        <line x1={PAD.l} x2={W - PAD.r} y1={PAD.t + plotH} y2={PAD.t + plotH} stroke={C.axis} />
-        {days.map((d, i) => {
-          const x = PAD.l + i * slot + (slot - bw) / 2;
-          const hDone = (d.done / max) * plotH, hMiss = (d.missed / max) * plotH;
-          const base = PAD.t + plotH;
-          const today = i === days.length - 1;
-          const show = () => setTip({ x: ((x + bw / 2) / W) * 100, y: base - hDone - hMiss - 8, title: today ? 'Hôm nay' : formatDay(d.date),
-            lines: [`Đã xong ${d.done}/${d.total}`, `${today ? 'Quá giờ' : 'Bỏ lỡ'} ${d.missed}`] });
-          return <g key={d.date} onMouseEnter={show} onFocus={show} tabIndex={0}>
-            <rect x={PAD.l + i * slot} y={PAD.t} width={slot} height={plotH} fill="transparent" />
-            {hDone > 0 && <path d={hMiss > 0 ? `M${x},${base}V${base - hDone}H${x + bw}V${base}Z` : barPath(x, base - hDone, bw, hDone)} fill={C.green} />}
-            {hMiss > 0 && <path d={barPath(x, base - hDone - hMiss, bw, Math.max(hMiss - (hDone > 0 ? 2 : 0), 1))} fill={C.earth} />}
-            <text x={x + bw / 2} y={H - 14} textAnchor="middle" className={styles.axisText}>{today ? 'Hôm nay' : formatDay(d.date).slice(0, 5)}</text>
-          </g>;
-        })}
-      </svg>
-      <Tooltip tip={tip} />
-    </div>
-    <Legend items={[[C.green, 'Đã xong'], [C.earth, 'Bỏ lỡ / quá giờ']]} />
-  </ChartCard>;
-}
+/** Màu từng chuồng trên biểu đồ tăng trọng: 8 màu phân biệt được với nhau và trên nền trắng, lặp lại khi nhiều chuồng hơn. */
+const BARN_COLORS = ['#2d8a5e', '#2a78d6', '#b5654a', '#8a5cc2', '#c2862a', '#1f9aa6', '#c2457a', '#6b7f2a'];
+/** Biểu đồ tăng trọng chiếm cả hàng nên vẽ trên khung rộng hơn để chữ trục không bị phóng to. */
+const GW = 1040, GH = 300;
+const gPlotW = GW - PAD.l - PAD.r, gPlotH = GH - PAD.t - PAD.b;
 
-/** 4. Tăng trọng theo ngày tuổi: đường cân TB thực tế, mốc mục tiêu xuất chuồng nét đứt; chọn chuồng. */
+/**
+ * 3. Tăng trọng theo ngày tuổi: mỗi chuồng đang nuôi một đường cân TB (kg/con) theo ngày tuổi, mốc mục tiêu xuất chuồng nét đứt.
+ * Rê chuột lên tên chuồng ở chú thích để làm nổi đường của chuồng đó.
+ */
 function GrowthChart({ growth }) {
-  const usable = growth.filter(g => g.points.length > 0);
-  const [barnId, setBarnId] = useState(() => (usable.find(g => g.points.length > 1) || usable[0])?.barnId);
   const [tip, setTip] = useState(null);
-  const g = usable.find(item => item.barnId === barnId) || usable[0];
-  if (!g) return <ChartCard title="Tăng trọng theo ngày tuổi"><p className={styles.empty}>Chưa có số cân.</p></ChartCard>;
-  const target = g.targetWeightKg != null && g.targetDay ? { day: g.targetDay, kg: Number(g.targetWeightKg) } : null;
-  const maxDay = Math.max(...g.points.map(p => p.ageDays), target?.day || 0, 7);
-  const yTicks = ticks(Math.max(...g.points.map(p => Number(p.avgWeightKg)), target?.kg || 0, 0.1));
+  const [focus, setFocus] = useState(null);
+  const series = growth.filter(g => g.points.length > 0).map((g, index) => ({ ...g, color: BARN_COLORS[index % BARN_COLORS.length] }));
+  if (!series.length) return <ChartCard title="Tăng trọng theo ngày tuổi"><p className={styles.empty}>Chưa có số cân.</p></ChartCard>;
+  const targets = [...new Map(series.filter(g => g.targetWeightKg != null && g.targetDay)
+    .map(g => [`${g.targetDay}:${Number(g.targetWeightKg)}`, { day: g.targetDay, kg: Number(g.targetWeightKg) }])).values()];
+  const points = series.flatMap(g => g.points);
+  const maxDay = Math.max(...points.map(p => p.ageDays), ...targets.map(target => target.day), 7);
+  const yTicks = ticks(Math.max(...points.map(p => Number(p.avgWeightKg)), ...targets.map(target => target.kg), 0.1));
   const maxKg = yTicks[yTicks.length - 1];
-  const X = day => PAD.l + (day / maxDay) * plotW;
-  const Y = kg => PAD.t + plotH - (kg / maxKg) * plotH;
-  const line = g.points.map((p, i) => `${i ? 'L' : 'M'}${X(p.ageDays)},${Y(Number(p.avgWeightKg))}`).join('');
-  const xTicks = ticks(maxDay, 5).filter(d => d <= maxDay);
-  return <ChartCard title="Tăng trọng theo ngày tuổi" hint={g.points.length < 2 ? 'Chưa có lần cân mẫu, mới có cân lúc nhập' : 'Cân TB (kg/con) từ các lần cân mẫu'}>
-    <label className={styles.select}>Chuồng
-      <select value={g.barnId} onChange={event => { setBarnId(Number(event.target.value)); setTip(null); }} aria-label="Chọn chuồng xem tăng trọng">
-        {usable.map(item => <option key={item.barnId} value={item.barnId}>{item.barnName}</option>)}
-      </select>
-    </label>
+  const X = day => PAD.l + (day / maxDay) * gPlotW;
+  const Y = kg => PAD.t + gPlotH - (kg / maxKg) * gPlotH;
+  const xTicks = ticks(maxDay, 6).filter(d => d <= maxDay);
+  const weighed = series.filter(g => g.points.length > 1).length;
+  return <ChartCard title="Tăng trọng theo ngày tuổi"
+    hint={`Cân TB (kg/con) các chuồng đang nuôi · ${weighed}/${series.length} chuồng đã có lần cân mẫu`}>
     <div className={styles.plot} onMouseLeave={() => setTip(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${g.barnName}: ${g.points.map(p => `ngày ${p.ageDays} ${num(p.avgWeightKg, 2)} kg`).join(', ')}`}>
-        <YGrid values={yTicks} max={maxKg} format={v => `${num(v, 2)} kg`} />
-        <line x1={PAD.l} x2={W - PAD.r} y1={PAD.t + plotH} y2={PAD.t + plotH} stroke={C.axis} />
-        {xTicks.map(d => <text key={d} x={X(d)} y={H - 14} textAnchor="middle" className={styles.axisText}>{d}</text>)}
-        <text x={W - PAD.r} y={H - 2} textAnchor="end" className={styles.axisText}>ngày tuổi</text>
-        {target && <g>
+      <svg viewBox={`0 0 ${GW} ${GH}`} role="img"
+        aria-label={series.map(g => `${g.barnName}: ${g.points.map(p => `ngày ${p.ageDays} ${num(p.avgWeightKg, 2)} kg`).join(', ')}`).join('; ')}>
+        <YGrid values={yTicks} max={maxKg} format={v => `${num(v, 2)} kg`} width={GW} height={gPlotH} />
+        <line x1={PAD.l} x2={GW - PAD.r} y1={PAD.t + gPlotH} y2={PAD.t + gPlotH} stroke={C.axis} />
+        {xTicks.map(d => <text key={d} x={X(d)} y={GH - 14} textAnchor="middle" className={styles.axisText}>{d}</text>)}
+        <text x={GW - PAD.r} y={GH - 2} textAnchor="end" className={styles.axisText}>ngày tuổi</text>
+        {targets.map(target => <g key={`${target.day}:${target.kg}`}>
           <line x1={PAD.l} x2={X(target.day)} y1={Y(target.kg)} y2={Y(target.kg)} stroke={C.sage} strokeDasharray="5 4" strokeWidth="1.5" />
           <circle cx={X(target.day)} cy={Y(target.kg)} r="5" fill="#fff" stroke={C.sage} strokeWidth="2"
-            onMouseEnter={() => setTip({ x: (X(target.day) / W) * 100, y: Y(target.kg) - 10, title: 'Mục tiêu xuất chuồng', lines: [`Ngày ${target.day}: ${num(target.kg, 2)} kg/con`] })} />
-        </g>}
-        {g.points.length > 1 && <path d={line} fill="none" stroke={C.green} strokeWidth="2" strokeLinejoin="round" />}
-        {g.points.map(p => {
-          const show = () => setTip({ x: (X(p.ageDays) / W) * 100, y: Y(Number(p.avgWeightKg)) - 10, title: `Ngày tuổi ${p.ageDays}`,
-            lines: [`${num(p.avgWeightKg, 3)} kg/con`, formatDay(p.date)] });
-          return <g key={`${p.ageDays}-${p.date}`} onMouseEnter={show} onFocus={show} tabIndex={0}>
-            <circle cx={X(p.ageDays)} cy={Y(Number(p.avgWeightKg))} r="12" fill="transparent" />
-            <circle cx={X(p.ageDays)} cy={Y(Number(p.avgWeightKg))} r="4.5" fill={C.green} stroke="#fff" strokeWidth="2" />
+            onMouseEnter={() => setTip({ x: (X(target.day) / GW) * 100, y: Y(target.kg) - 10, title: 'Mục tiêu xuất chuồng',
+              lines: [`Ngày ${target.day}: ${num(target.kg, 2)} kg/con`] })} />
+        </g>)}
+        {series.map(g => {
+          const dim = focus != null && focus !== g.barnId;
+          const path = g.points.map((p, i) => `${i ? 'L' : 'M'}${X(p.ageDays)},${Y(Number(p.avgWeightKg))}`).join('');
+          return <g key={g.barnId} opacity={dim ? 0.18 : 1} data-barn={g.barnName}>
+            {g.points.length > 1 && <path d={path} fill="none" stroke={g.color} strokeWidth={focus === g.barnId ? 3 : 2} strokeLinejoin="round" />}
+            {g.points.map(p => {
+              const show = () => setTip({ x: (X(p.ageDays) / GW) * 100, y: Y(Number(p.avgWeightKg)) - 10, title: `${g.barnName} · ngày tuổi ${p.ageDays}`,
+                lines: [`${num(p.avgWeightKg, 3)} kg/con`, formatDay(p.date)] });
+              return <g key={`${p.ageDays}-${p.date}`} onMouseEnter={show} onFocus={show} tabIndex={0}>
+                <circle cx={X(p.ageDays)} cy={Y(Number(p.avgWeightKg))} r="10" fill="transparent" />
+                <circle cx={X(p.ageDays)} cy={Y(Number(p.avgWeightKg))} r="4" fill={g.color} stroke="#fff" strokeWidth="1.5" />
+              </g>;
+            })}
           </g>;
         })}
       </svg>
       <Tooltip tip={tip} />
     </div>
-    <Legend items={[[C.green, `Cân TB thực tế · ${g.barnName}`], ...(target ? [[C.sage, 'Mục tiêu xuất chuồng']] : [])]} />
+    <div className={styles.legend} onMouseLeave={() => setFocus(null)}>
+      {series.map(g => <button key={g.barnId} type="button" className={styles.legendBarn} aria-pressed={focus === g.barnId}
+        onMouseEnter={() => setFocus(g.barnId)} onFocus={() => setFocus(g.barnId)} onBlur={() => setFocus(null)}
+        onClick={() => setFocus(current => (current === g.barnId ? null : g.barnId))}>
+        <i style={{ background: g.color }} />{g.barnName}</button>)}
+      {targets.length > 0 && <span><i style={{ background: C.sage }} />Mục tiêu xuất chuồng</span>}
+    </div>
   </ChartCard>;
 }
 
-/** Mục "Biểu đồ" của Bảng tin: lưới 2×2 (điện thoại 1 cột). Cơ cấu chi phí chỉ có khi được xem tiền. */
+/** Mục "Biểu đồ" của Bảng tin: lưới 2 cột (điện thoại 1 cột). Cơ cấu chi phí chỉ có khi được xem tiền. */
 export function DashboardCharts({ data }) {
   const growth = data.growth || [];
-  const history = data.taskHistory || [];
   return <section className={styles.section} aria-label="Biểu đồ">
     <header><h3><BarChart3 size={17} />Biểu đồ</h3></header>
     <div className={styles.grid}>
       {data.barns.length > 0 && <LossRates barns={data.barns} />}
       {data.finance && <CostDonut finance={data.finance} />}
-      {history.length > 0 && <TaskHistory days={history} />}
       {growth.length > 0 && <GrowthChart growth={growth} />}
     </div>
   </section>;

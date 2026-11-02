@@ -100,6 +100,8 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
           {[task.method && labelOf(METHODS, task.method), task.doseText, task.note].filter(Boolean).join(' · ')}
           {task.shares.length > 1 && task.plannedQuantity != null && <> · {task.shares.map(share => `${share.flockCode}: ${formatAmount(share.plannedQuantity)} ${task.unit}`).join(', ')}</>}
         </small>}
+        {task.plannedCost != null && <small className={styles.planned}>Dự kiến {money(task.plannedCost)}
+          {task.averagePrice != null && task.stockUnit && ` · giá TB ${money(task.averagePrice)}/${task.stockUnit}`}</small>}
         {task.stockEnough === false && !done && <small className={styles.short}>Kho không đủ: còn {formatAmount(task.stockOnHand)} {task.stockUnit}</small>}
         {!done && task.stockSources?.length === 1 && <small>Kho nguồn: {task.stockSources[0].warehouseName}</small>}
         {!done && task.stockSources?.length > 1 && <label>Kho nguồn
@@ -182,6 +184,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
       <div className={styles.progress} aria-label={`Đã xong ${doneTotal}/${total} việc`}>
         <strong>{doneTotal}/{total}</strong><span>việc</span>
         <div className={styles.bar}><i style={{ width: `${progress}%` }} /></div>
+        {plan.plannedCost != null && <small>Dự kiến cả ngày: {money(plan.plannedCost)}</small>}
         {plan.doneCost != null && <small>Chi phí đã ghi: {money(plan.doneCost)}</small>}
       </div>
     </header>}

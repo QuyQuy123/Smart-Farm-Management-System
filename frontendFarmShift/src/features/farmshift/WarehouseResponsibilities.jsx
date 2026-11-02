@@ -3,7 +3,8 @@ import { Pencil, Plus, Users, Warehouse } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import { getWarehouseResponsibilities, setWarehouseWorkers } from '../../services/warehouseResponsibilityService';
 import { Dialog } from './FarmAreaDialogs';
-import { apiErrorMessage } from './farmAreaOptions';
+import { apiErrorMessage, filterWarehouses } from './farmAreaOptions';
+import { AreaWarehouseFilter, KindTag } from './AreaWarehouseFilter';
 import styles from './BarnResponsibilities.module.css';
 
 function WarehouseWorkersDialog({ warehouse, workers, onClose, onSaved }) {
@@ -58,6 +59,7 @@ export function WarehouseResponsibilities({ canEdit }) {
   const [state, setState] = useState({ data: null, error: '', loading: true });
   const [revision, setRevision] = useState(0);
   const [target, setTarget] = useState(null);
+  const [filter, setFilter] = useState({ area: '', kind: '' });
   useEffect(() => {
     if (!canEdit) return;
     let cancelled = false;
@@ -75,18 +77,23 @@ export function WarehouseResponsibilities({ canEdit }) {
   };
   if (!canEdit) return <div className="farmshift-card farmshift-card-body">Chỉ chủ trang trại có quyền quản lý phân công kho.</div>;
   const { data, error, loading } = state;
+  const shown = data?.warehouses ? filterWarehouses(data.warehouses, filter) : [];
   return <section className="farmshift-card">
     <header className={`farmshift-card-header ${styles.header}`}>
-      <div><h3 className="farmshift-card-title">Phân công công nhân phụ trách kho</h3><p>Chọn công nhân phụ trách cho từng kho hàng của trang trại.</p></div>
-      <span className={styles.summary}><Users size={16} />{data?.workers.length || 0} công nhân đang hoạt động</span>
+      <div><h3 className="farmshift-card-title">Phân công công nhân phụ trách kho</h3><p>Mỗi khu có một kho cám và một kho thuốc; công nhân lấy hàng ở kho mình phụ trách khi làm phiếu việc.</p></div>
+      <span className={styles.summary}><Users size={16} />{data?.workers?.length || 0} công nhân đang hoạt động</span>
     </header>
     {loading ? <p role="status" className={styles.empty}>Đang tải danh sách kho...</p>
       : error ? <div className={styles.empty}><p role="alert" className={styles.error}>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={retry}>Thử lại</button></div>
-      : !data?.warehouses.length ? <p className={styles.empty}>Chưa có kho hàng. Thêm kho tại Thiết lập danh mục trước khi phân công.</p>
+      : !data?.warehouses?.length ? <p className={styles.empty}>Chưa có kho hàng. Thêm kho tại Thiết lập danh mục trước khi phân công.</p>
+      : <><AreaWarehouseFilter warehouses={data.warehouses} value={filter} onChange={setFilter} />
+      {shown.length === 0 ? <p className={styles.empty}>Không có kho nào khớp bộ lọc.</p>
       : <div className="farmshift-table-container" style={{ border: 'none' }}><table className="farmshift-table">
-        <thead><tr><th>Tên kho hàng</th><th>Công nhân phụ trách</th></tr></thead>
-        <tbody>{data.warehouses.map(warehouse => <tr key={warehouse.id}>
+        <thead><tr><th>Tên kho hàng</th><th>Khu</th><th>Loại</th><th>Công nhân phụ trách</th></tr></thead>
+        <tbody>{shown.map(warehouse => <tr key={warehouse.id}>
           <th scope="row"><span className={styles.summary}><Warehouse size={17} />{warehouse.name}</span></th>
+          <td>{warehouse.areaName || '—'}</td>
+          <td><KindTag kind={warehouse.kind} /></td>
           <td><div className={styles.assignment}>
             <div className={styles.people}>{warehouse.workers.map(worker => <span key={worker.id} className={styles.person}>
               <span className={styles.avatar} aria-hidden="true">{worker.fullName.trim().split(/\s+/).pop().slice(0, 1)}</span>{worker.fullName}
@@ -97,7 +104,7 @@ export function WarehouseResponsibilities({ canEdit }) {
             </button>
           </div></td>
         </tr>)}</tbody>
-      </table></div>}
+      </table></div>}</>}
     {target && <WarehouseWorkersDialog warehouse={target} workers={data.workers} onClose={() => setTarget(null)} onSaved={saved} />}
   </section>;
 }

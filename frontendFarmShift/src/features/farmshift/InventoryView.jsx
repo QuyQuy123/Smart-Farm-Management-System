@@ -10,6 +10,8 @@ import { listInventoryItems } from '../../services/inventoryItemService';
 import { INVENTORY_CHANGED } from '../../utils/inventoryEvents';
 import { groupInventoryItems, inventoryStockKg } from '../../utils/inventoryGroups';
 import { InventoryItemDialog } from './InventoryItemDialog';
+import { filterWarehouses } from './farmAreaOptions';
+import { AreaWarehouseFilter } from './AreaWarehouseFilter';
 import styles from './WarehouseCategoriesView.module.css';
 
 const BREADCRUMBS = [{ label: 'Kho hàng hóa' }];
@@ -28,6 +30,14 @@ export const InventoryView = () => {
   const [itemsRevision, setItemsRevision] = useState(0);
   const [expanded, setExpanded] = useState(new Set());
   const [search, setSearch] = useState(''), [modal, setModal] = useState(null);
+  // Lọc kho theo khu / loại kho; kho đang mở không còn trong bộ lọc thì chuyển sang kho đầu tiên còn hiện.
+  const [areaFilter, setAreaFilter] = useState({ area: '', kind: '' });
+  const shownCategories = filterWarehouses(categories, areaFilter);
+  const changeAreaFilter = next => {
+    setAreaFilter(next);
+    const list = filterWarehouses(categories, next);
+    if (!list.some(category => category.id === selectedCategory)) { setSelectedCategory(list[0]?.id ?? null); setSearch(''); }
+  };
 
   useEffect(() => {
     const refresh = () => setItemsRevision(value => value + 1);
@@ -122,7 +132,9 @@ export const InventoryView = () => {
     {loadingCategories && <p role="status">Đang tải danh mục kho...</p>}
     {categoryError && <div role="alert" className={styles.error}>{categoryError}<button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setCategoryRevision(value => value + 1)}>Thử lại</button></div>}
     {!loadingCategories && !categoryError && !categories.length && <div className="farmshift-card" style={{ padding: '24px', marginBottom: '20px' }}>Chưa có danh mục kho. <Link to="/catalog-settings">Thêm danh mục kho trong Thiết lập danh mục</Link> để bắt đầu.</div>}
-    <div className="farmshift-tabs" style={{ overflowX: 'auto' }}>{categories.map(category => <button type="button" key={category.id} className={`farmshift-tab-btn ${category.id === selectedCategory ? 'active' : ''}`} onClick={() => { setSelectedCategory(category.id); setSearch(''); }}>{category.name}</button>)}</div>
+    {categories.length > 0 && <div className="farmshift-card" style={{ marginBottom: '12px', padding: 0 }}>
+      <AreaWarehouseFilter warehouses={categories} value={areaFilter} onChange={changeAreaFilter} /></div>}
+    <div className="farmshift-tabs" style={{ overflowX: 'auto' }}>{shownCategories.map(category => <button type="button" key={category.id} className={`farmshift-tab-btn ${category.id === selectedCategory ? 'active' : ''}`} onClick={() => { setSelectedCategory(category.id); setSearch(''); }}>{category.name}</button>)}</div>
     <div className={`farmshift-card ${styles.card}`}>
       <div className={styles.searchRow}><div className={styles.search}><Search size={17} /><input aria-label="Tìm hàng hóa" placeholder="Tìm theo tên hàng hóa, nhãn hiệu..." value={search} onChange={event => setSearch(event.target.value)} /></div>{!loadingItems && !itemError && <span className={styles.total}>{filtered.length} hàng hóa</span>}</div>
       {itemError ? <div role="alert" className={styles.empty}><p>{itemError}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setItemsRevision(value => value + 1)}>Tải lại hàng hóa</button></div> : <div className="farmshift-table-container" style={{ border: 0 }}><table className={`farmshift-table ${styles.table}`}>

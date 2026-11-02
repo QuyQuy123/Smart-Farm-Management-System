@@ -9,7 +9,15 @@ import java.util.List;
  * là null với vai trò không được xem tiền.
  */
 public record DashboardResponse(LocalDate date, Kpis kpis, List<Alert> alerts, List<BarnCard> barns, List<Upcoming> upcoming,
-                                Finance finance, List<DayTasks> taskHistory, List<Growth> growth) {
+                                Finance finance, List<DayTasks> taskHistory, List<Growth> growth, List<Restock> restock) {
+
+    /**
+     * Hàng cần nhập thêm theo phiếu việc hôm nay: cám đủ dùng dưới 7 ngày, thuốc / vắc-xin không đủ cho hôm nay.
+     * dailyNeed và stock tính theo đơn vị tồn kho (bao, lọ, gói); daysLeft = 0 khi đã thiếu ngay hôm nay.
+     */
+    public record Restock(Long itemId, String warehouseName, String productName, String category, String unitName,
+                          BigDecimal stock, BigDecimal dailyNeed, int daysLeft, String level) {
+    }
 
     /** Việc của một ngày (7 ngày gần nhất): missed = việc chưa làm (ngày đã qua) hoặc việc quá giờ (hôm nay). */
     public record DayTasks(LocalDate date, int done, int total, int missed) {

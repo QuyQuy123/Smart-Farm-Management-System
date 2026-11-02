@@ -3,7 +3,7 @@ import { AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { createProgram, updateProgram } from '../../services/farmingProgramService';
 import { listAllInventoryItems } from '../../services/inventoryItemService';
 import { Dialog, FieldError } from './FarmAreaDialogs';
-import { MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS, apiErrorMessage, itemFitsStep, itemsForStep, stockKind, validateProgram } from './farmAreaOptions';
+import { MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS, apiErrorMessage, itemFitsStep, itemsForStep, stockKind, uniqueByName, validateProgram } from './farmAreaOptions';
 import { StockNamePicker } from './StockNamePicker';
 import styles from './FarmingPrograms.module.css';
 
@@ -147,7 +147,7 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     }
     if (kind === 'pick') {
       return <StockNamePicker label={common['aria-label']} value={row.step.name} itemId={row.step.inventoryItemId} placeholder={extra}
-        options={itemsForStep(items, row.step.category, row.step.unit)} disabled={saving} invalid={Boolean(errors.steps[row.index])}
+        options={uniqueByName(itemsForStep(items, row.step.category, row.step.unit), row.step.inventoryItemId)} disabled={saving} invalid={Boolean(errors.steps[row.index])}
         onChange={({ name, inventoryItemId }) => {
           setStep(row.index, 'name', name);
           setStep(row.index, 'inventoryItemId', inventoryItemId);
