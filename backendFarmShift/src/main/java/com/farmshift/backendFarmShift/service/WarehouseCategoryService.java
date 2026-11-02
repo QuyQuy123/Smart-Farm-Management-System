@@ -76,6 +76,8 @@ public class WarehouseCategoryService {
 
     private WarehouseCategoryResponse response(WarehouseCategory category) {
         return new WarehouseCategoryResponse(category.getId(), String.format(Locale.ROOT, "DM%06d", category.getId()),
-                category.getName(), category.getDescription(), inventory.countByWarehouse_Id(category.getId()), category.getCreatedAt());
+                category.getName(), category.getDescription(), inventory.countByWarehouse_Id(category.getId()), category.getCreatedAt(),
+                category.getArea() == null ? null : category.getArea().getId(), category.getArea() == null ? null : category.getArea().getName(),
+                category.getKind());
     }
 }

@@ -79,14 +79,15 @@ class InventoryItemIntegrationTest {
         mvc.perform(get("/api/product-categories/" + productId)).andExpect(jsonPath("$.data.itemCount").value(1));
     }
     @Test @WithMockUser(authorities="ROLE_FARM_OWNER")
-    void rejectsNegativePriceWrongWarehouseAndInvalidReferences() throws Exception {
+    void rejectsNegativePriceAndInvalidReferences() throws Exception {
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("price", -1)))).andExpect(status().isBadRequest());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("price", "1.234")))).andExpect(status().isBadRequest());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("brandId", 9999999)))).andExpect(status().isNotFound());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("unitId", 9999999)))).andExpect(status().isNotFound());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("unitId", "")))).andExpect(status().isBadRequest());
         var other = new WarehouseCategory(); other.setName("Kho khác"); other.setNameKey("kho khác"); other = warehouses.saveAndFlush(other);
-        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("warehouseId", other.getId())))).andExpect(status().isBadRequest());
+        // Cùng một mặt hàng được tồn ở nhiều kho (mỗi kho một dòng tồn).
+        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("warehouseId", other.getId())))).andExpect(status().isCreated());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("imageUrl", "data:image/png;base64,abc")))).andExpect(status().isBadRequest());
     }
     @Test @WithMockUser(authorities="ROLE_FARM_OWNER")

@@ -36,13 +36,13 @@ describe('Warehouse category CRUD', () => {
 
   it('creates, reads, edits, searches and deletes a category through the API', async () => {
     render(<WarehouseCategoriesView />);
-    await screen.findByText('Kho cám');
+    await screen.findByText('Kho cám', { selector: 'strong' });
     fireEvent.click(screen.getByRole('button', { name: 'Thêm danh mục kho' }));
     let dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText(/Tên danh mục/), { target: { value: 'Kho thuốc' } });
     fireEvent.change(within(dialog).getByLabelText('Mô tả'), { target: { value: 'Thuốc thú y' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu danh mục' }));
-    await screen.findByText('Kho thuốc');
+    await screen.findByText('Kho thuốc', { selector: 'strong' });
     expect(service.createWarehouseCategory).toHaveBeenCalledWith({ name: 'Kho thuốc', description: 'Thuốc thú y' });
     expect(mocks.showToast).toHaveBeenCalledWith('Đã lưu danh mục kho thành công.', 'success');
     expect(screen.queryByText('Đã lưu danh mục kho thành công.')).not.toBeInTheDocument();
@@ -59,7 +59,7 @@ describe('Warehouse category CRUD', () => {
     await screen.findByText('Kho vắc xin');
     expect(service.updateWarehouseCategory).toHaveBeenCalledWith(2, { name: 'Kho vắc xin', description: 'Thuốc thú y' });
     fireEvent.change(screen.getByRole('textbox', { name: 'Tìm danh mục kho' }), { target: { value: 'vắc xin' } });
-    expect(screen.queryByText('Kho cám')).not.toBeInTheDocument();
+    expect(screen.queryByText('Kho cám', { selector: 'strong' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Xóa Kho vắc xin' }));
     expect(service.deleteWarehouseCategory).not.toHaveBeenCalled();
@@ -72,7 +72,7 @@ describe('Warehouse category CRUD', () => {
   it('keeps the form open and shows server errors without claiming success', async () => {
     service.createWarehouseCategory.mockRejectedValue({ response: { data: { message: 'Tên danh mục kho đã tồn tại.' } } });
     render(<WarehouseCategoriesView />);
-    await screen.findByText('Kho cám');
+    await screen.findByText('Kho cám', { selector: 'strong' });
     fireEvent.click(screen.getByRole('button', { name: 'Thêm danh mục kho' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText(/Tên danh mục/), { target: { value: 'Kho cám' } });
@@ -84,7 +84,7 @@ describe('Warehouse category CRUD', () => {
   it('lets workers view categories while hiding mutations', async () => {
     mocks.role = 'ROLE_FARM_WORKER';
     render(<WarehouseCategoriesView />);
-    await screen.findByText('Kho cám');
+    await screen.findByText('Kho cám', { selector: 'strong' });
     expect(screen.queryByRole('button', { name: 'Thêm danh mục kho' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sửa Kho cám' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xem Kho cám' })).toBeInTheDocument();

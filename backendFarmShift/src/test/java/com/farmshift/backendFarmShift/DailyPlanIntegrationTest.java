@@ -171,6 +171,26 @@ class DailyPlanIntegrationTest {
     }
 
     @Test
+    void plannedCostUsesTheAveragePriceAcrossWarehouses() throws Exception {
+        // Meal 1 = 50 kg = 2 bags; only one warehouse holds the feed at 335.000 a bag.
+        mvc.perform(get(plan()))
+            .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(1) + "')].averagePrice").value(contains(335000.0)))
+            .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(1) + "')].plannedCost").value(contains(670000)))
+            .andExpect(jsonPath("$.data.plannedCost").isNumber());
+
+        // The same feed in a second warehouse at 365.000 with the same stock: average 350.000, meal 1 = 700.000.
+        long otherStore = id(send(post("/api/warehouse-categories"), Map.of("name", "Kho cám 2 test")));
+        long otherLot = id(send(post("/api/inventory-items"), Map.of("warehouseId", otherStore, "name", "Higro 02 test", "unitId", bagUnit, "price", 365000)));
+        stock(otherLot, "100");
+        mvc.perform(get(plan()))
+            .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(1) + "')].averagePrice").value(contains(350000.0)))
+            .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(1) + "')].plannedCost").value(contains(700000)));
+
+        mvc.perform(get(plan()).with(user("worker@farm.test").authorities(() -> "ROLE_FARM_WORKER")))
+            .andExpect(jsonPath("$.data.plannedCost").doesNotExist());
+    }
+
+    @Test
     void mealsAreSpreadOverTwelveHoursFromTheFirstMealTime() throws Exception {
         // 4 meals: every 3 hours from the default 07:00.
         mvc.perform(get(plan()))

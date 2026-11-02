@@ -57,9 +57,9 @@ describe('ProductTypes CRUD', () => {
 
     // Verify LH000001 code is NOT displayed on UI
     expect(screen.queryByText('LH000001')).not.toBeInTheDocument();
-    // Verify columns: Tên loại hàng, Mô tả, Số lượng, Ngày tạo
+    // Verify columns: Tên loại hàng, Mô tả, Ngày tạo (cột số lượng đã bỏ)
     expect(screen.getByText('Cám các loại')).toBeInTheDocument();
-    expect(screen.getByText('120')).toBeInTheDocument();
+    expect(screen.queryByText('120')).not.toBeInTheDocument();
     expect(screen.getByText('18/10/2026')).toBeInTheDocument();
 
     // Create

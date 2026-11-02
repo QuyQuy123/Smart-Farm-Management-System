@@ -66,7 +66,7 @@ describe('Brands CRUD', () => {
     // Verify NH000001 code is NOT displayed on UI
     expect(screen.queryByText('NH000001')).not.toBeInTheDocument();
     expect(screen.getByText('Con giống & Cám')).toBeInTheDocument();
-    expect(screen.getByText('150')).toBeInTheDocument();
+    expect(screen.queryByText('150')).not.toBeInTheDocument(); // cột số lượng đã bỏ
     expect(screen.getByText('Gà giống J-Dabaco')).toBeInTheDocument();
 
     // Create

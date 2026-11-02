@@ -152,11 +152,11 @@ export function BarnResponsibilities({ canEdit }) {
     <header className={`farmshift-card-header ${styles.header}`}>
       <div><h3 className="farmshift-card-title">Vai trò khu nuôi</h3>
         <p>Phân công cho cả khu nuôi, hoặc thiết lập riêng cho từng chuồng.</p></div>
-      <span className={styles.summary}><Users size={16} />{data?.workers.length || 0} công nhân đang hoạt động</span>
+      <span className={styles.summary}><Users size={16} />{data?.workers?.length || 0} công nhân đang hoạt động</span>
     </header>
     {loading ? <p role="status" className={styles.empty}>Đang tải phân công...</p>
       : error ? <div className={styles.empty}><p role="alert" className={styles.error}>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={refresh}>Thử lại</button></div>
-      : !data?.areas.length ? <p className={styles.empty}>Chưa có khu nuôi. Thêm khu nuôi tại menu Khu nuôi để bắt đầu phân công.</p>
+      : !data?.areas?.length ? <p className={styles.empty}>Chưa có khu nuôi. Thêm khu nuôi tại menu Khu nuôi để bắt đầu phân công.</p>
       : <div className="farmshift-table-container" style={{ border: 'none' }}><table className={`farmshift-table ${styles.table}`}>
         <thead><tr><th>Khu nuôi / Chuồng nuôi</th><th>Phạm vi phân công</th><th>Công nhân phụ trách</th></tr></thead>
         {data.areas.map(area => <tbody key={area.id}>

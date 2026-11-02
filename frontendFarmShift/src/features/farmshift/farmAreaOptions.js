@@ -145,6 +145,20 @@ export const stockKind = item => {
 /** Hàng hóa gợi ý cho một dòng chương trình: đúng nhóm (cám / vắc-xin / thuốc) và quy đổi được đơn vị. */
 export const itemsForStep = (items, category, unit) => items.filter(item => stockKind(item) === category && itemFitsStep(item, category, unit));
 
+/**
+ * Một dòng cho mỗi tên hàng dù hàng có ở nhiều kho: chương trình nuôi chỉ chọn tên, kho nào trừ do phân công kho quyết định.
+ * Giữ dòng đang được gắn (preferredId) để ô chọn vẫn nhận ra lựa chọn cũ.
+ */
+export const uniqueByName = (items, preferredId) => {
+  const byName = new Map();
+  for (const item of items) {
+    const name = String(item.name || '').normalize('NFC').trim().toLocaleLowerCase('vi');
+    if (!name) continue;
+    if (!byName.has(name) || String(item.id) === String(preferredId)) byName.set(name, item);
+  }
+  return [...byName.values()];
+};
+
 /** Hàng hóa dùng được cho một nội dung khi có quy cách và cùng loại đại lượng với định mức. */
 export const itemFitsStep = (item, category, unit) => {
   if (!item?.unitContentUnit) return false;
@@ -235,3 +249,17 @@ export const addDaysIso = (iso, days) => {
 };
 
 export const formatDay = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
+
+// ---------------------------------------------------------------- kho theo khu (mỗi khu một kho cám, một kho thuốc)
+
+export const WAREHOUSE_KINDS = [{ value: 'FEED', label: 'Kho cám' }, { value: 'MEDICINE', label: 'Kho thuốc' }];
+export const kindLabel = kind => WAREHOUSE_KINDS.find(item => item.value === kind)?.label || 'Khác';
+
+/** Các khu có kho, theo thứ tự tên; kho không thuộc khu nào gom vào "Không thuộc khu". */
+export const warehouseAreas = warehouses => [...new Map(warehouses.map(warehouse =>
+  [warehouse.areaId ?? 'none', warehouse.areaName || 'Không thuộc khu'])).entries()]
+  .sort((a, b) => a[1].localeCompare(b[1], 'vi'));
+
+/** Lọc kho theo khu ('' là tất cả) và loại kho ('' là tất cả). */
+export const filterWarehouses = (warehouses, { area, kind }) => warehouses.filter(warehouse =>
+  (!area || String(warehouse.areaId ?? 'none') === area) && (!kind || warehouse.kind === kind));

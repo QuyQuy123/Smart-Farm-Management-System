@@ -21,6 +21,14 @@ public class WarehouseCategory {
     private String nameKey;
     @Column(length = 1000)
     private String description;
+    /** Khu nuôi sở hữu kho: mỗi khu một kho cám (FEED) và một kho thuốc (MEDICINE). null với kho không thuộc khu nào. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "area_id")
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
+    private FarmArea area;
+    @Column(length = 20)
+    private String kind;
     @ManyToMany
     @JoinTable(name = "warehouse_workers", joinColumns = @JoinColumn(name = "warehouse_id"),
             inverseJoinColumns = @JoinColumn(name = "account_id"),

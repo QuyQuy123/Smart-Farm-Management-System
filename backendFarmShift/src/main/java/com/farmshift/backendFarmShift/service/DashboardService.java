@@ -39,6 +39,9 @@ public class DashboardService {
     static final BigDecimal DANGER_LOSS_RATE = new BigDecimal("0.5");
     static final int UPCOMING_DAYS = 7;
     static final int HISTORY_DAYS = 7;
+    /** Cám còn đủ dùng ít hơn số ngày này thì báo cần nhập thêm; dưới RESTOCK_DANGER_DAYS ngày thì báo đỏ. */
+    static final int RESTOCK_DAYS = 7;
+    static final int RESTOCK_DANGER_DAYS = 3;
     private static final List<ProgramStepCategory> UPCOMING_KINDS = List.of(ProgramStepCategory.VACCINE, ProgramStepCategory.MEDICINE,
             ProgramStepCategory.FEED);
     private static final List<FlockMovementType> LOSSES = List.of(FlockMovementType.DEATH, FlockMovementType.CULL);
@@ -130,7 +133,43 @@ public class DashboardService {
         Kpis kpis = new Kpis(live, plans.size(), lossToday, loss7d, rate(loss7d, live + loss7d), tasksDone, tasksTotal, overdueTotal, debt, unpaid);
         List<DayTasks> history = new ArrayList<>(taskHistory(today, canSeeFinance, workerEmail));
         history.add(new DayTasks(today, tasksDone, tasksTotal, overdueTotal));
-        return new DashboardResponse(today, kpis, alerts, barns, upcoming.stream().limit(15).toList(), finance, history, growth);
+        return new DashboardResponse(today, kpis, alerts, barns, upcoming.stream().limit(15).toList(), finance, history, growth, restock(plans));
+    }
+
+    /**
+     * Cộng lượng dùng trong ngày của từng dòng tồn (kho + mặt hàng) qua mọi chuồng lấy hàng từ đó, rồi so với tồn:
+     * cám đủ dưới {@link #RESTOCK_DAYS} ngày, thuốc / vắc-xin không đủ cho hôm nay thì cần nhập thêm. Thiếu nhất xếp trước.
+     */
+    private static List<Restock> restock(List<BarnDayPlan> plans) {
+        record Use(BarnDayPlan.StockSource source, String product, ProgramStepCategory category, BigDecimal[] need) { }
+        Map<Long, Use> uses = new LinkedHashMap<>();
+        for (BarnDayPlan plan : plans) {
+            for (BarnDayPlan.Task task : plan.tasks()) {
+                if (task.plannedStock() == null || task.stockSources() == null || task.stockSources().isEmpty()) continue;
+                BarnDayPlan.StockSource source = task.stockSources().stream()
+                        .filter(item -> item.itemId().equals(task.inventoryItemId())).findFirst()
+                        .orElse(task.stockSources().size() == 1 ? task.stockSources().getFirst() : null);
+                if (source == null) continue;
+                Use use = uses.computeIfAbsent(source.itemId(), id -> new Use(source,
+                        task.inventoryItemName() != null ? task.inventoryItemName() : task.name(), task.category(),
+                        new BigDecimal[] {BigDecimal.ZERO}));
+                use.need()[0] = use.need()[0].add(task.plannedStock());
+            }
+        }
+        List<Restock> result = new ArrayList<>();
+        for (Use use : uses.values()) {
+            BigDecimal need = use.need()[0];
+            BigDecimal stock = use.source().stock() == null ? BigDecimal.ZERO : use.source().stock();
+            if (need.signum() <= 0) continue;
+            int days = stock.divide(need, 0, RoundingMode.DOWN).min(BigDecimal.valueOf(999)).intValue();
+            boolean feed = use.category() == ProgramStepCategory.FEED;
+            if (feed ? days >= RESTOCK_DAYS : days >= 1) continue;
+            result.add(new Restock(use.source().itemId(), use.source().warehouseName(), use.product(), use.category().name(),
+                    use.source().unitName(), stock, need.setScale(2, RoundingMode.HALF_UP), days,
+                    days < (feed ? RESTOCK_DANGER_DAYS : 1) ? "DANGER" : "WARN"));
+        }
+        result.sort(Comparator.comparingInt(Restock::daysLeft).thenComparing(Restock::warehouseName).thenComparing(Restock::productName));
+        return result;
     }
 
     /** 6 ngày trước hôm nay: việc đã xong / tổng việc; việc không làm tính là "bỏ lỡ". */

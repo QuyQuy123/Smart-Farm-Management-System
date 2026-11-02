@@ -32,8 +32,8 @@ app.add_middleware(
 )
 
 # Healthcheck
-@app.get("/health", tags=["Health"])
-@app.get("/api/health", tags=["Health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
+@app.api_route("/api/health", methods=["GET", "HEAD"], tags=["Health"])
 def health_check():
     return {
         "status": "healthy",
