@@ -586,4 +586,122 @@ describe('Voice Assistant & Actionable AI Chatbot Suite', () => {
       );
     });
   });
+
+  it('renders role-specific quick-action suggestion chips for ROLE_FARM_WORKER', async () => {
+    localStorage.setItem('farmshift_user_role', 'ROLE_FARM_WORKER');
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <AIChatbot role="ROLE_FARM_WORKER" />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    expect(screen.getByText('🎙️ Ghi cám hôm nay')).toBeInTheDocument();
+    expect(screen.getByText('⚖️ Báo cân mẫu')).toBeInTheDocument();
+    expect(screen.getByText('📋 Việc chưa làm hôm nay')).toBeInTheDocument();
+  });
+
+  it('renders role-specific quick-action suggestion chips for ROLE_ACCOUNTANT', async () => {
+    localStorage.setItem('farmshift_user_role', 'ROLE_ACCOUNTANT');
+    render(
+      <MemoryRouter initialEntries={['/purchases']}>
+        <AIChatbot role="ROLE_ACCOUNTANT" />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    expect(screen.getByText('📦 Kiểm tra lô tồn kho & giá TB')).toBeInTheDocument();
+    expect(screen.getByText('🔄 Tạo phiếu chuyển kho')).toBeInTheDocument();
+    expect(screen.getByText('💰 Công nợ nhà cung cấp')).toBeInTheDocument();
+  });
+
+  it('renders role-specific quick-action suggestion chips for ROLE_FARM_OWNER', async () => {
+    localStorage.setItem('farmshift_user_role', 'ROLE_FARM_OWNER');
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AIChatbot role="ROLE_FARM_OWNER" />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    expect(screen.getByText('📊 Phân tích FCR & Hao hụt')).toBeInTheDocument();
+    expect(screen.getByText('🌡️ Nhiệt độ & Độ ẩm các chuồng')).toBeInTheDocument();
+    expect(screen.getByText('💵 Tổng hợp lãi lỗ lứa nuôi')).toBeInTheDocument();
+  });
+
+  it('renders multi-item PendingActionCard with batchItems and executes single-click batch confirmation', async () => {
+    aiAssistantService.sendAssistantMessage
+      .mockResolvedValueOnce({
+        reply: 'Bạn có muốn cập nhật cám cho 2 chuồng không?',
+        actionType: 'COMPOUND_LOG_FEED',
+        executed: false,
+        requiresConfirmation: true,
+        pendingAction: {
+          actionType: 'COMPOUND_LOG_FEED',
+          title: 'Cập nhật cám hàng loạt (2 chuồng)',
+          batchItems: [
+            { barnName: 'Nhà A1', oldValue: '40 kg', newValue: '50 kg', diff: '+10 kg' },
+            { barnName: 'Nhà A2', oldValue: '45 kg', newValue: '50 kg', diff: '+5 kg' }
+          ],
+          payload: {
+            actionType: 'COMPOUND_LOG_FEED',
+            items: [{ barnId: 1, feedKg: 50 }, { barnId: 2, feedKg: 50 }]
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        reply: 'Đã cập nhật cám thành công cho 2 chuồng',
+        actionType: 'COMPOUND_LOG_FEED',
+        executed: true
+      });
+
+    renderComponent();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    const input = screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Sửa cám Nhà A1 lên 50kg và Nhà A2 lên 50kg' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('batch-confirmation-items')).toBeInTheDocument();
+    });
+
+    const batchContainer = screen.getByTestId('batch-confirmation-items');
+    expect(batchContainer).toHaveTextContent('Nhà A1:');
+    expect(batchContainer).toHaveTextContent('40 kg → 50 kg (+10 kg)');
+    expect(batchContainer).toHaveTextContent('Nhà A2:');
+    expect(batchContainer).toHaveTextContent('45 kg → 50 kg (+5 kg)');
+
+    // Click confirm
+    const confirmBtn = screen.getByTestId('confirm-accept-btn');
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(aiAssistantService.sendAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          confirmAction: true,
+          pendingActionPayload: expect.objectContaining({
+            actionType: 'COMPOUND_LOG_FEED'
+          })
+        })
+      );
+    });
+  });
+
+  it('handles HTTP 429 rate limit error gracefully and displays rate limit warning bubble', async () => {
+    const rateLimitError = new Error('Too Many Requests');
+    rateLimitError.status = 429;
+    aiAssistantService.sendAssistantMessage.mockRejectedValueOnce(rateLimitError);
+
+    renderComponent();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+
+    const input = screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Lệnh nhanh liên tục' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Quá nhiều yêu cầu gửi tới Trợ lý AI trong thời gian ngắn/i)).toBeInTheDocument();
+    });
+  });
 });
