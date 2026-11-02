@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getDashboard } from '../../services/dashboardService';
 import { formatDay } from './farmAreaOptions';
 import styles from './DashboardView.module.css';
+import { dataCache } from '../../services/dataCache';
 
 const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
 const money = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 0 })}đ`;
@@ -43,12 +44,23 @@ export const DashboardView = () => {
   const isWorker = role === 'ROLE_FARM_WORKER';
   const [revision, setRevision] = useState(0);
   // Kết quả gắn với lượt tải (revision); lượt mới chưa về thì đang tải.
-  const [state, setState] = useState({ revision: -1, data: null, error: '' });
+  const cachedDashboard = dataCache.peek('/dashboard');
+  const [state, setState] = useState(() => ({
+    revision: cachedDashboard && cachedDashboard.kpis ? 0 : -1,
+    data: cachedDashboard && cachedDashboard.kpis ? cachedDashboard : null,
+    error: ''
+  }));
 
   useEffect(() => {
     let cancelled = false;
-    getDashboard()
-      .then(data => { if (!cancelled) setState({ revision, data: data && data.kpis ? data : null, error: data && data.kpis ? '' : 'Không có dữ liệu bảng tin.' }); })
+    getDashboard(revision > 0 ? { forceRefresh: true } : {})
+      .then(data => {
+        if (!cancelled) {
+          const valid = data && data.kpis ? data : null;
+          setState({ revision, data: valid, error: valid ? '' : 'Không có dữ liệu bảng tin.' });
+
+        }
+      })
       .catch(error => { if (!cancelled) setState({ revision, data: null, error: error?.response?.data?.message || 'Không tải được bảng tin. Vui lòng thử lại.' }); });
     return () => { cancelled = true; };
   }, [revision]);

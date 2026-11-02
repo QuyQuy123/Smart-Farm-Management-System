@@ -1,7 +1,10 @@
 import { api } from '../utils/api';
 import { notifyInventoryChanged } from '../utils/inventoryEvents';
 
-const data = async request => (await request).data.data;
+const data = async request => {
+  const res = await request;
+  return res?.data?.data ?? res?.data ?? res;
+};
 
 /** Phiếu việc của mọi chuồng đang nuôi trong một ngày (mặc định hôm nay). */
 export const getFarmDailyPlan = date => data(api.get('/daily-plan', { params: date ? { date } : {} }));

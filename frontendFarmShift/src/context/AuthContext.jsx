@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { jwtDecode } from 'jwt-decode';
 import { getProfile } from '../services/userService';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../utils/authStorage';
+import { dataCache } from '../services/dataCache';
 
 const AuthContext = createContext(null);
 
@@ -15,11 +16,13 @@ const getInitialUser = () => {
         return { email: decoded.sub || decoded.email, role };
       } else {
         clearAuthToken();
+        dataCache.clearAll();
         sessionStorage.removeItem('demo_mode');
         return null;
       }
     } catch {
       clearAuthToken();
+      dataCache.clearAll();
       sessionStorage.removeItem('demo_mode');
       return null;
     }
@@ -47,6 +50,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(() => {
     clearAuthToken();
+    dataCache.clearAll();
     sessionStorage.removeItem('demo_mode');
     setUser(null);
     setActiveToken(null);

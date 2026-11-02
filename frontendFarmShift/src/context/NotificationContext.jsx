@@ -53,7 +53,7 @@ export const formatNotificationTime = (createdAt, fallback = '') => {
   if (diffSec < 60) {
     return `Vừa xong (${timeStr})`;
   }
-  if (diffMin < 60 && isSameDay) {
+  if (diffMin < 60) {
     return `${diffMin} phút trước (${timeStr})`;
   }
   if (diffHours < 24 && isSameDay) {

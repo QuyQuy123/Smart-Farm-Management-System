@@ -10,6 +10,7 @@ import { WorkAssignmentPanel } from './WorkAssignmentView';
 import { MealScheduleDialog } from './MealScheduleDialog';
 import { addDaysIso, apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import styles from './TodayTasksView.module.css';
+import { dataCache } from '../../services/dataCache';
 
 const ageText = plan => {
   const ages = [...new Set(plan.flocks.map(flock => flock.ageDays))].sort((a, b) => a - b);
@@ -31,7 +32,12 @@ export const TodayTasksView = () => {
   const [mealSchedule, setMealSchedule] = useState(false);
   const [assignSummary, setAssignSummary] = useState(null);
   const [revision, setRevision] = useState(0);
-  const [state, setState] = useState({ key: null, plans: [], error: '' });
+  const cachedPlans = dataCache.peek(`/daily-plan?date=${today}`) || dataCache.peek('/daily-plan') || dataCache.peek(`/daily-plans/farm?date=${today}`) || dataCache.peek('/daily-plans/farm');
+  const [state, setState] = useState(() => ({
+    key: cachedPlans ? `${today}:0` : null,
+    plans: Array.isArray(cachedPlans) ? cachedPlans : [],
+    error: ''
+  }));
   const requestKey = `${date}:${revision}`;
   const openCycle = searchParams.get('cycle');
   const isOwner = user?.role === 'ROLE_FARM_OWNER';
@@ -46,7 +52,13 @@ export const TodayTasksView = () => {
     if (assigning) return undefined;
     let cancelled = false;
     getFarmDailyPlan(date)
-      .then(plans => { if (!cancelled) setState({ key: requestKey, plans: Array.isArray(plans) ? plans : [], error: '' }); })
+      .then(plans => {
+        if (!cancelled) {
+          const list = Array.isArray(plans) ? plans : [];
+          setState({ key: requestKey, plans: list, error: '' });
+          dataCache.set(`/daily-plans/farm?date=${date}`, list);
+        }
+      })
       .catch(error => { if (!cancelled) setState({ key: requestKey, plans: [], error: apiErrorMessage(error) }); });
     return () => { cancelled = true; };
   }, [date, requestKey, assigning]);
