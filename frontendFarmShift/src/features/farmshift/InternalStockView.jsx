@@ -25,6 +25,7 @@ import { listWarehouseCategories } from '../../services/warehouseCategoryService
 import { listInventoryItems, listAllInventoryItems } from '../../services/inventoryItemService';
 import { PrintableInternalVoucher } from './PrintableInternalVoucher';
 import styles from './InternalStockView.module.css';
+import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
 
 const MSG27 = 'Số lượng xuất kho vượt quá số lượng tồn kho khả dụng hiện tại.';
 
@@ -35,16 +36,25 @@ export const InternalStockView = () => {
   const canMutate = user?.role === 'ROLE_FARM_OWNER' || user?.role === 'ROLE_ACCOUNTANT';
 
   // Tabs: 'create' | 'vouchers' | 'categories'
-  const [activeTab, setActiveTab] = useState('vouchers');
+  const [activeTab, setActiveTabState] = useState(() => getPersistedTab('farmshift_tab_internal_stock', 'vouchers'));
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    setPersistedTab('farmshift_tab_internal_stock', tab);
+  };
+
+  const cachedCats = dataCache.peek('/internal-stock/categories');
+  const cachedWhs = dataCache.peek('/warehouse-categories');
+  const cachedItems = dataCache.peek('/inventory-items');
+  const cachedVouchers = dataCache.peek('/internal-stock/vouchers');
 
   // Shared master data
-  const [categories, setCategories] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [availableItems, setAvailableItems] = useState([]);
+  const [categories, setCategories] = useState(() => (Array.isArray(cachedCats) ? cachedCats : []));
+  const [warehouses, setWarehouses] = useState(() => (Array.isArray(cachedWhs) ? cachedWhs : []));
+  const [availableItems, setAvailableItems] = useState(() => (Array.isArray(cachedItems) ? cachedItems : []));
 
   // Tab 2: Vouchers List State
-  const [vouchers, setVouchers] = useState([]);
-  const [vouchersLoading, setVouchersLoading] = useState(false);
+  const [vouchers, setVouchers] = useState(() => (Array.isArray(cachedVouchers?.content) ? cachedVouchers.content : (Array.isArray(cachedVouchers) ? cachedVouchers : [])));
+  const [vouchersLoading, setVouchersLoading] = useState(() => !cachedVouchers);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(0);

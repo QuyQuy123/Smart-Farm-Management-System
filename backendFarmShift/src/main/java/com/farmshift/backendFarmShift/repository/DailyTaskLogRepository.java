@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface DailyTaskLogRepository extends JpaRepository<DailyTaskLog, Long> {
     List<DailyTaskLog> findAllByCycleIdAndTaskDate(Long cycleId, LocalDate taskDate);
+    List<DailyTaskLog> findAllByCycleIdInAndTaskDateBetween(List<Long> cycleIds, LocalDate from, LocalDate to);
     Optional<DailyTaskLog> findByCycleIdAndTaskDateAndTaskKey(Long cycleId, LocalDate taskDate, String taskKey);
     boolean existsByCycleIdAndTaskDateAndTaskKey(Long cycleId, LocalDate taskDate, String taskKey);
     boolean existsByFeedRecordId(Long feedRecordId);

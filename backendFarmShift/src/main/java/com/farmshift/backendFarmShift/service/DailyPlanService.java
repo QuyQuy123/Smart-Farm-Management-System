@@ -2,12 +2,14 @@ package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.dto.request.DailyTaskConfirmRequest;
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
+import com.farmshift.backendFarmShift.dto.response.DashboardResponse;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -54,15 +56,25 @@ public class DailyPlanService {
 
     /** workerEmail khác null: chỉ những chuồng công nhân đó phụ trách, và chỉ việc được giao cho họ. */
     public List<BarnDayPlan> farm(LocalDate date, boolean canSeeFinance, String workerEmail) {
+        return farm(date, canSeeFinance, workerEmail, true);
+    }
+
+    public List<BarnDayPlan> farm(LocalDate date, boolean canSeeFinance, String workerEmail, boolean resolveStock) {
         LocalDate day = date == null ? today() : date;
         if (day.isAfter(today())) throw new BadRequestException("Chỉ xem được phiếu việc đến hôm nay.", "DAILY_PLAN_FUTURE");
         Set<Long> barns = workerEmail == null ? null : workAssignment.barnIdsOf(workerEmail);
+        List<InventoryItem> preloadedInventory = resolveStock
+                ? inventoryRepository.findAllWithDetailsBy(Sort.by("createdAt", "id"))
+                : null;
+        Map<Long, Set<Long>> barnStoreIds = resolveStock ? new HashMap<>() : null;
+        Map<String, BigDecimal> sharedAverages = resolveStock && canSeeFinance ? new HashMap<>() : null;
         return cycleRepository.findAllByStatus(CycleStatus.ACTIVE).stream()
                 .filter(cycle -> !day.isBefore(cycle.getStartDate()))
                 .filter(cycle -> barns == null || barns.contains(cycle.getBarn().getId()))
                 .sorted(Comparator.comparing((FarmingCycle cycle) -> cycle.getBarn().getArea().getName())
                         .thenComparing(cycle -> cycle.getBarn().getName()))
-                .map(cycle -> response(cycle, day, compute(cycle, day, workerEmail), canSeeFinance, workerEmail))
+                .map(cycle -> response(cycle, day, compute(cycle, day, workerEmail, resolveStock, preloadedInventory, barnStoreIds),
+                        canSeeFinance, workerEmail, resolveStock, sharedAverages))
                 .filter(plan -> !plan.flocks().isEmpty() || !plan.tasks().isEmpty() || !plan.assignedTasks().isEmpty())
                 .toList();
     }
@@ -263,7 +275,134 @@ public class DailyPlanService {
         final Map<Long, BigDecimal> shares = new LinkedHashMap<>();
     }
 
+    /**
+     * Lấy lịch sử công việc các ngày qua cho Bảng tin với số lượng DB queries tối thiểu.
+     * Tái sử dụng đàn và biến động của chuồng, gom log trong khoảng ngày bằng 1 query duy nhất.
+     */
+    public List<DashboardResponse.DayTasks> taskHistory(LocalDate today, boolean canSeeFinance, String workerEmail, int historyDays) {
+        Set<Long> barns = workerEmail == null ? null : workAssignment.barnIdsOf(workerEmail);
+        List<FarmingCycle> cycles = cycleRepository.findAllByStatus(CycleStatus.ACTIVE).stream()
+                .filter(cycle -> barns == null || barns.contains(cycle.getBarn().getId())).toList();
+        if (cycles.isEmpty()) {
+            List<DashboardResponse.DayTasks> empty = new ArrayList<>();
+            for (int back = historyDays - 1; back >= 1; back--) {
+                empty.add(new DashboardResponse.DayTasks(today.minusDays(back), 0, 0, 0));
+            }
+            return empty;
+        }
+
+        Map<Long, List<Flock>> flocksByCycle = new HashMap<>();
+        Map<Long, List<FlockMovement>> movementsByCycle = new HashMap<>();
+        List<Long> cycleIds = new ArrayList<>();
+        for (FarmingCycle cycle : cycles) {
+            cycleIds.add(cycle.getId());
+            flocksByCycle.put(cycle.getId(), flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId()));
+            movementsByCycle.put(cycle.getId(), movementRepository.findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(cycle.getId()));
+        }
+
+        LocalDate from = today.minusDays(historyDays - 1);
+        LocalDate to = today.minusDays(1);
+        List<DailyTaskLog> allLogs = logRepository.findAllByCycleIdInAndTaskDateBetween(cycleIds, from, to);
+        Map<LocalDate, Map<Long, List<DailyTaskLog>>> logsByDate = new HashMap<>();
+        for (DailyTaskLog log : allLogs) {
+            logsByDate.computeIfAbsent(log.getTaskDate(), d -> new HashMap<>())
+                    .computeIfAbsent(log.getCycle().getId(), c -> new ArrayList<>())
+                    .add(log);
+        }
+
+        List<DashboardResponse.DayTasks> days = new ArrayList<>();
+        for (int back = historyDays - 1; back >= 1; back--) {
+            LocalDate day = today.minusDays(back);
+            int done = 0, total = 0;
+            Map<Long, List<DailyTaskLog>> dayLogs = logsByDate.getOrDefault(day, Map.of());
+            for (FarmingCycle cycle : cycles) {
+                if (day.isBefore(cycle.getStartDate())) continue;
+                List<Flock> flocks = flocksByCycle.get(cycle.getId());
+                List<FlockMovement> movements = movementsByCycle.get(cycle.getId());
+                Plan plan = computeWithPreloaded(cycle, day, workerEmail, flocks, movements);
+                total += plan.tasks().size();
+                List<DailyTaskLog> cycleLogs = dayLogs.getOrDefault(cycle.getId(), List.of());
+                done += cycleLogs.size();
+                Set<String> plannedKeys = new HashSet<>();
+                for (Planned t : plan.tasks()) plannedKeys.add(t.key);
+                for (DailyTaskLog l : cycleLogs) {
+                    if (!plannedKeys.contains(l.getTaskKey())) total++;
+                }
+                var assigned = workAssignment.tasksOf(cycle.getBarn().getId(), day, workerEmail);
+                total += assigned.size();
+                done += (int) assigned.stream().filter(t -> t.done() != null).count();
+            }
+            days.add(new DashboardResponse.DayTasks(day, done, total, total - done));
+        }
+        return days;
+    }
+
+    private Plan computeWithPreloaded(FarmingCycle cycle, LocalDate day, String workerEmail,
+                                     List<Flock> flocks, List<FlockMovement> movements) {
+        List<String> warnings = new ArrayList<>();
+        List<FlockDay> present = new ArrayList<>();
+        for (Flock flock : flocks) {
+            if (flock.getImportDate().isAfter(day)) continue;
+            int heads = headsAtEndOf(flock, day, movements);
+            if (heads <= 0) continue;
+            present.add(new FlockDay(flock, ageOn(flock, day), heads));
+            if (flock.getProgram() == null) {
+                warnings.add("Đàn " + flockCode(flock) + " chưa gắn chương trình nuôi nên chưa có việc.");
+            }
+        }
+
+        Map<String, Planned> groups = new LinkedHashMap<>();
+        for (FlockDay flockDay : present) {
+            FarmingProgram program = flockDay.flock().getProgram();
+            if (program == null) continue;
+            List<FarmingProgramStep> steps = program.getSteps().stream()
+                    .filter(step -> step.getCategory() != ProgramStepCategory.WORK)
+                    .filter(step -> flockDay.age() >= step.getDayFrom() && flockDay.age() <= step.getDayTo()).toList();
+            BigDecimal feedKg = steps.stream().filter(step -> step.getCategory() == ProgramStepCategory.FEED && step.getQuantity() != null)
+                    .map(step -> grams(step.getQuantity(), flockDay.heads()).divide(BigDecimal.valueOf(1000), 3, RoundingMode.HALF_UP))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            for (FarmingProgramStep step : steps) {
+                String groupKey = step.getCategory().name() + ":" + identity(step);
+                Planned group = groups.computeIfAbsent(groupKey, key -> newGroup(key, step, cycle, workerEmail, false, null, null));
+                if (step.getMealsPerDay() != null) group.meals = Math.max(group.meals == null ? 1 : group.meals, step.getMealsPerDay());
+                if (step.getQuantity() != null) group.doses.add(step.getQuantity().stripTrailingZeros());
+                BigDecimal share = share(step, flockDay, feedKg);
+                if (share == null) group.unknown = true;
+                group.shares.merge(flockDay.flock().getId(), share == null ? BigDecimal.ZERO : share, BigDecimal::add);
+            }
+        }
+
+        List<Planned> tasks = new ArrayList<>();
+        for (Planned group : groups.values()) {
+            if (group.category == ProgramStepCategory.FEED) {
+                int meals = group.meals == null ? 1 : group.meals;
+                BigDecimal perMeal = group.unknown ? null : group.shares.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                        .divide(BigDecimal.valueOf(meals), 3, RoundingMode.HALF_UP);
+                for (int meal = 1; meal <= meals; meal++) {
+                    Planned task = copy(group);
+                    task.key = group.groupKey + ":M" + meal;
+                    task.meal = meal;
+                    task.meals = meals;
+                    group.shares.forEach((flockId, value) -> task.shares.put(flockId, value.divide(BigDecimal.valueOf(meals), 3, RoundingMode.HALF_UP)));
+                    task.total = perMeal;
+                    tasks.add(task);
+                }
+            } else {
+                Planned task = copy(group);
+                task.key = group.groupKey;
+                group.shares.forEach(task.shares::put);
+                tasks.add(task);
+            }
+        }
+        return new Plan(present, tasks, warnings);
+    }
+
     private Plan compute(FarmingCycle cycle, LocalDate day, String workerEmail) {
+        return compute(cycle, day, workerEmail, true, null, null);
+    }
+
+    private Plan compute(FarmingCycle cycle, LocalDate day, String workerEmail, boolean resolveStock,
+                         List<InventoryItem> preloadedInventory, Map<Long, Set<Long>> barnStoreIds) {
         List<Flock> flocks = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId());
         List<FlockMovement> movements = movementRepository.findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(cycle.getId());
         List<String> warnings = new ArrayList<>();
@@ -291,7 +430,7 @@ public class DailyPlanService {
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             for (FarmingProgramStep step : steps) {
                 String groupKey = step.getCategory().name() + ":" + identity(step);
-                Planned group = groups.computeIfAbsent(groupKey, key -> newGroup(key, step, cycle, workerEmail));
+                Planned group = groups.computeIfAbsent(groupKey, key -> newGroup(key, step, cycle, workerEmail, resolveStock, preloadedInventory, barnStoreIds));
                 if (step.getMealsPerDay() != null) group.meals = Math.max(group.meals == null ? 1 : group.meals, step.getMealsPerDay());
                 if (step.getQuantity() != null) group.doses.add(step.getQuantity().stripTrailingZeros());
                 BigDecimal share = share(step, flockDay, feedKg);
@@ -393,19 +532,24 @@ public class DailyPlanService {
         return "N" + (name.length() > 90 ? name.substring(0, 90) : name);
     }
 
-    private Planned newGroup(String key, FarmingProgramStep step, FarmingCycle cycle, String workerEmail) {
+    private Planned newGroup(String key, FarmingProgramStep step, FarmingCycle cycle, String workerEmail,
+                             boolean resolveStock, List<InventoryItem> preloadedInventory, Map<Long, Set<Long>> barnStoreIds) {
         Planned group = new Planned();
         group.groupKey = key;
         group.category = step.getCategory();
         group.name = step.getInventoryItem() != null ? step.getInventoryItem().getProduct().getName() : step.getName();
         group.method = step.getMethod();
         group.unit = UsageMath.displayUnit(step.getCategory(), step.getUnit());
-        group.sources = stockSources.resolve(cycle, step, workerEmail);
-        if (group.sources.size() == 1) {
-            group.lots = group.sources.getFirst();
-            group.item = group.lots.getFirst();
+        if (resolveStock) {
+            group.sources = stockSources.resolve(cycle, step, workerEmail, preloadedInventory, barnStoreIds);
+            if (group.sources.size() == 1) {
+                group.lots = group.sources.getFirst();
+                group.item = group.lots.getFirst();
+            }
+            if (step.getInventoryItem() != null && !UsageMath.hasContent(step.getInventoryItem())) {
+                group.itemWithoutContent = step.getInventoryItem().getProduct().getName();
+            }
         }
-        if (step.getInventoryItem() != null && !UsageMath.hasContent(step.getInventoryItem())) group.itemWithoutContent = step.getInventoryItem().getProduct().getName();
         group.tempMin = step.getTempMin();
         group.tempMax = step.getTempMax();
         group.note = step.getNote();
@@ -447,36 +591,48 @@ public class DailyPlanService {
     // ---------------------------------------------------------------- response
 
     private BarnDayPlan response(FarmingCycle cycle, LocalDate day, Plan plan, boolean canSeeFinance, String workerEmail) {
+        return response(cycle, day, plan, canSeeFinance, workerEmail, true, null);
+    }
+
+    private BarnDayPlan response(FarmingCycle cycle, LocalDate day, Plan plan, boolean canSeeFinance, String workerEmail,
+                                 boolean resolveStock, Map<String, BigDecimal> sharedAverages) {
         Barn barn = cycle.getBarn();
         Map<Long, FlockDay> flocks = new LinkedHashMap<>();
         for (FlockDay flockDay : plan.flocks()) flocks.put(flockDay.flock().getId(), flockDay);
         Map<String, DailyTaskLog> logs = new LinkedHashMap<>();
-        for (DailyTaskLog log : logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day)) logs.put(log.getTaskKey(), log);
+        List<DailyTaskLog> allLogs = logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day);
+        for (DailyTaskLog log : allLogs) logs.put(log.getTaskKey(), log);
         LocalTime firstMeal = farmService.firstMealTime();
 
         List<String> warnings = new ArrayList<>(plan.warnings());
         Map<Long, BigDecimal> remainingByItem = new LinkedHashMap<>();
         Map<Long, InventoryItem> items = new LinkedHashMap<>();
         Map<Long, BigDecimal> available = new LinkedHashMap<>();
-        Map<String, BigDecimal> averages = new HashMap<>();
+        Map<String, BigDecimal> averages = sharedAverages != null ? sharedAverages : new HashMap<>();
         BigDecimal plannedTotal = BigDecimal.ZERO;
         List<BarnDayPlan.Task> tasks = new ArrayList<>();
         for (Planned task : plan.tasks()) {
             DailyTaskLog log = logs.remove(task.key);
-            BigDecimal stock = task.item != null && task.total != null
-                    ? UsageMath.toStock(task.total, task.unit, task.item, task.category == ProgramStepCategory.VACCINE) : null;
-            // Hoạch định chi phí theo giá trung bình các kho; chưa chọn được kho nguồn thì lấy quy cách của nguồn đầu tiên.
-            InventoryItem priced = task.item != null ? task.item : task.sources.isEmpty() ? null : task.sources.getFirst().getFirst();
-            BigDecimal pricedStock = stock != null ? stock : priced != null && task.total != null
-                    ? UsageMath.toStock(task.total, task.unit, priced, task.category == ProgramStepCategory.VACCINE) : null;
-            BigDecimal averagePrice = canSeeFinance && priced != null ? averagePrice(priced, averages) : null;
-            BigDecimal plannedCost = averagePrice != null && pricedStock != null
-                    ? pricedStock.multiply(averagePrice).setScale(0, RoundingMode.HALF_UP) : null;
-            if (plannedCost != null) plannedTotal = plannedTotal.add(plannedCost);
-            if (log == null && stock != null) {
-                remainingByItem.merge(task.item.getId(), stock, BigDecimal::add);
-                items.put(task.item.getId(), task.item);
-                available.put(task.item.getId(), sourceStock(task.lots));
+            BigDecimal stock = null;
+            BigDecimal pricedStock = null;
+            BigDecimal averagePrice = null;
+            BigDecimal plannedCost = null;
+            if (resolveStock) {
+                stock = task.item != null && task.total != null
+                        ? UsageMath.toStock(task.total, task.unit, task.item, task.category == ProgramStepCategory.VACCINE) : null;
+                // Hoạch định chi phí theo giá trung bình các kho; chưa chọn được kho nguồn thì lấy quy cách của nguồn đầu tiên.
+                InventoryItem priced = task.item != null ? task.item : task.sources.isEmpty() ? null : task.sources.getFirst().getFirst();
+                pricedStock = stock != null ? stock : priced != null && task.total != null
+                        ? UsageMath.toStock(task.total, task.unit, priced, task.category == ProgramStepCategory.VACCINE) : null;
+                averagePrice = canSeeFinance && priced != null ? averagePrice(priced, averages) : null;
+                plannedCost = averagePrice != null && pricedStock != null
+                        ? pricedStock.multiply(averagePrice).setScale(0, RoundingMode.HALF_UP) : null;
+                if (plannedCost != null) plannedTotal = plannedTotal.add(plannedCost);
+                if (log == null && stock != null) {
+                    remainingByItem.merge(task.item.getId(), stock, BigDecimal::add);
+                    items.put(task.item.getId(), task.item);
+                    available.put(task.item.getId(), sourceStock(task.lots));
+                }
             }
             String time = task.category == ProgramStepCategory.FEED && task.meal != null && task.meals != null
                     ? FarmService.mealTime(firstMeal, task.meal, task.meals).toString() : null;
@@ -505,15 +661,17 @@ public class DailyPlanService {
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getProduct().getName(), null, null, null, null,
                     "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance), List.of(), null, null));
         }
-        remainingByItem.forEach((id, need) -> {
-            InventoryItem item = items.get(id);
-            if (available.get(id).compareTo(need) < 0) {
-                warnings.add("Kho chỉ còn " + amount(available.get(id)) + " " + stockUnit(item) + " " + item.getProduct().getName()
-                        + ", các việc còn lại trong ngày cần " + amount(need) + ".");
-            }
-        });
+        if (resolveStock) {
+            remainingByItem.forEach((id, need) -> {
+                InventoryItem item = items.get(id);
+                if (available.get(id).compareTo(need) < 0) {
+                    warnings.add("Kho chỉ còn " + amount(available.get(id)) + " " + stockUnit(item) + " " + item.getProduct().getName()
+                            + ", các việc còn lại trong ngày cần " + amount(need) + ".");
+                }
+            });
+        }
 
-        List<DailyTaskLog> all = logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day);
+        List<DailyTaskLog> all = allLogs;
         BigDecimal cost = canSeeFinance ? all.stream().map(DailyTaskLog::getCost).filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(0, RoundingMode.HALF_UP) : null;
         return new BarnDayPlan(cycle.getId(), cycleCode(cycle), barn.getId(), barn.getName(), barn.getArea().getName(), day,

@@ -174,18 +174,7 @@ public class DashboardService {
 
     /** 6 ngày trước hôm nay: việc đã xong / tổng việc; việc không làm tính là "bỏ lỡ". */
     private List<DayTasks> taskHistory(LocalDate today, boolean canSeeFinance, String workerEmail) {
-        List<DayTasks> days = new ArrayList<>();
-        for (int back = HISTORY_DAYS - 1; back >= 1; back--) {
-            LocalDate day = today.minusDays(back);
-            int done = 0, total = 0;
-            for (BarnDayPlan plan : dailyPlanService.farm(day, canSeeFinance, workerEmail)) {
-                total += plan.tasks().size() + plan.assignedTasks().size();
-                done += (int) plan.tasks().stream().filter(task -> task.done() != null).count()
-                        + (int) plan.assignedTasks().stream().filter(task -> task.done() != null).count();
-            }
-            days.add(new DayTasks(day, done, total, total - done));
-        }
-        return days;
+        return dailyPlanService.taskHistory(today, canSeeFinance, workerEmail, HISTORY_DAYS);
     }
 
     /** Cân TB lúc nhập đàn đầu tiên và các lần cân mẫu, đổi ngày cân ra ngày tuổi; mục tiêu = ngày kết thúc chương trình nuôi. */

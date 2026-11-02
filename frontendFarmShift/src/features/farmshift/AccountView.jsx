@@ -25,6 +25,7 @@ import { ButtonSpinner } from '../../components/Loading/ButtonSpinner';
 import { PasswordInput } from '../../components/PasswordInput/PasswordInput';
 import employeeFormStyles from './EmployeeForm.module.css';
 import styles from './AccountView.module.css';
+import { dataCache } from '../../services/dataCache';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
@@ -198,8 +199,13 @@ export const AccountView = () => {
   };
 
   // Staff List State
-  const [staffList, setStaffList] = useState([]);
-  const [isLoadingStaff, setIsLoadingStaff] = useState(false);
+  const cachedStaff = dataCache.peek('/employees');
+  const [staffList, setStaffList] = useState(() => {
+    if (Array.isArray(cachedStaff)) return cachedStaff;
+    if (Array.isArray(cachedStaff?.data)) return cachedStaff.data;
+    return [];
+  });
+  const [isLoadingStaff, setIsLoadingStaff] = useState(() => !cachedStaff);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
   const [filterRole, setFilterRole] = useState('ALL');
@@ -351,6 +357,9 @@ export const AccountView = () => {
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
+    if (!dataCache.peek('/employees') || debouncedSearch || filterRole !== 'ALL' || filterStatus !== 'ALL') {
+      setIsLoadingStaff(true);
+    }
 
     getEmployees({
       keyword: debouncedSearch,

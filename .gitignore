@@ -36,3 +36,5 @@ aiServiceFarmShift/**/__pycache__/
 
 # Uploaded original sales weight slips
 frontendFarmShift/public/weigh-slips/
+
+.playwright-mcp/
