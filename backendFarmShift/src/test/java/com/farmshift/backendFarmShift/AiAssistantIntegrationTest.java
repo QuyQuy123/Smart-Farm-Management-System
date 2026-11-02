@@ -53,6 +53,7 @@ public class AiAssistantIntegrationTest {
     @Autowired ProductTypeRepository productTypeRepository;
     @Autowired WarehouseCategoryRepository warehouseCategoryRepository;
     @Autowired ProductCategoryRepository productCategoryRepository;
+    @Autowired(required = false) com.farmshift.backendFarmShift.service.ai.AiRateLimiter rateLimiter;
 
     private Barn barnA1;
     private FarmingCycle cycleA1;
@@ -60,6 +61,9 @@ public class AiAssistantIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        if (rateLimiter != null) {
+            rateLimiter.resetAll();
+        }
         // Initialize an Area, Barn (Nhà A1), Active Cycle and Flock
         long areaId = id(postJson("/api/farm-areas", Map.of("name", "Khu Mía Thịt")));
         long barnId = id(postJson("/api/barns", Map.of("areaId", areaId, "name", "Nhà A1", "capacity", 5000, "areaM2", 400)));
@@ -1076,5 +1080,263 @@ public class AiAssistantIntegrationTest {
                 .andExpect(jsonPath("$.actionType").value("VET_DIAGNOSIS"))
                 .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Điện giải")));
     }
-}
 
+    @Test
+    void testCompoundVoiceCommand_LogsFeedForMultipleBarnsInSingleTurn() throws Exception {
+        long barnA2Id = id(postJson("/api/barns", Map.of("areaId", barnA1.getArea().getId(), "name", "Nhà A2", "capacity", 4000, "areaM2", 350)));
+        long cycleA2Id = id(postJson("/api/barns/" + barnA2Id + "/cycles", Map.of("startDate", LocalDate.now().minusDays(5).toString())));
+        id(postJson("/api/cycles/" + cycleA2Id + "/flocks", Map.of(
+                "name", "Đàn gà Nhà A2",
+                "programId", flockA1.getProgram().getId(),
+                "gender", "MALE",
+                "importDate", LocalDate.now().minusDays(5).toString(),
+                "ageAtImport", 1,
+                "quantity", 1500,
+                "avgWeight", 0.04,
+                "unitPrice", 11000,
+                "sourceNote", "Dabaco"
+        )));
+
+        long feedsBefore = feedRepository.count();
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Ghi 40kg cám Nhà A1 và 50kg Nhà A2",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("COMPOUND_LOG_FEED"))
+                .andExpect(jsonPath("$.actionSummary.items").isArray())
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Nhà A1")))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Nhà A2")));
+
+        assertEquals(feedsBefore + 2, feedRepository.count());
+    }
+
+    @Test
+    void testCompoundCommand_ExceedingTotalStock_ReturnsMsg27AndRollsBack() throws Exception {
+        long barnA2Id = id(postJson("/api/barns", Map.of("areaId", barnA1.getArea().getId(), "name", "Nhà A2", "capacity", 4000, "areaM2", 350)));
+        long cycleA2Id = id(postJson("/api/barns/" + barnA2Id + "/cycles", Map.of("startDate", LocalDate.now().minusDays(5).toString())));
+        id(postJson("/api/cycles/" + cycleA2Id + "/flocks", Map.of(
+                "name", "Đàn gà Nhà A2",
+                "programId", flockA1.getProgram().getId(),
+                "gender", "MALE",
+                "importDate", LocalDate.now().minusDays(5).toString(),
+                "ageAtImport", 1,
+                "quantity", 1500,
+                "avgWeight", 0.04,
+                "unitPrice", 11000,
+                "sourceNote", "Dabaco"
+        )));
+
+        WarehouseCategory wh = new WarehouseCategory(); wh.setName("Kho Cám Test"); wh.setNameKey("kho cam test"); wh = warehouseCategoryRepository.saveAndFlush(wh);
+        ProductCategory prod = new ProductCategory(); prod.setName("Cám Higro 01"); prod.setNameKey("cam higro 01"); prod.setWarehouse(wh); prod = productCategoryRepository.saveAndFlush(prod);
+        InventoryItem item = new InventoryItem();
+        item.setWarehouse(wh);
+        item.setProduct(prod);
+        item.setPrice(BigDecimal.valueOf(310000));
+        item.setStock(BigDecimal.ONE);
+        inventoryRepository.saveAndFlush(item);
+
+        long feedsBefore = feedRepository.count();
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Ghi 40kg cám Higro 01 Nhà A1 và 50kg Nhà A2",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.actionType").value("STOCK_INSUFFICIENT"))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Tồn kho khả dụng không đủ")));
+
+        assertEquals(feedsBefore, feedRepository.count());
+    }
+
+    @Test
+    void testInternalStockDisposalCommand_GeneratesPendingConfirmationCard() throws Exception {
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Xuất hủy 2 bao cám Higro 01"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.actionType").value("INTERNAL_STOCK_VOUCHER"))
+                .andExpect(jsonPath("$.pendingAction.details.['Loại phiếu']", org.hamcrest.Matchers.containsString("Xuất hủy")))
+                .andExpect(jsonPath("$.pendingAction.details.['Tồn kho sau thao tác']").exists());
+    }
+
+    @Test
+    void testBatchPriceInquiry_OwnerSeesWeightedAverageAndBatches_WorkerSeesQuantitiesOnly() throws Exception {
+        WarehouseCategory wh = new WarehouseCategory(); wh.setName("Kho Cám Lô"); wh.setNameKey("kho cam lo"); wh = warehouseCategoryRepository.saveAndFlush(wh);
+        ProductCategory prod = new ProductCategory(); prod.setName("Cám Higro 01"); prod.setNameKey("cam higro 01"); prod.setWarehouse(wh); prod = productCategoryRepository.saveAndFlush(prod);
+
+        InventoryItem lot1 = new InventoryItem();
+        lot1.setWarehouse(wh);
+        lot1.setProduct(prod);
+        lot1.setPrice(BigDecimal.valueOf(310000));
+        lot1.setStock(BigDecimal.valueOf(20));
+        inventoryRepository.saveAndFlush(lot1);
+
+        InventoryItem lot2 = new InventoryItem();
+        lot2.setWarehouse(wh);
+        lot2.setProduct(prod);
+        lot2.setPrice(BigDecimal.valueOf(330000));
+        lot2.setStock(BigDecimal.valueOf(30));
+        inventoryRepository.saveAndFlush(lot2);
+
+        // 1. Owner query -> Sees weighted average price and lot prices
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Trong kho còn bao nhiêu bao cám Higro 01, chi tiết từng đợt giá nhập?"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("QUERY_STOCK_BATCH"))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Giá TB")))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("VNĐ")))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("#")));
+
+        // 2. Worker query -> Sees lot codes and quantities but NO price/currency
+        org.springframework.test.web.servlet.request.RequestPostProcessor workerAuth =
+                org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("worker@farm.test")
+                        .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_FARM_WORKER"));
+
+        String workerResponse = mvc.perform(post(ASSISTANT_API)
+                .with(workerAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Trong kho còn bao nhiêu bao cám Higro 01, chi tiết từng đợt giá nhập?"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("QUERY_STOCK_BATCH"))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("#")))
+                .andReturn().getResponse().getContentAsString();
+
+        assertFalse(workerResponse.contains("VNĐ"), "Worker must not see VNĐ currency in batch price table");
+        assertFalse(workerResponse.contains("310,000"), "Worker must not see lot unit prices");
+        assertFalse(workerResponse.contains("330,000"), "Worker must not see lot unit prices");
+    }
+
+    @Test
+    void testRateLimiter_ExceedingThreshold_Returns429Gracefully() throws Exception {
+        String testUser = "spammer@farm.test";
+        org.springframework.test.web.servlet.request.RequestPostProcessor spammerAuth =
+                org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(testUser)
+                        .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_FARM_WORKER"));
+
+        // Fire 30 requests to consume all chat quota
+        for (int i = 0; i < 30; i++) {
+            mvc.perform(post(ASSISTANT_API)
+                    .with(spammerAuth)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(Map.of("message", "Chào bạn"))))
+                    .andExpect(status().isOk());
+        }
+
+        // 31st request should be rejected with HTTP 429
+        mvc.perform(post(ASSISTANT_API)
+                .with(spammerAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Chào bạn"))))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.actionType").value("RATE_LIMIT_EXCEEDED"))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Quá nhiều yêu cầu")));
+    }
+
+    @Test
+    void testInternalStockTransferCommand_GeneratesPendingConfirmationCard_AndExecutesOnConfirm() throws Exception {
+        WarehouseCategory whSource = new WarehouseCategory(); whSource.setName("Kho Cám Chuyển"); whSource.setNameKey("kho cam chuyen"); whSource = warehouseCategoryRepository.saveAndFlush(whSource);
+        WarehouseCategory whTarget = new WarehouseCategory(); whTarget.setName("Kho Khu B Chuyển"); whTarget.setNameKey("kho khu b chuyen"); whTarget = warehouseCategoryRepository.saveAndFlush(whTarget);
+        ProductCategory prod = new ProductCategory(); prod.setName("Cám Higro 02"); prod.setNameKey("cam higro 02"); prod.setWarehouse(whSource); prod = productCategoryRepository.saveAndFlush(prod);
+
+        InventoryItem item = new InventoryItem();
+        item.setWarehouse(whSource);
+        item.setProduct(prod);
+        item.setPrice(BigDecimal.valueOf(320000));
+        item.setStock(BigDecimal.valueOf(100));
+        inventoryRepository.saveAndFlush(item);
+
+        // 1. Initial command returns PendingActionCard
+        String resJson = mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Chuyển 10 bao cám Higro 02 từ Kho cám sang Kho Khu B"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.actionType").value("INTERNAL_STOCK_VOUCHER"))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode root = mapper.readTree(resJson);
+        JsonNode pendingPayload = root.path("pendingAction").path("payload");
+        assertNotNull(pendingPayload);
+
+        // 2. Explicit confirmation executes the voucher
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "confirmAction", true,
+                        "pendingActionPayload", mapper.convertValue(pendingPayload, Map.class)
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("INTERNAL_STOCK_VOUCHER"))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Đã tạo thành công phiếu")));
+    }
+
+    @Test
+    void testCompoundLossCommand_LogsMortalityForMultipleBarns() throws Exception {
+        long barnA2Id = id(postJson("/api/barns", Map.of("areaId", barnA1.getArea().getId(), "name", "Nhà A2", "capacity", 4000, "areaM2", 350)));
+        long cycleA2Id = id(postJson("/api/barns/" + barnA2Id + "/cycles", Map.of("startDate", LocalDate.now().minusDays(5).toString())));
+        id(postJson("/api/cycles/" + cycleA2Id + "/flocks", Map.of(
+                "name", "Đàn gà Nhà A2",
+                "programId", flockA1.getProgram().getId(),
+                "gender", "MALE",
+                "importDate", LocalDate.now().minusDays(5).toString(),
+                "ageAtImport", 1,
+                "quantity", 1500,
+                "avgWeight", 0.04,
+                "unitPrice", 11000,
+                "sourceNote", "Dabaco"
+        )));
+
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Hôm nay Nhà A1 chết 2 con, Nhà A2 chết 3 con",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.actionType").value("COMPOUND_LOG_MORTALITY"))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Nhà A1 (2 con)")))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("Nhà A2 (3 con)")));
+
+        Barn updatedA1 = barnRepository.findById(barnA1.getId()).orElseThrow();
+        Barn updatedA2 = barnRepository.findById(barnA2Id).orElseThrow();
+        assertEquals(1998, updatedA1.getCurrentQuantity());
+        assertEquals(1497, updatedA2.getCurrentQuantity());
+    }
+
+    @Test
+    void testWorkerRoleBlockedFromInternalStockDisposalOrOpeningImport() throws Exception {
+        org.springframework.test.web.servlet.request.RequestPostProcessor workerAuth =
+                org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("worker@farm.test")
+                        .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_FARM_WORKER"));
+
+        mvc.perform(post(ASSISTANT_API)
+                .with(workerAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Xuất hủy 2 bao cám Higro 01"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("không có quyền")));
+    }
+}

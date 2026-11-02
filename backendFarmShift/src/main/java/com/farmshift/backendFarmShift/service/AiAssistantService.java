@@ -1,5 +1,9 @@
 package com.farmshift.backendFarmShift.service;
 
+import com.farmshift.backendFarmShift.service.ai.AssistantCommandDispatcher;
+import com.farmshift.backendFarmShift.service.ai.AssistantExecutionContext;
+import com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer;
+
 import com.farmshift.backendFarmShift.dto.AiAssistantRequest;
 import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
 import com.farmshift.backendFarmShift.dto.request.BarnRequest;
@@ -77,6 +81,12 @@ public class AiAssistantService {
 
     private final String aiServiceUrl;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AssistantCommandDispatcher commandDispatcher;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DynamicVietnameseSpeechNormalizer dynamicNormalizer;
+
     public AiAssistantService(
             BarnRepository barnRepository,
             FarmingCycleRepository cycleRepository,
@@ -137,6 +147,20 @@ public class AiAssistantService {
 
         // Check if this is an explicit confirmation of a pending action
         if (Boolean.TRUE.equals(request.getConfirmAction()) && request.getPendingActionPayload() != null) {
+            if (commandDispatcher != null) {
+                AssistantExecutionContext confirmCtx = AssistantExecutionContext.builder()
+                        .pendingActionPayload(request.getPendingActionPayload())
+                        .confirmAction(true)
+                        .username(actor)
+                        .isWorker(isWorker)
+                        .authorities(authorities)
+                        .build();
+                AiAssistantResponse dispatched = commandDispatcher.dispatch(confirmCtx);
+                if (dispatched != null) {
+                    captureContext(actor, dispatched);
+                    return dispatched;
+                }
+            }
             AiAssistantResponse confirmed = executeConfirmedPayload(request.getPendingActionPayload(), username, isWorker);
             captureContext(actor, confirmed);
             return confirmed;
@@ -154,7 +178,7 @@ public class AiAssistantService {
         boolean autoExecute = request.getAutoExecute() == null || Boolean.TRUE.equals(request.getAutoExecute());
 
         // GIAI ĐOẠN 1: chuẩn hóa tiếng Việt đời thường (số bằng chữ, "500 nghìn", "2 bao cám", tên chuồng/đơn nói tắt...)
-        String message = VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawMessage);
+        String message = dynamicNormalizer != null ? dynamicNormalizer.normalize(rawMessage) : VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawMessage);
 
         // Từ khóa xác nhận trực tiếp ("luôn nhé", "xác nhận luôn"): thực thi ngay, không cần thẻ xác nhận
         if (DIRECT_CONFIRM.matcher(message).find()) {
@@ -163,6 +187,27 @@ public class AiAssistantService {
         }
         Env env = new Env(actor, isWorker, autoExecute);
         Map<String, Object> ctx = resolveContext(actor, request.getLastActionContext());
+
+        if (commandDispatcher != null) {
+            AssistantExecutionContext execCtx = AssistantExecutionContext.builder()
+                    .message(message)
+                    .rawMessage(rawMessage)
+                    .currentRoute(request.getCurrentRoute())
+                    .username(actor)
+                    .authorities(authorities)
+                    .isWorker(isWorker)
+                    .autoExecute(autoExecute)
+                    .history(request.getHistory() != null ? request.getHistory() : Collections.emptyList())
+                    .lastActionContext(ctx)
+                    .pendingActionPayload(request.getPendingActionPayload())
+                    .confirmAction(request.getConfirmAction())
+                    .build();
+            AiAssistantResponse dispatched = commandDispatcher.dispatch(execCtx);
+            if (dispatched != null) {
+                captureContext(actor, dispatched);
+                return withDiffDetails(dispatched);
+            }
+        }
 
         // GIAI ĐOẠN 1b: Điều hướng màn hình thuần túy ("mở ghi nhật ký", "sổ quỹ"...) — chạy TRƯỚC các engine thao tác dữ liệu
         AssistantNavigationRouter.Route navRoute = AssistantNavigationRouter.resolve(normalizeText(message));
