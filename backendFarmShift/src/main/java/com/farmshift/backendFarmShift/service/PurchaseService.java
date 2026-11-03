@@ -295,10 +295,23 @@ public class PurchaseService {
             } else if (product != null && product.getWarehouse() != null) {
                 warehouse = product.getWarehouse();
             } else {
-                warehouse = warehouseCategoryRepository.findAll().stream().findFirst().orElseGet(() -> {
+                var allWarehouses = warehouseCategoryRepository.findAll();
+                String lowerName = nameKey;
+                boolean isMedicine = lowerName.contains("thuốc") || lowerName.contains("vắc") || lowerName.contains("vac")
+                        || lowerName.contains("kháng sinh") || lowerName.contains("paracetamol") || lowerName.contains("men tiêu hóa")
+                        || lowerName.contains("điện giải") || lowerName.contains("vitamin");
+                boolean isFeed = lowerName.contains("cám") || lowerName.contains("thức ăn") || lowerName.contains("đậm đặc")
+                        || lowerName.contains("hỗn hợp");
+
+                warehouse = allWarehouses.stream()
+                        .filter(w -> (isMedicine && "MEDICINE".equalsIgnoreCase(w.getKind())) || (isFeed && "FEED".equalsIgnoreCase(w.getKind())))
+                        .findFirst()
+                        .or(() -> allWarehouses.stream().findFirst())
+                        .orElseGet(() -> {
                     WarehouseCategory defaultWh = new WarehouseCategory();
                     defaultWh.setName("Kho tổng");
                     defaultWh.setNameKey("kho tổng");
+                    defaultWh.setDescription("Kho lưu trữ chung cho hàng hóa trang trại");
                     return warehouseCategoryRepository.saveAndFlush(defaultWh);
                 });
             }

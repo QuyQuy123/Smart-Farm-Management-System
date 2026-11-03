@@ -73,7 +73,11 @@ export const InventoryView = () => {
         const ordered = sortWarehouseCategories(await listWarehouseCategories());
         if (cancelled || current !== requestId) return;
         setCategories(ordered);
-        dataCache.set('/warehouse-categories', ordered);
+        if (ordered.length > 0) {
+          dataCache.set('/warehouse-categories', ordered);
+        } else {
+          dataCache.delete('/warehouse-categories');
+        }
         setSelectedCategory(value => ordered.some(category => category.id === value) ? value : ordered[0]?.id ?? null);
         setItemsRevision(value => value + 1);
       } catch {
@@ -103,6 +107,22 @@ export const InventoryView = () => {
     };
     window.addEventListener('farmshift:ai-action', handleAiAction);
     return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
+  }, []);
+
+  useEffect(() => {
+    const handleCacheInvalidated = (event) => {
+      const prefixes = event?.detail?.prefixes || [];
+      const matchWarehouse = prefixes.some(p => p.includes('warehouse') || p.includes('purchases') || p.includes('farm-areas') || p.includes('areas'));
+      const matchItems = prefixes.some(p => p.includes('inventory') || p.includes('purchases') || p.includes('internal-stock'));
+      if (matchWarehouse) {
+        setCategoryRevision(r => r + 1);
+      }
+      if (matchItems) {
+        setItemsRevision(r => r + 1);
+      }
+    };
+    window.addEventListener('farmshift:cache-invalidated', handleCacheInvalidated);
+    return () => window.removeEventListener('farmshift:cache-invalidated', handleCacheInvalidated);
   }, []);
 
   useEffect(() => {
