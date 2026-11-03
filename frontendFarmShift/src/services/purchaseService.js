@@ -1,5 +1,7 @@
 // src/services/purchaseService.js
 import { api } from '../utils/api';
+import { notifyInventoryChanged } from '../utils/inventoryEvents';
+import { WAREHOUSE_CATEGORIES_CHANGED } from './warehouseCategoryService';
 
 /* ── Hóa đơn nhập hàng (Purchase Invoices) ─────────────────────── */
 export const listPurchases = async (search = '', paymentStatus = '') => {
@@ -22,6 +24,11 @@ export const createPurchase = async (payload) => {
 
 export const importStock = async (id) => {
   const res = await api.post(`/purchases/${id}/import-stock`);
+  notifyInventoryChanged();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(WAREHOUSE_CATEGORIES_CHANGED));
+    try { localStorage.setItem(WAREHOUSE_CATEGORIES_CHANGED, `${Date.now()}-${Math.random()}`); } catch {}
+  }
   return res.data.data;
 };
 
