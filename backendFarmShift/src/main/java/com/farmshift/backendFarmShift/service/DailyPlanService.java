@@ -150,12 +150,12 @@ public class DailyPlanService {
         if (measured && actual != null && actual.signum() > 0) {
             if (request.sourceItemId() != null) {
                 task.lots = task.sources.stream().filter(lots -> lots.getFirst().getId().equals(request.sourceItemId())).findFirst()
-                        .orElseThrow(() -> new BadRequestException("Kho nguồn không thuộc phân công hoặc hàng hóa không phù hợp. Vui lòng tải lại phiếu việc.", "STOCK_SOURCE_INVALID"));
+                        .orElseThrow(() -> new BadRequestException("Kho nguồn không thuộc khu nuôi hoặc sai loại kho hoặc hàng hóa không phù hợp. Vui lòng tải lại phiếu việc.", "STOCK_SOURCE_INVALID"));
                 task.item = task.lots.getFirst();
             }
             if (task.item == null) throw new BadRequestException(task.sources.size() > 1
                     ? "Có nhiều kho/hàng hóa phù hợp. Vui lòng chọn nguồn trước khi xác nhận."
-                    : "Không tìm thấy hàng hóa có quy cách phù hợp trong kho được phân công.", "STOCK_SOURCE_REQUIRED");
+                    : "Không tìm thấy hàng hóa có quy cách phù hợp trong kho cám/thuốc của khu nuôi.", "STOCK_SOURCE_REQUIRED");
             BigDecimal packs = UsageMath.toStock(actual, task.unit, task.item, task.category == ProgramStepCategory.VACCINE);
             if (sourceStock(task.lots).compareTo(packs) < 0) throw new BadRequestException("Kho chỉ còn "
                     + amount(sourceStock(task.lots)) + " " + stockUnit(task.item) + ", cần " + amount(packs)
@@ -451,7 +451,7 @@ public class DailyPlanService {
             } else if (measured && group.sources.size() > 1) {
                 warnings.add(label(group.category) + " \"" + group.name + "\": có nhiều nguồn phù hợp. Chọn kho nguồn khi xác nhận.");
             } else if (measured && group.item == null) {
-                warnings.add(label(group.category) + " \"" + group.name + "\" chưa xác định được hàng hóa có quy cách phù hợp trong kho được phân công nên chưa trừ kho và chưa tính tiền.");
+                warnings.add(label(group.category) + " \"" + group.name + "\" chưa xác định được hàng hóa có quy cách phù hợp trong kho cám/thuốc của khu nuôi nên chưa trừ kho và chưa tính tiền.");
             }
             if (group.category == ProgramStepCategory.FEED) {
                 int meals = group.meals == null ? 1 : group.meals;
@@ -682,11 +682,12 @@ public class DailyPlanService {
                 workAssignment.tasksOf(barn.getId(), day, workerEmail));
     }
 
-    /** Giá trung bình một đơn vị tồn của mặt hàng (cùng quy cách) trên mọi kho: bình quân theo tồn, hết tồn thì trung bình giá. */
+    /** Giá trung bình một đơn vị tồn của mặt hàng (cùng quy cách) trong kho nguồn: bình quân theo tồn, hết tồn thì trung bình giá. */
     private BigDecimal averagePrice(InventoryItem item, Map<String, BigDecimal> cache) {
         Long unitId = item.getUnit() == null ? null : item.getUnit().getId();
-        return cache.computeIfAbsent(item.getProduct().getId() + ":" + unitId, ignored -> {
+        return cache.computeIfAbsent(item.getWarehouse().getId() + ":" + item.getProduct().getId() + ":" + unitId, ignored -> {
             List<InventoryItem> same = inventoryRepository.findByProduct_Id(item.getProduct().getId()).stream()
+                    .filter(other -> other.getWarehouse().getId().equals(item.getWarehouse().getId()))
                     .filter(other -> Objects.equals(other.getUnit() == null ? null : other.getUnit().getId(), unitId)).toList();
             List<InventoryItem> inStock = same.stream().filter(other -> other.getStock().signum() > 0).toList();
             BigDecimal stock = inStock.stream().map(InventoryItem::getStock).reduce(BigDecimal.ZERO, BigDecimal::add);

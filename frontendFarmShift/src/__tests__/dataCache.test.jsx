@@ -108,6 +108,16 @@ describe('DataCache Core Engine & Invalidation Matrix', () => {
   });
 
   describe('Test 3: Mutation Auto-Invalidation Matrix', () => {
+    it.each(['confirm', 'undo'])('clears stock, cycle finance and daily plans after task %s', () => {
+      const keys = ['/inventory-items', '/inventory', '/cycles/10', '/cycles/10/daily-plan', '/daily-plan', '/dashboard'];
+      keys.forEach(key => cache.set(key, { stale: true }));
+      cache.invalidateForMutation('/cycles/10/daily-plan/tasks');
+      keys.forEach(key => expect(cache.get(key)).toBeNull());
+      const persisted = new DataCache({ attachListeners: false });
+      persisted.setUserScope('test-user@farmshift.local');
+      keys.forEach(key => expect(persisted.get(key)).toBeNull());
+    });
+
     it('invalidates dependent cache entries when a mutation occurs', () => {
       cache.set('/purchases', [{ id: 1 }]);
       cache.set('/inventory-items', [{ id: 2 }]);

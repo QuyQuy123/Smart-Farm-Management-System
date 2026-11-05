@@ -108,6 +108,9 @@ export const INVALIDATION_MATRIX = {
     '/purchases'
   ],
   '/barns': [
+    '/barn-responsibilities',
+    '/work-assignments',
+    '/daily-plan',
     '/barns',
     '/farm-areas',
     '/areas',
@@ -120,6 +123,9 @@ export const INVALIDATION_MATRIX = {
     '/reports'
   ],
   '/farm-areas': [
+    '/barn-responsibilities',
+    '/work-assignments',
+    '/daily-plan',
     '/farm-areas',
     '/areas',
     '/barns',
@@ -136,6 +142,9 @@ export const INVALIDATION_MATRIX = {
     '/dashboard'
   ],
   '/cycles': [
+    '/daily-plan',
+    '/inventory-items',
+    '/inventory',
     '/cycles',
     '/barns',
     '/flocks',
