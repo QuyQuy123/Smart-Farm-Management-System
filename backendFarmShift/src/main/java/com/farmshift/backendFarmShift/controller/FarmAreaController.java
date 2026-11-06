@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/farm-areas")
+@RequestMapping({"/api/farm-areas", "/api/areas"})
 @RequiredArgsConstructor
 public class FarmAreaController {
     private final FarmAreaService service;

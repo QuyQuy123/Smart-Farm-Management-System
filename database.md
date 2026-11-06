@@ -19,6 +19,8 @@ erDiagram
     
     %% Farm Infrastructure & Daily Operations
     farm_areas ||--o{ barns : "contains"
+    farm_areas }o--o{ warehouse_categories : "linked_via_farm_area_warehouses"
+    farm_areas }o--o{ accounts : "assigned_via_farm_area_workers"
     barns ||--o{ farming_cycles : "hosts"
     farming_cycles ||--o{ flocks : "contains"
     flocks ||--o{ flock_movements : "tracks"
@@ -26,6 +28,7 @@ erDiagram
     farming_cycles ||--o{ weight_samples : "weighs"
     farming_cycles ||--o{ cycle_expenses : "incurs"
     farming_cycles ||--o{ daily_task_logs : "confirms_tasks"
+    daily_task_logs ||--o{ daily_stock_allocations : "allocates_lots"
     farming_programs ||--o{ farming_program_steps : "defines"
     farming_programs ||--o{ flocks : "applies_to"
     flocks ||--o| flocks : "source_flock"
@@ -44,6 +47,7 @@ erDiagram
     measurement_units ||--o{ inventory_items : "measured_by"
     inventory_items ||--o{ farming_program_steps : "linked_stock"
     inventory_items ||--o{ daily_task_logs : "deducts_stock"
+    inventory_items ||--o{ daily_stock_allocations : "deducted_from_lot"
 
     %% Purchase & Stock
     suppliers ||--o{ purchase_invoices : "supplies"
@@ -227,20 +231,37 @@ Entity: `Supplier`. Quản lý đối tác cung ứng tại **Thiết lập danh
 **API:** `GET /api/suppliers`, `GET /api/suppliers/{id}` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
 **Quy tắc:** Không xóa được nhà cung cấp đã cung cấp con giống cho đàn (`flocks.supplier_id`) → 409 `SUPPLIER_HAS_FLOCKS`. Hộp thoại **Nhập đàn** có nút (+) thêm nhanh nhà cung cấp bằng chính `POST /api/suppliers`.
 
-### 3.4 Bảng `warehouse_categories` — Danh mục kho
+### 3.4 Bảng `warehouse_categories` & `farm_area_warehouses` — Danh mục kho và Liên kết kho theo khu nuôi
 
-Entity: `WarehouseCategory`. Quản lý phân loại kho lưu trữ tại **Thiết lập danh mục → Danh mục kho**.
+Entity: `WarehouseCategory`. Quản lý phân loại kho lưu trữ tại **Thiết lập danh mục → Danh mục kho** và liên kết trực tiếp hoặc dùng chung giữa các **Khu nuôi**.
 
+**Bảng `warehouse_categories`:**
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
-| `name` | VARCHAR(150) | NOT NULL. Tên kho lưu trữ (VD: `Kho cám`, `Kho thuốc & Vắc-xin`, `Kho vật tư`). |
+| `name` | VARCHAR(150) | NOT NULL. Tên kho lưu trữ (VD: `Kho cám Mía Thịt`, `Kho thuốc Mía Thịt`, `Kho vật tư`). |
 | `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa ngăn trùng lặp. |
 | `description` | VARCHAR(1000) | Mô tả công năng kho. |
+| `area_id` | BIGINT | FOREIGN KEY → `farm_areas.id` (nullable). Khu nuôi sở hữu mặc định của kho khi được tự động khởi tạo theo khu. |
+| `kind` | VARCHAR(20) | Phân loại chuyên dụng theo khu (nullable): `FEED` (Kho cám), `MEDICINE` (Kho thuốc & Vắc-xin), hoặc `NULL` đối với kho tổng hợp / dùng chung. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**Ràng buộc toàn vẹn:** Không thể xóa danh mục kho khi đang có hàng hóa thuộc danh mục (`product_categories`) hoặc tồn kho (`inventory_items`) tham chiếu tới.
-**API:** `GET /api/warehouse-categories`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**Bảng liên kết N-N `farm_area_warehouses` (nâng cấp bởi `AreaWarehouseSchemaUpgrade`):**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `area_id` | BIGINT | NOT NULL, FOREIGN KEY → `farm_areas.id` ON DELETE CASCADE. |
+| `warehouse_id` | BIGINT | NOT NULL, FOREIGN KEY → `warehouse_categories.id` ON DELETE CASCADE. |
+
+- **Khóa chính / Ràng buộc duy nhất:** `PRIMARY KEY (area_id, warehouse_id)` (`uk_farm_area_warehouses`).
+- **Quy tắc liên kết Khu nuôi – Kho hàng (`AreaWarehouseService` & `FarmAreaService`):**
+  1. Khi **Tạo / Sửa Khu nuôi**, chủ trại có thể chọn một hoặc nhiều **Kho có sẵn** (`warehouseId` / `warehouseIds`) để nhiều khu (VD: `Khu 1` và `Khu 2`) dùng chung kho mà không sinh thêm kho trùng lặp.
+  2. Nếu **không chọn kho nào** (mặc định), hệ thống tự động tạo bộ kho riêng cho khu đó (`Kho cám <Tên khu>` với `kind = 'FEED'` và `Kho thuốc <Tên khu>` với `kind = 'MEDICINE'`) và ghi nhận vào `farm_area_warehouses`.
+  3. Khi đổi tên hoặc xóa Khu nuôi, hệ thống chỉ đổi tên hoặc giải phóng kho riêng trống của khu đó, tự động bảo vệ các kho đang dùng chung với khu nuôi khác hoặc đang còn tồn kho/chứng từ.
+- **Tự động kế thừa công nhân phụ trách kho (`WarehouseResponsibilityService`):**
+  - Bảng `warehouse_workers` (`warehouse_id`, `account_id`, UNIQUE `uk_warehouse_workers`) được duy trì để tương thích dữ liệu, nhưng công nhân được phân công vào Khu nuôi (`farm_area_workers`) hoặc Chuồng nuôi (`barn_workers`) sẽ **tự động liên kết tới Kho của Khu đó** để xuất cám/thuốc trong **Việc hôm nay** & **Ghi nhật ký** mà không cần bước gán thủ công theo kho tại `/general-settings`.
+
+**Ràng buộc toàn vẹn:** Không thể xóa danh mục kho khi đang có hàng hóa thuộc danh mục (`product_categories`), tồn kho (`inventory_items`) hoặc chứng từ xuất nhập nội bộ tham chiếu tới.
+**API:** `GET /api/warehouse-categories`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`); `GET /api/warehouse-responsibilities` (hiển thị danh sách công nhân kế thừa tự động theo khu/chuồng).
 
 ### 3.5 Bảng `measurement_units` — Đơn vị tính
 
@@ -328,7 +349,7 @@ Entity: `InventoryItem`. Quản lý tồn kho thực tế, đơn giá theo từn
 | `brand_id` | BIGINT | FOREIGN KEY → `brands.id`. Nhãn hiệu sản phẩm (có thể để trống). |
 | `unit_id` | BIGINT | FOREIGN KEY → `measurement_units.id` (`fk_inventory_unit`). Đơn vị tính định lượng. |
 | `price` | NUMERIC(19,2) | NOT NULL. Đơn giá vốn hoặc giá niêm yết của lô mặt hàng (VNĐ). |
-| `stock` | NUMERIC(19,3) | NOT NULL, DEFAULT 0.000. Số lượng tồn kho thực tế hiện có của lô hàng. |
+| `stock` | NUMERIC(19,6) | NOT NULL, DEFAULT 0.000000. Số lượng tồn kho thực tế hiện có của lô hàng (nâng cấp độ chính xác 6 chữ số thập phân bởi `DailyStockAllocationSchemaUpgrade`). |
 | `image_url` | TEXT | Đường dẫn URL hình ảnh mặt hàng. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
@@ -526,7 +547,12 @@ Entity: `FarmArea`. Quản lý các phân khu nuôi tại **Khu nuôi** (`/areas
 | `description` | VARCHAR(1000) | Mô tả vị trí, địa hình khu nuôi. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
+**Bảng liên kết N-N:**
+- `farm_area_warehouses` (`area_id`, `warehouse_id`): Liên kết Khu nuôi với một hoặc nhiều Kho hàng (`warehouse_categories`). Khi Tạo/Sửa khu (`POST / PUT /api/farm-areas` hoặc `/api/areas`), có thể gửi `warehouseId` / `warehouseIds` để dùng kho có sẵn (nhiều khu dùng chung 1 kho), hoặc để trống để tự động tạo bộ kho riêng cho khu đó.
+- `farm_area_workers` (`area_id`, `account_id`, UNIQUE `uk_farm_area_workers`): Danh sách công nhân phụ trách mặc định của khu nuôi.
+
 **Quy tắc:** Không thể xóa khu nuôi khi đang có chuồng nuôi trực thuộc (409 `FARM_AREA_HAS_BARNS`).
+**API:** `GET /api/farm-areas` (hoặc `/api/areas`), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`). Response trả kèm danh sách `warehouses` (`id`, `name`, `kind`).
 
 ### 6.2 Bảng `barns` — Chuồng nuôi
 
@@ -544,6 +570,7 @@ Entity: `Barn`. Quản lý chuồng trại cụ thể trong từng phân khu.
 | `area_m2` | NUMERIC(10,2) | Diện tích thực tế của chuồng (m²). Dùng để tính mật độ nuôi (con/m²). |
 | `target_weight` | NUMERIC(5,2) | Trọng lượng mục tiêu xuất chuồng bình quân (kg/con). |
 | `description` | VARCHAR(1000) | Mô tả quy cách chuồng, trang thiết bị giàn mát/quạt hút. |
+| `workers_override` | BOOLEAN | Cờ phân công công nhân riêng cho chuồng (nâng cấp bởi `BarnResponsibilitySchemaUpgrade`): `NULL` hoặc `FALSE` để kế thừa danh sách công nhân của Khu nuôi (`farm_area_workers`); `TRUE` để dùng danh sách công nhân riêng của chuồng (`barn_workers`). |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **Quy tắc:** Khi tạo chuồng gợi ý mật độ 8 con/m²; không chuyển khu khi chuồng đang có lứa nuôi; không xóa chuồng khi đang có vật nuôi hoặc có lịch sử lứa nuôi.
@@ -691,12 +718,13 @@ Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm só
 | `note` | VARCHAR(1000) | Hướng dẫn thực hiện chi tiết cho công nhân. |
 | `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`, có thể NULL. Hàng hóa kho dùng cho bước cám / thuốc / vắc-xin để trừ kho và tính chi phí khi xác nhận phiếu việc. Hàng hóa phải có quy cách đơn vị cùng loại đại lượng với định mức (cám → khối lượng; thuốc, vắc-xin → tử số của đơn vị liều: `g/...`, `ml/...`, `liều/...`). Thuốc gắn hàng hóa phải ghi rõ liều theo `kg cám`, `lít nước` hoặc `con`. |
 
-### 6.10 Bảng `daily_task_logs` — Phiếu việc hằng ngày đã xác nhận
+### 6.10 Bảng `daily_task_logs` & `daily_stock_allocations` — Phiếu việc hằng ngày đã xác nhận và phân bổ lô kho
 
-Entity: `DailyTaskLog`. Màn **Việc hôm nay** (`/today-tasks`) và khối **Việc hôm nay** trong trang chuồng.
+Entity: `DailyTaskLog` & `DailyStockAllocation`. Màn **Việc hôm nay** (`/today-tasks`), **Ghi nhật ký** (`/journal`) và khối **Việc hôm nay** trong trang chuồng.
 
 Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định mức 1 con của chương trình × số con còn lại của từng đàn cuối ngày đó** (đã trừ hao hụt, loại thải, xuất bán, chuyển đi sau ngày đó), gộp theo chuồng và theo hàng hóa (hoặc tên khi chưa gắn hàng hóa). Cám chia thành từng cữ; thuốc trộn cám tính theo kg cám của đàn trong ngày, thuốc pha nước theo lượng nước ước tính = 2 lít/kg cám; vắc-xin theo số con, làm tròn lên cả lọ. Bảng này chỉ lưu những việc đã được xác nhận.
 
+**Bảng `daily_task_logs`:**
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
@@ -709,7 +737,7 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 | `planned_quantity`, `actual_quantity` | NUMERIC(14,3) | Lượng theo kế hoạch và thực tế, cùng đơn vị `usage_unit`. |
 | `usage_unit` | VARCHAR(10) | `KG` (cám), `G` / `ML` (thuốc), `DOSE` / `ML` (vắc-xin). |
 | `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Hàng hóa đã trừ kho. |
-| `stock_quantity` | NUMERIC(14,3) | Số đơn vị tồn kho đã trừ (bao, lọ, gói...). |
+| `stock_quantity` | NUMERIC(19,6) | Số đơn vị tồn kho đã trừ (bao, lọ, gói...). Nâng cấp độ chính xác bởi `DailyStockAllocationSchemaUpgrade`. |
 | `unit_price` | NUMERIC(19,2) | Giá một đơn vị tồn kho lúc xác nhận. |
 | `cost` | NUMERIC(16,2) | Thành tiền = `stock_quantity` × `unit_price`. |
 | `feed_record_id` | BIGINT | FOREIGN KEY → `feed_records.id`. Nhật ký cám sinh ra khi xác nhận cữ cám (đơn giá đ/kg = giá bao / kg mỗi bao). |
@@ -719,19 +747,33 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 | `done_by` | VARCHAR(150) | NOT NULL. Email người xác nhận. |
 | `done_at` | TIMESTAMP | NOT NULL. Thời điểm xác nhận. |
 
+**Bảng `daily_stock_allocations` (nâng cấp bởi `DailyStockAllocationSchemaUpgrade`):**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `log_id` | BIGINT | NOT NULL, FOREIGN KEY → `daily_task_logs.id` ON DELETE CASCADE. |
+| `inventory_item_id` | BIGINT | NOT NULL, FOREIGN KEY → `inventory_items.id`. Lô tồn kho cụ thể đã xuất. |
+| `quantity` | NUMERIC(19,6) | NOT NULL. Lượng đơn vị tồn kho đã trừ từ lô này (phục vụ hoàn tác chính xác từng lô gốc). |
+
 **Quy tắc:**
-- Xác nhận cám / thuốc / vắc-xin có hàng hóa: trừ tồn kho bằng một câu `UPDATE ... WHERE stock >= lượng cần` (không thể âm kho khi hai người bấm cùng lúc); kho không đủ thì báo `STOCK_NOT_ENOUGH`.
-- Hoàn tác: hoàn lại tồn kho, xóa nhật ký cám / khoản chi đã sinh. Chủ trại hoàn tác mọi việc; công nhân chỉ hoàn tác việc của mình trong hôm nay.
+- **Nguồn kho tự động theo Khu nuôi (`DailyStockSources`)**: Khi công nhân được phân công vào Khu/Chuồng thực hiện nhiệm vụ, hệ thống tự động tìm và trừ tồn kho từ các kho liên kết với Khu nuôi của chuồng đó (qua `farm_area_warehouses` và `warehouse_categories.area_id`), hỗ trợ cả kho chuyên biệt (`FEED` / `MEDICINE`) và kho dùng chung (`kind IS NULL`).
+- Xác nhận cám / thuốc / vắc-xin có hàng hóa: trừ tồn kho bằng câu `UPDATE ... WHERE stock >= lượng cần` (không thể âm kho khi hai người bấm cùng lúc); kho không đủ thì báo `STOCK_NOT_ENOUGH`.
+- Hoàn tác: hoàn lại tồn kho chính xác theo `daily_stock_allocations`, xóa nhật ký cám / khoản chi đã sinh. Chủ trại hoàn tác mọi việc; công nhân chỉ hoàn tác việc của mình trong hôm nay.
 - Nhật ký cám / khoản chi sinh từ phiếu việc không xóa được ở nhật ký lứa (`RECORD_FROM_DAILY_PLAN`), phải hoàn tác ở phiếu việc.
 - Hàng hóa đang gắn vào chương trình nuôi hoặc phiếu việc không xóa được (`INVENTORY_IN_USE`).
 
 **API:** `GET /api/daily-plan?date=` (mọi chuồng đang nuôi), `GET /api/cycles/{id}/daily-plan?date=`, `POST /api/cycles/{id}/daily-plan/tasks` `{date, taskKey, actualQuantity?, note?}` và `DELETE /api/cycles/{id}/daily-plan/tasks?date=&taskKey=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Tiền chỉ trả về cho chủ trại và kế toán.
 
-### 6.11 Bảng `barn_workers`, `work_tasks`, `work_task_checks` — Phân công công việc
+### 6.11 Bảng `farm_area_workers`, `barn_workers`, `work_tasks`, `work_task_checks` — Phân công Khu/Chuồng & Giao việc
 
-Entity: `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Tab **Phân công** trong màn **Việc hôm nay** (`/today-tasks`, đường dẫn cũ `/work-assignments`, chỉ chủ trại).
+Entity: `FarmArea` (`workers`), `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Quản lý phân công công nhân phụ trách Khu nuôi / Chuồng nuôi và giao việc hằng ngày.
 
-**Bảng `barn_workers`** — công nhân phụ trách chuồng:
+**Bảng `farm_area_workers` (nâng cấp bởi `BarnResponsibilitySchemaUpgrade`)** — công nhân phụ trách mặc định của khu nuôi:
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `area_id` | BIGINT | NOT NULL, FOREIGN KEY → `farm_areas.id` ON DELETE CASCADE. |
+| `account_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id` (tài khoản `ROLE_FARM_WORKER` đang hoạt động). UNIQUE (`area_id`, `account_id`) qua `uk_farm_area_workers`. |
+
+**Bảng `barn_workers`** — công nhân phụ trách riêng của chuồng (khi `barns.workers_override = TRUE` hoặc phân công trực tiếp):
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
@@ -762,12 +804,13 @@ Entity: `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Tab **Phân công** trong mà
 | `done_by`, `done_at` | VARCHAR(150) / TIMESTAMP | NOT NULL. Người xác nhận và thời điểm. |
 
 **Quy tắc:**
+- Chuồng có `workers_override = FALSE` (hoặc `NULL` và chưa có `barn_workers`) sẽ tự động kế thừa danh sách công nhân của Khu nuôi (`farm_area_workers`). Khi phân công công nhân vào Khu/Chuồng, công nhân tự động được quyền lấy cám/thuốc từ Kho của Khu đó.
 - Công nhân chỉ thấy phiếu việc (`/api/daily-plan`) của chuồng mình phụ trách và chỉ việc giao cho mình; xem / xác nhận phiếu việc chuồng khác bị chặn (`BARN_NOT_ASSIGNED`). Chủ trại và kế toán xem mọi chuồng.
 - Chỉ người được giao (hoặc chủ trại) xác nhận việc (`WORK_TASK_NOT_YOURS`). Công nhân chỉ hoàn tác việc mình xác nhận trong hôm nay.
 - Không bỏ phân công công nhân còn việc được giao ở chuồng đó (`WORKER_HAS_TASKS`). Việc đã có ngày làm xong không đổi được chuồng, người làm, ngày bắt đầu (`WORK_TASK_HAS_CHECKS`).
 - Xóa chuồng thì xóa luôn phân công và việc giao của chuồng.
 
-**API:** `GET /api/work-assignments?date=`, `PUT /api/barns/{id}/workers` `{workerIds}`, `POST /api/work-tasks`, `PUT /api/work-tasks/{id}`, `DELETE /api/work-tasks/{id}` (`ROLE_FARM_OWNER`); `POST /api/work-tasks/{id}/checks` `{date, note}`, `DELETE /api/work-tasks/{id}/checks?date=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Phiếu việc của chuồng trả thêm `workers` và `assignedTasks`.
+**API:** `GET /api/barn-responsibilities`, `PUT /api/farm-areas/{id}/workers` (hoặc `/api/areas/{id}/workers`) `{workerIds}`, `PUT /api/farm-areas/{id}/worker-assignments` (hoặc `/api/areas/{id}/worker-assignments`), `DELETE /api/barns/{id}/workers/override`, `GET /api/work-assignments?date=`, `PUT /api/barns/{id}/workers` `{workerIds}`, `POST /api/work-tasks`, `PUT /api/work-tasks/{id}`, `DELETE /api/work-tasks/{id}` (`ROLE_FARM_OWNER`); `POST /api/work-tasks/{id}/checks` `{date, note}`, `DELETE /api/work-tasks/{id}/checks?date=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Phiếu việc của chuồng trả thêm `workers` và `assignedTasks`.
 
 ---
 

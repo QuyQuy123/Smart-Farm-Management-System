@@ -38,7 +38,8 @@ public class DailyStockSources {
         Map<String, List<InventoryItem>> groups = new LinkedHashMap<>();
         List<InventoryItem> items = preloadedItems != null ? preloadedItems : inventory.findAllWithDetailsBy(Sort.by("createdAt", "id"));
         for (InventoryItem item : items) {
-            if (!storeIds.contains(item.getWarehouse().getId()) || !kind.equals(item.getWarehouse().getKind()) || !normalize(item.getProduct().getName()).equals(name)
+            boolean kindMatches = item.getWarehouse().getKind() == null || kind.equalsIgnoreCase(item.getWarehouse().getKind());
+            if (!storeIds.contains(item.getWarehouse().getId()) || !kindMatches || !normalize(item.getProduct().getName()).equals(name)
                     || !UsageMath.compatible(item, UsageMath.usageUnit(step.getCategory(), step.getUnit()))) continue;
             String key = item.getWarehouse().getId() + ":" + item.getProduct().getId() + ":" + item.getUnit().getId();
             groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(item);

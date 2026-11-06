@@ -44,7 +44,7 @@ it('prints the loaded invoice without refetching and removes the print copy afte
   act(() => ref.current.print());
   expect(print).not.toHaveBeenCalled();
   await screen.findByText('SALE-PRINT');
-  expect(ready).toHaveBeenLastCalledWith(true);
+  await waitFor(() => expect(ready).toHaveBeenLastCalledWith(true));
   act(() => ref.current.print());
   await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
   const copy = document.body.querySelector('[data-sales-invoice-print]');

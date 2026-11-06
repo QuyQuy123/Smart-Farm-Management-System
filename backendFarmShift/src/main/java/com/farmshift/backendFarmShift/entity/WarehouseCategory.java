@@ -27,6 +27,10 @@ public class WarehouseCategory {
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
     private FarmArea area;
+    @ManyToMany(mappedBy = "warehouses")
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
+    private List<FarmArea> areas = new ArrayList<>();
     @Column(length = 20)
     private String kind;
     @ManyToMany

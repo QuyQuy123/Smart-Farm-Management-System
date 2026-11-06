@@ -229,6 +229,14 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new ConflictException("This email address is already in use.", MSG_EMAIL_IN_USE, "email");
         }
 
+        String phone = blankToNull(request.getPhone());
+        if (phone != null) {
+            List<Customer> existingWithPhone = customerRepository.findAll((root, query, cb) -> cb.equal(root.get("phone"), phone));
+            if (!existingWithPhone.isEmpty()) {
+                throw new ConflictException("This phone number is already in use.", "MSG49", "phone");
+            }
+        }
+
         Role role = resolveAssignableRole(request.getRoleName());
 
         Account account = new Account();
@@ -264,6 +272,15 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (!email.equalsIgnoreCase(account.getEmail())
                 && accountRepository.existsByEmailIgnoreCaseAndIdNot(email, id)) {
             throw new ConflictException("This email address is already in use.", MSG_EMAIL_IN_USE, "email");
+        }
+
+        String phone = blankToNull(request.getPhone());
+        if (phone != null) {
+            List<Customer> existingWithPhone = customerRepository.findAll((root, query, cb) -> cb.equal(root.get("phone"), phone));
+            boolean conflict = existingWithPhone.stream().anyMatch(c -> c.getAccount() == null || !c.getAccount().getId().equals(id));
+            if (conflict) {
+                throw new ConflictException("This phone number is already in use.", "MSG49", "phone");
+            }
         }
 
         boolean targetIsOwner = account.getRole() != null

@@ -22,12 +22,12 @@ import lombok.NoArgsConstructor;
 public class EmployeeUpdateRequest {
 
     @NotBlank(message = "Full name is required")
-    @Size(max = 100, message = "Full name must not exceed 100 characters")
+    @Size(max = 255, message = "Full name must not exceed 255 characters")
     private String fullName;
 
     @NotBlank(message = "Email is required")
-    @Email(message = "Email format is invalid")
-    @Size(max = 50, message = "Email must not exceed 50 characters")
+    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", message = "Email format is invalid")
+    @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
 
     @Pattern(regexp = "^(\\d{10,11})?$", message = "Phone number must be 10-11 digits")

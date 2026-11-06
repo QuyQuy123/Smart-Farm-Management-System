@@ -75,9 +75,14 @@ public class WarehouseCategoryService {
     }
 
     private WarehouseCategoryResponse response(WarehouseCategory category) {
+        Long areaId = category.getArea() != null ? category.getArea().getId()
+                : (category.getAreas() != null && !category.getAreas().isEmpty() ? category.getAreas().get(0).getId() : null);
+        String areaName = category.getArea() != null ? category.getArea().getName()
+                : (category.getAreas() != null && !category.getAreas().isEmpty()
+                ? category.getAreas().stream().map(com.farmshift.backendFarmShift.entity.FarmArea::getName).collect(java.util.stream.Collectors.joining(", "))
+                : null);
         return new WarehouseCategoryResponse(category.getId(), String.format(Locale.ROOT, "DM%06d", category.getId()),
                 category.getName(), category.getDescription(), inventory.countByWarehouse_Id(category.getId()), category.getCreatedAt(),
-                category.getArea() == null ? null : category.getArea().getId(), category.getArea() == null ? null : category.getArea().getName(),
-                category.getKind());
+                areaId, areaName, category.getKind());
     }
 }
