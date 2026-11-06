@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, X } from 'lucide-react';
 import { createBarn, createFarmArea, deleteBarn, deleteFarmArea, updateBarn, updateFarmArea } from '../../services/farmAreaService';
+import { listWarehouseCategories } from '../../services/warehouseCategoryService';
 import { BIRDS_PER_M2, apiErrorMessage, suggestCapacity, validateBarn } from './farmAreaOptions';
 import styles from './AreasView.module.css';
 
@@ -42,11 +43,21 @@ export function AreaDialog({ area, onClose, onSaved }) {
     environmentMetrics: area?.environmentMetrics || ['HUMIDITY', 'TEMPERATURE'],
     animalMetrics: area?.animalMetrics || ['WEIGHT', 'LOSS'],
     description: area?.description || '',
+    warehouseId: area?.warehouses?.[0]?.id ? String(area.warehouses[0].id) : '',
   }));
+  const [availableWarehouses, setAvailableWarehouses] = useState([]);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const set = (key, value) => { setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+
+  useEffect(() => {
+    let cancelled = false;
+    listWarehouseCategories().then(data => {
+      if (!cancelled && Array.isArray(data)) setAvailableWarehouses(data);
+    }).catch(() => { /* non-critical */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const submit = async event => {
     event.preventDefault();
@@ -55,7 +66,12 @@ export function AreaDialog({ area, onClose, onSaved }) {
     if (!name) { setErrors({ name: 'Vui lòng nhập tên khu nuôi.' }); return; }
     setSaving(true);
     setError('');
-    const payload = { ...form, name, description: form.description.trim() };
+    const payload = {
+      ...form,
+      name,
+      description: form.description.trim(),
+      warehouseId: form.warehouseId ? Number(form.warehouseId) : null,
+    };
     try {
       if (editing) await updateFarmArea(area.id, payload);
       else await createFarmArea(payload);
@@ -77,6 +93,26 @@ export function AreaDialog({ area, onClose, onSaved }) {
           placeholder="Ví dụ: Khu Mía Thịt" onChange={event => set('name', event.target.value)} disabled={saving}
           aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'farm-area-name-error' : undefined} autoFocus />
         <FieldError id="farm-area-name-error" message={errors.name} />
+
+        <label htmlFor="farm-area-warehouse">Kho hàng sử dụng</label>
+        <select id="farm-area-warehouse" className="farmshift-form-control"
+          value={form.warehouseId}
+          onChange={event => set('warehouseId', event.target.value)}
+          disabled={saving}
+          aria-label="Kho hàng sử dụng">
+          <option value="">(Mặc định) Tự động tạo kho mới theo khu nuôi</option>
+          {availableWarehouses.map(wh => (
+            <option key={wh.id} value={wh.id}>
+              {wh.name} {wh.areaName ? `(Khu ${wh.areaName})` : ''}
+            </option>
+          ))}
+        </select>
+        <small className={styles.fieldHint}>
+          {form.warehouseId
+            ? 'Khu nuôi này sẽ dùng chung kho với kho đã chọn.'
+            : 'Mặc định tự động tạo kho cám và kho thuốc riêng cho khu nuôi này.'}
+        </small>
+
         <label htmlFor="farm-area-description">Ghi chú</label>
         <textarea id="farm-area-description" className="farmshift-form-control" rows={3} maxLength={1000} value={form.description}
           placeholder="Mô tả hạ tầng, diện tích, hệ thống làm mát..." onChange={event => set('description', event.target.value)} disabled={saving} />

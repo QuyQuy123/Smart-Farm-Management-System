@@ -8,8 +8,13 @@ const STORAGE_PREFIX = 'farmshift_cache:';
 export const INVALIDATION_MATRIX = {
   '/employees': [
     '/employees',
+    '/users',
     '/user/profile',
-    '/account'
+    '/account',
+    '/accounts',
+    '/work-assignments',
+    '/warehouse-responsibilities',
+    '/barn-responsibilities'
   ],
   '/user/profile': [
     '/user/profile',
@@ -123,14 +128,18 @@ export const INVALIDATION_MATRIX = {
     '/reports'
   ],
   '/farm-areas': [
-    '/barn-responsibilities',
-    '/work-assignments',
-    '/daily-plan',
     '/farm-areas',
     '/areas',
     '/barns',
     '/warehouse-categories',
     '/warehouses',
+    '/inventory-items',
+    '/inventory',
+    '/today-tasks',
+    '/daily-plans',
+    '/daily-plan',
+    '/barn-responsibilities',
+    '/work-assignments',
     '/dashboard'
   ],
   '/areas': [
@@ -139,6 +148,13 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/warehouse-categories',
     '/warehouses',
+    '/inventory-items',
+    '/inventory',
+    '/today-tasks',
+    '/daily-plans',
+    '/daily-plan',
+    '/barn-responsibilities',
+    '/work-assignments',
     '/dashboard'
   ],
   '/cycles': [
@@ -248,13 +264,6 @@ export const INVALIDATION_MATRIX = {
     '/employees',
     '/accounts',
     '/work-assignments'
-  ],
-  '/employees': [
-    '/employees',
-    '/users',
-    '/work-assignments',
-    '/warehouse-responsibilities',
-    '/barn-responsibilities'
   ],
   '/work-assignments': [
     '/work-assignments',

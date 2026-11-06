@@ -29,6 +29,7 @@ public class FarmAreaService {
     private final FarmAreaRepository repository;
     private final BarnRepository barnRepository;
     private final AreaWarehouseService areaWarehouses;
+    private final com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouseCategoryRepository;
 
     public List<FarmAreaResponse> list() {
         Map<Long, long[]> summaries = summaries();
@@ -84,9 +85,30 @@ public class FarmAreaService {
         boolean created = area.getId() == null;
         try {
             FarmArea saved = repository.saveAndFlush(area);
-            // Mỗi khu có kho cám và kho thuốc riêng; đổi tên khu thì đổi tên kho theo.
-            if (created) areaWarehouses.ensure(saved);
-            else areaWarehouses.rename(saved);
+
+            List<Long> selectedWarehouseIds = new ArrayList<>();
+            if (request.warehouseIds() != null && !request.warehouseIds().isEmpty()) {
+                selectedWarehouseIds.addAll(request.warehouseIds());
+            } else if (request.warehouseId() != null) {
+                selectedWarehouseIds.add(request.warehouseId());
+            }
+
+            if (!selectedWarehouseIds.isEmpty()) {
+                List<com.farmshift.backendFarmShift.entity.WarehouseCategory> chosen = warehouseCategoryRepository.findAllById(selectedWarehouseIds);
+                if (saved.getWarehouses() == null) {
+                    saved.setWarehouses(new ArrayList<>());
+                }
+                saved.getWarehouses().clear();
+                saved.getWarehouses().addAll(chosen);
+                saved = repository.saveAndFlush(saved);
+            } else {
+                // Mặc định: Mỗi khu có kho cám và kho thuốc riêng; đổi tên khu thì đổi tên kho theo.
+                if (created || saved.getWarehouses() == null || saved.getWarehouses().isEmpty()) {
+                    areaWarehouses.ensure(saved);
+                } else {
+                    areaWarehouses.rename(saved);
+                }
+            }
             return response(saved, summaries().get(saved.getId()));
         } catch (DataIntegrityViolationException exception) {
             throw duplicateName();
@@ -128,8 +150,12 @@ public class FarmAreaService {
 
     private FarmAreaResponse response(FarmArea area, long[] summary) {
         long[] counts = summary == null ? new long[4] : summary;
+        List<FarmAreaResponse.WarehouseRef> warehouseRefs = warehouseCategoryRepository.findAllByArea_Id(area.getId()).stream()
+                .map(w -> new FarmAreaResponse.WarehouseRef(w.getId(), w.getName(), w.getKind()))
+                .toList();
         return new FarmAreaResponse(area.getId(), String.format(Locale.ROOT, "KN%06d", area.getId()), area.getName(),
                 split(area.getEnvironmentMetrics()), split(area.getAnimalMetrics()),
-                area.getDescription(), counts[0], counts[1], counts[2], counts[3], area.getCreatedAt(), area.getUpdatedAt());
+                area.getDescription(), counts[0], counts[1], counts[2], counts[3], area.getCreatedAt(), area.getUpdatedAt(),
+                warehouseRefs);
     }
 }

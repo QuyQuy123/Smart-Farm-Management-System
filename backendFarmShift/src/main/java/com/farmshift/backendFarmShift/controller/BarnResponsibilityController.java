@@ -22,7 +22,7 @@ public class BarnResponsibilityController {
         return ApiResponse.success("Phân công khu nuôi và chuồng nuôi", service.settings());
     }
 
-    @PutMapping("/api/farm-areas/{id}/workers")
+    @PutMapping({"/api/farm-areas/{id}/workers", "/api/areas/{id}/workers"})
     public ApiResponse<BarnResponsibilities> setArea(@PathVariable Long id, @Valid @RequestBody BarnWorkersRequest request) {
         service.setArea(id, request.workerIds());
         return ApiResponse.success("Đã cập nhật công nhân phụ trách khu nuôi", service.settings());
@@ -34,7 +34,7 @@ public class BarnResponsibilityController {
         return ApiResponse.success("Chuồng đã kế thừa công nhân từ khu nuôi", service.settings());
     }
 
-    @PutMapping("/api/farm-areas/{id}/worker-assignments")
+    @PutMapping({"/api/farm-areas/{id}/worker-assignments", "/api/areas/{id}/worker-assignments"})
     public ApiResponse<BarnResponsibilities> assignArea(@PathVariable Long id,
             @Valid @RequestBody AreaWorkerAssignmentsRequest request, Authentication authentication) {
         service.assignArea(id, request, authentication.getName());

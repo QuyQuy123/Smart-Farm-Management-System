@@ -20,6 +20,7 @@ public class ResetPasswordRequest {
 
     /** New plain-text password — will be BCrypt-hashed before persistence. */
     @NotBlank(message = "New password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters")
+    @Size(min = 8, max = 50, message = "Password must be between 8 and 50 characters")
+    @Pattern(regexp = "^\\S+$", message = "Password must not contain whitespace")
     private String newPassword;
 }

@@ -419,6 +419,10 @@ public class AiAssistantIntegrationTest {
     void testVoiceCommandCompleteDailyTasks_SuccessfullyConfirmsTodayTasks() throws Exception {
         // Xác nhận cho ăn phải trừ được kho: gắn cám Higro 01 (bao 25 kg, còn 10 bao) vào bước cho ăn của chương trình.
         long store = id(postJson("/api/warehouse-categories", Map.of("name", "Kho cám AI")));
+        WarehouseCategory storeWh = warehouseCategoryRepository.findById(store).orElseThrow();
+        storeWh.setArea(barnA1.getArea());
+        storeWh.setKind("FEED");
+        warehouseCategoryRepository.saveAndFlush(storeWh);
         long bag = id(postJson("/api/measurement-units", Map.of("code", "BAO25AI", "name", "Bao 25kg AI", "contentQuantity", 25, "contentUnit", "KG")));
         long feed = id(postJson("/api/inventory-items", Map.of("warehouseId", store, "name", "Higro 01", "unitId", bag, "price", 335000)));
         InventoryItem feedItem = inventoryRepository.findById(feed).orElseThrow();

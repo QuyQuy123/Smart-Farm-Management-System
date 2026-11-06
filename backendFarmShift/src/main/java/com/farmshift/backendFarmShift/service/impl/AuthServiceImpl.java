@@ -115,6 +115,11 @@ public class AuthServiceImpl implements AuthService {
             throw new ResourceNotFoundException("This email is not registered in our system.");
         }
 
+        Account account = accountRepository.findByEmail(email).orElse(null);
+        if (account != null && Boolean.FALSE.equals(account.getIsActive())) {
+            throw new BadRequestException("Tài khoản đang bị vô hiệu hóa.");
+        }
+
         // Invalidate all existing, unused OTPs for this email
         otpTokenRepository.invalidateAllByEmail(email);
 
@@ -152,6 +157,11 @@ public class AuthServiceImpl implements AuthService {
 
         if (!otpToken.getCode().equals(request.getOtp())) {
             throw new BadRequestException("Invalid OTP code. Please try again.");
+        }
+
+        Account account = accountRepository.findByEmail(email).orElse(null);
+        if (account != null && Boolean.FALSE.equals(account.getIsActive())) {
+            throw new BadRequestException("Tài khoản đang bị vô hiệu hóa.");
         }
     }
 
