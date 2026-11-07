@@ -73,11 +73,6 @@ export const InventoryView = () => {
         const ordered = sortWarehouseCategories(await listWarehouseCategories());
         if (cancelled || current !== requestId) return;
         setCategories(ordered);
-        if (ordered.length > 0) {
-          dataCache.set('/warehouse-categories', ordered);
-        } else {
-          dataCache.delete('/warehouse-categories');
-        }
         setSelectedCategory(value => ordered.some(category => category.id === value) ? value : ordered[0]?.id ?? null);
         setItemsRevision(value => value + 1);
       } catch {

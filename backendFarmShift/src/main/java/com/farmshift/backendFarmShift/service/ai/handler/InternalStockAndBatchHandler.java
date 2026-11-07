@@ -205,9 +205,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
 
         // RBAC Check via AiRbacPolicy
         if (context.isWorker()) {
-            if ("IMPORT".equals(movementType) || "EXPORT".equals(movementType)) {
-                return AiRbacPolicy.createForbiddenResponse();
-            }
+            return AiRbacPolicy.createForbiddenResponse();
         }
 
         // Resolve Warehouses

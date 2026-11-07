@@ -628,7 +628,16 @@ export const AIChatbot = ({ userRole: propRole }) => {
       }
     } catch (err) {
       console.warn('Lỗi khi xác nhận thao tác:', err);
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m));
+      const backendMsg = err.response?.data?.message || err.message || 'Không thể thực hiện thao tác. Vui lòng kiểm tra lại.';
+      setMessages(prev => [
+        ...prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m),
+        {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: `⚠️ ${backendMsg}`,
+          timestamp: new Date()
+        }
+      ]);
     }
   };
 

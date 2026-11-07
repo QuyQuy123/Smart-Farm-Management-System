@@ -481,7 +481,12 @@ public class AiAssistantService {
             "TRANSFER_FLOCK",
             "START_CYCLE",
             "CLOSE_CYCLE",
-            "START_OR_CLOSE_CYCLE"
+            "START_OR_CLOSE_CYCLE",
+            "IMPORT_PURCHASE_STOCK",
+            "INTERNAL_STOCK_VOUCHER",
+            "CREATE_INTERNAL_VOUCHER",
+            "HARVEST_FLOCK",
+            "HARVEST"
     );
 
     private AiAssistantResponse workerBlocked(String actionType) {
@@ -1054,6 +1059,9 @@ public class AiAssistantService {
                     payload.put("barnId", barn.getId());
                     payload.put("quantity", qty);
                     if (norm.contains("xuat ban") || norm.contains("thu hoach")) {
+                        if (env.worker()) {
+                            return workerBlocked("HARVEST");
+                        }
                         payload.put("movementType", "HARVEST");
                     } else if (norm.contains("loai thai")) {
                         payload.put("movementType", "CULL");
@@ -1136,6 +1144,9 @@ public class AiAssistantService {
             }
 
             if (invoiceCode != null) {
+                if (isWorker) {
+                    return workerBlocked("IMPORT_PURCHASE_STOCK");
+                }
                 return handleImportStock(invoiceCode, autoExecute);
             }
         }
@@ -1235,7 +1246,7 @@ public class AiAssistantService {
 
         // 11. LOG_MORTALITY (Hao hụt, chết, loại thải, xuất bán)
         if (norm.contains("hao hut") || norm.contains("chet") || norm.contains("loai thai") || norm.contains("xuat ban") || norm.contains("thu hoach")) {
-            AiAssistantResponse mortalityResponse = handleLogMortality(norm, message, currentRoute, username, autoExecute);
+            AiAssistantResponse mortalityResponse = handleLogMortality(norm, message, currentRoute, username, autoExecute, isWorker);
             if (mortalityResponse != null) {
                 return mortalityResponse;
             }
@@ -1759,14 +1770,18 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String username) {
-        return handleLogMortality(norm, originalMsg, null, username, true);
+        return handleLogMortality(norm, originalMsg, null, username, true, false);
     }
 
     private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String currentRoute, String username) {
-        return handleLogMortality(norm, originalMsg, currentRoute, username, true);
+        return handleLogMortality(norm, originalMsg, currentRoute, username, true, false);
     }
 
     private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute) {
+        return handleLogMortality(norm, originalMsg, currentRoute, username, autoExecute, false);
+    }
+
+    private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute, boolean isWorker) {
         Barn barn = resolveBarn(norm, originalMsg, currentRoute);
         if (barn == null) {
             if (hasBarnMention(norm, currentRoute)) {
@@ -1803,6 +1818,9 @@ public class AiAssistantService {
         FlockMovementType movementType = FlockMovementType.DEATH;
         String reason = "Hao hụt chăn nuôi";
         if (norm.contains("xuat ban") || norm.contains("thu hoach") || norm.contains("xuat")) {
+            if (isWorker) {
+                return workerBlocked("HARVEST");
+            }
             movementType = FlockMovementType.HARVEST;
             reason = "Xuất bán gà";
         } else if (norm.contains("loai thai")) {
@@ -1817,6 +1835,14 @@ public class AiAssistantService {
         }
 
         String actionLabel = movementType == FlockMovementType.HARVEST ? "xuất bán" : (movementType == FlockMovementType.CULL ? "loại thải" : "hao hụt");
+
+        if (barn.getCurrentQuantity() < qty) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Số lượng " + actionLabel + " (" + qty + " con) vượt quá số lượng gà hiện tại của chuồng (" + barn.getCurrentQuantity() + " con). Vui lòng kiểm tra lại số liệu (MSG27).")
+                    .actionType("LOG_MORTALITY")
+                    .executed(false)
+                    .build();
+        }
 
         if (!autoExecute) {
             Map<String, Object> details = new LinkedHashMap<>();
@@ -1857,6 +1883,13 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse commitLogMortality(Barn barn, Flock flock, int qty, String reason, FlockMovementType movementType, String username) {
+        if (barn.getCurrentQuantity() < qty) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Số lượng cần trừ (" + qty + " con) vượt quá số lượng gà hiện tại của chuồng (" + barn.getCurrentQuantity() + " con). Vui lòng kiểm tra lại số liệu (MSG27).")
+                    .actionType("LOG_MORTALITY")
+                    .executed(false)
+                    .build();
+        }
         if (flock != null) {
             FlockMovement movement = new FlockMovement();
             movement.setFlock(flock);

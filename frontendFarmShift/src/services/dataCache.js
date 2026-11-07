@@ -76,6 +76,7 @@ export const INVALIDATION_MATRIX = {
   '/warehouse-categories': [
     '/warehouse-categories',
     '/warehouses',
+    '/warehouse-responsibilities',
     '/inventory-items',
     '/inventory',
     '/internal-stock',
@@ -84,6 +85,7 @@ export const INVALIDATION_MATRIX = {
   '/warehouses': [
     '/warehouse-categories',
     '/warehouses',
+    '/warehouse-responsibilities',
     '/inventory-items',
     '/inventory',
     '/internal-stock',
@@ -114,6 +116,7 @@ export const INVALIDATION_MATRIX = {
   ],
   '/barns': [
     '/barn-responsibilities',
+    '/warehouse-responsibilities',
     '/work-assignments',
     '/daily-plan',
     '/barns',
@@ -133,6 +136,7 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/warehouse-categories',
     '/warehouses',
+    '/warehouse-responsibilities',
     '/inventory-items',
     '/inventory',
     '/today-tasks',
@@ -148,6 +152,7 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/warehouse-categories',
     '/warehouses',
+    '/warehouse-responsibilities',
     '/inventory-items',
     '/inventory',
     '/today-tasks',
@@ -267,6 +272,7 @@ export const INVALIDATION_MATRIX = {
   ],
   '/work-assignments': [
     '/work-assignments',
+    '/warehouse-responsibilities',
     '/daily-plans',
     '/today-tasks'
   ],
@@ -561,10 +567,13 @@ export class DataCache {
       '/inventory',
       '/warehouse-categories',
       '/warehouses',
+      '/warehouse-responsibilities',
       '/suppliers',
       '/purchase-tags',
       '/internal-stock',
       '/barns',
+      '/barn-responsibilities',
+      '/work-assignments',
       '/farm-areas',
       '/areas',
       '/cycles',

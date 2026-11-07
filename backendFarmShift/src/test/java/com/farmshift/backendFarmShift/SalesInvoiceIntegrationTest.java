@@ -51,5 +51,5 @@ class SalesInvoiceIntegrationTest {
   mvc.perform(get("/api/sales/orders/"+id+"/invoice")).andExpect(jsonPath("$.data.buyer.address").value("Updated database address"));
  }
  @Test void requiresAuthentication() throws Exception { mvc.perform(get("/api/sales/orders/unknown/invoice")).andExpect(status().is4xxClientError()); }
- @Test @WithMockUser void missingOrderIsNotFound() throws Exception { mvc.perform(get("/api/sales/orders/unknown/invoice")).andExpect(status().isNotFound()); }
+ @Test @WithMockUser(authorities="ROLE_FARM_OWNER") void missingOrderIsNotFound() throws Exception { mvc.perform(get("/api/sales/orders/unknown/invoice")).andExpect(status().isNotFound()); }
 }
