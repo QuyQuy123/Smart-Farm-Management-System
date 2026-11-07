@@ -3,6 +3,7 @@
 .idea/
 .vscode/
 *.log
+run.bat
 
 # Frontend (Node / Vite)
 frontendFarmShift/node_modules/

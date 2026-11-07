@@ -27,7 +27,11 @@ public class AreaWarehouseService {
     /** Bổ sung kho cho mọi khu chưa đủ (chạy khi khởi động cho dữ liệu cũ). */
     @Transactional
     public void ensureAll() {
-        areas.findAll().forEach(this::ensure);
+        for (FarmArea area : areas.findAll()) {
+            if (warehouses.findAllByArea_Id(area.getId()).isEmpty()) {
+                ensure(area);
+            }
+        }
     }
 
     @Transactional

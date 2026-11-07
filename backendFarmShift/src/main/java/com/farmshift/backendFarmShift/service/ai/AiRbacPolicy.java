@@ -23,7 +23,12 @@ public final class AiRbacPolicy {
             "UPDATE_BARN_CAPACITY",
             "INTERNAL_STOCK_IMPORT_OPENING",
             "INTERNAL_STOCK_DISPOSAL",
-            "CLOSE_CYCLE"
+            "CLOSE_CYCLE",
+            "IMPORT_PURCHASE_STOCK",
+            "INTERNAL_STOCK_VOUCHER",
+            "CREATE_INTERNAL_VOUCHER",
+            "HARVEST_FLOCK",
+            "HARVEST"
     );
 
     private AiRbacPolicy() {

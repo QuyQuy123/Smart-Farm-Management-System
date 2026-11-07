@@ -37,13 +37,17 @@ export const FieldError = ({ id, message }) => message ? <p id={id} className={s
 
 export function AreaDialog({ area, onClose, onSaved }) {
   const editing = Boolean(area);
+  const hasDedicatedWarehouses = area && Array.isArray(area.warehouses) && (
+    area.warehouses.length > 1 ||
+    (area.warehouses.length === 1 && (!area.warehouses[0].areaId || area.warehouses[0].areaId === area.id))
+  );
   const [form, setForm] = useState(() => ({
     name: area?.name || '',
     // Chỉ số theo dõi đã có sẵn cho mọi khu nên không hỏi trong form; giữ giá trị cũ khi sửa, mặc định khi tạo mới.
     environmentMetrics: area?.environmentMetrics || ['HUMIDITY', 'TEMPERATURE'],
     animalMetrics: area?.animalMetrics || ['WEIGHT', 'LOSS'],
     description: area?.description || '',
-    warehouseId: area?.warehouses?.[0]?.id ? String(area.warehouses[0].id) : '',
+    warehouseId: !hasDedicatedWarehouses && area?.warehouses?.[0]?.id ? String(area.warehouses[0].id) : '',
   }));
   const [availableWarehouses, setAvailableWarehouses] = useState([]);
   const [errors, setErrors] = useState({});

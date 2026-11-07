@@ -94,6 +94,13 @@ public class FarmAreaService {
             }
 
             if (!selectedWarehouseIds.isEmpty()) {
+                List<com.farmshift.backendFarmShift.entity.WarehouseCategory> oldLinked = warehouseCategoryRepository.findAllByArea_Id(saved.getId());
+                for (com.farmshift.backendFarmShift.entity.WarehouseCategory old : oldLinked) {
+                    if (!selectedWarehouseIds.contains(old.getId()) && old.getArea() != null && old.getArea().getId().equals(saved.getId())) {
+                        old.setArea(null);
+                        warehouseCategoryRepository.save(old);
+                    }
+                }
                 List<com.farmshift.backendFarmShift.entity.WarehouseCategory> chosen = warehouseCategoryRepository.findAllById(selectedWarehouseIds);
                 if (saved.getWarehouses() == null) {
                     saved.setWarehouses(new ArrayList<>());

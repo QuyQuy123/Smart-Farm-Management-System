@@ -47,6 +47,14 @@ public class WarehouseCategoryService {
                 || internalStockVoucherRepository.existsBySourceWarehouse_IdOrTargetWarehouse_Id(id, id)) {
             throw new ConflictException("Không thể xóa kho đang chứa hàng hóa hoặc đã phát sinh phiếu xuất nhập nội bộ. Hãy chuyển hoặc xóa các hàng hóa liên quan trước.", "WAREHOUSE_IN_USE", null);
         }
+        if (warehouse.getAreas() != null) {
+            for (com.farmshift.backendFarmShift.entity.FarmArea a : warehouse.getAreas()) {
+                if (a.getWarehouses() != null) {
+                    a.getWarehouses().remove(warehouse);
+                }
+            }
+            warehouse.getAreas().clear();
+        }
         repository.delete(warehouse);
     }
 

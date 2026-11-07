@@ -731,6 +731,21 @@ WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.invent
 --     Chia theo khu: Khu Mía Thịt → Nguyễn Văn Ba, Khu J Thịt → Dương Văn Hùng, khu khác → Nông Thị Hằng.
 --     Khi công nhân được phân công vào Khu/Chuồng, hệ thống tự động liên kết tới Kho của Khu đó.
 -- ---------------------------------------------------------------------
+ALTER TABLE barns ADD COLUMN IF NOT EXISTS workers_override boolean;
+CREATE TABLE IF NOT EXISTS farm_area_workers (
+    area_id bigint NOT NULL REFERENCES farm_areas(id) ON DELETE CASCADE,
+    account_id bigint NOT NULL REFERENCES accounts(id),
+    CONSTRAINT uk_farm_area_workers UNIQUE (area_id, account_id)
+);
+
+INSERT INTO farm_area_workers (area_id, account_id)
+SELECT fa.id, a.id
+FROM farm_areas fa
+JOIN accounts a ON a.email = CASE fa.name_key WHEN 'khu mía thịt' THEN 'congnhan@smartfarm.com'
+                                              WHEN 'khu j thịt' THEN 'hung@smartfarm.com'
+                                              ELSE 'hang@smartfarm.com' END
+ON CONFLICT (area_id, account_id) DO NOTHING;
+
 INSERT INTO barn_workers (barn_id, account_id, assigned_by, assigned_at)
 SELECT b.id, a.id, 'seed', NOW()
 FROM barns b
@@ -786,6 +801,19 @@ WHERE w.name_key = v.old_key
   AND NOT EXISTS (SELECT 1 FROM warehouse_categories x WHERE x.name_key = lower(v.new_name));
 
 -- Hai kho mặc định cho mỗi khu chưa có kho liên kết (đã có thì chỉ gắn khu / loại kho)
+ALTER TABLE warehouse_categories ADD COLUMN IF NOT EXISTS area_id bigint REFERENCES farm_areas(id);
+ALTER TABLE warehouse_categories ADD COLUMN IF NOT EXISTS kind varchar(20);
+CREATE TABLE IF NOT EXISTS farm_area_warehouses (
+    area_id bigint NOT NULL REFERENCES farm_areas(id) ON DELETE CASCADE,
+    warehouse_id bigint NOT NULL REFERENCES warehouse_categories(id) ON DELETE CASCADE,
+    PRIMARY KEY (area_id, warehouse_id)
+);
+CREATE TABLE IF NOT EXISTS warehouse_workers (
+    warehouse_id bigint NOT NULL REFERENCES warehouse_categories(id) ON DELETE CASCADE,
+    account_id bigint NOT NULL REFERENCES accounts(id),
+    CONSTRAINT uk_warehouse_workers UNIQUE (warehouse_id, account_id)
+);
+
 INSERT INTO warehouse_categories (name, name_key, description, area_id, kind, created_at, updated_at)
 SELECT k.prefix || regexp_replace(fa.name, '^[Kk]hu\s+', ''), lower(k.prefix || regexp_replace(fa.name, '^[Kk]hu\s+', '')),
        k.note || fa.name, fa.id, k.kind, NOW(), NOW()
