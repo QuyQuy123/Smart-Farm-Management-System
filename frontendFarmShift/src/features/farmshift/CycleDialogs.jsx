@@ -17,7 +17,7 @@ const apiFieldErrors = error => {
  * its required check) when it returns false. validate(values) returns { key: message }; onSubmit(values) performs the
  * request and resolves to the success message.
  */
-export function FormDialog({ title, intro, warning, fields: allFields, initial, validate, onSubmit, submitLabel = 'Lưu và đóng lại', danger, onClose, onDone }) {
+export function FormDialog({ title, intro, warning, fields: allFields, initial, validate, preview, onSubmit, submitLabel = 'Lưu và đóng lại', danger, onClose, onDone }) {
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
@@ -73,6 +73,7 @@ export function FormDialog({ title, intro, warning, fields: allFields, initial, 
             <FieldError id={`cycle-form-${field.key}-error`} message={errors[field.key]} />
           </div>)}
         </div>
+        {preview?.(values)}
       </div>
       <footer className={styles.footer}>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose} disabled={saving}>Bỏ qua</button>

@@ -64,6 +64,54 @@ public class CycleService {
         return summary(repository.saveAndFlush(cycle));
     }
 
+    /** Mở lứa cho chuồng trống khi tách đàn sang: lứa bắt đầu đúng ngày chuyển, ngày nở theo lứa gốc. */
+    FarmingCycle openForTransfer(Barn barn, LocalDate date, LocalDate hatchDate, String fromBarn) {
+        LocalDate lastEnd = repository.lastEndDate(barn.getId());
+        if (lastEnd != null && date.isBefore(lastEnd)) {
+            throw new BadRequestException("Ngày chuyển đàn không được trước ngày kết thúc lứa trước của chuồng " + barn.getName() + " (" + format(lastEnd) + ").",
+                    "TRANSFER_BEFORE_LAST_CYCLE");
+        }
+        FarmingCycle cycle = new FarmingCycle();
+        cycle.setBarn(barn);
+        cycle.setCycleNumber(repository.maxCycleNumber(barn.getId()) + 1);
+        cycle.setStartDate(date);
+        cycle.setHatchDate(hatchDate);
+        cycle.setStatus(CycleStatus.ACTIVE);
+        cycle.setNote("Mở khi tách đàn từ " + fromBarn);
+        barn.setStatus(BarnStatus.ACTIVE);
+        return repository.saveAndFlush(cycle);
+    }
+
+    /**
+     * Tách đàn: phần cám đã ăn, tiền cám và khối lượng đã tăng của số con chuyển đi theo đàn sang lứa đích (tính theo đầu con),
+     * như giá vốn con giống. Gọi trước khi trừ số con ở đàn gốc.
+     */
+    void carryWithFlock(FarmingCycle from, FarmingCycle to, int moved) {
+        Long id = from.getId();
+        List<FeedRecord> feeds = feedRepository.findAllByCycleIdOrderByRecordDateDescIdDesc(id);
+        CycleMetrics metrics = metrics(from, from.getBarn(), flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(id),
+                movementRepository.findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(id), feeds, weightRepository.findAllByCycleIdOrderBySampleDateDescIdDesc(id));
+        int current = metrics.currentQuantity();
+        if (current <= 0) return;
+        BigDecimal feedKg = share(metrics.feedKg(), moved, current);
+        BigDecimal feedCost = share(feedCost(from, feeds), moved, current);
+        BigDecimal gainKg = share(metrics.weightGainKg().max(BigDecimal.ZERO), moved, current);
+        from.setCarriedFeedKg(from.getCarriedFeedKg().subtract(feedKg));
+        from.setCarriedFeedCost(from.getCarriedFeedCost().subtract(feedCost));
+        from.setCarriedGainKg(from.getCarriedGainKg().subtract(gainKg));
+        to.setCarriedFeedKg(to.getCarriedFeedKg().add(feedKg));
+        to.setCarriedFeedCost(to.getCarriedFeedCost().add(feedCost));
+        to.setCarriedGainKg(to.getCarriedGainKg().add(gainKg));
+    }
+
+    private static BigDecimal share(BigDecimal value, int part, int whole) {
+        return value.multiply(BigDecimal.valueOf(part)).divide(BigDecimal.valueOf(whole), 3, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal feedCost(FarmingCycle cycle, List<FeedRecord> feeds) {
+        return feeds.stream().map(f -> f.getQuantityKg().multiply(f.getUnitPrice())).reduce(cycle.getCarriedFeedCost(), BigDecimal::add);
+    }
+
     @Transactional
     public CycleSummaryResponse close(Long cycleId, CloseCycleRequest request) {
         FarmingCycle cycle = requireActive(cycleId);
@@ -121,7 +169,7 @@ public class CycleService {
         return new CycleDetailResponse(summary(cycle, flocks),
                 BarnService.response(barn, cycle.getStatus() == CycleStatus.ACTIVE ? cycle.getId() : activeCycleId(barn)),
                 metrics,
-                canSeeFinance ? finance(movements, feeds, expenses, metrics) : null,
+                canSeeFinance ? finance(cycle, movements, feeds, expenses, metrics) : null,
                 flocks.stream().map(flock -> flockResponse(flock, reference, canSeeFinance, invoices.get(flock.getId()))).toList(),
                 List.copyOf(programs.values()),
                 movements.stream().filter(m -> m.getType() != FlockMovementType.IMPORT)
@@ -204,9 +252,9 @@ public class CycleService {
                 .map(WeightSample::getAvgWeightKg)
                 .orElse(totalIn == 0 ? null : inWeight.divide(BigDecimal.valueOf(totalIn), 3, RoundingMode.HALF_UP));
         BigDecimal biomass = avgWeight == null ? BigDecimal.ZERO : avgWeight.multiply(BigDecimal.valueOf(current)).setScale(1, RoundingMode.HALF_UP);
-        BigDecimal feedKg = feeds.stream().map(FeedRecord::getQuantityKg).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal feedKg = feeds.stream().map(FeedRecord::getQuantityKg).reduce(cycle.getCarriedFeedKg(), BigDecimal::add);
         // FCR = cám tiêu thụ / khối lượng tăng (hiện có + đã ra khỏi chuồng - khối lượng lúc vào).
-        BigDecimal gain = biomass.add(outWeight).subtract(inWeight);
+        BigDecimal gain = biomass.add(outWeight).subtract(inWeight).add(cycle.getCarriedGainKg());
         BigDecimal fcr = gain.signum() > 0 && feedKg.signum() > 0 ? feedKg.divide(gain, 2, RoundingMode.HALF_UP) : null;
         BigDecimal density = barn.getAreaM2() == null || barn.getAreaM2().signum() <= 0 ? null
                 : BigDecimal.valueOf(current).divide(barn.getAreaM2(), 1, RoundingMode.HALF_UP);
@@ -219,7 +267,7 @@ public class CycleService {
                 firstImport == null ? null : firstImport.plusDays(MAX_IMPORT_SPREAD_DAYS), barn.getCapacity());
     }
 
-    private CycleFinance finance(List<FlockMovement> movements, List<FeedRecord> feeds, List<CycleExpense> expenses, CycleMetrics metrics) {
+    private CycleFinance finance(FarmingCycle cycle, List<FlockMovement> movements, List<FeedRecord> feeds, List<CycleExpense> expenses, CycleMetrics metrics) {
         BigDecimal chicks = BigDecimal.ZERO, revenue = BigDecimal.ZERO;
         for (FlockMovement m : movements) {
             BigDecimal unitPrice = m.getFlock() != null && m.getFlock().getUnitPrice() != null ? m.getFlock().getUnitPrice() : BigDecimal.ZERO;
@@ -235,7 +283,7 @@ public class CycleService {
                 default -> { }
             }
         }
-        BigDecimal feed = feeds.stream().map(f -> f.getQuantityKg().multiply(f.getUnitPrice())).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal feed = feedCost(cycle, feeds);
         Map<String, BigDecimal> byCategory = new LinkedHashMap<>();
         for (ExpenseCategory category : ExpenseCategory.values()) byCategory.put(category.name(), BigDecimal.ZERO);
         for (CycleExpense e : expenses) byCategory.merge(e.getCategory().name(), e.getAmount(), BigDecimal::add);

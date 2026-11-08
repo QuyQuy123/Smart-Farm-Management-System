@@ -21,6 +21,9 @@ public class FarmJournalSchemaUpgrade implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         jdbc.execute("ALTER TABLE farms ADD COLUMN IF NOT EXISTS first_meal_time time");
+        jdbc.execute("ALTER TABLE farming_cycles ADD COLUMN IF NOT EXISTS carried_feed_kg numeric(19,3) NOT NULL DEFAULT 0");
+        jdbc.execute("ALTER TABLE farming_cycles ADD COLUMN IF NOT EXISTS carried_feed_cost numeric(19,3) NOT NULL DEFAULT 0");
+        jdbc.execute("ALTER TABLE farming_cycles ADD COLUMN IF NOT EXISTS carried_gain_kg numeric(19,3) NOT NULL DEFAULT 0");
         jdbc.execute("ALTER TABLE flock_movements ADD COLUMN IF NOT EXISTS photo_urls varchar(2000)");
         jdbc.execute("ALTER TABLE flocks ADD COLUMN IF NOT EXISTS supplier_id bigint REFERENCES suppliers(id)");
         jdbc.execute("ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS flock_id bigint REFERENCES flocks(id)");

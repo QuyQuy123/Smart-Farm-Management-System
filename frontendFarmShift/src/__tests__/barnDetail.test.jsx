@@ -173,18 +173,39 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(mocks.showToast).toHaveBeenCalledWith('Đã nhập đàn MÍA XÔ (5.000 con).', 'success');
   });
 
-  it('transfers only to running barns with enough room', async () => {
+  it('transfers to barns with enough room', async () => {
     renderAt('/barns/2');
     fireEvent.click(await screen.findByRole('button', { name: 'Chuyển đàn H0004' }));
     const dialog = await screen.findByRole('dialog');
     const options = within(field(dialog, /Chuồng đích/)).getAllByRole('option').map(option => option.textContent);
-    expect(options).toEqual(['Nhà A2 (Khu Mía Thịt) · còn 1.000 chỗ']);
+    expect(options[0]).toBe('Nhà A2 (Khu Mía Thịt) · còn 1.000 chỗ');
     fireEvent.change(field(dialog, /Số con chuyển/), { target: { value: '2000' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     expect(await within(dialog).findByText('Nhà A2 chỉ còn 1.000 chỗ.')).toBeInTheDocument();
     fireEvent.change(field(dialog, /Số con chuyển/), { target: { value: '800' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await waitFor(() => expect(cycles.transferFlock).toHaveBeenCalledWith(4, expect.objectContaining({ targetBarnId: 3, quantity: 800 })));
+  });
+
+  it('splits a flock in half into an empty barn and previews both barns', async () => {
+    renderAt('/barns/2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Chuyển đàn H0004' }));
+    const dialog = await screen.findByRole('dialog');
+    const target = field(dialog, /Chuồng đích/);
+    expect(within(target).getByRole('option', { name: /Nhà A4 .* trống, chứa được/ })).toBeInTheDocument();
+    fireEvent.change(target, { target: { value: '7' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Chia đôi' }));
+    const quantity = Number(field(dialog, /Số con chuyển/).value);
+    expect(quantity).toBeGreaterThan(0);
+
+    const preview = within(dialog).getByLabelText('Xem trước sau khi chuyển');
+    expect(preview).toHaveTextContent('Chuồng đích sẽ có');
+    expect(preview).toHaveTextContent('Nhà A4');
+    expect(preview).toHaveTextContent('tự mở lứa mới');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    await waitFor(() => expect(cycles.transferFlock).toHaveBeenCalledWith(4, expect.objectContaining({ targetBarnId: 7, quantity })));
+    await waitFor(() => expect(mocks.showToast).toHaveBeenCalledWith(expect.stringContaining('Đã mở lứa mới'), 'success'));
   });
 
   it('lets the owner attach a breed program to all running flocks at once', async () => {

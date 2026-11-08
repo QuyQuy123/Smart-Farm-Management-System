@@ -95,6 +95,19 @@
 .selectedRow td { background: #f0faf6; }
 .upper { text-transform: uppercase; }
 .rowActions { display: flex; gap: 4px; justify-content: flex-end; }
+/* Tách đàn: nút chia đôi cạnh ô số con, xem trước số con và mật độ hai chuồng sau khi chuyển. */
+.quantityRow { display: flex; gap: 8px; }
+.quantityRow input { flex: 1; min-width: 0; }
+.halfButton { flex-shrink: 0; padding: 0 12px; border: 1px solid #bddfd2; border-radius: 8px; background: #e8f6f1; color: #006b5f; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.halfButton:hover:not(:disabled) { background: #d6efe6; }
+.transferPreview { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding: 12px 14px; border: 1px solid #d7ecdc; border-radius: 12px; background: #f6fbf7; }
+.transferPreview > small { font-size: 13.5px; color: #52796f; }
+.transferSides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.transferSides > div { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border-radius: 8px; background: #fff; }
+.transferSides span { font-size: 13px; color: #52796f; }
+.transferSides strong { font-size: 15px; color: #1b4332; }
+.transferSides small { font-size: 13.5px; font-weight: 600; color: #2d6a4f; }
+.transferSides .transferOver small { color: #b4234a; }
 .iconButton { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid #e2eae7; border-radius: 8px; background: #fff; color: #607781; cursor: pointer; }
 .iconButton:hover { background: #e8f6f1; color: #008577; border-color: #bddfd2; }
 .linkButton { padding: 0; border: 0; background: none; color: #1b61c9; font: inherit; font-size: 14.5px; cursor: pointer; }

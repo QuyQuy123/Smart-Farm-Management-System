@@ -34,6 +34,16 @@ public class FarmingCycle {
     private CycleStatus status;
     @Column(length = 1000)
     private String note;
+    /**
+     * Phần cám đã ăn, tiền cám và khối lượng đã tăng đi theo số con tách sang lứa khác: lứa đích cộng, lứa gốc trừ.
+     * Nhờ vậy gà ở hai chuồng có cùng cám / con và FCR như trước khi tách.
+     */
+    @Column(name = "carried_feed_kg", nullable = false, precision = 19, scale = 3)
+    private BigDecimal carriedFeedKg = BigDecimal.ZERO;
+    @Column(name = "carried_feed_cost", nullable = false, precision = 19, scale = 3)
+    private BigDecimal carriedFeedCost = BigDecimal.ZERO;
+    @Column(name = "carried_gain_kg", nullable = false, precision = 19, scale = 3)
+    private BigDecimal carriedGainKg = BigDecimal.ZERO;
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
