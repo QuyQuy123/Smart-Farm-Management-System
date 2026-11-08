@@ -230,9 +230,10 @@ export const BarnDetailView = () => {
   };
 
   const openTransfer = flock => {
-    // Chuồng đích: chuồng đang có lứa còn chỗ, hoặc chuồng trống (hệ thống tự mở lứa mới từ ngày chuyển).
+    // Chuồng đích là chuồng trống, chưa có lứa (hệ thống tự mở lứa mới từ ngày chuyển); chuồng cùng khu xếp trước.
     const roomOf = item => item.capacity - item.currentQuantity;
-    const targets = barns.filter(item => item.id !== barn.id && roomOf(item) > 0);
+    const targets = barns.filter(item => item.id !== barn.id && !item.activeCycleId && item.currentQuantity === 0 && item.capacity > 0)
+      .sort((a, b) => Number(b.areaName === barn.areaName) - Number(a.areaName === barn.areaName));
     const half = Math.floor(flock.quantity / 2);
     const density = (item, quantity) => (Number(item.areaM2) > 0 ? ` · ${num(quantity / Number(item.areaM2), 1)} con/m²` : '');
     const side = (label, item, quantity) => <div className={quantity > item.capacity ? styles.transferOver : undefined}>
@@ -243,13 +244,12 @@ export const BarnDetailView = () => {
     setModal({
       title: `Tách / chuyển đàn ${flock.code}`,
       intro: `Đàn ${flock.name} đang tồn ${num(flock.quantity)} con. Số con chuyển đi vẫn là đàn đó, chỉ đổi chuồng: giữ tuổi và cân nặng; cám đã ăn, giá vốn và các khoản chi chia theo số con.`,
-      warning: targets.length ? null : 'Không còn chuồng nào khác còn chỗ để nhận đàn.',
+      warning: targets.length ? null : 'Chưa có chuồng trống để tách đàn. Hãy tạo chuồng mới ở mục Khu nuôi hoặc kết thúc lứa của một chuồng.',
       initial: { targetBarnId: targets[0] ? String(targets[0].id) : '', quantity: '', transferDate: today, name: flock.name, avgWeight: '', note: '' },
       fields: [
-        { key: 'targetBarnId', label: 'Chuồng đích', type: 'select', required: true,
-          options: targets.length ? targets.map(item => ({ value: String(item.id),
-            label: `${item.name} (${item.areaName}) · ${item.activeCycleId ? `còn ${num(roomOf(item))} chỗ` : `trống, chứa được ${num(roomOf(item))} con`}` }))
-            : [{ value: '', label: 'Không có chuồng phù hợp' }] },
+        { key: 'targetBarnId', label: 'Chuồng trống nhận đàn', type: 'select', required: true,
+          options: targets.length ? targets.map(item => ({ value: String(item.id), label: `${item.name} (${item.areaName}) · chứa được ${num(roomOf(item))} con` }))
+            : [{ value: '', label: 'Không có chuồng trống' }] },
         { key: 'quantity', label: 'Số con chuyển', required: true,
           render: (common, setQuantity) => <div className={styles.quantityRow}>
             <input {...common} type="number" min={1} max={flock.quantity} step={1} inputMode="numeric" />
@@ -276,17 +276,17 @@ export const BarnDetailView = () => {
         return <div className={styles.transferPreview} aria-label="Xem trước sau khi chuyển">
           <div className={styles.transferSides}>
             {side('Chuồng hiện tại còn', barn, barn.currentQuantity - moving)}
-            {side('Chuồng đích sẽ có', target, target.currentQuantity + moving)}
+            {side('Chuồng mới sẽ có', target, target.currentQuantity + moving)}
           </div>
           <small>Đàn tách giữ nguyên {flock.currentAgeDays} ngày tuổi, chương trình nuôi, cân nặng và FCR; cám đã ăn và chi phí chia theo số con.
-            {!target.activeCycleId && ' Chuồng đích đang trống nên hệ thống tự mở lứa mới từ ngày chuyển.'}</small>
+            {' '}Hệ thống tự mở lứa mới cho chuồng này từ ngày chuyển.</small>
         </div>;
       },
       onSubmit: async values => {
         const target = targets.find(item => String(item.id) === values.targetBarnId);
         await transferFlock(flock.id, { targetBarnId: Number(values.targetBarnId), quantity: Number(values.quantity), transferDate: values.transferDate,
           name: values.name.trim(), avgWeight: values.avgWeight === '' ? null : Number(values.avgWeight), note: values.note.trim() });
-        return `Đã chuyển ${num(values.quantity)} con từ đàn ${flock.code} sang ${target.name}.${target.activeCycleId ? '' : ' Đã mở lứa mới, nhớ phân công công nhân và kho cho chuồng này.'}`;
+        return `Đã chuyển ${num(values.quantity)} con từ đàn ${flock.code} sang ${target.name}. Đã mở lứa mới, nhớ phân công công nhân và kho cho chuồng này.`;
       },
     });
   };

@@ -173,33 +173,43 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(mocks.showToast).toHaveBeenCalledWith('Đã nhập đàn MÍA XÔ (5.000 con).', 'success');
   });
 
-  it('transfers to barns with enough room', async () => {
+  it('splits only into empty barns that can hold the birds', async () => {
+    areas.listBarns.mockResolvedValue([barn(2, 'Nhà A3', { activeCycleId: 20 }), barn(3, 'Nhà A2', { activeCycleId: 30, currentQuantity: 49000 }),
+      barn(7, 'Nhà A4', { activeCycleId: null, currentQuantity: 0, capacity: 1000 })]);
     renderAt('/barns/2');
     fireEvent.click(await screen.findByRole('button', { name: 'Chuyển đàn H0004' }));
     const dialog = await screen.findByRole('dialog');
-    const options = within(field(dialog, /Chuồng đích/)).getAllByRole('option').map(option => option.textContent);
-    expect(options[0]).toBe('Nhà A2 (Khu Mía Thịt) · còn 1.000 chỗ');
+    const options = within(field(dialog, /Chuồng trống nhận đàn/)).getAllByRole('option').map(option => option.textContent);
+    expect(options).toEqual(['Nhà A4 (Khu Mía Thịt) · chứa được 1.000 con']);
     fireEvent.change(field(dialog, /Số con chuyển/), { target: { value: '2000' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
-    expect(await within(dialog).findByText('Nhà A2 chỉ còn 1.000 chỗ.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Nhà A4 chỉ còn 1.000 chỗ.')).toBeInTheDocument();
     fireEvent.change(field(dialog, /Số con chuyển/), { target: { value: '800' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
-    await waitFor(() => expect(cycles.transferFlock).toHaveBeenCalledWith(4, expect.objectContaining({ targetBarnId: 3, quantity: 800 })));
+    await waitFor(() => expect(cycles.transferFlock).toHaveBeenCalledWith(4, expect.objectContaining({ targetBarnId: 7, quantity: 800 })));
+  });
+
+  it('asks to create a barn when no empty barn exists', async () => {
+    areas.listBarns.mockResolvedValue([barn(2, 'Nhà A3', { activeCycleId: 20 }), barn(3, 'Nhà A2', { activeCycleId: 30 })]);
+    renderAt('/barns/2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Chuyển đàn H0004' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Chưa có chuồng trống để tách đàn/)).toBeInTheDocument();
   });
 
   it('splits a flock in half into an empty barn and previews both barns', async () => {
     renderAt('/barns/2');
     fireEvent.click(await screen.findByRole('button', { name: 'Chuyển đàn H0004' }));
     const dialog = await screen.findByRole('dialog');
-    const target = field(dialog, /Chuồng đích/);
-    expect(within(target).getByRole('option', { name: /Nhà A4 .* trống, chứa được/ })).toBeInTheDocument();
+    const target = field(dialog, /Chuồng trống nhận đàn/);
+    expect(within(target).getByRole('option', { name: /Nhà A4 .* chứa được/ })).toBeInTheDocument();
     fireEvent.change(target, { target: { value: '7' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Chia đôi' }));
     const quantity = Number(field(dialog, /Số con chuyển/).value);
     expect(quantity).toBeGreaterThan(0);
 
     const preview = within(dialog).getByLabelText('Xem trước sau khi chuyển');
-    expect(preview).toHaveTextContent('Chuồng đích sẽ có');
+    expect(preview).toHaveTextContent('Chuồng mới sẽ có');
     expect(preview).toHaveTextContent('Nhà A4');
     expect(preview).toHaveTextContent('tự mở lứa mới');
 
