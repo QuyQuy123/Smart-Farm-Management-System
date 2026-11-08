@@ -44,6 +44,9 @@ public class FarmingCycle {
     private BigDecimal carriedFeedCost = BigDecimal.ZERO;
     @Column(name = "carried_gain_kg", nullable = false, precision = 19, scale = 3)
     private BigDecimal carriedGainKg = BigDecimal.ZERO;
+    /** Lứa mở khi tách đàn: số ngày đàn đã nuôi trước đó, để "ngày nuôi thứ" nối tiếp đàn gốc. */
+    @Column(name = "carried_days", nullable = false)
+    private int carriedDays;
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

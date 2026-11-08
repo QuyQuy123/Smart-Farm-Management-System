@@ -208,6 +208,8 @@ class CycleIntegrationTest {
             .andExpect(status().isCreated());
         post("/api/cycles/" + cycle + "/feed-records", Map.of("recordDate", TODAY.minusDays(1).toString(), "feedName", "Higro", "quantityKg", 8000, "unitPrice", 10000))
             .andExpect(status().isCreated());
+        post("/api/cycles/" + cycle + "/expenses", Map.of("expenseDate", TODAY.minusDays(1).toString(), "category", "WATER", "amount", 4000000))
+            .andExpect(status().isCreated());
         JsonNode before = detail(cycle).path("metrics");
         org.junit.jupiter.api.Assertions.assertEquals(2.0, before.path("fcr").asDouble());
 
@@ -220,6 +222,10 @@ class CycleIntegrationTest {
         JsonNode source = detail(cycle);
         // Gà ở chuồng mới vẫn là đàn đó: cùng tuổi, cùng cân nặng, cùng cám / con, cùng FCR.
         org.junit.jupiter.api.Assertions.assertEquals(before.path("ageDays").asInt(), moved.path("metrics").path("ageDays").asInt());
+        org.junit.jupiter.api.Assertions.assertEquals(before.path("dayOfCycle").asInt(), moved.path("metrics").path("dayOfCycle").asInt());
+        // Chi phí chia theo số con: 1.000 / 4.000 con nhận 1/4; tổng hai chuồng không đổi.
+        org.junit.jupiter.api.Assertions.assertEquals(1000000, moved.path("finance").path("expenses").path("WATER").asLong());
+        org.junit.jupiter.api.Assertions.assertEquals(3000000, source.path("finance").path("expenses").path("WATER").asLong());
         org.junit.jupiter.api.Assertions.assertEquals(1.04, moved.path("metrics").path("avgWeightKg").asDouble());
         org.junit.jupiter.api.Assertions.assertEquals(1, moved.path("weightSamples").size());
         org.junit.jupiter.api.Assertions.assertEquals(2000.0, moved.path("metrics").path("feedKg").asDouble());

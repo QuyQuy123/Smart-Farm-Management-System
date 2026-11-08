@@ -242,7 +242,7 @@ export const BarnDetailView = () => {
     </div>;
     setModal({
       title: `Tách / chuyển đàn ${flock.code}`,
-      intro: `Đàn ${flock.name} đang tồn ${num(flock.quantity)} con. Số con chuyển đi vẫn là đàn đó, chỉ đổi chuồng: giữ tuổi, cân nặng, cám đã ăn và giá vốn theo đầu con.`,
+      intro: `Đàn ${flock.name} đang tồn ${num(flock.quantity)} con. Số con chuyển đi vẫn là đàn đó, chỉ đổi chuồng: giữ tuổi và cân nặng; cám đã ăn, giá vốn và các khoản chi chia theo số con.`,
       warning: targets.length ? null : 'Không còn chuồng nào khác còn chỗ để nhận đàn.',
       initial: { targetBarnId: targets[0] ? String(targets[0].id) : '', quantity: '', transferDate: today, name: flock.name, avgWeight: '', note: '' },
       fields: [
@@ -278,7 +278,7 @@ export const BarnDetailView = () => {
             {side('Chuồng hiện tại còn', barn, barn.currentQuantity - moving)}
             {side('Chuồng đích sẽ có', target, target.currentQuantity + moving)}
           </div>
-          <small>Đàn tách giữ nguyên {flock.currentAgeDays} ngày tuổi, chương trình nuôi, cân nặng và FCR; cám đã ăn chia theo số con.
+          <small>Đàn tách giữ nguyên {flock.currentAgeDays} ngày tuổi, chương trình nuôi, cân nặng và FCR; cám đã ăn và chi phí chia theo số con.
             {!target.activeCycleId && ' Chuồng đích đang trống nên hệ thống tự mở lứa mới từ ngày chuyển.'}</small>
         </div>;
       },

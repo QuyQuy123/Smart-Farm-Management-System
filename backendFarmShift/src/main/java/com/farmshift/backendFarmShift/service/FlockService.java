@@ -96,7 +96,7 @@ public class FlockService {
         checkDate(sourceCycle, date, "Ngày chuyển đàn");
         runningCycle.ifPresent(cycle -> checkDate(cycle, date, "Ngày chuyển đàn"));
         checkNotBeforeImport(source, date);
-        FarmingCycle targetCycle = runningCycle.orElseGet(() -> cycleService.openForTransfer(target, date, sourceCycle.getHatchDate(), sourceBarn.getName()));
+        FarmingCycle targetCycle = runningCycle.orElseGet(() -> cycleService.openForTransfer(target, date, sourceCycle));
         cycleService.carryWithFlock(sourceCycle, targetCycle, quantity);
         // Lứa mới mở cho đàn tách sang: mang theo lịch sử cân để cân nặng và biểu đồ tăng trọng giống đàn gốc.
         if (runningCycle.isEmpty()) copyWeightHistory(sourceCycle, targetCycle, date, request.avgWeight(), user);

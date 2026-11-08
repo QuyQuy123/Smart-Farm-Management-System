@@ -33,6 +33,7 @@ public class CycleService {
     private final FeedRecordRepository feedRepository;
     private final WeightSampleRepository weightRepository;
     private final CycleExpenseRepository expenseRepository;
+    private final CycleCarriedExpenseRepository carriedExpenseRepository;
     private final PurchaseInvoiceRepository invoiceRepository;
 
     public List<CycleSummaryResponse> list(Long barnId) {
@@ -65,7 +66,10 @@ public class CycleService {
     }
 
     /** Mở lứa cho chuồng trống khi tách đàn sang: lứa bắt đầu đúng ngày chuyển, ngày nở theo lứa gốc. */
-    FarmingCycle openForTransfer(Barn barn, LocalDate date, LocalDate hatchDate, String fromBarn) {
+    FarmingCycle openForTransfer(Barn barn, LocalDate date, FarmingCycle source) {
+        LocalDate hatchDate = source.getHatchDate();
+        String fromBarn = source.getBarn().getName();
+        int carriedDays = source.getCarriedDays() + (int) ChronoUnit.DAYS.between(source.getStartDate(), date);
         LocalDate lastEnd = repository.lastEndDate(barn.getId());
         if (lastEnd != null && date.isBefore(lastEnd)) {
             throw new BadRequestException("Ngày chuyển đàn không được trước ngày kết thúc lứa trước của chuồng " + barn.getName() + " (" + format(lastEnd) + ").",
@@ -76,6 +80,7 @@ public class CycleService {
         cycle.setCycleNumber(repository.maxCycleNumber(barn.getId()) + 1);
         cycle.setStartDate(date);
         cycle.setHatchDate(hatchDate);
+        cycle.setCarriedDays(carriedDays);
         cycle.setStatus(CycleStatus.ACTIVE);
         cycle.setNote("Mở khi tách đàn từ " + fromBarn);
         barn.setStatus(BarnStatus.ACTIVE);
@@ -83,8 +88,8 @@ public class CycleService {
     }
 
     /**
-     * Tách đàn: phần cám đã ăn, tiền cám và khối lượng đã tăng của số con chuyển đi theo đàn sang lứa đích (tính theo đầu con),
-     * như giá vốn con giống. Gọi trước khi trừ số con ở đàn gốc.
+     * Tách đàn: phần cám đã ăn, tiền cám, khối lượng đã tăng và các khoản chi của số con chuyển đi theo đàn sang lứa đích
+     * (tính theo đầu con), như giá vốn con giống. Gọi trước khi trừ số con ở đàn gốc.
      */
     void carryWithFlock(FarmingCycle from, FarmingCycle to, int moved) {
         Long id = from.getId();
@@ -102,6 +107,30 @@ public class CycleService {
         to.setCarriedFeedKg(to.getCarriedFeedKg().add(feedKg));
         to.setCarriedFeedCost(to.getCarriedFeedCost().add(feedCost));
         to.setCarriedGainKg(to.getCarriedGainKg().add(gainKg));
+        expenseTotals(id).forEach((category, amount) -> {
+            BigDecimal part = share(amount, moved, current);
+            addCarriedExpense(from, category, part.negate());
+            addCarriedExpense(to, category, part);
+        });
+    }
+
+    /** Khoản chi của lứa theo loại, gồm phần đã nhận / đã chuyển khi tách đàn. */
+    private Map<ExpenseCategory, BigDecimal> expenseTotals(Long cycleId) {
+        Map<ExpenseCategory, BigDecimal> totals = new EnumMap<>(ExpenseCategory.class);
+        expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(cycleId).forEach(e -> totals.merge(e.getCategory(), e.getAmount(), BigDecimal::add));
+        carriedExpenseRepository.findAllByCycleId(cycleId).forEach(e -> totals.merge(e.getCategory(), e.getAmount(), BigDecimal::add));
+        return totals;
+    }
+
+    private void addCarriedExpense(FarmingCycle cycle, ExpenseCategory category, BigDecimal delta) {
+        CycleCarriedExpense carried = carriedExpenseRepository.findByCycleIdAndCategory(cycle.getId(), category).orElseGet(() -> {
+            CycleCarriedExpense created = new CycleCarriedExpense();
+            created.setCycle(cycle);
+            created.setCategory(category);
+            return created;
+        });
+        carried.setAmount(carried.getAmount().add(delta));
+        carriedExpenseRepository.save(carried);
     }
 
     private static BigDecimal share(BigDecimal value, int part, int whole) {
@@ -230,7 +259,7 @@ public class CycleService {
     private CycleMetrics metrics(FarmingCycle cycle, Barn barn, List<Flock> flocks, List<FlockMovement> movements,
                                  List<FeedRecord> feeds, List<WeightSample> samples) {
         LocalDate reference = reference(cycle);
-        int dayOfCycle = (int) ChronoUnit.DAYS.between(cycle.getStartDate(), reference) + 1;
+        int dayOfCycle = (int) ChronoUnit.DAYS.between(cycle.getStartDate(), reference) + 1 + cycle.getCarriedDays();
         // Integer.valueOf keeps the whole conditional boxed: with (int) a fresh cycle without hatch date or flocks unboxed null (NPE).
         Integer ageDays = cycle.getHatchDate() != null ? Integer.valueOf((int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1)
                 : flocks.isEmpty() ? null : Integer.valueOf(ageOn(flocks.get(0), reference));
@@ -287,6 +316,7 @@ public class CycleService {
         Map<String, BigDecimal> byCategory = new LinkedHashMap<>();
         for (ExpenseCategory category : ExpenseCategory.values()) byCategory.put(category.name(), BigDecimal.ZERO);
         for (CycleExpense e : expenses) byCategory.merge(e.getCategory().name(), e.getAmount(), BigDecimal::add);
+        carriedExpenseRepository.findAllByCycleId(cycle.getId()).forEach(e -> byCategory.merge(e.getCategory().name(), e.getAmount(), BigDecimal::add));
         byCategory.replaceAll((key, value) -> money(value));
         BigDecimal total = byCategory.values().stream().reduce(chicks.add(feed), BigDecimal::add);
         BigDecimal producedKg = metrics.biomassKg().add(metrics.harvestedWeightKg());
