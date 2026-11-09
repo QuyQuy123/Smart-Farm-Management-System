@@ -18,18 +18,20 @@
 .warnings svg { flex-shrink: 0; margin-top: 2px; }
 .empty { margin: 0; padding: 24px 20px; text-align: center; font-size: 14.5px; color: #71818a; }
 
-/* Lịch trong ngày kiểu tờ lịch giấy: nền kem, kẻ ô xanh, cột giờ bên trái. */
-.schedule { margin: 14px 16px 16px; border: 2px solid #2f57a3; border-radius: 6px; overflow: hidden;
-  background-color: #f8f3e6; background-image: radial-gradient(rgba(47, 87, 163, 0.10) 1px, transparent 1px); background-size: 6px 6px;
-  box-shadow: 6px 6px 0 rgba(47, 87, 163, 0.18); }
-.slot { display: grid; grid-template-columns: 116px minmax(0, 1fr); border-top: 1px solid #9fb3dc; }
-.slot:first-child { border-top: 0; }
-.slotTime { display: flex; flex-direction: column; gap: 4px; padding: 14px 12px; border-right: 2px solid #2f57a3; background: rgba(47, 87, 163, 0.06); }
-.slotTime strong { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; color: #1f3f80; font-variant-numeric: tabular-nums; }
-.slotTime small { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: #3d5a99; }
+/* Lịch trong ngày: mỗi mốc giờ một hàng, ô giờ xanh ô-liu bên trái, thanh việc xanh nhạt bên phải. */
+.schedule { display: flex; flex-direction: column; gap: 12px; margin: 16px; }
+.slot { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.slotTime { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 76px; padding: 12px 8px; border-radius: 16px;
+  background: #9caa60; text-align: center; }
+.slotTime strong { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; color: #26330e; font-variant-numeric: tabular-nums; }
 .slotAllDay strong { font-size: 16px; white-space: nowrap; }
-.slotTasks { list-style: none; margin: 0; padding: 10px 12px 2px; min-width: 0; }
-.tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #e7edf9; color: #2f57a3; font-size: 12.5px; font-weight: 700; vertical-align: middle; }
+.slotTime small { display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 13px; font-weight: 600; color: #33421a; }
+.slotTasks { list-style: none; margin: 0; padding: 8px 12px; min-width: 0; border-radius: 16px; background: #e4f1c2; }
+.slotTasks .task { margin-bottom: 0; padding: 8px 6px; border: 0; border-radius: 10px; background: transparent; }
+.slotTasks .task + .task { margin-top: 4px; border-top: 1px solid rgba(90, 110, 40, 0.22); border-radius: 0; }
+.slotTasks .task.done { background: rgba(255, 255, 255, 0.55); }
+.slotTasks .task.deviated { background: rgba(255, 249, 230, 0.8); }
+.tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #fff; color: #4d5f1f; font-size: 12.5px; font-weight: 700; vertical-align: middle; }
 .section { padding: 2px 0 0; }
 .section h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #2d6a4f; }
 .section ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -66,8 +68,8 @@
 
 @media (max-width: 640px) {
   .schedule { margin: 10px 8px 12px; }
-  .slot { grid-template-columns: 1fr; }
-  .slotTime { flex-direction: row; align-items: baseline; gap: 10px; border-right: 0; border-bottom: 1px solid #9fb3dc; padding: 8px 12px; }
+  .slot { grid-template-columns: 1fr; gap: 6px; }
+  .slotTime { flex-direction: row; gap: 10px; min-height: 0; padding: 8px 12px; }
 }
 
 /* Bản gọn ở trang chi tiết chuồng: chỉ để xem nhanh, thao tác chính nằm ở Việc hôm nay. */
