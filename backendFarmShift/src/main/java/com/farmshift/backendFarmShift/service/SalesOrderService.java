@@ -171,7 +171,10 @@ public class SalesOrderService {
     });
 
   int deductQty = order.getQuantity();
-  targetFlock.setQuantity(Math.max(0, targetFlock.getQuantity() - deductQty));
+  if (deductQty > targetFlock.getQuantity()) {
+   throw new BadRequestException("Số lượng xuất bán (" + deductQty + ") vượt quá số lượng tồn hiện tại của đàn (" + targetFlock.getQuantity() + " con). Vui lòng kiểm tra lại số dư tồn (MSG27).");
+  }
+  targetFlock.setQuantity(targetFlock.getQuantity() - deductQty);
   if (targetFlock.getQuantity() == 0) {
    targetFlock.setStatus(FlockStatus.ARCHIVED);
   }

@@ -8,23 +8,32 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import com.farmshift.backendFarmShift.security.RoleNames;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/farm-areas")
+@RequestMapping({"/api/farm-areas", "/api/areas"})
 @RequiredArgsConstructor
 public class FarmAreaController {
     private final FarmAreaService service;
 
     @GetMapping
-    public ApiResponse<List<FarmAreaResponse>> list() {
-        return ApiResponse.success("Danh sách khu nuôi", service.list());
+    public ApiResponse<List<FarmAreaResponse>> list(Authentication authentication) {
+        String workerEmail = hasRole(authentication, RoleNames.FARM_WORKER) ? authentication.getName() : null;
+        return ApiResponse.success("Danh sách khu nuôi", service.list(workerEmail));
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<FarmAreaResponse> get(@PathVariable Long id) {
-        return ApiResponse.success("Chi tiết khu nuôi", service.get(id));
+    public ApiResponse<FarmAreaResponse> get(@PathVariable Long id, Authentication authentication) {
+        String workerEmail = hasRole(authentication, RoleNames.FARM_WORKER) ? authentication.getName() : null;
+        return ApiResponse.success("Chi tiết khu nuôi", service.get(id, workerEmail));
+    }
+
+    private static boolean hasRole(Authentication authentication, String role) {
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> role.equals(a.getAuthority()));
     }
 
     @PostMapping

@@ -102,11 +102,15 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         {task.plannedCost != null && <small className={styles.planned}>Dự kiến {money(task.plannedCost)}
           {task.averagePrice != null && task.stockUnit && ` · giá TB ${money(task.averagePrice)}/${task.stockUnit}`}</small>}
         {task.stockEnough === false && !done && <small className={styles.short}>Kho không đủ: còn {formatAmount(task.stockOnHand)} {task.stockUnit}</small>}
-        {!done && task.stockSources?.length === 1 && <small>Kho nguồn: {task.stockSources[0].warehouseName}</small>}
-        {!done && task.stockSources?.length > 1 && <label>Kho nguồn
+        {!done && task.stockSources?.length === 1 && <small>Xuất từ: {task.stockSources[0].warehouseName}</small>}
+        {!done && task.stockSources?.length > 1 && <label>Xuất từ
           <select className="farmshift-form-control" value={sourceSelections[task.key] || ''} disabled={busy || !canAct}
-            aria-label={`Kho nguồn ${title(task)}`} onChange={event => setSourceSelections(current => ({ ...current, [task.key]: event.target.value }))}>
-            <option value="">Chọn kho lấy hàng...</option>
+            aria-label={`Kho nguồn ${title(task)}`} onChange={event => {
+              const val = event.target.value;
+              setSourceSelections(current => ({ ...current, [task.key]: val }));
+              if (errors[task.key]) setErrors(current => ({ ...current, [task.key]: undefined }));
+            }}>
+            <option value="">Chọn kho xuất...</option>
             {task.stockSources.map(source => <option key={source.itemId} value={source.itemId}>{source.warehouseName} · còn {formatAmount(source.stock)} {source.unitName}</option>)}
           </select>
         </label>}
@@ -187,6 +191,8 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         {plan.doneCost != null && <small>Chi phí đã ghi: {money(plan.doneCost)}</small>}
       </div>
     </header>}
+
+    {compact && !showHeader && plan.workers?.length > 0 && <p className={styles.workers} style={{ margin: '0 0 10px 0' }}>Phụ trách: <strong>{plan.workers.map(w => w.fullName).join(', ')}</strong></p>}
 
     {plan.warnings.length > 0 && <ul className={styles.warnings}>
       {plan.warnings.map(warning => <li key={warning}><AlertTriangle size={14} />{warning}</li>)}

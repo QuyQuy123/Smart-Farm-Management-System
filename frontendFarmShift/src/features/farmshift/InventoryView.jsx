@@ -12,6 +12,7 @@ import { groupInventoryItems, inventoryStockKg } from '../../utils/inventoryGrou
 import { InventoryItemDialog } from './InventoryItemDialog';
 import { filterWarehouses } from './farmAreaOptions';
 import { AreaWarehouseFilter } from './AreaWarehouseFilter';
+import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
 import styles from './WarehouseCategoriesView.module.css';
 
 const BREADCRUMBS = [{ label: 'Kho hàng hóa' }];
@@ -21,9 +22,22 @@ export const InventoryView = () => {
   const { user } = useAuth();
   const { showToast } = useNotification();
   const canEdit = user?.role === 'ROLE_FARM_OWNER';
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [categories, setCategories] = useState([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+  const cachedWarehouses = dataCache.peek('/warehouse-categories');
+  const [selectedCategory, setSelectedCategoryState] = useState(() => {
+    const saved = getPersistedTab('farmshift_inv_selected_cat', null);
+    if (saved && cachedWarehouses?.some(c => c.id === Number(saved))) return Number(saved);
+    return cachedWarehouses?.[0]?.id ?? null;
+  });
+  const setSelectedCategory = (catIdOrUpdater) => {
+    setSelectedCategoryState(prev => {
+      const next = typeof catIdOrUpdater === 'function' ? catIdOrUpdater(prev) : catIdOrUpdater;
+      if (next) setPersistedTab('farmshift_inv_selected_cat', next);
+      return next;
+    });
+  };
+  const [lastWarehouseId, setLastWarehouseId] = useState(selectedCategory);
+  const [categories, setCategories] = useState(() => (cachedWarehouses ? sortWarehouseCategories(cachedWarehouses) : []));
+  const [loadingCategories, setLoadingCategories] = useState(() => !cachedWarehouses);
   const [categoryError, setCategoryError] = useState('');
   const [categoryRevision, setCategoryRevision] = useState(0);
   const [items, setItems] = useState([]), [loadingItems, setLoadingItems] = useState(false), [itemError, setItemError] = useState('');
@@ -91,11 +105,42 @@ export const InventoryView = () => {
   }, []);
 
   useEffect(() => {
+    const handleCacheInvalidated = (event) => {
+      const prefixes = event?.detail?.prefixes || [];
+      const matchWarehouse = prefixes.some(p => p.includes('warehouse') || p.includes('purchases') || p.includes('farm-areas') || p.includes('areas'));
+      const matchItems = prefixes.some(p => p.includes('inventory') || p.includes('purchases') || p.includes('internal-stock'));
+      if (matchWarehouse) {
+        setCategoryRevision(r => r + 1);
+      }
+      if (matchItems) {
+        setItemsRevision(r => r + 1);
+      }
+    };
+    window.addEventListener('farmshift:cache-invalidated', handleCacheInvalidated);
+    return () => window.removeEventListener('farmshift:cache-invalidated', handleCacheInvalidated);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
-    setItems([]); setItemError(''); setExpanded(new Set());
+    setItemError('');
+    if (lastWarehouseId !== selectedCategory) {
+      setExpanded(new Set());
+      setLastWarehouseId(selectedCategory);
+    }
+    const cachedItems = dataCache.peek(`/inventory-items?includeReceipts=true&warehouseId=${selectedCategory}`);
+    if (cachedItems && Array.isArray(cachedItems)) {
+      setItems(cachedItems);
+    } else {
+      setItems([]);
+    }
     if (!selectedCategory) { setLoadingItems(false); return; }
-    setLoadingItems(true);
-    listInventoryItems(selectedCategory, true).then(data => { if (!cancelled) setItems(data); })
+    setLoadingItems(!cachedItems);
+    listInventoryItems(selectedCategory, true).then(data => {
+      if (!cancelled) {
+        setItems(data);
+        dataCache.set(`/inventory-items?includeReceipts=true&warehouseId=${selectedCategory}`, data);
+      }
+    })
       .catch(error => { if (!cancelled) setItemError(error.response?.data?.message || 'Không tải được hàng hóa. Vui lòng thử lại.'); })
       .finally(() => { if (!cancelled) setLoadingItems(false); });
     return () => { cancelled = true; };

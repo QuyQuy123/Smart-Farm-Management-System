@@ -45,6 +45,13 @@ HTTPServer(('127.0.0.1',port), Handler).serve_forever()
 """);
   int port;
   try (var socket = new java.net.ServerSocket(0)) { port = socket.getLocalPort(); }
+  boolean pythonWorking = false;
+  try {
+      Process p = new ProcessBuilder(LocalAiServiceLauncher.resolvePython(directory, ""), "--version").start();
+      pythonWorking = p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) && p.exitValue() == 0;
+  } catch (Exception ignored) {}
+  org.junit.jupiter.api.Assumptions.assumeTrue(pythonWorking, "Python runtime is not functional on this host");
+
   var launcher = new LocalAiServiceLauncher(new ObjectMapper(), "http://127.0.0.1:" + port, directory.toString(), "", 10);
   try { launcher.start(); assertTrue(launcher.healthy()); }
   finally { launcher.stop(); }

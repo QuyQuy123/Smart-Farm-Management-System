@@ -30,8 +30,14 @@ const BreedingSettingsView = lazy(() => import('../features/farmshift/BreedingSe
 const GeneralSettingsView = lazy(() => import('../features/farmshift/GeneralSettingsView').then(m => ({ default: m.GeneralSettingsView })));
 const AccountView = lazy(() => import('../features/farmshift/AccountView').then(m => ({ default: m.AccountView })));
 
+/* ── Role Constants ─────────────────────────────────────────── */
+const OWNER_ONLY = ['ROLE_FARM_OWNER'];
+const FINANCE_ROLES = ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'];
+const FARM_ROLES = ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'];
+const ALL_ROLES = ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'];
+
 /* ── ProtectedRoute ─────────────────────────────────────────── */
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -43,7 +49,21 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
+  const role = user?.role;
+  if (role && allowedRoles && !allowedRoles.includes(role)) {
+    const fallback = role === 'ROLE_FARM_WORKER' ? '/today-tasks' : '/dashboard';
+    return <Navigate to={fallback} replace />;
+  }
+
   return children;
+};
+
+const HomeRoute = () => {
+  const { user } = useAuth();
+  if (user?.role === 'ROLE_FARM_WORKER') {
+    return <Navigate to="/today-tasks" replace />;
+  }
+  return <DashboardView />;
 };
 
 /* ── AppRouter ─────────────────────────────────────────────── */
@@ -58,30 +78,30 @@ export const AppRouter = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* ── Core FarmShift Functional Routes ────────────────── */}
-        <Route path="/" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
-        <Route path="/areas" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
-        <Route path="/areas/:id" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
-        <Route path="/barns" element={<ProtectedRoute><AreasView /></ProtectedRoute>} />
-        <Route path="/barns/:id" element={<ProtectedRoute><BarnDetailView /></ProtectedRoute>} />
-        <Route path="/today-tasks" element={<ProtectedRoute><TodayTasksView /></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><HomeRoute /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><DashboardView /></ProtectedRoute>} />
+        <Route path="/areas" element={<ProtectedRoute allowedRoles={FARM_ROLES}><AreasView /></ProtectedRoute>} />
+        <Route path="/areas/:id" element={<ProtectedRoute allowedRoles={FARM_ROLES}><AreasView /></ProtectedRoute>} />
+        <Route path="/barns" element={<ProtectedRoute allowedRoles={FARM_ROLES}><AreasView /></ProtectedRoute>} />
+        <Route path="/barns/:id" element={<ProtectedRoute allowedRoles={FARM_ROLES}><BarnDetailView /></ProtectedRoute>} />
+        <Route path="/today-tasks" element={<ProtectedRoute allowedRoles={FARM_ROLES}><TodayTasksView /></ProtectedRoute>} />
         {/* Phân công công việc nằm trong Việc hôm nay (tab Phân công). */}
         <Route path="/work-assignments" element={<Navigate to="/today-tasks?view=assign" replace />} />
-        <Route path="/journal" element={<ProtectedRoute><JournalView /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><InventoryView /></ProtectedRoute>} />
-        <Route path="/transfers" element={<ProtectedRoute><TransfersView /></ProtectedRoute>} />
-        <Route path="/internal-stock" element={<ProtectedRoute><InternalStockView /></ProtectedRoute>} />
-        <Route path="/purchases" element={<ProtectedRoute><PurchasesView /></ProtectedRoute>} />
-        <Route path="/sales" element={<ProtectedRoute><SalesView /></ProtectedRoute>} />
-        <Route path="/cashbook" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />
-        <Route path="/finance" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />
-        <Route path="/account" element={<ProtectedRoute><AccountView /></ProtectedRoute>} />
-        <Route path="/reports" element={<ProtectedRoute><ReportsView /></ProtectedRoute>} />
+        <Route path="/journal" element={<ProtectedRoute allowedRoles={FARM_ROLES}><JournalView /></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><InventoryView /></ProtectedRoute>} />
+        <Route path="/transfers" element={<ProtectedRoute allowedRoles={ALL_ROLES}><TransfersView /></ProtectedRoute>} />
+        <Route path="/internal-stock" element={<ProtectedRoute allowedRoles={ALL_ROLES}><InternalStockView /></ProtectedRoute>} />
+        <Route path="/purchases" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><PurchasesView /></ProtectedRoute>} />
+        <Route path="/sales" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><SalesView /></ProtectedRoute>} />
+        <Route path="/cashbook" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><CashbookView /></ProtectedRoute>} />
+        <Route path="/finance" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><CashbookView /></ProtectedRoute>} />
+        <Route path="/account" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><AccountView /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><ReportsView /></ProtectedRoute>} />
 
         {/* ── Settings Routes ─────────────────────────────────── */}
-        <Route path="/catalog-settings" element={<ProtectedRoute><CatalogSettingsView /></ProtectedRoute>} />
-        <Route path="/breeding-settings" element={<ProtectedRoute><BreedingSettingsView /></ProtectedRoute>} />
-        <Route path="/general-settings" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />
+        <Route path="/catalog-settings" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><CatalogSettingsView /></ProtectedRoute>} />
+        <Route path="/breeding-settings" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><BreedingSettingsView /></ProtectedRoute>} />
+        <Route path="/general-settings" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><GeneralSettingsView /></ProtectedRoute>} />
 
         {/* ── Legacy Aliases & Role Dashboards ────────────────── */}
         <Route path="/system-map" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />

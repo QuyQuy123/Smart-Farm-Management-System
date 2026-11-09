@@ -2,6 +2,7 @@
 // Thanh tìm kiếm chức năng toàn hệ thống (Omnibar / Quick Feature Search) chuẩn FarmShift
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import {
   Search, X, LayoutDashboard, Warehouse, ClipboardList,
   Package, ArrowLeftRight, FileText, ShoppingCart, DollarSign,
@@ -246,6 +247,8 @@ const removeVietnameseTones = (str) => {
 };
 
 export const GlobalSearch = () => {
+  const { user } = useAuth();
+  const role = user?.role || 'ROLE_FARM_OWNER';
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -285,10 +288,23 @@ export const GlobalSearch = () => {
     }
   }, [isOpen]);
 
+  // Lọc theo Role người dùng
+  const roleAllowedItems = SEARCHABLE_ITEMS.filter(item => {
+    if (role === 'ROLE_FARM_WORKER') {
+      const blockedPaths = ['/dashboard', '/purchases', '/sales', '/cashbook', '/account', '/reports', '/catalog-settings', '/breeding-settings', '/general-settings'];
+      return !blockedPaths.includes(item.path);
+    }
+    if (role === 'ROLE_ACCOUNTANT') {
+      const blockedPaths = ['/today-tasks', '/areas', '/breeding-settings', '/general-settings'];
+      return !blockedPaths.includes(item.path);
+    }
+    return true;
+  });
+
   // Lọc kết quả tìm kiếm
   const normalizedQuery = removeVietnameseTones(query.trim());
   const filteredItems = normalizedQuery
-    ? SEARCHABLE_ITEMS.filter(item => {
+    ? roleAllowedItems.filter(item => {
         const titleNorm = removeVietnameseTones(item.title);
         const descNorm = removeVietnameseTones(item.description);
         const catNorm = removeVietnameseTones(item.category);
@@ -300,7 +316,7 @@ export const GlobalSearch = () => {
           keywordsMatch
         );
       })
-    : SEARCHABLE_ITEMS.slice(0, 8); // Khi chưa gõ, hiện 8 tính năng thông dụng nhất
+    : roleAllowedItems.slice(0, 8); // Khi chưa gõ, hiện 8 tính năng thông dụng nhất theo vai trò
 
   // Reset selectedIndex khi kết quả thay đổi
   const [prevQuery, setPrevQuery] = useState(query);

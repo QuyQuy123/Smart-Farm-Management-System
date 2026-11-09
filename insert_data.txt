@@ -726,10 +726,26 @@ JOIN inventory_items i ON i.product_id = pc.id
 WHERE s.category = v.category AND LOWER(s.name) LIKE v.step_pattern AND s.inventory_item_id IS NULL;
 
 -- ---------------------------------------------------------------------
--- 25. Phân công công việc: công nhân phụ trách chuồng và việc giao mẫu
---     (chạy sau khi backend đã khởi động để Hibernate tạo bảng barn_workers, work_tasks, work_task_checks)
+-- 25. Phân công công việc: công nhân phụ trách Khu nuôi / Chuồng nuôi và việc giao mẫu
+--     (tự động tạo bảng farm_area_workers, cột workers_override nếu chạy trước khi backend khởi động)
 --     Chia theo khu: Khu Mía Thịt → Nguyễn Văn Ba, Khu J Thịt → Dương Văn Hùng, khu khác → Nông Thị Hằng.
+--     Khi công nhân được phân công vào Khu/Chuồng, hệ thống tự động liên kết tới Kho của Khu đó.
 -- ---------------------------------------------------------------------
+ALTER TABLE barns ADD COLUMN IF NOT EXISTS workers_override boolean;
+CREATE TABLE IF NOT EXISTS farm_area_workers (
+    area_id bigint NOT NULL REFERENCES farm_areas(id) ON DELETE CASCADE,
+    account_id bigint NOT NULL REFERENCES accounts(id),
+    CONSTRAINT uk_farm_area_workers UNIQUE (area_id, account_id)
+);
+
+INSERT INTO farm_area_workers (area_id, account_id)
+SELECT fa.id, a.id
+FROM farm_areas fa
+JOIN accounts a ON a.email = CASE fa.name_key WHEN 'khu mía thịt' THEN 'congnhan@smartfarm.com'
+                                              WHEN 'khu j thịt' THEN 'hung@smartfarm.com'
+                                              ELSE 'hang@smartfarm.com' END
+ON CONFLICT (area_id, account_id) DO NOTHING;
+
 INSERT INTO barn_workers (barn_id, account_id, assigned_by, assigned_at)
 SELECT b.id, a.id, 'seed', NOW()
 FROM barns b
@@ -764,9 +780,11 @@ VALUES
 ON CONFLICT (name_key) DO NOTHING;
 
 -- ---------------------------------------------------------------------
--- 27. Kho theo khu: mỗi khu một kho cám và một kho thuốc, không còn kho chung
---     ("Khu Gà Hồ" → "Kho cám Gà Hồ", "Kho thuốc Gà Hồ"). Backend cũng tự tạo hai kho này khi thêm khu.
---     Phiếu việc trừ kho theo kho mà công nhân phụ trách chuồng được phân công. Chạy lại nhiều lần không trùng.
+-- 27. Liên kết Khu nuôi – Kho hàng (farm_area_warehouses) & Phân bổ lô tồn kho (daily_stock_allocations)
+--     - Hỗ trợ mỗi Khu nuôi có bộ kho riêng tự động tạo ("Kho cám <Tên khu>", "Kho thuốc <Tên khu>")
+--       hoặc nhiều Khu nuôi dùng chung 1 Kho có sẵn qua bảng trung gian farm_area_warehouses.
+--     - Công nhân phụ trách Khu/Chuồng tự động lấy cám/thuốc từ Kho liên kết của Khu đó trong
+--       Việc hôm nay & Ghi nhật ký mà không cần bước phân vai trò theo kho thủ công ở Thiết lập chung.
 -- ---------------------------------------------------------------------
 ALTER TABLE warehouse_categories ADD COLUMN IF NOT EXISTS area_id bigint REFERENCES farm_areas(id);
 ALTER TABLE warehouse_categories ADD COLUMN IF NOT EXISTS kind varchar(20);
@@ -782,14 +800,38 @@ FROM (VALUES
 WHERE w.name_key = v.old_key
   AND NOT EXISTS (SELECT 1 FROM warehouse_categories x WHERE x.name_key = lower(v.new_name));
 
--- Hai kho cho mỗi khu (đã có thì chỉ gắn khu / loại kho)
+-- Hai kho mặc định cho mỗi khu chưa có kho liên kết (đã có thì chỉ gắn khu / loại kho)
+ALTER TABLE warehouse_categories ADD COLUMN IF NOT EXISTS area_id bigint REFERENCES farm_areas(id);
+ALTER TABLE warehouse_categories ADD COLUMN IF NOT EXISTS kind varchar(20);
+CREATE TABLE IF NOT EXISTS farm_area_warehouses (
+    area_id bigint NOT NULL REFERENCES farm_areas(id) ON DELETE CASCADE,
+    warehouse_id bigint NOT NULL REFERENCES warehouse_categories(id) ON DELETE CASCADE,
+    PRIMARY KEY (area_id, warehouse_id)
+);
+CREATE TABLE IF NOT EXISTS warehouse_workers (
+    warehouse_id bigint NOT NULL REFERENCES warehouse_categories(id) ON DELETE CASCADE,
+    account_id bigint NOT NULL REFERENCES accounts(id),
+    CONSTRAINT uk_warehouse_workers UNIQUE (warehouse_id, account_id)
+);
+
 INSERT INTO warehouse_categories (name, name_key, description, area_id, kind, created_at, updated_at)
 SELECT k.prefix || regexp_replace(fa.name, '^[Kk]hu\s+', ''), lower(k.prefix || regexp_replace(fa.name, '^[Kk]hu\s+', '')),
        k.note || fa.name, fa.id, k.kind, NOW(), NOW()
 FROM farm_areas fa
 CROSS JOIN (VALUES ('Kho cám ', 'FEED', 'Cám cho các chuồng '), ('Kho thuốc ', 'MEDICINE', 'Thuốc thú y và vắc-xin cho ')) AS k(prefix, kind, note)
-WHERE NOT EXISTS (SELECT 1 FROM warehouse_categories w WHERE w.area_id = fa.id AND w.kind = k.kind)
-ON CONFLICT (name_key) DO UPDATE SET area_id = EXCLUDED.area_id, kind = EXCLUDED.kind;
+WHERE NOT EXISTS (
+  SELECT 1 FROM warehouse_categories w
+  LEFT JOIN farm_area_warehouses faw ON faw.warehouse_id = w.id
+  WHERE (w.area_id = fa.id OR faw.area_id = fa.id) AND w.kind = k.kind
+)
+ON CONFLICT (name_key) DO UPDATE SET area_id = COALESCE(warehouse_categories.area_id, EXCLUDED.area_id), kind = COALESCE(warehouse_categories.kind, EXCLUDED.kind);
+
+-- Đồng bộ toàn bộ liên kết Khu nuôi <-> Kho hàng vào bảng trung gian farm_area_warehouses
+INSERT INTO farm_area_warehouses (area_id, warehouse_id)
+SELECT area_id, id
+FROM warehouse_categories
+WHERE area_id IS NOT NULL
+ON CONFLICT (area_id, warehouse_id) DO NOTHING;
 
 -- Hàng của kho chung (Kho cám, Kho thuốc & Vắc-xin) đang phục vụ Khu Gà Hồ: chuyển sang kho của Khu Gà Hồ, giữ nguyên lịch sử
 DROP TABLE IF EXISTS tmp_wh_move;
@@ -806,12 +848,14 @@ UPDATE purchase_invoice_items p SET warehouse_id = m.to_id FROM tmp_wh_move m WH
 UPDATE internal_stock_vouchers s SET source_warehouse_id = m.to_id FROM tmp_wh_move m WHERE s.source_warehouse_id = m.from_id;
 UPDATE internal_stock_vouchers s SET target_warehouse_id = m.to_id FROM tmp_wh_move m WHERE s.target_warehouse_id = m.from_id;
 DELETE FROM warehouse_workers ww USING tmp_wh_move m WHERE ww.warehouse_id = m.from_id;
+DELETE FROM farm_area_warehouses faw USING tmp_wh_move m WHERE faw.warehouse_id = m.from_id;
 DELETE FROM warehouse_categories w USING tmp_wh_move m WHERE w.id = m.from_id;
 DROP TABLE tmp_wh_move;
 
 -- Kho chung khác (Kho vật tư & thiết bị) không thuộc khu nào: gỡ khi không còn hàng hay chứng từ nào dùng tới
 DELETE FROM warehouse_categories w
 WHERE w.area_id IS NULL AND w.name_key = 'kho vật tư & thiết bị'
+  AND NOT EXISTS (SELECT 1 FROM farm_area_warehouses faw WHERE faw.warehouse_id = w.id)
   AND NOT EXISTS (SELECT 1 FROM inventory_items i WHERE i.warehouse_id = w.id)
   AND NOT EXISTS (SELECT 1 FROM product_categories p WHERE p.warehouse_id = w.id)
   AND NOT EXISTS (SELECT 1 FROM purchase_invoice_items p WHERE p.warehouse_id = w.id)
@@ -862,11 +906,10 @@ JOIN LATERAL (SELECT i.unit_id, i.brand_id, i.price FROM inventory_items i WHERE
 WHERE NOT EXISTS (SELECT 1 FROM inventory_items x WHERE x.warehouse_id = w.id AND x.product_id = p.id)
 ON CONFLICT (code) DO NOTHING;
 
--- Thủ kho: công nhân phụ trách khu nào thì lấy hàng ở kho cám / kho thuốc của khu đó
+-- Đồng bộ tự động bảng warehouse_workers từ phân công công nhân theo Khu nuôi (farm_area_workers) và liên kết Kho (farm_area_warehouses)
 INSERT INTO warehouse_workers (warehouse_id, account_id)
-SELECT w.id, a.id
-FROM (VALUES ('khu mía thịt', 'congnhan@smartfarm.com'), ('khu j thịt', 'hung@smartfarm.com'), ('khu gà hồ', 'hang@smartfarm.com')) AS v(area_key, email)
-JOIN farm_areas fa ON fa.name_key = v.area_key
-JOIN warehouse_categories w ON w.area_id = fa.id
-JOIN accounts a ON a.email = v.email
+SELECT DISTINCT w.id, faw.account_id
+FROM farm_area_workers faw
+JOIN warehouse_categories w ON w.area_id = faw.area_id
+  OR EXISTS (SELECT 1 FROM farm_area_warehouses aw WHERE aw.area_id = faw.area_id AND aw.warehouse_id = w.id)
 ON CONFLICT ON CONSTRAINT uk_warehouse_workers DO NOTHING;

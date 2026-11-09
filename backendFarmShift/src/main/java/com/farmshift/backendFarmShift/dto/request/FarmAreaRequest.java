@@ -8,5 +8,10 @@ public record FarmAreaRequest(
         @Size(max = 150, message = "Tên khu nuôi không quá 150 ký tự.") String name,
         List<String> environmentMetrics,
         List<String> animalMetrics,
-        @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String description) {
+        @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String description,
+        Long warehouseId,
+        List<Long> warehouseIds) {
+    public FarmAreaRequest(String name, List<String> environmentMetrics, List<String> animalMetrics, String description) {
+        this(name, environmentMetrics, animalMetrics, description, null, null);
+    }
 }

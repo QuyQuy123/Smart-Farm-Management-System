@@ -28,6 +28,24 @@ const INITIAL_MESSAGE = {
   showChips: true
 };
 
+export const ROLE_SUGGESTIONS = {
+  ROLE_FARM_WORKER: [
+    { label: '🎙️ Ghi cám hôm nay', query: 'Ghi 50kg cám Nhà A1' },
+    { label: '⚖️ Báo cân mẫu', query: 'Cân mẫu Nhà A1 trung bình 1.5 kg mẫu 50 con' },
+    { label: '📋 Việc chưa làm hôm nay', query: 'Việc hôm nay đã làm xong' },
+  ],
+  ROLE_ACCOUNTANT: [
+    { label: '📦 Kiểm tra lô tồn kho & giá TB', query: 'Kiểm tra tồn kho thuốc và giá trung bình hiện tại' },
+    { label: '🔄 Tạo phiếu chuyển kho', query: 'Chuyển 10 bao cám Higro 02 từ Kho cám sang Kho Khu B' },
+    { label: '💰 Công nợ nhà cung cấp', query: 'Công nợ nhà cung cấp' },
+  ],
+  ROLE_FARM_OWNER: [
+    { label: '📊 Phân tích FCR & Hao hụt', query: 'Hiệu suất FCR và tỷ lệ hao hụt các chuồng' },
+    { label: '🌡️ Nhiệt độ & Độ ẩm các chuồng', query: 'Nhiệt độ và độ ẩm các chuồng hiện tại' },
+    { label: '💵 Tổng hợp lãi lỗ lứa nuôi', query: 'Báo cáo lãi lỗ' },
+  ],
+};
+
 const SUGGESTIONS = [
   { label: '✅ Xong việc hôm nay', query: 'Việc hôm nay đã làm xong' },
   { label: '⚖️ Cân mẫu Nhà A1 1.5kg', query: 'Cân mẫu Nhà A1 trung bình 1.5 kg mẫu 50 con' },
@@ -208,7 +226,9 @@ export const FormattedBotText = ({ text }) => {
   );
 };
 
-export const AIChatbot = () => {
+export const AIChatbot = ({ userRole: propRole }) => {
+  const userRole = propRole || (typeof localStorage !== 'undefined' ? localStorage.getItem('farmshift_user_role') : null);
+  const activeSuggestions = (userRole && ROLE_SUGGESTIONS[userRole]) ? ROLE_SUGGESTIONS[userRole] : SUGGESTIONS;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -552,7 +572,9 @@ export const AIChatbot = () => {
         {
           id: generateMessageId(),
           type: 'bot',
-          text: '⚠️ Không thể kết nối tới máy chủ Trợ lý AI vào lúc này. Vui lòng kiểm tra lại kết nối mạng.',
+          text: (error?.response?.status === 429 || error?.status === 429)
+            ? '⚠️ Quá nhiều yêu cầu gửi tới Trợ lý AI trong thời gian ngắn (tối đa 30 yêu cầu/phút). Vui lòng thử lại sau giây lát.'
+            : '⚠️ Không thể kết nối tới máy chủ Trợ lý AI vào lúc này. Vui lòng kiểm tra lại kết nối mạng.',
           time: formatCurrentTime()
         }
       ]);
@@ -606,7 +628,17 @@ export const AIChatbot = () => {
       }
     } catch (err) {
       console.warn('Lỗi khi xác nhận thao tác:', err);
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m));
+      const backendMsg = err.response?.data?.message || err.message || 'Không thể thực hiện thao tác. Vui lòng kiểm tra lại.';
+      setMessages(prev => [
+        ...prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m),
+        {
+          id: Date.now() + 1,
+          type: 'bot',
+          text: `⚠️ ${backendMsg}`,
+          time: formatTime(new Date()),
+          actionCard: null
+        }
+      ]);
     }
   };
 
@@ -845,6 +877,17 @@ export const AIChatbot = () => {
                         </div>
                       )}
 
+                      {msg.pendingAction.batchItems && Array.isArray(msg.pendingAction.batchItems) && (
+                        <div className={styles.confirmDetails} data-testid="batch-confirmation-items">
+                          {msg.pendingAction.batchItems.map((bItem, bIdx) => (
+                            <div key={bIdx} className={styles.confirmDetailRow}>
+                              <span className={styles.confirmDetailKey}>{bItem.barnName}:</span>
+                              <span className={styles.confirmDetailVal}>{bItem.oldValue} → {bItem.newValue} ({bItem.diff})</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {msg.confirmationStatus === 'pending' && (
                         <div className={styles.confirmButtonGroup}>
                           <button
@@ -949,7 +992,7 @@ export const AIChatbot = () => {
                     <div className={styles.chipsContainer}>
                       <span className={styles.chipsLabel}>Thao tác & câu hỏi gợi ý nhanh:</span>
                       <div className={styles.chipsList}>
-                        {SUGGESTIONS.map((item, idx) => (
+                        {activeSuggestions.map((item, idx) => (
                           <button
                             key={idx}
                             type="button"

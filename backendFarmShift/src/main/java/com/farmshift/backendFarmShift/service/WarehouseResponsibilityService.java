@@ -25,10 +25,25 @@ public class WarehouseResponsibilityService {
     public WarehouseResponsibilities settings() {
         return new WarehouseResponsibilities(activeWorkers().stream().map(BarnResponsibilityService::ref).toList(),
                 warehouses.findAll(Sort.by("createdAt", "id")).stream()
-                        .map(warehouse -> new WarehouseResponsibilities.Warehouse(warehouse.getId(), warehouse.getName(),
-                                warehouse.getWorkers().stream().map(BarnResponsibilityService::ref).toList(),
-                                warehouse.getArea() == null ? null : warehouse.getArea().getId(),
-                                warehouse.getArea() == null ? null : warehouse.getArea().getName(), warehouse.getKind())).toList());
+                        .map(warehouse -> {
+                            Set<Account> effectiveWorkers = new LinkedHashSet<>();
+                            if (warehouse.getWorkers() != null) effectiveWorkers.addAll(warehouse.getWorkers());
+                            if (warehouse.getArea() != null && warehouse.getArea().getWorkers() != null) {
+                                effectiveWorkers.addAll(warehouse.getArea().getWorkers());
+                            }
+                            if (warehouse.getAreas() != null) {
+                                for (com.farmshift.backendFarmShift.entity.FarmArea a : warehouse.getAreas()) {
+                                    if (a.getWorkers() != null) effectiveWorkers.addAll(a.getWorkers());
+                                }
+                            }
+                            Long areaId = warehouse.getArea() != null ? warehouse.getArea().getId()
+                                    : (warehouse.getAreas() != null && !warehouse.getAreas().isEmpty() ? warehouse.getAreas().get(0).getId() : null);
+                            String areaName = warehouse.getArea() != null ? warehouse.getArea().getName()
+                                    : (warehouse.getAreas() != null && !warehouse.getAreas().isEmpty() ? warehouse.getAreas().get(0).getName() : null);
+                            return new WarehouseResponsibilities.Warehouse(warehouse.getId(), warehouse.getName(),
+                                    effectiveWorkers.stream().map(BarnResponsibilityService::ref).toList(),
+                                    areaId, areaName, warehouse.getKind());
+                        }).toList());
     }
 
     @Transactional

@@ -2,6 +2,7 @@ package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.dto.request.FarmAreaRequest;
 import com.farmshift.backendFarmShift.dto.response.FarmAreaResponse;
+import com.farmshift.backendFarmShift.entity.Barn;
 import com.farmshift.backendFarmShift.entity.BarnStatus;
 import com.farmshift.backendFarmShift.entity.FarmArea;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.text.Normalizer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,15 +31,60 @@ public class FarmAreaService {
     private final FarmAreaRepository repository;
     private final BarnRepository barnRepository;
     private final AreaWarehouseService areaWarehouses;
+    private final com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouseCategoryRepository;
+    private final BarnResponsibilityService responsibilities;
 
     public List<FarmAreaResponse> list() {
-        Map<Long, long[]> summaries = summaries();
+        return list(null);
+    }
+
+    public List<FarmAreaResponse> list(String workerEmail) {
+        if (workerEmail == null || workerEmail.isBlank()) {
+            Map<Long, long[]> summaries = summaries();
+            return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream()
+                    .map(area -> response(area, summaries.get(area.getId()))).toList();
+        }
+
+        Set<Long> assignedBarnIds = responsibilities.assignedBarnIdsOf(workerEmail);
+        List<Barn> assignedBarns = assignedBarnIds.isEmpty() ? List.of() : barnRepository.findAllById(assignedBarnIds);
+        Set<Long> areaIdsWithAssignedBarns = assignedBarns.stream().map(b -> b.getArea().getId()).collect(Collectors.toSet());
+
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream()
-                .map(area -> response(area, summaries.get(area.getId()))).toList();
+                .filter(area -> areaIdsWithAssignedBarns.contains(area.getId())
+                        || (area.getWorkers() != null && area.getWorkers().stream().anyMatch(w -> w.getEmail().equalsIgnoreCase(workerEmail))))
+                .map(area -> {
+                    List<Barn> barnsInArea = assignedBarns.stream().filter(b -> b.getArea().getId().equals(area.getId())).toList();
+                    long totalBarns = barnsInArea.size();
+                    long activeBarns = barnsInArea.stream().filter(b -> b.getStatus() == BarnStatus.ACTIVE).count();
+                    long animalCount = barnsInArea.stream().mapToLong(Barn::getCurrentQuantity).sum();
+                    long totalCapacity = barnsInArea.stream().mapToLong(Barn::getCapacity).sum();
+                    return response(area, new long[]{totalBarns, activeBarns, animalCount, totalCapacity});
+                })
+                .toList();
     }
 
     public FarmAreaResponse get(Long id) {
-        return response(find(id), summaries().get(id));
+        return get(id, null);
+    }
+
+    public FarmAreaResponse get(Long id, String workerEmail) {
+        FarmArea area = find(id);
+        if (workerEmail != null && !workerEmail.isBlank()) {
+            Set<Long> assignedBarnIds = responsibilities.assignedBarnIdsOf(workerEmail);
+            List<Barn> assignedBarns = assignedBarnIds.isEmpty() ? List.of() : barnRepository.findAllById(assignedBarnIds);
+            boolean isAssigned = assignedBarns.stream().anyMatch(b -> b.getArea().getId().equals(id))
+                    || (area.getWorkers() != null && area.getWorkers().stream().anyMatch(w -> w.getEmail().equalsIgnoreCase(workerEmail)));
+            if (!isAssigned) {
+                throw new ConflictException("Bạn không phụ trách khu nuôi này. Liên hệ chủ trại để được phân công.", "AREA_NOT_ASSIGNED", null);
+            }
+            List<Barn> barnsInArea = assignedBarns.stream().filter(b -> b.getArea().getId().equals(id)).toList();
+            long totalBarns = barnsInArea.size();
+            long activeBarns = barnsInArea.stream().filter(b -> b.getStatus() == BarnStatus.ACTIVE).count();
+            long animalCount = barnsInArea.stream().mapToLong(Barn::getCurrentQuantity).sum();
+            long totalCapacity = barnsInArea.stream().mapToLong(Barn::getCapacity).sum();
+            return response(area, new long[]{totalBarns, activeBarns, animalCount, totalCapacity});
+        }
+        return response(area, summaries().get(id));
     }
 
     @Transactional
@@ -84,9 +131,37 @@ public class FarmAreaService {
         boolean created = area.getId() == null;
         try {
             FarmArea saved = repository.saveAndFlush(area);
-            // Mỗi khu có kho cám và kho thuốc riêng; đổi tên khu thì đổi tên kho theo.
-            if (created) areaWarehouses.ensure(saved);
-            else areaWarehouses.rename(saved);
+
+            List<Long> selectedWarehouseIds = new ArrayList<>();
+            if (request.warehouseIds() != null && !request.warehouseIds().isEmpty()) {
+                selectedWarehouseIds.addAll(request.warehouseIds());
+            } else if (request.warehouseId() != null) {
+                selectedWarehouseIds.add(request.warehouseId());
+            }
+
+            if (!selectedWarehouseIds.isEmpty()) {
+                List<com.farmshift.backendFarmShift.entity.WarehouseCategory> oldLinked = warehouseCategoryRepository.findAllByArea_Id(saved.getId());
+                for (com.farmshift.backendFarmShift.entity.WarehouseCategory old : oldLinked) {
+                    if (!selectedWarehouseIds.contains(old.getId()) && old.getArea() != null && old.getArea().getId().equals(saved.getId())) {
+                        old.setArea(null);
+                        warehouseCategoryRepository.save(old);
+                    }
+                }
+                List<com.farmshift.backendFarmShift.entity.WarehouseCategory> chosen = warehouseCategoryRepository.findAllById(selectedWarehouseIds);
+                if (saved.getWarehouses() == null) {
+                    saved.setWarehouses(new ArrayList<>());
+                }
+                saved.getWarehouses().clear();
+                saved.getWarehouses().addAll(chosen);
+                saved = repository.saveAndFlush(saved);
+            } else {
+                // Mặc định: Mỗi khu có kho cám và kho thuốc riêng; đổi tên khu thì đổi tên kho theo.
+                if (created || saved.getWarehouses() == null || saved.getWarehouses().isEmpty()) {
+                    areaWarehouses.ensure(saved);
+                } else {
+                    areaWarehouses.rename(saved);
+                }
+            }
             return response(saved, summaries().get(saved.getId()));
         } catch (DataIntegrityViolationException exception) {
             throw duplicateName();
@@ -128,8 +203,12 @@ public class FarmAreaService {
 
     private FarmAreaResponse response(FarmArea area, long[] summary) {
         long[] counts = summary == null ? new long[4] : summary;
+        List<FarmAreaResponse.WarehouseRef> warehouseRefs = warehouseCategoryRepository.findAllByArea_Id(area.getId()).stream()
+                .map(w -> new FarmAreaResponse.WarehouseRef(w.getId(), w.getName(), w.getKind()))
+                .toList();
         return new FarmAreaResponse(area.getId(), String.format(Locale.ROOT, "KN%06d", area.getId()), area.getName(),
                 split(area.getEnvironmentMetrics()), split(area.getAnimalMetrics()),
-                area.getDescription(), counts[0], counts[1], counts[2], counts[3], area.getCreatedAt(), area.getUpdatedAt());
+                area.getDescription(), counts[0], counts[1], counts[2], counts[3], area.getCreatedAt(), area.getUpdatedAt(),
+                warehouseRefs);
     }
 }

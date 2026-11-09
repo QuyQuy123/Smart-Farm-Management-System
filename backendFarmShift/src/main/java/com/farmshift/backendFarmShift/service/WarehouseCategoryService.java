@@ -47,6 +47,14 @@ public class WarehouseCategoryService {
                 || internalStockVoucherRepository.existsBySourceWarehouse_IdOrTargetWarehouse_Id(id, id)) {
             throw new ConflictException("Không thể xóa kho đang chứa hàng hóa hoặc đã phát sinh phiếu xuất nhập nội bộ. Hãy chuyển hoặc xóa các hàng hóa liên quan trước.", "WAREHOUSE_IN_USE", null);
         }
+        if (warehouse.getAreas() != null) {
+            for (com.farmshift.backendFarmShift.entity.FarmArea a : warehouse.getAreas()) {
+                if (a.getWarehouses() != null) {
+                    a.getWarehouses().remove(warehouse);
+                }
+            }
+            warehouse.getAreas().clear();
+        }
         repository.delete(warehouse);
     }
 
@@ -75,9 +83,14 @@ public class WarehouseCategoryService {
     }
 
     private WarehouseCategoryResponse response(WarehouseCategory category) {
+        Long areaId = category.getArea() != null ? category.getArea().getId()
+                : (category.getAreas() != null && !category.getAreas().isEmpty() ? category.getAreas().get(0).getId() : null);
+        String areaName = category.getArea() != null ? category.getArea().getName()
+                : (category.getAreas() != null && !category.getAreas().isEmpty()
+                ? category.getAreas().stream().map(com.farmshift.backendFarmShift.entity.FarmArea::getName).collect(java.util.stream.Collectors.joining(", "))
+                : null);
         return new WarehouseCategoryResponse(category.getId(), String.format(Locale.ROOT, "DM%06d", category.getId()),
                 category.getName(), category.getDescription(), inventory.countByWarehouse_Id(category.getId()), category.getCreatedAt(),
-                category.getArea() == null ? null : category.getArea().getId(), category.getArea() == null ? null : category.getArea().getName(),
-                category.getKind());
+                areaId, areaName, category.getKind());
     }
 }

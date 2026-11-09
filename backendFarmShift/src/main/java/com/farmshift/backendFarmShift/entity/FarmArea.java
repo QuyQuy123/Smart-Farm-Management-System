@@ -32,6 +32,11 @@ public class FarmArea {
             inverseJoinColumns = @JoinColumn(name = "account_id"),
             uniqueConstraints = @UniqueConstraint(name = "uk_farm_area_workers", columnNames = {"area_id", "account_id"}))
     private List<Account> workers = new ArrayList<>();
+    @ManyToMany
+    @JoinTable(name = "farm_area_warehouses", joinColumns = @JoinColumn(name = "area_id"),
+            inverseJoinColumns = @JoinColumn(name = "warehouse_id"),
+            uniqueConstraints = @UniqueConstraint(name = "uk_farm_area_warehouses", columnNames = {"area_id", "warehouse_id"}))
+    private List<WarehouseCategory> warehouses = new ArrayList<>();
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

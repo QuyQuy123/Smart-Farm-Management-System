@@ -24,6 +24,7 @@ public class PurchaseController {
     private final PurchaseOcrService ocrService;
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
     public ApiResponse<List<PurchaseInvoiceResponse>> list(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String paymentStatus
@@ -32,6 +33,7 @@ public class PurchaseController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
     public ApiResponse<PurchaseInvoiceResponse> get(@PathVariable Long id) {
         return ApiResponse.success("Chi tiết hóa đơn nhập hàng", service.get(id));
     }
@@ -44,7 +46,7 @@ public class PurchaseController {
     }
 
     @PostMapping("/{id}/import-stock")
-    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
     public ApiResponse<PurchaseInvoiceResponse> importStock(@PathVariable Long id) {
         return ApiResponse.success("Đã xác nhận nhập kho và cập nhật tồn kho", service.importStock(id));
     }

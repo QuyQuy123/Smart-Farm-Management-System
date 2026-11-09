@@ -280,10 +280,11 @@ public class CycleService {
         BigDecimal avgWeight = samples.stream().filter(s -> !s.getSampleDate().isAfter(reference)).findFirst()
                 .map(WeightSample::getAvgWeightKg)
                 .orElse(totalIn == 0 ? null : inWeight.divide(BigDecimal.valueOf(totalIn), 3, RoundingMode.HALF_UP));
-        BigDecimal biomass = avgWeight == null ? BigDecimal.ZERO : avgWeight.multiply(BigDecimal.valueOf(current)).setScale(1, RoundingMode.HALF_UP);
+        BigDecimal rawBiomass = avgWeight == null ? BigDecimal.ZERO : avgWeight.multiply(BigDecimal.valueOf(current));
+        BigDecimal biomass = rawBiomass.setScale(1, RoundingMode.HALF_UP);
         BigDecimal feedKg = feeds.stream().map(FeedRecord::getQuantityKg).reduce(cycle.getCarriedFeedKg(), BigDecimal::add);
         // FCR = cám tiêu thụ / khối lượng tăng (hiện có + đã ra khỏi chuồng - khối lượng lúc vào).
-        BigDecimal gain = biomass.add(outWeight).subtract(inWeight).add(cycle.getCarriedGainKg());
+        BigDecimal gain = rawBiomass.add(outWeight).subtract(inWeight).add(cycle.getCarriedGainKg());
         BigDecimal fcr = gain.signum() > 0 && feedKg.signum() > 0 ? feedKg.divide(gain, 2, RoundingMode.HALF_UP) : null;
         BigDecimal density = barn.getAreaM2() == null || barn.getAreaM2().signum() <= 0 ? null
                 : BigDecimal.valueOf(current).divide(barn.getAreaM2(), 1, RoundingMode.HALF_UP);

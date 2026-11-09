@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import com.farmshift.backendFarmShift.security.RoleNames;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -18,13 +20,20 @@ public class BarnController {
     private final BarnService service;
 
     @GetMapping
-    public ApiResponse<List<BarnResponse>> list(@RequestParam(required = false) Long areaId) {
-        return ApiResponse.success("Danh sách chuồng", service.list(areaId));
+    public ApiResponse<List<BarnResponse>> list(@RequestParam(required = false) Long areaId, Authentication authentication) {
+        String workerEmail = hasRole(authentication, RoleNames.FARM_WORKER) ? authentication.getName() : null;
+        return ApiResponse.success("Danh sách chuồng", service.list(areaId, workerEmail));
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<BarnResponse> get(@PathVariable Long id) {
-        return ApiResponse.success("Chi tiết chuồng", service.get(id));
+    public ApiResponse<BarnResponse> get(@PathVariable Long id, Authentication authentication) {
+        String workerEmail = hasRole(authentication, RoleNames.FARM_WORKER) ? authentication.getName() : null;
+        return ApiResponse.success("Chi tiết chuồng", service.get(id, workerEmail));
+    }
+
+    private static boolean hasRole(Authentication authentication, String role) {
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> role.equals(a.getAuthority()));
     }
 
     @PostMapping

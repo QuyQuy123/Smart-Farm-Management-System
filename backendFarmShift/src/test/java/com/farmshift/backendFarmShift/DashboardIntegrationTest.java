@@ -159,7 +159,9 @@ class DashboardIntegrationTest {
         assertEquals(1, restock.size(), restock.toString());
         assertEquals("Kho cám Bảng Tin", restock.get(0).path("warehouseName").asText());
         assertEquals("Higro 01", restock.get(0).path("productName").asText());
-        assertEquals(2, restock.get(0).path("daysLeft").asInt());
+        // Khu Bảng Tin có 2 chuồng (Nhà T1: 990 con, Nhà T2: 1000 con) cùng dùng Kho cám Bảng Tin:
+        // Tổng dùng 59,7 kg/ngày ≈ 2,39 bao 25 kg; kho còn 3 bao → đủ 1 ngày, báo đỏ.
+        assertEquals(1, restock.get(0).path("daysLeft").asInt());
         assertEquals("DANGER", restock.get(0).path("level").asText());
 
         // Nhập thêm đủ dùng hơn một tuần thì không còn trong danh sách.

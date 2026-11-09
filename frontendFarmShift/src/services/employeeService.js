@@ -28,8 +28,8 @@ export const getEmployees = async (params = {}, options = {}) => {
     params: cleanParams,
     signal: options.signal
   });
-  const data = response.data?.data;
-  return Array.isArray(data) ? data : [];
+  const data = response?.data?.data ?? response?.data ?? response;
+  return Array.isArray(data) ? data : (Array.isArray(data?.content) ? data.content : []);
 };
 
 /**

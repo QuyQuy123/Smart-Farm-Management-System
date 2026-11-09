@@ -1,5 +1,9 @@
 package com.farmshift.backendFarmShift.service;
 
+import com.farmshift.backendFarmShift.service.ai.AssistantCommandDispatcher;
+import com.farmshift.backendFarmShift.service.ai.AssistantExecutionContext;
+import com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer;
+
 import com.farmshift.backendFarmShift.dto.AiAssistantRequest;
 import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
 import com.farmshift.backendFarmShift.dto.request.BarnRequest;
@@ -77,6 +81,12 @@ public class AiAssistantService {
 
     private final String aiServiceUrl;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AssistantCommandDispatcher commandDispatcher;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DynamicVietnameseSpeechNormalizer dynamicNormalizer;
+
     public AiAssistantService(
             BarnRepository barnRepository,
             FarmingCycleRepository cycleRepository,
@@ -137,6 +147,20 @@ public class AiAssistantService {
 
         // Check if this is an explicit confirmation of a pending action
         if (Boolean.TRUE.equals(request.getConfirmAction()) && request.getPendingActionPayload() != null) {
+            if (commandDispatcher != null) {
+                AssistantExecutionContext confirmCtx = AssistantExecutionContext.builder()
+                        .pendingActionPayload(request.getPendingActionPayload())
+                        .confirmAction(true)
+                        .username(actor)
+                        .isWorker(isWorker)
+                        .authorities(authorities)
+                        .build();
+                AiAssistantResponse dispatched = commandDispatcher.dispatch(confirmCtx);
+                if (dispatched != null) {
+                    captureContext(actor, dispatched);
+                    return dispatched;
+                }
+            }
             AiAssistantResponse confirmed = executeConfirmedPayload(request.getPendingActionPayload(), username, isWorker);
             captureContext(actor, confirmed);
             return confirmed;
@@ -154,7 +178,7 @@ public class AiAssistantService {
         boolean autoExecute = request.getAutoExecute() == null || Boolean.TRUE.equals(request.getAutoExecute());
 
         // GIAI ĐOẠN 1: chuẩn hóa tiếng Việt đời thường (số bằng chữ, "500 nghìn", "2 bao cám", tên chuồng/đơn nói tắt...)
-        String message = VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawMessage);
+        String message = dynamicNormalizer != null ? dynamicNormalizer.normalize(rawMessage) : VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawMessage);
 
         // Từ khóa xác nhận trực tiếp ("luôn nhé", "xác nhận luôn"): thực thi ngay, không cần thẻ xác nhận
         if (DIRECT_CONFIRM.matcher(message).find()) {
@@ -163,6 +187,27 @@ public class AiAssistantService {
         }
         Env env = new Env(actor, isWorker, autoExecute);
         Map<String, Object> ctx = resolveContext(actor, request.getLastActionContext());
+
+        if (commandDispatcher != null) {
+            AssistantExecutionContext execCtx = AssistantExecutionContext.builder()
+                    .message(message)
+                    .rawMessage(rawMessage)
+                    .currentRoute(request.getCurrentRoute())
+                    .username(actor)
+                    .authorities(authorities)
+                    .isWorker(isWorker)
+                    .autoExecute(autoExecute)
+                    .history(request.getHistory() != null ? request.getHistory() : Collections.emptyList())
+                    .lastActionContext(ctx)
+                    .pendingActionPayload(request.getPendingActionPayload())
+                    .confirmAction(request.getConfirmAction())
+                    .build();
+            AiAssistantResponse dispatched = commandDispatcher.dispatch(execCtx);
+            if (dispatched != null) {
+                captureContext(actor, dispatched);
+                return withDiffDetails(dispatched);
+            }
+        }
 
         // GIAI ĐOẠN 1b: Điều hướng màn hình thuần túy ("mở ghi nhật ký", "sổ quỹ"...) — chạy TRƯỚC các engine thao tác dữ liệu
         AssistantNavigationRouter.Route navRoute = AssistantNavigationRouter.resolve(normalizeText(message));
@@ -436,7 +481,12 @@ public class AiAssistantService {
             "TRANSFER_FLOCK",
             "START_CYCLE",
             "CLOSE_CYCLE",
-            "START_OR_CLOSE_CYCLE"
+            "START_OR_CLOSE_CYCLE",
+            "IMPORT_PURCHASE_STOCK",
+            "INTERNAL_STOCK_VOUCHER",
+            "CREATE_INTERNAL_VOUCHER",
+            "HARVEST_FLOCK",
+            "HARVEST"
     );
 
     private static final Pattern UNTRACKED_EXPENSE = Pattern.compile("\\b(dien|nuoc|tien cong|nhan cong|cong nhan)\\b");
@@ -1024,6 +1074,9 @@ public class AiAssistantService {
                     payload.put("barnId", barn.getId());
                     payload.put("quantity", qty);
                     if (norm.contains("xuat ban") || norm.contains("thu hoach")) {
+                        if (env.worker()) {
+                            return workerBlocked("HARVEST");
+                        }
                         payload.put("movementType", "HARVEST");
                     } else if (norm.contains("loai thai")) {
                         payload.put("movementType", "CULL");
@@ -1109,6 +1162,9 @@ public class AiAssistantService {
             }
 
             if (invoiceCode != null) {
+                if (isWorker) {
+                    return workerBlocked("IMPORT_PURCHASE_STOCK");
+                }
                 return handleImportStock(invoiceCode, autoExecute);
             }
         }
@@ -1208,7 +1264,7 @@ public class AiAssistantService {
 
         // 11. LOG_MORTALITY (Hao hụt, chết, loại thải, xuất bán)
         if (norm.contains("hao hut") || norm.contains("chet") || norm.contains("loai thai") || norm.contains("xuat ban") || norm.contains("thu hoach")) {
-            AiAssistantResponse mortalityResponse = handleLogMortality(norm, message, currentRoute, username, autoExecute);
+            AiAssistantResponse mortalityResponse = handleLogMortality(norm, message, currentRoute, username, autoExecute, isWorker);
             if (mortalityResponse != null) {
                 return mortalityResponse;
             }
@@ -1732,14 +1788,18 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String username) {
-        return handleLogMortality(norm, originalMsg, null, username, true);
+        return handleLogMortality(norm, originalMsg, null, username, true, false);
     }
 
     private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String currentRoute, String username) {
-        return handleLogMortality(norm, originalMsg, currentRoute, username, true);
+        return handleLogMortality(norm, originalMsg, currentRoute, username, true, false);
     }
 
     private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute) {
+        return handleLogMortality(norm, originalMsg, currentRoute, username, autoExecute, false);
+    }
+
+    private AiAssistantResponse handleLogMortality(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute, boolean isWorker) {
         Barn barn = resolveBarn(norm, originalMsg, currentRoute);
         if (barn == null) {
             if (hasBarnMention(norm, currentRoute)) {
@@ -1776,6 +1836,9 @@ public class AiAssistantService {
         FlockMovementType movementType = FlockMovementType.DEATH;
         String reason = "Hao hụt chăn nuôi";
         if (norm.contains("xuat ban") || norm.contains("thu hoach") || norm.contains("xuat")) {
+            if (isWorker) {
+                return workerBlocked("HARVEST");
+            }
             movementType = FlockMovementType.HARVEST;
             reason = "Xuất bán gà";
         } else if (norm.contains("loai thai")) {
@@ -1790,6 +1853,14 @@ public class AiAssistantService {
         }
 
         String actionLabel = movementType == FlockMovementType.HARVEST ? "xuất bán" : (movementType == FlockMovementType.CULL ? "loại thải" : "hao hụt");
+
+        if (barn.getCurrentQuantity() < qty) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Số lượng " + actionLabel + " (" + qty + " con) vượt quá số lượng gà hiện tại của chuồng (" + barn.getCurrentQuantity() + " con). Vui lòng kiểm tra lại số liệu (MSG27).")
+                    .actionType("LOG_MORTALITY")
+                    .executed(false)
+                    .build();
+        }
 
         if (!autoExecute) {
             Map<String, Object> details = new LinkedHashMap<>();
@@ -1830,6 +1901,13 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse commitLogMortality(Barn barn, Flock flock, int qty, String reason, FlockMovementType movementType, String username) {
+        if (barn.getCurrentQuantity() < qty) {
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Số lượng cần trừ (" + qty + " con) vượt quá số lượng gà hiện tại của chuồng (" + barn.getCurrentQuantity() + " con). Vui lòng kiểm tra lại số liệu (MSG27).")
+                    .actionType("LOG_MORTALITY")
+                    .executed(false)
+                    .build();
+        }
         if (flock != null) {
             FlockMovement movement = new FlockMovement();
             movement.setFlock(flock);

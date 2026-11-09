@@ -33,15 +33,26 @@ import { PurchaseRowActions } from './PurchaseRowActions';
 import { ConfirmStockImport } from './ConfirmStockImport';
 import { PrintablePurchaseVoucher } from './PrintablePurchaseVoucher';
 import { PurchaseInvoiceTemplate } from './PurchaseInvoiceTemplate';
+import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
 
 export const PurchasesView = () => {
   const { showToast } = useNotification();
   const { user } = useAuth();
   const isOwnerOrAccountant = user?.role === 'ROLE_FARM_OWNER' || user?.role === 'ROLE_ACCOUNTANT';
 
-  const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'suppliers' | 'tags'
-  const [purchases, setPurchases] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
+  const [activeTab, setActiveTabState] = useState(() => getPersistedTab('farmshift_tab_purchases', 'orders'));
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    setPersistedTab('farmshift_tab_purchases', tab);
+  };
+
+  const initialPurchases = dataCache.peek('/purchases');
+  const initialSuppliers = dataCache.peek('/suppliers');
+  const initialTags = dataCache.peek('/purchase-tags');
+  const initialProductTypes = dataCache.peek('/product-types');
+  const initialProductCategories = dataCache.peek('/inventory-items');
+  const [purchases, setPurchases] = useState(() => (Array.isArray(initialPurchases) ? initialPurchases : []));
+  const [suppliers, setSuppliers] = useState(() => (Array.isArray(initialSuppliers) ? initialSuppliers : []));
   const supplierNameCounts = useMemo(() => {
     const counts = new Map();
     for (const supplier of suppliers) {
@@ -50,9 +61,9 @@ export const PurchasesView = () => {
     }
     return counts;
   }, [suppliers]);
-  const [tags, setTags] = useState([]);
-  const [productTypes, setProductTypes] = useState([]);
-  const [productCategories, setProductCategories] = useState([]);
+  const [tags, setTags] = useState(() => (Array.isArray(initialTags) ? initialTags : []));
+  const [productTypes, setProductTypes] = useState(() => (Array.isArray(initialProductTypes) ? initialProductTypes : []));
+  const [productCategories, setProductCategories] = useState(() => (Array.isArray(initialProductCategories) ? initialProductCategories : []));
   const productOptions = useMemo(() => {
     const unique = new Map();
     for (const product of productCategories) {
@@ -69,7 +80,7 @@ export const PurchasesView = () => {
   const [unitsLoading, setUnitsLoading] = useState(false);
   const [unitsError, setUnitsError] = useState('');
   const [creationTime, setCreationTime] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !(initialPurchases && initialSuppliers));
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPayment, setFilterPayment] = useState('ALL');
   const [filterStock, setFilterStock] = useState('ALL');
@@ -169,6 +180,13 @@ export const PurchasesView = () => {
           setTags(Array.isArray(tgs) ? tgs : []);
           setProductTypes(Array.isArray(pts) ? pts : []);
           setProductCategories(Array.isArray(cats) ? cats : []);
+          if (!searchTerm && filterPayment === 'ALL') {
+            dataCache.set('/purchases', pos);
+            dataCache.set('/suppliers', sups);
+            dataCache.set('/purchase-tags', tgs);
+            dataCache.set('/product-types', pts);
+            dataCache.set('/inventory-items', cats);
+          }
           setLoading(false);
         }
       } catch (err) {

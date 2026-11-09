@@ -27,7 +27,11 @@ public class AreaWarehouseService {
     /** Bổ sung kho cho mọi khu chưa đủ (chạy khi khởi động cho dữ liệu cũ). */
     @Transactional
     public void ensureAll() {
-        areas.findAll().forEach(this::ensure);
+        for (FarmArea area : areas.findAll()) {
+            if (warehouses.findAllByArea_Id(area.getId()).isEmpty()) {
+                ensure(area);
+            }
+        }
     }
 
     @Transactional
@@ -36,11 +40,12 @@ public class AreaWarehouseService {
         ensure(area, MEDICINE);
     }
 
-    /** Đổi tên khu: đổi theo tên hai kho của khu, trừ khi tên mới đã thuộc về kho khác. */
+    /** Đổi tên khu: đổi theo tên hai kho của khu, trừ khi tên mới đã thuộc về kho khác hoặc kho đang dùng chung cho nhiều khu. */
     @Transactional
     public void rename(FarmArea area) {
         ensure(area);
         for (WarehouseCategory warehouse : warehouses.findAllByArea_Id(area.getId())) {
+            if (warehouse.getAreas() != null && warehouse.getAreas().size() > 1) continue;
             String name = name(area.getName(), warehouse.getKind());
             if (name.equals(warehouse.getName()) || warehouses.existsByNameKeyAndIdNot(key(name), warehouse.getId())) continue;
             warehouse.setName(name);
@@ -49,11 +54,25 @@ public class AreaWarehouseService {
         }
     }
 
-    /** Trước khi xóa khu: kho trống thì xóa, kho đã có hàng hoặc phiếu thì giữ lại (bỏ liên kết khu) để không mất lịch sử. */
+    /** Trước khi xóa khu: gỡ liên kết khu. Kho trống và không dùng chung cho khu khác thì xóa, kho đã có hàng/phiếu hoặc dùng chung thì giữ lại. */
     @Transactional
     public void release(FarmArea area) {
-        for (WarehouseCategory warehouse : warehouses.findAllByArea_Id(area.getId())) {
+        var linkedWarehouses = warehouses.findAllByArea_Id(area.getId());
+        if (area.getWarehouses() != null) {
+            area.getWarehouses().clear();
+            areas.saveAndFlush(area);
+        }
+        for (WarehouseCategory warehouse : linkedWarehouses) {
             Long id = warehouse.getId();
+            boolean sharedWithOthers = warehouse.getAreas().stream().anyMatch(a -> !a.getId().equals(area.getId()))
+                    || (warehouse.getArea() != null && !warehouse.getArea().getId().equals(area.getId()));
+            if (sharedWithOthers) {
+                if (warehouse.getArea() != null && warehouse.getArea().getId().equals(area.getId())) {
+                    warehouse.setArea(null);
+                    warehouses.save(warehouse);
+                }
+                continue;
+            }
             if (inventory.existsByWarehouse_Id(id) || products.existsByWarehouse_Id(id) || vouchers.existsBySourceWarehouse_IdOrTargetWarehouse_Id(id, id)) {
                 warehouse.setArea(null);
                 warehouses.save(warehouse);
@@ -79,9 +98,18 @@ public class AreaWarehouseService {
             warehouse.setNameKey(key(name));
             warehouse.setDescription((MEDICINE.equals(kind) ? "Thuốc thú y và vắc-xin cho " : "Cám cho các chuồng ") + area.getName());
         }
-        warehouse.setArea(area);
+        if (warehouse.getArea() == null) {
+            warehouse.setArea(area);
+        }
         warehouse.setKind(kind);
-        warehouses.save(warehouse);
+        warehouse = warehouses.save(warehouse);
+        if (area.getWarehouses() == null) {
+            area.setWarehouses(new java.util.ArrayList<>());
+        }
+        if (!area.getWarehouses().contains(warehouse)) {
+            area.getWarehouses().add(warehouse);
+            areas.save(area);
+        }
     }
 
     private static String key(String name) {
