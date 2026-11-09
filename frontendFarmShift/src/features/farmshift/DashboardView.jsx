@@ -92,7 +92,7 @@ export const DashboardView = () => {
           <div className={styles.columns}>
             {/* "Cần xử lý" như một trang sổ trực trại: bìa xanh rêu, giấy ngà kẻ dòng, lề đỏ, ruy-băng — cùng kiểu sổ giao việc ở Phân công. */}
             <section className={`${styles.card} ${styles.notebook}`} aria-label="Cần xử lý">
-              <span className={styles.rings} aria-hidden="true">{Array.from({ length: 7 }, (_, index) => <i key={index} />)}</span>
+              <span className={styles.rings} aria-hidden="true">{Array.from({ length: 6 }, (_, index) => <i key={index} />)}</span>
               <div className={styles.paper}>
                 <header>
                   <div><small className={styles.kicker}>Sổ trực trại · {formatDay(data.date)}</small><h3><ClipboardList size={17} />Cần xử lý</h3></div>

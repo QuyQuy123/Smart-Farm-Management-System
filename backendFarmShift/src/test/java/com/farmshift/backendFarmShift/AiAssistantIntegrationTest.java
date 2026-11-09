@@ -218,6 +218,33 @@ public class AiAssistantIntegrationTest {
     }
 
     @Test
+    void testExpensesOutsideCycleCost_AreRefusedAndNotSaved() throws Exception {
+        long initialCount = expenseRepository.count();
+        for (String message : List.of("Ghi chi phí tiền điện Nhà A1 500 nghìn", "Ghi tiền nước Nhà A1 300 nghìn", "Ghi tiền nhân công Nhà A1 2 triệu")) {
+            mvc.perform(post(ASSISTANT_API)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(Map.of("message", message, "currentRoute", "/cashbook", "autoExecute", true))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.executed").value(false))
+                    .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("chưa tính")));
+        }
+        assertEquals(initialCount, expenseRepository.count());
+    }
+
+    @Test
+    void testExpenseAboutTheBarnGate_IsNotMistakenForLabor() throws Exception {
+        long initialCount = expenseRepository.count();
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Ghi chi phí làm cổng Nhà A1 500 nghìn", "currentRoute", "/cashbook", "autoExecute", true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true));
+        assertEquals(initialCount + 1, expenseRepository.count());
+        List<CycleExpense> list = expenseRepository.findAll();
+        assertEquals(ExpenseCategory.OTHER, list.get(list.size() - 1).getCategory());
+    }
+
+    @Test
     void testUnknownBarn_ReturnsHelpfulMessageWithoutCrashing() throws Exception {
         mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -258,7 +285,7 @@ public class AiAssistantIntegrationTest {
         mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                        "message", "Ghi chi phí tiền điện Nhà A1 500 nghìn",
+                        "message", "Ghi chi phí tiền thuốc Nhà A1 500 nghìn",
                         "currentRoute", "/cashbook",
                         "autoExecute", true
                 ))))
@@ -270,7 +297,7 @@ public class AiAssistantIntegrationTest {
         assertEquals(initialCount + 1, expenseRepository.count());
         List<CycleExpense> list = expenseRepository.findAll();
         CycleExpense latest = list.get(list.size() - 1);
-        assertEquals(ExpenseCategory.ELECTRICITY, latest.getCategory());
+        assertEquals(ExpenseCategory.MEDICINE, latest.getCategory());
         assertEquals(500000L, latest.getAmount().longValue());
     }
 
@@ -572,17 +599,17 @@ public class AiAssistantIntegrationTest {
                 .andExpect(jsonPath("$.pendingAction.payload.quantity").value(5))
                 .andExpect(jsonPath("$.pendingAction.payload.reason", org.hamcrest.Matchers.containsString("dịch bệnh")));
 
-        // 7. Ghi chi phí: "Ghi chi phí chuồng A1 500k tiền điện"
+        // 7. Ghi chi phí: "Ghi chi phí chuồng A1 500k tiền thuốc"
         mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                        "message", "Ghi chi phí chuồng A1 500k tiền điện",
+                        "message", "Ghi chi phí chuồng A1 500k tiền thuốc",
                         "autoExecute", false
                 ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.actionType").value("LOG_EXPENSE"))
                 .andExpect(jsonPath("$.requiresConfirmation").value(true))
-                .andExpect(jsonPath("$.pendingAction.payload.category").value("ELECTRICITY"))
+                .andExpect(jsonPath("$.pendingAction.payload.category").value("MEDICINE"))
                 .andExpect(jsonPath("$.pendingAction.payload.amount").value(500000));
 
         // 8. Nhập kho đơn hàng: "Nhận kho đơn NH000003"
