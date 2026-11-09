@@ -181,10 +181,13 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     const dialog = await screen.findByRole('dialog');
     const options = within(field(dialog, /Chuồng trống nhận đàn/)).getAllByRole('option').map(option => option.textContent);
     expect(options).toEqual(['Nhà A4 (Khu Mía Thịt) · chứa được 1.000 con']);
+    // Nhập nhiều hơn sức chứa thì chuồng đó không còn là lựa chọn; giảm số con thì hiện lại và tự chọn.
     fireEvent.change(field(dialog, /Số con chuyển/), { target: { value: '2000' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
-    expect(await within(dialog).findByText('Nhà A4 chỉ còn 1.000 chỗ.')).toBeInTheDocument();
+    expect(within(field(dialog, /Chuồng trống nhận đàn/)).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['Không có chuồng trống đủ chỗ cho 2.000 con']);
+    expect(cycles.transferFlock).not.toHaveBeenCalled();
     fireEvent.change(field(dialog, /Số con chuyển/), { target: { value: '800' } });
+    expect(field(dialog, /Chuồng trống nhận đàn/).value).toBe('7');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await waitFor(() => expect(cycles.transferFlock).toHaveBeenCalledWith(4, expect.objectContaining({ targetBarnId: 7, quantity: 800 })));
   });

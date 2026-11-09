@@ -22,7 +22,16 @@ export function FormDialog({ title, intro, warning, fields: allFields, initial, 
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const set = (key, value) => { setValues(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+  // Ô chọn có danh sách phụ thuộc giá trị khác (options là hàm): lựa chọn cũ không còn hợp lệ thì chuyển sang dòng đầu.
+  const optionsOf = (field, current) => (typeof field.options === 'function' ? field.options(current) : field.options);
+  const reconcile = next => {
+    allFields.filter(field => typeof field.options === 'function').forEach(field => {
+      const options = optionsOf(field, next);
+      if (!options.some(option => option.value === next[field.key])) next[field.key] = options[0]?.value ?? '';
+    });
+    return next;
+  };
+  const set = (key, value) => { setValues(current => reconcile({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
   const fields = allFields.filter(field => !field.visible || field.visible(values));
 
   const submit = async event => {
@@ -53,7 +62,7 @@ export function FormDialog({ title, intro, warning, fields: allFields, initial, 
       'aria-invalid': Boolean(errors[field.key]), 'aria-describedby': errors[field.key] ? `${id}-error` : field.hint ? `${id}-hint` : undefined,
     };
     if (field.render) return field.render(common, value => set(field.key, value));
-    if (field.type === 'select') return <select {...common}>{field.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
+    if (field.type === 'select') return <select {...common}>{optionsOf(field, values).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
     if (field.type === 'textarea') return <textarea {...common} rows={3} maxLength={1000} placeholder={field.placeholder} />;
     return <input {...common} type={field.type || 'text'} min={field.min} max={field.max} step={field.step} placeholder={field.placeholder}
       inputMode={field.type === 'number' ? (field.step && String(field.step).includes('.') ? 'decimal' : 'numeric') : undefined} />;

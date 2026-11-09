@@ -247,9 +247,15 @@ export const BarnDetailView = () => {
       warning: targets.length ? null : 'Chưa có chuồng trống để tách đàn. Hãy tạo chuồng mới ở mục Khu nuôi hoặc kết thúc lứa của một chuồng.',
       initial: { targetBarnId: targets[0] ? String(targets[0].id) : '', quantity: '', transferDate: today, name: flock.name, avgWeight: '', note: '' },
       fields: [
-        { key: 'targetBarnId', label: 'Chuồng trống nhận đàn', type: 'select', required: true,
-          options: targets.length ? targets.map(item => ({ value: String(item.id), label: `${item.name} (${item.areaName}) · chứa được ${num(roomOf(item))} con` }))
-            : [{ value: '', label: 'Không có chuồng trống' }] },
+        // Chỉ hiện chuồng khả thi: nhập số con chuyển thì bỏ các chuồng không đủ sức chứa.
+        { key: 'targetBarnId', label: 'Chuồng trống nhận đàn', type: 'select', required: true, full: true,
+          options: values => {
+            const moving = Number(values.quantity);
+            const counted = isInt(values.quantity) && moving > 0;
+            const feasible = counted ? targets.filter(item => roomOf(item) >= moving) : targets;
+            if (feasible.length) return feasible.map(item => ({ value: String(item.id), label: `${item.name} (${item.areaName}) · chứa được ${num(roomOf(item))} con` }));
+            return [{ value: '', label: counted && targets.length ? `Không có chuồng trống đủ chỗ cho ${num(moving)} con` : 'Không có chuồng trống' }];
+          } },
         { key: 'quantity', label: 'Số con chuyển', required: true,
           render: (common, setQuantity) => <div className={styles.quantityRow}>
             <input {...common} type="number" min={1} max={flock.quantity} step={1} inputMode="numeric" />
