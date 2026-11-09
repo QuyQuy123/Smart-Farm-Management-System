@@ -66,44 +66,44 @@
 .lossMoney { background: #fdecec !important; }
 .lossMoney strong { color: #b42318; }
 
-/* "Cần xử lý": tờ note xanh sáng, gáy lò xo trên cùng, dải đầu trang đậm hơn, nền giấy chuyển màu nhẹ. */
-.notebook { --ink: #12414f; --ink-soft: #3f7382; --rule: rgba(30, 130, 155, 0.2);
+/* "Cần xử lý": tờ note xanh lá nhạt cùng tone trang, gáy lò xo trên cùng, dải đầu trang đậm hơn, nền giấy chuyển màu nhẹ. */
+.notebook { --ink: #1b4332; --ink-soft: #52796f; --rule: rgba(45, 106, 79, 0.16);
   position: relative; display: flex; padding: 0; border: 0; border-radius: 14px; overflow: visible;
-  background: linear-gradient(135deg, #d6f8ff 0%, #bff3ff 50%, #a9efff 100%);
-  box-shadow: 0 14px 30px rgba(30, 130, 155, 0.2); }
+  background: linear-gradient(135deg, #f6fcf8 0%, #edf8f0 55%, #e3f5e9 100%);
+  box-shadow: 0 12px 26px rgba(27, 67, 50, 0.13); }
 .paper { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 14px; color: var(--ink); }
 .notebook .paper > header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-end; padding: 42px 22px 14px;
-  border-radius: 14px 14px 0 0; background: linear-gradient(180deg, #a3d9e6 0%, #84dce6 100%); }
+  border-radius: 14px 14px 0 0; background: linear-gradient(180deg, #d8f3dc 0%, #b7e4c7 100%); }
 /* Lò xo: mỗi vòng là một chân trắng móc vào lỗ tròn trên dải đầu trang. */
 .rings { position: absolute; top: -10px; left: 6%; right: 6%; z-index: 2; display: flex; justify-content: space-between; pointer-events: none; }
 .rings i { position: relative; display: block; width: 26px; height: 44px; }
 .rings i::before { content: ''; position: absolute; top: 0; left: 8px; width: 10px; height: 28px; border-radius: 3px; background: #f4f8f9;
-  box-shadow: 0 1px 2px rgba(18, 65, 79, 0.25); }
+  box-shadow: 0 1px 2px rgba(27, 67, 50, 0.25); }
 .rings i::after { content: ''; position: absolute; bottom: 0; left: 0; width: 26px; height: 26px; border-radius: 50%;
   background: linear-gradient(145deg, #e6e6e6, #cfcfcf); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12); }
-.kicker { display: block; margin-bottom: 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1f7486; }
+.kicker { display: block; margin-bottom: 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #2d6a4f; }
 .notebook h3 { font-size: 21px; font-weight: 700; color: var(--ink); }
-.notebook .count { background: #12697d; color: #fff; }
-.notebook .allGood { color: #12697d; padding-left: 22px; }
-.notebook .alerts { padding: 0 0 10px; scrollbar-width: thin; scrollbar-color: #7fcbdb transparent; }
+.notebook .count { background: #1b4332; color: #fff; }
+.notebook .allGood { color: #2d6a4f; padding-left: 22px; }
+.notebook .alerts { padding: 0 0 10px; scrollbar-width: thin; scrollbar-color: #95d5b2 transparent; }
 .notebook .alerts::-webkit-scrollbar { width: 8px; }
-.notebook .alerts::-webkit-scrollbar-thumb { border-radius: 8px; background: #7fcbdb; }
+.notebook .alerts::-webkit-scrollbar-thumb { border-radius: 8px; background: #95d5b2; }
 .notebook .alerts li > a, .notebook .alerts li > div { align-items: center; padding: 12px 18px 12px 22px; border-bottom: 1px solid var(--rule); }
 .notebook .alerts li:last-child > a, .notebook .alerts li:last-child > div { border-bottom: 0; }
-.notebook .alerts li > a:hover { background: rgba(255, 255, 255, 0.45); }
+.notebook .alerts li > a:hover { background: rgba(255, 255, 255, 0.7); }
 .notebook .alertIcon { flex: 0 0 18px; margin: 0 12px 0 0; }
 .notebook .alerts strong { font-size: 15px; font-weight: 600; color: var(--ink); }
 .notebook .alerts small { font-size: 13px; color: var(--ink-soft); }
 .barnName { font-style: normal; font-weight: 700; color: var(--ink); }
 .badge { flex-shrink: 0; min-width: 28px; padding: 2px 9px; border-radius: 999px; font-size: 13.5px;
-  font-weight: 700; text-align: center; background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(30, 130, 155, 0.3); color: #12697d; }
+  font-weight: 700; text-align: center; background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(45, 106, 79, 0.3); color: #2d6a4f; }
 .notebook .alert_DANGER .badge { background: #fff; border-color: #e7a9a1; color: #b42318; }
 .notebook .alert_WARN .badge { background: #fff; border-color: #e7c977; color: #8a5a00; }
 .notebook .alert_DANGER strong { color: #a11c12; }
 .notebook .alert_DANGER .alertIcon { color: #c0392b; }
 .notebook .alert_WARN .alertIcon { color: #a8741a; }
-.notebook .alert_INFO .alertIcon { color: #12697d; }
-.notebook .chevron { color: #4a97a8; }
+.notebook .alert_INFO .alertIcon { color: #2d6a4f; }
+.notebook .chevron { color: #74a58c; }
 
 /* Sơ đồ trang trại: khu là khối, chuồng là ô mặt bằng; màu theo trạng thái cùng chấm màu của thẻ chuồng (không dùng vàng). */
 .farmPlan { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; padding: 16px 18px 6px; }
