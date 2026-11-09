@@ -67,13 +67,13 @@
 .lossMoney strong { color: #b42318; }
 
 /* "Cần xử lý": tờ note xanh lá nhạt cùng tone trang, gáy lò xo trên cùng, dải đầu trang đậm hơn, nền giấy chuyển màu nhẹ. */
-.notebook { --ink: #1b4332; --ink-soft: #52796f; --rule: rgba(45, 106, 79, 0.22);
+.notebook { --ink: #1b4332; --ink-soft: #52796f; --rule: rgba(0, 120, 90, 0.16);
   position: relative; display: flex; padding: 0; border: 0; border-radius: 14px; overflow: visible;
-  background: linear-gradient(135deg, #e6f6ec 0%, #d8f1e1 55%, #c8ebd5 100%);
-  box-shadow: 0 12px 26px rgba(27, 67, 50, 0.13); }
+  background: linear-gradient(135deg, #e8fcff 0%, #edfdff 55%, #f1fdff 100%);
+  box-shadow: 0 14px 28px rgba(27, 67, 50, 0.2); }
 .paper { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 14px; color: var(--ink); }
 .notebook .paper > header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-end; padding: 42px 22px 14px;
-  border-radius: 14px 14px 0 0; background: linear-gradient(180deg, #b7e4c7 0%, #95d5b2 100%); }
+  border-radius: 14px 14px 0 0; background: #3f9d6a; }
 /* Lò xo: mỗi vòng là một chân trắng móc vào lỗ tròn trên dải đầu trang. */
 .rings { position: absolute; top: -10px; left: 6%; right: 6%; z-index: 2; display: flex; justify-content: space-between; pointer-events: none; }
 .rings i { position: relative; display: block; width: 26px; height: 44px; }
@@ -81,9 +81,9 @@
   box-shadow: 0 1px 2px rgba(27, 67, 50, 0.25); }
 .rings i::after { content: ''; position: absolute; bottom: 0; left: 0; width: 26px; height: 26px; border-radius: 50%;
   background: linear-gradient(145deg, #e6e6e6, #cfcfcf); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12); }
-.kicker { display: block; margin-bottom: 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #2d6a4f; }
-.notebook h3 { font-size: 21px; font-weight: 700; color: var(--ink); }
-.notebook .count { background: #1b4332; color: #fff; }
+.kicker { display: block; margin-bottom: 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; }
+.notebook h3 { font-size: 21px; font-weight: 700; color: #fff; }
+.notebook .count { background: #fff; color: #04351f; }
 .notebook .allGood { color: #2d6a4f; padding-left: 22px; }
 .notebook .alerts { padding: 0 0 10px; scrollbar-width: thin; scrollbar-color: #95d5b2 transparent; }
 .notebook .alerts::-webkit-scrollbar { width: 8px; }
