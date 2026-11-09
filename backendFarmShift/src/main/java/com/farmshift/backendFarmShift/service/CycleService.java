@@ -318,7 +318,10 @@ public class CycleService {
         for (CycleExpense e : expenses) byCategory.merge(e.getCategory().name(), e.getAmount(), BigDecimal::add);
         carriedExpenseRepository.findAllByCycleId(cycle.getId()).forEach(e -> byCategory.merge(e.getCategory().name(), e.getAmount(), BigDecimal::add));
         byCategory.replaceAll((key, value) -> money(value));
-        BigDecimal total = byCategory.values().stream().reduce(chicks.add(feed), BigDecimal::add);
+        BigDecimal total = byCategory.entrySet().stream()
+            .filter(entry -> ExpenseCategory.valueOf(entry.getKey()).countsInCycleCost())
+            .map(Map.Entry::getValue)
+            .reduce(chicks.add(feed), BigDecimal::add);
         BigDecimal producedKg = metrics.biomassKg().add(metrics.harvestedWeightKg());
         return new CycleFinance(money(chicks), money(feed), byCategory, money(total),
                 producedKg.signum() > 0 ? total.divide(producedKg, 0, RoundingMode.HALF_UP) : null,

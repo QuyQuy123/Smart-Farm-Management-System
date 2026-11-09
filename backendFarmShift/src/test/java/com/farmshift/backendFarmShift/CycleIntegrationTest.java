@@ -154,7 +154,9 @@ class CycleIntegrationTest {
                 "quantityKg", 900, "unitPrice", 13000)).andExpect(status().isCreated());
         post("/api/cycles/" + cycle + "/weight-samples", Map.of("sampleDate", TODAY.toString(), "avgWeightKg", 0.64, "sampleSize", 50))
             .andExpect(status().isCreated());
-        post("/api/cycles/" + cycle + "/expenses", Map.of("expenseDate", TODAY.toString(), "category", "ELECTRICITY", "amount", 500000))
+        post("/api/cycles/" + cycle + "/expenses", Map.of("expenseDate", TODAY.toString(), "category", "ELECTRICITY", "amount", 700000))
+            .andExpect(status().isCreated());
+        post("/api/cycles/" + cycle + "/expenses", Map.of("expenseDate", TODAY.toString(), "category", "MEDICINE", "amount", 500000))
             .andExpect(status().isCreated());
         post("/api/cycles/" + cycle + "/feed-records", Map.of("recordDate", TODAY.plusDays(1).toString(), "feedName", "Higro 01",
                 "quantityKg", 1, "unitPrice", 1)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("CYCLE_DATE_OUT_OF_RANGE"));
@@ -165,11 +167,11 @@ class CycleIntegrationTest {
             .andExpect(jsonPath("$.data.metrics.weightGainKg").value(closeTo(600.0, 0.01)))
             .andExpect(jsonPath("$.data.metrics.fcr").value(closeTo(1.5, 0.001)))
             .andExpect(jsonPath("$.data.metrics.densityPerM2").value(closeTo(1.0, 0.01)))
-            // 11,000,000 chicks + 11,700,000 feed + 500,000 electricity
+            // 11,000,000 chicks + 11,700,000 feed + 500,000 medicine; electricity is not part of the cycle cost
             .andExpect(jsonPath("$.data.finance.totalCost").value(23200000))
             .andExpect(jsonPath("$.data.finance.costPerKg").value(36250))
             .andExpect(jsonPath("$.data.finance.costPerHead").value(23200))
-            .andExpect(jsonPath("$.data.finance.expenses.ELECTRICITY").value(500000))
+            .andExpect(jsonPath("$.data.finance.expenses.MEDICINE").value(500000))
             .andExpect(jsonPath("$.data.feedRecords[0].createdBy").value("owner@farm.test"));
     }
 

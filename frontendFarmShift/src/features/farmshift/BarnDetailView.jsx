@@ -32,7 +32,7 @@ const money = value => value == null ? '—' : `${Number(value).toLocaleString('
 const isInt = value => value !== '' && Number.isInteger(Number(value));
 const IMPORT_PAYMENT_OPTIONS = [{ value: 'Trả sau', label: 'Trả sau (ghi công nợ)' }, { value: 'Thanh toán hoàn tất', label: 'Đã trả đủ tiền' }];
 
-const COST_COLORS = { chick: '#f59e0b', feed: '#06b6d4', ELECTRICITY: '#8b5cf6', WATER: '#3b82f6', LABOR: '#a8a29e', MEDICINE: '#ef4444', OTHER: '#ec4899' };
+const COST_COLORS = { chick: '#f59e0b', feed: '#06b6d4', MEDICINE: '#ef4444', OTHER: '#ec4899' };
 
 function Donut({ parts }) {
   const total = parts.reduce((sum, part) => sum + part.value, 0);
@@ -85,7 +85,7 @@ export const BarnDetailView = () => {
   const [modal, setModal] = useState(null);
   const [flockTab, setFlockTab] = useState('ACTIVE');
   const [journalTab, setJournalTab] = useState('FEED');
-  const [expenseTab, setExpenseTab] = useState('ELECTRICITY');
+  const [expenseTab, setExpenseTab] = useState('MEDICINE');
   const [financeTab, setFinanceTab] = useState('CHART');
   const [showMoreKpis, setShowMoreKpis] = useState(false);
 

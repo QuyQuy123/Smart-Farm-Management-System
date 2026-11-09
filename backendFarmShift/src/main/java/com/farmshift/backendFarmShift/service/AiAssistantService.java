@@ -439,6 +439,21 @@ public class AiAssistantService {
             "START_OR_CLOSE_CYCLE"
     );
 
+    private static final Pattern UNTRACKED_EXPENSE = Pattern.compile("\\b(dien|nuoc|tien cong|nhan cong|cong nhan)\\b");
+
+    /** Điện, nước, nhân công chưa tính vào chi phí lứa; câu nói về tiền thuốc (vd thuốc pha nước) vẫn được ghi. */
+    private boolean mentionsUntrackedExpense(String norm) {
+        return !norm.contains("thuoc") && UNTRACKED_EXPENSE.matcher(norm).find();
+    }
+
+    private AiAssistantResponse untrackedExpenseResponse() {
+        return AiAssistantResponse.builder()
+                .reply("⚠️ Hiện chưa tính tiền điện, tiền nước và tiền công vào chi phí lứa nuôi nên mình không ghi khoản này. Bạn vẫn có thể ghi tiền thuốc hoặc chi phí khác.")
+                .actionType("LOG_EXPENSE")
+                .executed(false)
+                .build();
+    }
+
     private AiAssistantResponse workerBlocked(String actionType) {
         return AiAssistantResponse.builder()
                 .reply("⚠️ Tài khoản Công nhân không có quyền thực hiện thao tác này. Vui lòng liên hệ Kế toán hoặc Chủ trại.")
@@ -1035,6 +1050,9 @@ public class AiAssistantService {
             if (env.worker()) {
                 return workerBlocked("LOG_EXPENSE");
             }
+            if (mentionsUntrackedExpense(norm)) {
+                return untrackedExpenseResponse();
+            }
             Barn barn = resolveBarn(norm, message, currentRoute);
             if (barn == null && ctx.get("barnId") != null) {
                 barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
@@ -1155,7 +1173,7 @@ public class AiAssistantService {
             if (areaRes != null) return areaRes;
         }
 
-        // 8. LOG_EXPENSE (Ghi chi phí tiền điện, nước, thuốc...)
+        // 8. LOG_EXPENSE (Ghi tiền thuốc, chi phí khác; điện, nước, nhân công bị từ chối)
         if (norm.contains("chi phi") || norm.contains("tien dien") || norm.contains("tien nuoc") || norm.contains("tien thuoc") || norm.contains("tien cong") || norm.contains("nhan cong")) {
             if (isWorker) {
                 return AiAssistantResponse.builder()
@@ -1860,6 +1878,9 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleLogExpense(String norm, String originalMsg, String currentRoute, String username, boolean autoExecute) {
+        if (mentionsUntrackedExpense(norm)) {
+            return untrackedExpenseResponse();
+        }
         Barn barn = resolveBarn(norm, originalMsg, currentRoute);
         if (barn == null) {
             if (hasBarnMention(norm, currentRoute)) {
@@ -1878,18 +1899,9 @@ public class AiAssistantService {
         ExpenseCategory category = ExpenseCategory.OTHER;
         String categoryLabel = "Chi phí khác";
 
-        if (norm.contains("dien")) {
-            category = ExpenseCategory.ELECTRICITY;
-            categoryLabel = "Tiền điện";
-        } else if (norm.contains("nuoc")) {
-            category = ExpenseCategory.WATER;
-            categoryLabel = "Tiền nước";
-        } else if (norm.contains("thuoc")) {
+        if (norm.contains("thuoc")) {
             category = ExpenseCategory.MEDICINE;
             categoryLabel = "Tiền thuốc thú y";
-        } else if (norm.contains("cong") || norm.contains("nhan cong")) {
-            category = ExpenseCategory.LABOR;
-            categoryLabel = "Tiền công";
         }
 
         long amount = 500000L;
@@ -1935,6 +1947,9 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse commitLogExpense(Barn barn, FarmingCycle cycle, ExpenseCategory category, String categoryLabel, long amount, String username) {
+        if (!category.countsInCycleCost()) {
+            return untrackedExpenseResponse();
+        }
         CycleExpense expense = new CycleExpense();
         expense.setCycle(cycle);
         expense.setExpenseDate(LocalDate.now());
@@ -2656,11 +2671,11 @@ public class AiAssistantService {
                         Optional<FarmingCycle> activeCycle = cycleRepository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE);
                         if (activeCycle.isPresent()) {
                             expense = expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(activeCycle.get().getId())
-                                    .stream().findFirst().orElse(null);
+                                    .stream().filter(e -> e.getCategory().countsInCycleCost()).findFirst().orElse(null);
                         }
                         if (expense == null) {
                             expense = expenseRepository.findAll().stream()
-                                    .filter(e -> e.getCycle() != null && barnId.equals(e.getCycle().getBarn().getId()))
+                                    .filter(e -> e.getCycle() != null && barnId.equals(e.getCycle().getBarn().getId()) && e.getCategory().countsInCycleCost())
                                     .sorted((a, b) -> b.getId().compareTo(a.getId()))
                                     .findFirst().orElse(null);
                         }
@@ -2668,6 +2683,9 @@ public class AiAssistantService {
                 }
                 if (expense == null) {
                     return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy bản ghi chi phí gần đây để sửa đổi.").executed(false).build();
+                }
+                if (!expense.getCategory().countsInCycleCost()) {
+                    return untrackedExpenseResponse();
                 }
                 long amount = Long.parseLong(String.valueOf(payload.get("amount")));
                 expense.setAmount(BigDecimal.valueOf(amount));
@@ -3460,6 +3478,9 @@ public class AiAssistantService {
                 String catStr = parsed.path("expenseCategory").asText("OTHER").toUpperCase(Locale.ROOT);
                 ExpenseCategory category = ExpenseCategory.OTHER;
                 try { category = ExpenseCategory.valueOf(catStr); } catch (Exception ignored) {}
+                if (!category.countsInCycleCost() || mentionsUntrackedExpense(norm)) {
+                    return untrackedExpenseResponse();
+                }
 
                 String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
 
@@ -3567,7 +3588,7 @@ public class AiAssistantService {
                             "• **Ghi cám:** *\"Cho Nhà A1 ăn 50kg cám Higro 01\"*\n" +
                             "• **Cân mẫu:** *\"Nhà B1 cân mẫu 50 con được 1.82 kg\"*\n" +
                             "• **Hao hụt:** *\"Nhà A2 chết 3 con do sốc nhiệt\"*\n" +
-                            "• **Chi phí:** *\"Ghi tiền điện tháng này 1 triệu 2 cho Nhà A1\"*\n" +
+                            "• **Chi phí:** *\"Ghi tiền thuốc 1 triệu 2 cho Nhà A1\"*\n" +
                             "• **Nhập kho:** *\"Xác nhận nhập kho đơn hàng NH000001\"*\n" +
                             "• **Hỏi đáp kỹ thuật:** *\"Nhiệt độ úm gà con bao nhiêu?\", \"Cách xử lý gà khò khè?\"*")
                     .actionType("GENERAL_QNA")
