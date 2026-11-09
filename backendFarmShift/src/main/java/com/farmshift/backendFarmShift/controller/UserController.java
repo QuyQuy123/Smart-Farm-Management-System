@@ -8,6 +8,7 @@ import com.farmshift.backendFarmShift.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.security.Principal;
 import org.springframework.web.bind.annotation.*;
 
@@ -37,6 +38,7 @@ public class UserController {
     }
 
     @GetMapping("/all")
+    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
     public ResponseEntity<ApiResponse<java.util.List<UserProfileResponse>>> getAllUsers() {
         java.util.List<UserProfileResponse> users = userService.getAllUsers();
         return ResponseEntity.ok(ApiResponse.success("Users fetched successfully", users));

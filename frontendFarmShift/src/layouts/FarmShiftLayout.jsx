@@ -245,24 +245,29 @@ export const FarmShiftLayout = ({
     };
 
     const navMenuItems = [
-        { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard },
-        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse },
-        { id: 'today-tasks', label: 'Việc hôm nay', path: '/today-tasks', icon: ListChecks },
-        { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList },
-        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package },
-        { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight },
-        { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText },
-        { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart },
-        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign },
-        { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users },
-        { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3 },
+        { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
+        { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
+        { id: 'today-tasks', label: 'Việc hôm nay', path: '/today-tasks', icon: ListChecks, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
+        { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
+        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
+        { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'] },
+        { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
+        { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
+        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
+        { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users, roles: ['ROLE_FARM_OWNER'] },
+        { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
     ];
 
     const settingsMenuItems = [
-        { id: 'catalog-settings', label: 'Thiết lập danh mục', path: '/catalog-settings', icon: Layers },
-        { id: 'breeding-settings', label: 'Thiết lập chăn nuôi', path: '/breeding-settings', icon: Settings },
-        { id: 'general-settings', label: 'Thiết lập chung', path: '/general-settings', icon: Sliders },
+        { id: 'catalog-settings', label: 'Thiết lập danh mục', path: '/catalog-settings', icon: Layers, roles: ['ROLE_FARM_OWNER'] },
+        { id: 'breeding-settings', label: 'Thiết lập chăn nuôi', path: '/breeding-settings', icon: Settings, roles: ['ROLE_FARM_OWNER'] },
+        { id: 'general-settings', label: 'Thiết lập chung', path: '/general-settings', icon: Sliders, roles: ['ROLE_FARM_OWNER'] },
     ];
+
+    const userRole = user?.role || 'ROLE_FARM_OWNER';
+    const visibleNavItems = navMenuItems.filter(item => !item.roles || item.roles.includes(userRole));
+    const visibleSettingsItems = settingsMenuItems.filter(item => !item.roles || item.roles.includes(userRole));
+    const defaultHomeRoute = userRole === 'ROLE_FARM_WORKER' ? '/today-tasks' : '/dashboard';
 
     return (
         <div className="farmshift-app">
@@ -564,14 +569,14 @@ export const FarmShiftLayout = ({
             >
                 <div className="farmshift-sidebar-header">
                     {!collapsed ? (
-                        <Link to="/dashboard" className="farmshift-wordmark" aria-label="FarmShift - Bảng tin">
+                        <Link to={defaultHomeRoute} className="farmshift-wordmark" aria-label={`FarmShift - ${farmInfo.name}`}>
                             farm<span>Shift</span>{farmInitials && <small>{farmInitials}</small>}
                         </Link>
                     ) : (
                         <Link
-                            to="/dashboard"
+                            to={defaultHomeRoute}
                             style={{ margin: '0 auto', display: 'flex', justifyContent: 'center', textDecoration: 'none' }}
-                            title="FarmShift - Bảng tin"
+                            title={`FarmShift - ${farmInfo.name}`}
                         >
                             <img
                                 src={farmLogo}
@@ -596,7 +601,7 @@ export const FarmShiftLayout = ({
                 </div>
 
                 <ul className="farmshift-menu">
-                    {navMenuItems.map(item => {
+                    {visibleNavItems.map(item => {
                         const Icon = item.icon;
                         const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/')
                             || (item.id === 'areas' && inAreaPages);
@@ -623,9 +628,9 @@ export const FarmShiftLayout = ({
                         );
                     })}
 
-                    <li className="farmshift-menu-divider" />
+                    {visibleSettingsItems.length > 0 && <li className="farmshift-menu-divider" />}
 
-                    {settingsMenuItems.map(item => {
+                    {visibleSettingsItems.map(item => {
                         const Icon = item.icon;
                         const isActive = location.pathname === item.path;
                         return (
@@ -662,7 +667,7 @@ export const FarmShiftLayout = ({
                                 {pageTitle}
                             </h1>
                             <div className="farmshift-breadcrumbs">
-                                <Link to="/dashboard">{farmInfo.name}</Link>
+                                <Link to={defaultHomeRoute}>{farmInfo.name}</Link>
                                 <span>›</span>
                                 {breadcrumbs.map((bc, idx) => (
                                     <Fragment key={idx}>

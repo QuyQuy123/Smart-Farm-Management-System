@@ -150,7 +150,7 @@ public class WorkAssignmentService {
     // ---------------------------------------------------------------- used by the daily plan
 
     public boolean isWorkerOfBarn(String email, Long barnId) {
-        return responsibilities.workersOf(barnId).stream().anyMatch(worker -> worker.getEmail().equalsIgnoreCase(email));
+        return responsibilities.isWorkerOfBarn(email, barnId);
     }
 
     /** Công nhân chỉ ghi nhật ký / xác nhận việc cho chuồng mình phụ trách; chủ trại và kế toán không bị giới hạn. */
@@ -162,9 +162,7 @@ public class WorkAssignmentService {
     }
 
     public Set<Long> barnIdsOf(String email) {
-        return responsibilities.effectiveByBarn().entrySet().stream()
-                .filter(entry -> entry.getValue().stream().anyMatch(worker -> worker.getEmail().equalsIgnoreCase(email)))
-                .map(Map.Entry::getKey).collect(Collectors.toSet());
+        return responsibilities.assignedBarnIdsOf(email);
     }
 
     public List<WorkBoard.WorkerRef> workersOf(Long barnId) {

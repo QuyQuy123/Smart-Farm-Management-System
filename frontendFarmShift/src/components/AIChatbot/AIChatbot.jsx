@@ -633,9 +633,10 @@ export const AIChatbot = ({ userRole: propRole }) => {
         ...prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m),
         {
           id: Date.now() + 1,
-          role: 'assistant',
-          content: `⚠️ ${backendMsg}`,
-          timestamp: new Date()
+          type: 'bot',
+          text: `⚠️ ${backendMsg}`,
+          time: formatTime(new Date()),
+          actionCard: null
         }
       ]);
     }

@@ -26,8 +26,9 @@ public class InventoryItemService {
     private final DailyTaskLogRepository taskLogs;
     private final PurchaseInvoiceItemRepository purchaseItems;
     /** warehouseId null: mọi hàng hóa của mọi kho (dùng khi gắn hàng hóa vào chương trình nuôi). */
-    public List<InventoryItemResponse> list(Long warehouseId) { return list(warehouseId, false); }
-    public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts) {
+    public List<InventoryItemResponse> list(Long warehouseId) { return list(warehouseId, false, true); }
+    public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts) { return list(warehouseId, includeReceipts, true); }
+    public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts, boolean canSeeFinance) {
         List<InventoryItem> items;
         if (warehouseId == null) items = repository.findAllWithDetailsBy(Sort.by("warehouse.name", "product.name"));
         else {
@@ -39,13 +40,15 @@ public class InventoryItemService {
             var ids = items.stream().map(InventoryItem::getPurchaseInvoiceItemId).filter(java.util.Objects::nonNull).distinct().toList();
             if (!ids.isEmpty()) for (var row : purchaseItems.findByIdIn(ids)) {
                 var invoice = row.getInvoice();
+                Long unitPrice = canSeeFinance ? row.getUnitPrice() : null;
                 receipts.put(row.getId(), new com.farmshift.backendFarmShift.dto.response.InventoryReceiptResponse(
-                        invoice.getId(), invoice.getCode(), invoice.getImportedDate(), row.getQuantity(), row.getUnit(), row.getUnitPrice()));
+                        invoice.getId(), invoice.getCode(), invoice.getImportedDate(), row.getQuantity(), row.getUnit(), unitPrice));
             }
         }
-        return items.stream().map(item -> response(item, receipts.get(item.getPurchaseInvoiceItemId()))).toList();
+        return items.stream().map(item -> response(item, receipts.get(item.getPurchaseInvoiceItemId()), canSeeFinance)).toList();
     }
-    public InventoryItemResponse get(Long id) { return response(find(id)); }
+    public InventoryItemResponse get(Long id) { return get(id, true); }
+    public InventoryItemResponse get(Long id, boolean canSeeFinance) { return response(find(id), null, canSeeFinance); }
     @Transactional public InventoryItemResponse create(InventoryItemRequest request) {
         var item = new InventoryItem(); item.setStock(BigDecimal.ZERO); return save(item, request);
     }
@@ -89,10 +92,11 @@ public class InventoryItemService {
         catch (DataIntegrityViolationException exception) { throw duplicate(); }
     }
     private ConflictException duplicate() { return new ConflictException("Hàng hóa này đã có trong kho.", "INVENTORY_DUPLICATE", "productId"); }
-    private InventoryItemResponse response(InventoryItem item) { return response(item, null); }
-    private InventoryItemResponse response(InventoryItem item, com.farmshift.backendFarmShift.dto.response.InventoryReceiptResponse receipt) {
+    private InventoryItemResponse response(InventoryItem item) { return response(item, null, true); }
+    private InventoryItemResponse response(InventoryItem item, com.farmshift.backendFarmShift.dto.response.InventoryReceiptResponse receipt, boolean canSeeFinance) {
+        BigDecimal price = canSeeFinance ? item.getPrice() : null;
         return new InventoryItemResponse(item.getId(), item.getWarehouse().getId(), item.getWarehouse().getName(), item.getProduct().getId(), item.getProduct().getName(),
-                item.getImageUrl(), item.getPrice(), item.getStock(), item.getBrand() == null ? null : item.getBrand().getId(), item.getBrand() == null ? "" : item.getBrand().getName(), item.getCreatedAt(),
+                item.getImageUrl(), price, item.getStock(), item.getBrand() == null ? null : item.getBrand().getId(), item.getBrand() == null ? "" : item.getBrand().getName(), item.getCreatedAt(),
                 item.getUnit() == null ? null : item.getUnit().getId(), item.getUnit() == null ? "" : item.getUnit().getName(), item.getUnit() == null ? "" : item.getUnit().getCode(),
                 item.getUnit() == null ? null : item.getUnit().getContentQuantity(), item.getUnit() == null ? null : item.getUnit().getContentUnit(),
                 item.getProduct().getProductType(), receipt);

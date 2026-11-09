@@ -41,7 +41,11 @@ export const Login = () => {
           localStorage.removeItem('farmshift_remembered_email');
         }
         await login(res.accessToken, res.email || email.trim(), res.role);
-        navigate('/dashboard');
+        if (res.role === 'ROLE_FARM_WORKER') {
+          navigate('/today-tasks');
+        } else {
+          navigate('/dashboard');
+        }
         return;
       }
       throw new Error(getSystemMessage('MSG04'));
