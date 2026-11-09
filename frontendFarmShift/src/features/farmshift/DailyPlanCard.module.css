@@ -18,20 +18,20 @@
 .warnings svg { flex-shrink: 0; margin-top: 2px; }
 .empty { margin: 0; padding: 24px 20px; text-align: center; font-size: 14.5px; color: #71818a; }
 
-/* Lịch trong ngày: mỗi mốc giờ một hàng, ô giờ xanh ô-liu bên trái, thanh việc xanh nhạt bên phải. */
+/* Lịch trong ngày: mỗi mốc giờ một hàng, ô giờ xanh lá đậm bên trái, thanh việc xanh lá nhạt bên phải. */
 .schedule { display: flex; flex-direction: column; gap: 12px; margin: 16px; }
 .slot { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: stretch; }
 .slotTime { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 76px; padding: 12px 8px; border-radius: 16px;
-  background: #9caa60; text-align: center; }
-.slotTime strong { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; color: #26330e; font-variant-numeric: tabular-nums; }
+  background: #2d8a5e; text-align: center; }
+.slotTime strong { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; color: #fff; font-variant-numeric: tabular-nums; }
 .slotAllDay strong { font-size: 16px; white-space: nowrap; }
-.slotTime small { display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 13px; font-weight: 600; color: #33421a; }
-.slotTasks { list-style: none; margin: 0; padding: 8px 12px; min-width: 0; border-radius: 16px; background: #e4f1c2; }
+.slotTime small { display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 13px; font-weight: 600; color: #fff; }
+.slotTasks { list-style: none; margin: 0; padding: 8px 12px; min-width: 0; border-radius: 16px; background: #d3f2dd; }
 .slotTasks .task { margin-bottom: 0; padding: 8px 6px; border: 0; border-radius: 10px; background: transparent; }
-.slotTasks .task + .task { margin-top: 4px; border-top: 1px solid rgba(90, 110, 40, 0.22); border-radius: 0; }
+.slotTasks .task + .task { margin-top: 4px; border-top: 1px solid rgba(45, 106, 79, 0.22); border-radius: 0; }
 .slotTasks .task.done { background: rgba(255, 255, 255, 0.55); }
 .slotTasks .task.deviated { background: rgba(255, 249, 230, 0.8); }
-.tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #fff; color: #4d5f1f; font-size: 12.5px; font-weight: 700; vertical-align: middle; }
+.tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #fff; color: #2d6a4f; font-size: 12.5px; font-weight: 700; vertical-align: middle; }
 .section { padding: 2px 0 0; }
 .section h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #2d6a4f; }
 .section ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
