@@ -18,10 +18,9 @@
 .warnings svg { flex-shrink: 0; margin-top: 2px; }
 .empty { margin: 0; padding: 24px 20px; text-align: center; font-size: 14.5px; color: #71818a; }
 
-/* Lịch trong ngày: mỗi mốc giờ một hàng, ô giờ bên trái, thanh việc bên phải, xanh pastel đổi tông xen kẽ từng hàng. */
+/* Lịch trong ngày: mỗi mốc giờ một hàng, ô giờ bên trái, thanh việc bên phải, cùng một màu xanh pastel. */
 .schedule { display: flex; flex-direction: column; gap: 12px; margin: 16px; }
 .slot { --slot-tile: #9adbb5; --slot-bar: #e6f7ec; display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: stretch; }
-.slot:nth-child(even) { --slot-tile: #8ed5d0; --slot-bar: #e0f5f3; }
 .slotTime { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 76px; padding: 12px 8px; border-radius: 16px;
   background: var(--slot-tile); text-align: center; }
 .slotTime strong { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; color: #1b4332; font-variant-numeric: tabular-nums; }
