@@ -67,13 +67,13 @@
 .lossMoney strong { color: #b42318; }
 
 /* "Cần xử lý": tờ note xanh lá nhạt cùng tone trang, gáy lò xo trên cùng, dải đầu trang đậm hơn, nền giấy chuyển màu nhẹ. */
-.notebook { --ink: #1b4332; --ink-soft: #52796f; --rule: rgba(45, 106, 79, 0.16);
+.notebook { --ink: #1b4332; --ink-soft: #52796f; --rule: rgba(45, 106, 79, 0.22);
   position: relative; display: flex; padding: 0; border: 0; border-radius: 14px; overflow: visible;
-  background: linear-gradient(135deg, #f6fcf8 0%, #edf8f0 55%, #e3f5e9 100%);
+  background: linear-gradient(135deg, #e6f6ec 0%, #d8f1e1 55%, #c8ebd5 100%);
   box-shadow: 0 12px 26px rgba(27, 67, 50, 0.13); }
 .paper { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 14px; color: var(--ink); }
 .notebook .paper > header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-end; padding: 42px 22px 14px;
-  border-radius: 14px 14px 0 0; background: linear-gradient(180deg, #d8f3dc 0%, #b7e4c7 100%); }
+  border-radius: 14px 14px 0 0; background: linear-gradient(180deg, #b7e4c7 0%, #95d5b2 100%); }
 /* Lò xo: mỗi vòng là một chân trắng móc vào lỗ tròn trên dải đầu trang. */
 .rings { position: absolute; top: -10px; left: 6%; right: 6%; z-index: 2; display: flex; justify-content: space-between; pointer-events: none; }
 .rings i { position: relative; display: block; width: 26px; height: 44px; }
