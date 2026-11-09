@@ -196,7 +196,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
       : <div className={styles.schedule} aria-label="Lịch việc trong ngày">
         {(allDay.length > 0 || allDayAssigned.length > 0) && <div className={styles.slot}>
           <div className={`${styles.slotTime} ${styles.slotAllDay}`}><strong>Trong ngày</strong><small>không hẹn giờ</small></div>
-          <div className={styles.slotTasks}>
+          <div className={`${styles.slotTasks} ${styles.allDayTasks}`}>
             {allDay.map(section => {
               const Icon = section.icon;
               return <div key={section.category} className={styles.section}>
