@@ -1,0 +1,14 @@
+FROM maven:3.9-eclipse-temurin-21
+
+WORKDIR /app
+
+COPY pom.xml .
+RUN mvn -B dependency:go-offline
+
+COPY dev-entrypoint.sh /usr/local/bin/dev-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/dev-entrypoint.sh && chmod +x /usr/local/bin/dev-entrypoint.sh
+
+EXPOSE 8080
+
+CMD ["/usr/local/bin/dev-entrypoint.sh"]
+

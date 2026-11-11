@@ -1,25 +1,46 @@
 # Root & General
 .DS_Store
+Thumbs.db
 .idea/
+*.iml
+*.iws
+*.ipr
 .vscode/
 *.log
+*.tmp
+*.bak
+*.swp
+*~
+/.env
+/.env.local
+/docker-compose.override.yml
 run.bat
+hs_err_pid*.log
+replay_pid*.log
 
 # Frontend (Node / Vite)
 frontendFarmShift/node_modules/
 frontendFarmShift/dist/
+frontendFarmShift/coverage/
+frontendFarmShift/.vite/
+frontendFarmShift/.vercel/
 frontendFarmShift/public/img/*
 !frontendFarmShift/public/img/.gitkeep
+frontendFarmShift/public/weigh-slips/
 frontendFarmShift/.env.local
+frontendFarmShift/.env.*.local
 
 # Backend (Spring Boot / Maven / Gradle)
 backendFarmShift/target/
+backendFarmShift/uploads/
 backendFarmShift/src/main/resources/application-local.properties
 backendFarmShift/.mvn/wrapper/maven-wrapper.jar
 !backendFarmShift/.mvn/wrapper/maven-wrapper.properties
 backendFarmShift/HELP.md
 backendFarmShift/hs_err_pid*.log
 backendFarmShift/replay_pid*.log
+
+# Legacy Docs / Local Scratch / Browser Artifacts
 UI_FarmShift.pdf
 FarmShift.html
 /Farmgo-clone
@@ -27,15 +48,17 @@ FarmShift_MienBinh_Full.html
 scratch/
 /.md
 .md/
+/.agents
+.playwright-mcp/
 
 # AI Microservice (Python / FastAPI)
 aiServiceFarmShift/.env
+aiServiceFarmShift/.env.*
+!aiServiceFarmShift/.env.example
 aiServiceFarmShift/venv/
+aiServiceFarmShift/.venv/
 aiServiceFarmShift/__pycache__/
 aiServiceFarmShift/**/__pycache__/
-/.agents
-
-# Uploaded original sales weight slips
-frontendFarmShift/public/weigh-slips/
-
-.playwright-mcp/
+aiServiceFarmShift/*.pyc
+aiServiceFarmShift/**/*.pyc
+aiServiceFarmShift/.pytest_cache/
