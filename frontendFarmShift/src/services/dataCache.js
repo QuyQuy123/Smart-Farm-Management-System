@@ -270,6 +270,13 @@ export const INVALIDATION_MATRIX = {
     '/accounts',
     '/work-assignments'
   ],
+  '/work-tasks': [
+    '/work-tasks',
+    '/work-assignments',
+    '/daily-plan',
+    '/daily-plans',
+    '/today-tasks'
+  ],
   '/work-assignments': [
     '/work-assignments',
     '/warehouse-responsibilities',

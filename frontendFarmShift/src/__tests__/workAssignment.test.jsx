@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { WorkAssignmentPanel } from '../features/farmshift/WorkAssignmentView';
 import * as service from '../services/workAssignmentService';
@@ -90,6 +90,31 @@ describe('Phân công công việc (chủ trại)', () => {
     expect(screen.getByRole('region', { name: 'Phân công Nhà A2' })).toBeInTheDocument();
   });
 
+  it('keeps the book mounted while loading another day and uses icon-only arrows', async () => {
+    const onDateChange = vi.fn();
+    const { rerender } = render(<MemoryRouter><WorkAssignmentPanel date={today} onDateChange={onDateChange} /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Mở chuồng Nhà A1' }));
+    const book = screen.getByRole('region', { name: 'Phân công Nhà A1' });
+    const next = screen.getByRole('button', { name: 'Lật sổ sang ngày sau' });
+    expect(next.textContent).toBe('');
+    expect(screen.getByRole('button', { name: 'Lật sổ về ngày trước' }).textContent).toBe('');
+    fireEvent.click(next);
+    const nextDate = onDateChange.mock.calls[0][0];
+    let resolveBoard;
+    service.getWorkBoard.mockImplementationOnce(() => new Promise(resolve => { resolveBoard = resolve; }));
+    rerender(<MemoryRouter><WorkAssignmentPanel date={nextDate} onDateChange={onDateChange} /></MemoryRouter>);
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A1' })).toBe(book);
+    expect(screen.getByRole('status')).toHaveTextContent('Đang lật trang');
+    expect(within(book).getByRole('button', { name: 'Giao việc Nhà A1' })).toBeDisabled();
+    const updated = board();
+    updated.date = nextDate;
+    updated.barns[0].tasks = [];
+    await act(async () => resolveBoard(updated));
+    expect(screen.getByRole('region', { name: 'Phân công Nhà A1' })).toBe(book);
+    expect(within(book).getByText('Chưa giao việc nào cho ngày này.')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it('shows each barn with its workers and the tasks given for the day', async () => {
     renderView();
     await openArea();
@@ -123,6 +148,12 @@ describe('Phân công công việc (chủ trại)', () => {
   });
 
   it('gives a repeating daily task to a worker of the barn', async () => {
+    service.createWorkTask.mockImplementation(async body => {
+      const updated = board();
+      updated.barns[0].tasks.push({ ...body, id: 32, assignee: workerA, done: null });
+      service.getWorkBoard.mockResolvedValue(updated);
+      return { id: 32, ...body };
+    });
     renderView();
     await openArea();
     const a1 = await screen.findByRole('region', { name: 'Phân công Nhà A1' });
@@ -146,6 +177,9 @@ describe('Phân công công việc (chủ trại)', () => {
       barnId: 1, assigneeId: 5, title: 'Sát trùng lối đi', note: '', startDate: today, endDate: '2099-01-07', dueTime: '16:00',
     }));
     expect(mocks.showToast).toHaveBeenCalledWith('Đã giao việc "Sát trùng lối đi" cho Công nhân A.', 'success');
+    expect(await screen.findByText('Sát trùng lối đi')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Phân công Nhà A1' })).getByText('1/2')).toBeInTheDocument();
   });
 
   it('gives a task only inside a date window (from … to …)', async () => {

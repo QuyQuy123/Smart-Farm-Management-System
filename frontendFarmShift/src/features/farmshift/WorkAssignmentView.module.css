@@ -175,6 +175,13 @@
 .book .bookStat strong { font-family: 'Lora', Georgia, serif; font-size: 34px; color: #1b4332; line-height: 1; }
 .book .bookStat span { margin-left: auto; font-style: italic; }
 
+.book .pageTurn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 10px; border: 1px solid rgba(150, 118, 64, 0.4); border-radius: 12px; background: transparent; color: #1b4332; cursor: pointer; transition: background 0.2s, transform 0.2s; }
+.book .pageTurn:hover { background: rgba(255, 255, 255, 0.7); transform: translateY(-2px); }
+.book .pageTurn:focus-visible { outline: 2px solid #1b4332; outline-offset: 3px; }
+.pageLoading { position: absolute; top: 8px; right: 18px; font-size: 12px; color: #6b5a3e; }
+.book .pagePrevious { align-self: flex-start; }
+.book .pageNext { align-self: flex-end; margin-top: auto; }
+@media (prefers-reduced-motion: reduce) { .book .pageTurn { transition: none; } }
 .book .taskHead { padding-bottom: 10px; border-bottom: 2px solid rgba(150, 118, 64, 0.35); }
 .book .taskHead .label { font-size: 20px; color: #1b4332; }
 .book .tasks { gap: 0; }
