@@ -397,11 +397,11 @@ Entity: `InternalStockCategory` (và `TransferCategory`). Quản lý phân loạ
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
-| `movement_type` | VARCHAR(20) | NOT NULL. `IMPORT` (Nhập kho), `EXPORT` (Xuất kho), `TRANSFER` (Chuyển kho). |
-| `name` | VARCHAR(150) | NOT NULL. Tên danh mục hiển thị (VD: `Nhập đầu kì`, `Xuất hủy`, `Chuyển kho nội bộ`). |
+| `movement_type` | VARCHAR(20) | NOT NULL. Chỉ hỗ trợ `EXPORT` (Xuất kho) và `TRANSFER` (Chuyển kho nội bộ). |
+| `name` | VARCHAR(150) | NOT NULL. Tên danh mục hiển thị (VD: `Xuất hủy`, `Chuyển kho nội bộ`). |
 | `name_key` | VARCHAR(150) | NOT NULL, UNIQUE (`uq_internal_stock_category_name_key`). Tên chuẩn hóa NFC chữ thường chống trùng lặp. |
 | `description` | VARCHAR(1000) | Mô tả công dụng và bối cảnh lập phiếu của danh mục. |
-| `is_system` | BOOLEAN | NOT NULL, DEFAULT FALSE. Cờ bảo vệ 3 danh mục gốc của hệ thống không bị xóa. |
+| `is_system` | BOOLEAN | NOT NULL, DEFAULT FALSE. Cờ bảo vệ 2 danh mục gốc của hệ thống (`Xuất hủy`, `Chuyển kho nội bộ`) không bị xóa. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **Bảng `transfer_categories`:**
@@ -409,30 +409,30 @@ Entity: `InternalStockCategory` (và `TransferCategory`). Quản lý phân loạ
 | :--- | :--- | :--- |
 | `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
 | `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã danh mục sinh tự động `DM` + UUID. |
-| `slip_type` | VARCHAR(150) | NOT NULL. Loại phiếu (`IMPORT`, `EXPORT`, `TRANSFER` hoặc văn bản tự do sau `TransferCategorySchemaUpgrade`). |
+| `slip_type` | VARCHAR(150) | NOT NULL. Loại phiếu (`EXPORT`, `TRANSFER` hoặc văn bản tự do sau `TransferCategorySchemaUpgrade`). |
 | `name` | VARCHAR(150) | NOT NULL. Tên danh mục. |
 | `name_key` | VARCHAR(150) | NOT NULL. UNIQUE cùng `slip_type` qua `uq_transfer_category_type_name`. |
 | `description` | VARCHAR(1000) | Mô tả chi tiết. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **Thuộc tính tính toán trả về qua API:**
-- `voucherCount` (`Số phiếu`): Số lượng phiếu xuất nhập đang hiệu lực (khác `CANCELLED`) thuộc danh mục này.
-- **Dữ liệu khởi tạo tự động (`InternalStockSeedRunner`):** Tự động seed 3 danh mục hệ thống (`IMPORT`: `Nhập đầu kì`, `EXPORT`: `Xuất hủy`, `TRANSFER`: `Chuyển kho nội bộ`) và 5 danh mục nghiệp vụ (`Nhập thừa sau kiểm kê`, `Nhập hoàn lại từ chuồng`, `Xuất hao hụt kiểm kê`, `Xuất vật tư tiêu hao`, `Chuyển sang kho đệm chuồng`).
+- `voucherCount` (`Số phiếu`): Số lượng phiếu xuất/chuyển đang hiệu lực (khác `CANCELLED`) thuộc danh mục này.
+- **Dữ liệu khởi tạo tự động (`InternalStockSeedRunner`):** Khi khởi động tự động dọn bỏ các danh mục `IMPORT` cũ chưa phát sinh phiếu và seed 2 danh mục hệ thống (`EXPORT`: `Xuất hủy`, `TRANSFER`: `Chuyển kho nội bộ`) cùng 3 danh mục nghiệp vụ (`Xuất hao hụt kiểm kê`, `Xuất vật tư tiêu hao`, `Chuyển sang kho đệm chuồng`) — tổng 5 danh mục mặc định.
 
-**API:** `GET /api/internal-stock/categories` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Không thể xóa danh mục hệ thống hoặc danh mục đã phát sinh phiếu (`CATEGORY_IN_USE`).
+**API:** `GET /api/internal-stock/categories` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Chỉ chấp nhận `movementType` thuộc `{EXPORT, TRANSFER}`. Không thể xóa danh mục hệ thống hoặc danh mục đã phát sinh phiếu (`CATEGORY_IN_USE`).
 
-### 4.3 Bảng `internal_stock_vouchers` — Chứng từ xuất nhập nội bộ
+### 4.3 Bảng `internal_stock_vouchers` — Chứng từ xuất & chuyển kho nội bộ
 
-Entity: `InternalStockVoucher`. Quản lý chứng từ điều chuyển, xuất hủy hoặc nhập đầu kỳ không phát sinh công nợ nhà cung cấp hay doanh thu bán hàng.
+Entity: `InternalStockVoucher`. Quản lý chứng từ xuất tiêu hao/xuất hủy hoặc chuyển kho nội bộ không phát sinh công nợ nhà cung cấp hay doanh thu bán hàng.
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
 | `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã chứng từ tự sinh: `XNB000001`, `XNB000002`... |
-| `movement_type` | VARCHAR(20) | NOT NULL. `IMPORT` (Nhập kho), `EXPORT` (Xuất kho), `TRANSFER` (Chuyển kho). |
+| `movement_type` | VARCHAR(20) | NOT NULL. Chỉ hỗ trợ `EXPORT` (Xuất kho) và `TRANSFER` (Chuyển kho nội bộ). |
 | `category_id` | BIGINT | NOT NULL, FOREIGN KEY → `internal_stock_categories.id`. |
-| `source_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `EXPORT` và `TRANSFER`; NULL với `IMPORT`. |
-| `target_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `IMPORT` và `TRANSFER`; NULL với `EXPORT`. |
+| `source_warehouse_id` | BIGINT | NOT NULL, FOREIGN KEY → `warehouse_categories.id`. Kho xuất (bắt buộc với cả `EXPORT` và `TRANSFER`). |
+| `target_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `TRANSFER`; NULL với `EXPORT`. |
 | `cycle_id` | BIGINT | FOREIGN KEY → `farming_cycles.id` (nullable). Lứa nuôi nhận chi phí khi xuất hủy thuốc/vật tư. |
 | `expense_id` | BIGINT | FOREIGN KEY → `cycle_expenses.id` (nullable). Khoản chi phát sinh tự động nếu xuất hủy gắn với lứa. |
 | `movement_date` | DATE | NOT NULL. Ngày thực hiện chứng từ (ghi nhận theo `Asia/Bangkok`). |
@@ -453,7 +453,7 @@ Entity: `InternalStockVoucherItem`. Danh sách các dòng hàng hóa trong chứ
 | `voucher_id` | BIGINT | NOT NULL, FOREIGN KEY → `internal_stock_vouchers.id` ON DELETE CASCADE. |
 | `product_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_categories.id`. |
 | `source_inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Mặt hàng kho nguồn (gắn khi `EXPORT`, `TRANSFER`). |
-| `target_inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Mặt hàng kho đích (gắn khi `IMPORT`, `TRANSFER`). |
+| `target_inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Mặt hàng kho đích (gắn khi `TRANSFER`). |
 | `quantity` | NUMERIC(19,3) | NOT NULL. Số lượng luân chuyển (phải > 0). |
 | `unit_id` | BIGINT | FOREIGN KEY → `measurement_units.id`. Đơn vị tính định lượng. |
 | `unit_price` | NUMERIC(19,2) | NOT NULL, DEFAULT 0.00. Đơn giá mặt hàng tại thời điểm lập phiếu. |
@@ -468,7 +468,7 @@ Entity: `InternalStockVoucherItem`. Danh sách các dòng hàng hóa trong chứ
 **API:**
 - `GET /api/internal-stock/vouchers`: Danh sách phiếu phân trang có bộ lọc (`movementType`, `categoryId`, `warehouseId`, `status`, ngày tháng, từ khóa).
 - `GET /api/internal-stock/vouchers/{id}`: Chi tiết phiếu và danh sách hàng hóa.
-- `POST /api/internal-stock/vouchers`: Lập phiếu xuất/nhập/chuyển kho (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `POST /api/internal-stock/vouchers`: Lập phiếu xuất kho hoặc chuyển kho nội bộ (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Chỉ chấp nhận `movementType` thuộc `{EXPORT, TRANSFER}`.
 
 ### 4.5 Bảng `internal_stock_voucher_numbers` — Bộ đếm mã chứng từ xuất nhập nội bộ
 

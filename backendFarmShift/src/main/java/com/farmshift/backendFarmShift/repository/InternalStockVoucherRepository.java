@@ -9,6 +9,7 @@ public interface InternalStockVoucherRepository extends JpaRepository<InternalSt
     Optional<InternalStockVoucher> findByCode(String code);
     boolean existsByCode(String code);
     long countByCategory_IdAndStatusNot(Long categoryId, String status);
+    boolean existsByCategory_Id(Long categoryId);
     boolean existsBySourceWarehouse_IdOrTargetWarehouse_Id(Long sourceWarehouseId, Long targetWarehouseId);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {
