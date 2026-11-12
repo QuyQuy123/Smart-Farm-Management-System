@@ -32,7 +32,7 @@ const money = value => value == null ? '—' : `${Number(value).toLocaleString('
 const isInt = value => value !== '' && Number.isInteger(Number(value));
 const IMPORT_PAYMENT_OPTIONS = [{ value: 'Trả sau', label: 'Trả sau (ghi công nợ)' }, { value: 'Thanh toán hoàn tất', label: 'Đã trả đủ tiền' }];
 
-const COST_COLORS = { chick: '#f59e0b', feed: '#06b6d4', ELECTRICITY: '#8b5cf6', WATER: '#3b82f6', LABOR: '#a8a29e', MEDICINE: '#ef4444', OTHER: '#ec4899' };
+const COST_COLORS = { chick: '#f59e0b', feed: '#06b6d4', MEDICINE: '#ef4444', OTHER: '#ec4899' };
 
 function Donut({ parts }) {
   const total = parts.reduce((sum, part) => sum + part.value, 0);
@@ -85,7 +85,7 @@ export const BarnDetailView = () => {
   const [modal, setModal] = useState(null);
   const [flockTab, setFlockTab] = useState('ACTIVE');
   const [journalTab, setJournalTab] = useState('FEED');
-  const [expenseTab, setExpenseTab] = useState('ELECTRICITY');
+  const [expenseTab, setExpenseTab] = useState('MEDICINE');
   const [financeTab, setFinanceTab] = useState('CHART');
   const [showMoreKpis, setShowMoreKpis] = useState(false);
 
@@ -230,17 +230,37 @@ export const BarnDetailView = () => {
   };
 
   const openTransfer = flock => {
-    const targets = barns.filter(item => item.activeCycleId && item.id !== barn.id);
+    // Chuồng đích là chuồng trống, chưa có lứa (hệ thống tự mở lứa mới từ ngày chuyển); chuồng cùng khu xếp trước.
+    const roomOf = item => item.capacity - item.currentQuantity;
+    const targets = barns.filter(item => item.id !== barn.id && !item.activeCycleId && item.currentQuantity === 0 && item.capacity > 0)
+      .sort((a, b) => Number(b.areaName === barn.areaName) - Number(a.areaName === barn.areaName));
+    const half = Math.floor(flock.quantity / 2);
+    const density = (item, quantity) => (Number(item.areaM2) > 0 ? ` · ${num(quantity / Number(item.areaM2), 1)} con/m²` : '');
+    const side = (label, item, quantity) => <div className={quantity > item.capacity ? styles.transferOver : undefined}>
+      <span>{label}</span>
+      <strong>{item.name}</strong>
+      <small>{num(quantity)} / {num(item.capacity)} con{density(item, quantity)}</small>
+    </div>;
     setModal({
       title: `Tách / chuyển đàn ${flock.code}`,
-      intro: `Đàn ${flock.name} đang tồn ${num(flock.quantity)} con. Giá vốn con giống chuyển theo tỷ lệ số con; tổng số con toàn trại giữ nguyên.`,
-      warning: targets.length ? null : 'Chưa có chuồng nào khác đang có lứa nuôi. Hãy khai báo lứa cho chuồng đích trước.',
+      intro: `Đàn ${flock.name} đang tồn ${num(flock.quantity)} con. Số con chuyển đi vẫn là đàn đó, chỉ đổi chuồng: giữ tuổi và cân nặng; cám đã ăn, giá vốn và các khoản chi chia theo số con.`,
+      warning: targets.length ? null : 'Chưa có chuồng trống để tách đàn. Hãy tạo chuồng mới ở mục Khu nuôi hoặc kết thúc lứa của một chuồng.',
       initial: { targetBarnId: targets[0] ? String(targets[0].id) : '', quantity: '', transferDate: today, name: flock.name, avgWeight: '', note: '' },
       fields: [
-        { key: 'targetBarnId', label: 'Chuồng đích đang có lứa', type: 'select', required: true,
-          options: targets.length ? targets.map(item => ({ value: String(item.id), label: `${item.name} (${item.areaName}) · còn ${num(item.capacity - item.currentQuantity)} chỗ` }))
-            : [{ value: '', label: 'Không có chuồng phù hợp' }] },
-        { key: 'quantity', label: 'Số con chuyển', type: 'number', required: true, min: 1, max: flock.quantity, step: 1 },
+        // Chỉ hiện chuồng khả thi: nhập số con chuyển thì bỏ các chuồng không đủ sức chứa.
+        { key: 'targetBarnId', label: 'Chuồng trống nhận đàn', type: 'select', required: true, full: true,
+          options: values => {
+            const moving = Number(values.quantity);
+            const counted = isInt(values.quantity) && moving > 0;
+            const feasible = counted ? targets.filter(item => roomOf(item) >= moving) : targets;
+            if (feasible.length) return feasible.map(item => ({ value: String(item.id), label: `${item.name} (${item.areaName}) · chứa được ${num(roomOf(item))} con` }));
+            return [{ value: '', label: counted && targets.length ? `Không có chuồng trống đủ chỗ cho ${num(moving)} con` : 'Không có chuồng trống' }];
+          } },
+        { key: 'quantity', label: 'Số con chuyển', required: true,
+          render: (common, setQuantity) => <div className={styles.quantityRow}>
+            <input {...common} type="number" min={1} max={flock.quantity} step={1} inputMode="numeric" />
+            {half > 0 && <button type="button" className={styles.halfButton} disabled={common.disabled} onClick={() => setQuantity(String(half))}>Chia đôi</button>}
+          </div> },
         { key: 'transferDate', label: 'Ngày chuyển', type: 'date', required: true, max: today },
         { key: 'name', label: 'Tên đàn mới' },
         { key: 'avgWeight', label: 'Trọng lượng TB (kg/con)', type: 'number', min: 0, step: 0.001, hint: 'Để trống để lấy lần cân gần nhất.' },
@@ -251,14 +271,28 @@ export const BarnDetailView = () => {
         const found = { transferDate: dateRule(values.transferDate, 'Ngày chuyển', flock.importDate > cycle.startDate ? flock.importDate : cycle.startDate) };
         if (!isInt(values.quantity) || Number(values.quantity) < 1) found.quantity = 'Số con chuyển phải là số nguyên lớn hơn 0.';
         else if (Number(values.quantity) > flock.quantity) found.quantity = `Đàn chỉ còn ${num(flock.quantity)} con.`;
-        else if (target && Number(values.quantity) > target.capacity - target.currentQuantity) found.quantity = `${target.name} chỉ còn ${num(target.capacity - target.currentQuantity)} chỗ.`;
+        else if (target && Number(values.quantity) > roomOf(target)) found.quantity = `${target.name} chỉ còn ${num(roomOf(target))} chỗ.`;
         if (values.avgWeight !== '' && !(Number(values.avgWeight) > 0)) found.avgWeight = 'Trọng lượng trung bình phải lớn hơn 0.';
         return found;
       },
+      preview: values => {
+        const target = targets.find(item => String(item.id) === values.targetBarnId);
+        const moving = Number(values.quantity);
+        if (!target || !Number.isInteger(moving) || moving < 1 || moving > flock.quantity) return null;
+        return <div className={styles.transferPreview} aria-label="Xem trước sau khi chuyển">
+          <div className={styles.transferSides}>
+            {side('Chuồng hiện tại còn', barn, barn.currentQuantity - moving)}
+            {side('Chuồng mới sẽ có', target, target.currentQuantity + moving)}
+          </div>
+          <small>Đàn tách giữ nguyên {flock.currentAgeDays} ngày tuổi, chương trình nuôi, cân nặng và FCR; cám đã ăn và chi phí chia theo số con.
+            {' '}Hệ thống tự mở lứa mới cho chuồng này từ ngày chuyển.</small>
+        </div>;
+      },
       onSubmit: async values => {
+        const target = targets.find(item => String(item.id) === values.targetBarnId);
         await transferFlock(flock.id, { targetBarnId: Number(values.targetBarnId), quantity: Number(values.quantity), transferDate: values.transferDate,
           name: values.name.trim(), avgWeight: values.avgWeight === '' ? null : Number(values.avgWeight), note: values.note.trim() });
-        return `Đã chuyển ${num(values.quantity)} con từ đàn ${flock.code}.`;
+        return `Đã chuyển ${num(values.quantity)} con từ đàn ${flock.code} sang ${target.name}. Đã mở lứa mới, nhớ phân công công nhân và kho cho chuồng này.`;
       },
     });
   };

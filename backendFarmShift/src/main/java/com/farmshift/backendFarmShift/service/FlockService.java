@@ -75,7 +75,10 @@ public class FlockService {
         return flockResponse(flock, today(), true, invoice);
     }
 
-    /** Tách / chuyển một phần đàn sang chuồng khác đang có lứa nuôi. Tổng số con toàn trại không đổi. */
+    /**
+     * Tách / chuyển một phần đàn sang chuồng khác (ví dụ gà lớn cần giãn mật độ: 4.000 con tách 2.000 sang chuồng trống).
+     * Chuồng đích đang có lứa thì nhập vào lứa đó; chuồng trống thì tự mở lứa mới từ ngày chuyển. Tổng số con toàn trại không đổi.
+     */
     @Transactional
     public FlockResponse transfer(Long flockId, FlockTransferRequest request, String user) {
         Flock source = requireActive(flockId);
@@ -85,16 +88,18 @@ public class FlockService {
         if (target.getId().equals(sourceBarn.getId())) {
             throw new BadRequestException("Hãy chọn chuồng đích khác chuồng đang nuôi đàn.", "TRANSFER_SAME_BARN");
         }
-        FarmingCycle targetCycle = cycleRepository.findFirstByBarnIdAndStatus(target.getId(), CycleStatus.ACTIVE)
-                .orElseThrow(() -> new BadRequestException("Chuồng " + target.getName() + " chưa có lứa nuôi. Hãy khai báo lứa cho chuồng đích trước.",
-                        "TRANSFER_TARGET_NO_CYCLE"));
+        java.util.Optional<FarmingCycle> runningCycle = cycleRepository.findFirstByBarnIdAndStatus(target.getId(), CycleStatus.ACTIVE);
         int quantity = request.quantity();
         checkStock(source, quantity);
         checkCapacity(target, quantity);
         LocalDate date = request.transferDate();
         checkDate(sourceCycle, date, "Ngày chuyển đàn");
-        checkDate(targetCycle, date, "Ngày chuyển đàn");
+        runningCycle.ifPresent(cycle -> checkDate(cycle, date, "Ngày chuyển đàn"));
         checkNotBeforeImport(source, date);
+        FarmingCycle targetCycle = runningCycle.orElseGet(() -> cycleService.openForTransfer(target, date, sourceCycle));
+        cycleService.carryWithFlock(sourceCycle, targetCycle, quantity);
+        // Lứa mới mở cho đàn tách sang: mang theo lịch sử cân để cân nặng và biểu đồ tăng trọng giống đàn gốc.
+        if (runningCycle.isEmpty()) copyWeightHistory(sourceCycle, targetCycle, date, request.avgWeight(), user);
 
         BigDecimal avgWeight = request.avgWeight() != null ? request.avgWeight() : currentAvgWeight(source, date);
         BigDecimal weight = weightOf(avgWeight, quantity);
@@ -244,6 +249,29 @@ public class FlockService {
             throw new BadRequestException("Đàn " + flockCode(flock) + " đã hết tồn và được lưu trữ.", "FLOCK_ARCHIVED");
         }
         return flock;
+    }
+
+    /** Sao các lần cân đến ngày chuyển sang lứa mới; có nhập cân lúc chuyển thì thêm một lần cân đúng ngày đó. */
+    private void copyWeightHistory(FarmingCycle from, FarmingCycle to, LocalDate date, BigDecimal weighedAtMove, String user) {
+        weightRepository.findAllByCycleIdOrderBySampleDateDescIdDesc(from.getId()).stream().filter(sample -> !sample.getSampleDate().isAfter(date)).forEach(sample -> {
+            WeightSample copy = new WeightSample();
+            copy.setCycle(to);
+            copy.setSampleDate(sample.getSampleDate());
+            copy.setAvgWeightKg(sample.getAvgWeightKg());
+            copy.setSampleSize(sample.getSampleSize());
+            copy.setNote(sample.getNote());
+            copy.setCreatedBy(sample.getCreatedBy());
+            weightRepository.save(copy);
+        });
+        if (weighedAtMove != null) {
+            WeightSample atMove = new WeightSample();
+            atMove.setCycle(to);
+            atMove.setSampleDate(date);
+            atMove.setAvgWeightKg(weighedAtMove);
+            atMove.setNote("Cân lúc tách đàn");
+            atMove.setCreatedBy(user);
+            weightRepository.save(atMove);
+        }
     }
 
     /** Latest weighing of the cycle up to the date, otherwise the weight the flock arrived with. */

@@ -30,16 +30,35 @@ public class BarnService {
     private final BarnWorkerRepository barnWorkerRepository;
     private final WorkTaskRepository workTaskRepository;
     private final WorkTaskCheckRepository workTaskCheckRepository;
+    private final BarnResponsibilityService responsibilities;
 
     public List<BarnResponse> list(Long areaId) {
+        return list(areaId, null);
+    }
+
+    public List<BarnResponse> list(Long areaId, String workerEmail) {
         List<Barn> barns = areaId == null ? repository.findAllByOrderByCreatedAtAscIdAsc()
                 : repository.findAllByAreaIdOrderByCreatedAtAscIdAsc(areaService.find(areaId).getId());
+        if (workerEmail != null && !workerEmail.isBlank()) {
+            java.util.Set<Long> assigned = responsibilities.assignedBarnIdsOf(workerEmail);
+            barns = barns.stream().filter(b -> assigned.contains(b.getId())).toList();
+        }
         Map<Long, Long> activeCycles = cycleRepository.findAllByStatus(CycleStatus.ACTIVE).stream()
                 .collect(Collectors.toMap(cycle -> cycle.getBarn().getId(), FarmingCycle::getId, (first, second) -> first));
         return barns.stream().map(barn -> response(barn, activeCycles.get(barn.getId()))).toList();
     }
 
     public BarnResponse get(Long id) {
+        return get(id, null);
+    }
+
+    public BarnResponse get(Long id, String workerEmail) {
+        if (workerEmail != null && !workerEmail.isBlank()) {
+            java.util.Set<Long> assigned = responsibilities.assignedBarnIdsOf(workerEmail);
+            if (!assigned.contains(id)) {
+                throw new ConflictException("Bạn không phụ trách chuồng này. Liên hệ chủ trại để được phân công.", "BARN_NOT_ASSIGNED", null);
+            }
+        }
         Barn barn = find(id);
         return response(barn, activeCycleId(id));
     }

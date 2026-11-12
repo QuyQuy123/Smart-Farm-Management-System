@@ -2,6 +2,7 @@ package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.dto.request.FarmAreaRequest;
 import com.farmshift.backendFarmShift.dto.response.FarmAreaResponse;
+import com.farmshift.backendFarmShift.entity.Barn;
 import com.farmshift.backendFarmShift.entity.BarnStatus;
 import com.farmshift.backendFarmShift.entity.FarmArea;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.text.Normalizer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,15 +32,59 @@ public class FarmAreaService {
     private final BarnRepository barnRepository;
     private final AreaWarehouseService areaWarehouses;
     private final com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouseCategoryRepository;
+    private final BarnResponsibilityService responsibilities;
 
     public List<FarmAreaResponse> list() {
-        Map<Long, long[]> summaries = summaries();
+        return list(null);
+    }
+
+    public List<FarmAreaResponse> list(String workerEmail) {
+        if (workerEmail == null || workerEmail.isBlank()) {
+            Map<Long, long[]> summaries = summaries();
+            return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream()
+                    .map(area -> response(area, summaries.get(area.getId()))).toList();
+        }
+
+        Set<Long> assignedBarnIds = responsibilities.assignedBarnIdsOf(workerEmail);
+        List<Barn> assignedBarns = assignedBarnIds.isEmpty() ? List.of() : barnRepository.findAllById(assignedBarnIds);
+        Set<Long> areaIdsWithAssignedBarns = assignedBarns.stream().map(b -> b.getArea().getId()).collect(Collectors.toSet());
+
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream()
-                .map(area -> response(area, summaries.get(area.getId()))).toList();
+                .filter(area -> areaIdsWithAssignedBarns.contains(area.getId())
+                        || (area.getWorkers() != null && area.getWorkers().stream().anyMatch(w -> w.getEmail().equalsIgnoreCase(workerEmail))))
+                .map(area -> {
+                    List<Barn> barnsInArea = assignedBarns.stream().filter(b -> b.getArea().getId().equals(area.getId())).toList();
+                    long totalBarns = barnsInArea.size();
+                    long activeBarns = barnsInArea.stream().filter(b -> b.getStatus() == BarnStatus.ACTIVE).count();
+                    long animalCount = barnsInArea.stream().mapToLong(Barn::getCurrentQuantity).sum();
+                    long totalCapacity = barnsInArea.stream().mapToLong(Barn::getCapacity).sum();
+                    return response(area, new long[]{totalBarns, activeBarns, animalCount, totalCapacity});
+                })
+                .toList();
     }
 
     public FarmAreaResponse get(Long id) {
-        return response(find(id), summaries().get(id));
+        return get(id, null);
+    }
+
+    public FarmAreaResponse get(Long id, String workerEmail) {
+        FarmArea area = find(id);
+        if (workerEmail != null && !workerEmail.isBlank()) {
+            Set<Long> assignedBarnIds = responsibilities.assignedBarnIdsOf(workerEmail);
+            List<Barn> assignedBarns = assignedBarnIds.isEmpty() ? List.of() : barnRepository.findAllById(assignedBarnIds);
+            boolean isAssigned = assignedBarns.stream().anyMatch(b -> b.getArea().getId().equals(id))
+                    || (area.getWorkers() != null && area.getWorkers().stream().anyMatch(w -> w.getEmail().equalsIgnoreCase(workerEmail)));
+            if (!isAssigned) {
+                throw new ConflictException("Bạn không phụ trách khu nuôi này. Liên hệ chủ trại để được phân công.", "AREA_NOT_ASSIGNED", null);
+            }
+            List<Barn> barnsInArea = assignedBarns.stream().filter(b -> b.getArea().getId().equals(id)).toList();
+            long totalBarns = barnsInArea.size();
+            long activeBarns = barnsInArea.stream().filter(b -> b.getStatus() == BarnStatus.ACTIVE).count();
+            long animalCount = barnsInArea.stream().mapToLong(Barn::getCurrentQuantity).sum();
+            long totalCapacity = barnsInArea.stream().mapToLong(Barn::getCapacity).sum();
+            return response(area, new long[]{totalBarns, activeBarns, animalCount, totalCapacity});
+        }
+        return response(area, summaries().get(id));
     }
 
     @Transactional

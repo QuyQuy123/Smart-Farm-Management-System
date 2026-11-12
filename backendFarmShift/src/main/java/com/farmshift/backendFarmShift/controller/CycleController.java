@@ -33,11 +33,19 @@ public class CycleController {
     private final WorkAssignmentService workAssignment;
 
     static boolean canSeeFinance(Authentication authentication) {
-        return authentication.getAuthorities().stream().anyMatch(authority -> FINANCE_ROLES.contains(authority.getAuthority()));
+        return authentication != null && authentication.getAuthorities().stream().anyMatch(authority -> FINANCE_ROLES.contains(authority.getAuthority()));
+    }
+
+    private static boolean isWorker(Authentication authentication) {
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> RoleNames.FARM_WORKER.equals(a.getAuthority()));
     }
 
     @GetMapping("/api/barns/{barnId}/cycles")
-    public ApiResponse<List<CycleSummaryResponse>> list(@PathVariable Long barnId) {
+    public ApiResponse<List<CycleSummaryResponse>> list(@PathVariable Long barnId, Authentication authentication) {
+        if (isWorker(authentication)) {
+            workAssignment.requireAssigned(authentication, barnId);
+        }
         return ApiResponse.success("Danh sách lứa nuôi", service.list(barnId));
     }
 
@@ -50,6 +58,9 @@ public class CycleController {
 
     @GetMapping("/api/cycles/{id}")
     public ApiResponse<CycleDetailResponse> detail(@PathVariable Long id, Authentication authentication) {
+        if (isWorker(authentication)) {
+            workAssignment.requireAssigned(authentication, service.barnIdOf(id));
+        }
         return ApiResponse.success("Chi tiết lứa nuôi", service.detail(id, canSeeFinance(authentication)));
     }
 

@@ -49,6 +49,19 @@ public class BarnResponsibilityService {
         return result;
     }
 
+    public Set<Long> assignedBarnIdsOf(String email) {
+        if (email == null || email.isBlank()) return Collections.emptySet();
+        return effectiveByBarn().entrySet().stream()
+                .filter(entry -> entry.getValue().stream().anyMatch(worker -> worker.getEmail().equalsIgnoreCase(email)))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+    }
+
+    public boolean isWorkerOfBarn(String email, Long barnId) {
+        if (email == null || barnId == null) return false;
+        return workersOf(barnId).stream().anyMatch(w -> w.getEmail().equalsIgnoreCase(email));
+    }
+
     public List<Account> workersOf(Long barnId) {
         Barn barn = barn(barnId);
         return effective(barn, links.findAllByBarnIdOrderByIdAsc(barnId));

@@ -17,4 +17,7 @@ public interface FarmingCycleRepository extends JpaRepository<FarmingCycle, Long
 
     @Query("select coalesce(max(c.cycleNumber), 0) from FarmingCycle c where c.barn.id = :barnId")
     int maxCycleNumber(@Param("barnId") Long barnId);
+
+    @Query("select max(c.endDate) from FarmingCycle c where c.barn.id = :barnId")
+    java.time.LocalDate lastEndDate(@Param("barnId") Long barnId);
 }

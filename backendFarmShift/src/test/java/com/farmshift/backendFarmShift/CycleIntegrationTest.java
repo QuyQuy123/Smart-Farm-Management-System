@@ -154,7 +154,9 @@ class CycleIntegrationTest {
                 "quantityKg", 900, "unitPrice", 13000)).andExpect(status().isCreated());
         post("/api/cycles/" + cycle + "/weight-samples", Map.of("sampleDate", TODAY.toString(), "avgWeightKg", 0.64, "sampleSize", 50))
             .andExpect(status().isCreated());
-        post("/api/cycles/" + cycle + "/expenses", Map.of("expenseDate", TODAY.toString(), "category", "ELECTRICITY", "amount", 500000))
+        post("/api/cycles/" + cycle + "/expenses", Map.of("expenseDate", TODAY.toString(), "category", "ELECTRICITY", "amount", 700000))
+            .andExpect(status().isCreated());
+        post("/api/cycles/" + cycle + "/expenses", Map.of("expenseDate", TODAY.toString(), "category", "MEDICINE", "amount", 500000))
             .andExpect(status().isCreated());
         post("/api/cycles/" + cycle + "/feed-records", Map.of("recordDate", TODAY.plusDays(1).toString(), "feedName", "Higro 01",
                 "quantityKg", 1, "unitPrice", 1)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("CYCLE_DATE_OUT_OF_RANGE"));
@@ -165,12 +167,89 @@ class CycleIntegrationTest {
             .andExpect(jsonPath("$.data.metrics.weightGainKg").value(closeTo(600.0, 0.01)))
             .andExpect(jsonPath("$.data.metrics.fcr").value(closeTo(1.5, 0.001)))
             .andExpect(jsonPath("$.data.metrics.densityPerM2").value(closeTo(1.0, 0.01)))
-            // 11,000,000 chicks + 11,700,000 feed + 500,000 electricity
+            // 11,000,000 chicks + 11,700,000 feed + 500,000 medicine; electricity is not part of the cycle cost
             .andExpect(jsonPath("$.data.finance.totalCost").value(23200000))
             .andExpect(jsonPath("$.data.finance.costPerKg").value(36250))
             .andExpect(jsonPath("$.data.finance.costPerHead").value(23200))
-            .andExpect(jsonPath("$.data.finance.expenses.ELECTRICITY").value(500000))
+            .andExpect(jsonPath("$.data.finance.expenses.MEDICINE").value(500000))
             .andExpect(jsonPath("$.data.feedRecords[0].createdBy").value("owner@farm.test"));
+    }
+
+    @Test
+    void splitsAGrownFlockIntoAnEmptyBarnByOpeningANewCycle() throws Exception {
+        long cycle = startCycle(barnId, START);
+        long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 4000);
+        long empty = barn("Nhà A5", 2500);
+
+        // Quá sức chứa thì không chuyển và cũng không mở lứa thừa ở chuồng đích.
+        post("/api/flocks/" + flockId + "/transfer", Map.of("targetBarnId", empty, "quantity", 2501, "transferDate", TODAY.toString()))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FLOCK_OVER_CAPACITY"));
+        mvc.perform(get("/api/barns/" + empty)).andExpect(jsonPath("$.data.activeCycleId").isEmpty()).andExpect(jsonPath("$.data.status").value("INACTIVE"));
+
+        post("/api/flocks/" + flockId + "/transfer", Map.of("targetBarnId", empty, "quantity", 2000, "transferDate", TODAY.toString()))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.sourceType").value("TRANSFER"))
+            .andExpect(jsonPath("$.data.ageAtImport").value(11))
+            .andExpect(jsonPath("$.data.programId").value(programId));
+
+        JsonNode barn = mapper.readTree(mvc.perform(get("/api/barns/" + empty)).andReturn().getResponse().getContentAsString()).path("data");
+        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", barn.path("status").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(2000, barn.path("currentQuantity").asInt());
+        JsonNode opened = detail(barn.path("activeCycleId").asLong());
+        org.junit.jupiter.api.Assertions.assertEquals(TODAY.toString(), opened.path("cycle").path("startDate").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(2000, opened.path("metrics").path("currentQuantity").asInt());
+        org.junit.jupiter.api.Assertions.assertEquals(2000, detail(cycle).path("metrics").path("currentQuantity").asInt());
+        mvc.perform(get("/api/barns/" + barnId)).andExpect(jsonPath("$.data.currentQuantity").value(2000));
+    }
+
+    @Test
+    void splitFlockKeepsAgeWeightFeedPerBirdAndFcrInBothBarns() throws Exception {
+        long cycle = startCycle(barnId, START);
+        long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 4000);
+        post("/api/cycles/" + cycle + "/weight-samples", Map.of("sampleDate", TODAY.minusDays(1).toString(), "avgWeightKg", 1.04, "sampleSize", 30))
+            .andExpect(status().isCreated());
+        post("/api/cycles/" + cycle + "/feed-records", Map.of("recordDate", TODAY.minusDays(1).toString(), "feedName", "Higro", "quantityKg", 8000, "unitPrice", 10000))
+            .andExpect(status().isCreated());
+        post("/api/cycles/" + cycle + "/expenses", Map.of("expenseDate", TODAY.minusDays(1).toString(), "category", "WATER", "amount", 4000000))
+            .andExpect(status().isCreated());
+        JsonNode before = detail(cycle).path("metrics");
+        org.junit.jupiter.api.Assertions.assertEquals(2.0, before.path("fcr").asDouble());
+
+        long empty = barn("Nhà A7", 3000);
+        post("/api/flocks/" + flockId + "/transfer", Map.of("targetBarnId", empty, "quantity", 1000, "transferDate", TODAY.toString()))
+            .andExpect(status().isCreated());
+
+        JsonNode barn = mapper.readTree(mvc.perform(get("/api/barns/" + empty)).andReturn().getResponse().getContentAsString()).path("data");
+        JsonNode moved = detail(barn.path("activeCycleId").asLong());
+        JsonNode source = detail(cycle);
+        // Gà ở chuồng mới vẫn là đàn đó: cùng tuổi, cùng cân nặng, cùng cám / con, cùng FCR.
+        org.junit.jupiter.api.Assertions.assertEquals(before.path("ageDays").asInt(), moved.path("metrics").path("ageDays").asInt());
+        org.junit.jupiter.api.Assertions.assertEquals(before.path("dayOfCycle").asInt(), moved.path("metrics").path("dayOfCycle").asInt());
+        // Chi phí chia theo số con: 1.000 / 4.000 con nhận 1/4; tổng hai chuồng không đổi.
+        org.junit.jupiter.api.Assertions.assertEquals(1000000, moved.path("finance").path("expenses").path("WATER").asLong());
+        org.junit.jupiter.api.Assertions.assertEquals(3000000, source.path("finance").path("expenses").path("WATER").asLong());
+        org.junit.jupiter.api.Assertions.assertEquals(1.04, moved.path("metrics").path("avgWeightKg").asDouble());
+        org.junit.jupiter.api.Assertions.assertEquals(1, moved.path("weightSamples").size());
+        org.junit.jupiter.api.Assertions.assertEquals(2000.0, moved.path("metrics").path("feedKg").asDouble());
+        org.junit.jupiter.api.Assertions.assertEquals(2.0, moved.path("metrics").path("fcr").asDouble());
+        org.junit.jupiter.api.Assertions.assertEquals(20000000, moved.path("finance").path("feedCost").asLong());
+        org.junit.jupiter.api.Assertions.assertEquals(6000.0, source.path("metrics").path("feedKg").asDouble());
+        org.junit.jupiter.api.Assertions.assertEquals(2.0, source.path("metrics").path("fcr").asDouble());
+        org.junit.jupiter.api.Assertions.assertEquals(60000000, source.path("finance").path("feedCost").asLong());
+    }
+
+    @Test
+    void cannotSplitIntoAnEmptyBarnBeforeItsLastCycleEnded() throws Exception {
+        long cycle = startCycle(barnId, START);
+        long flockId = importFlock(cycle, "Gà Mía", "MIXED", START, 1000);
+        long empty = barn("Nhà A6", 2000);
+        long finished = startCycle(empty, START);
+        post("/api/cycles/" + finished + "/close", Map.of("endDate", TODAY.minusDays(1).toString())).andExpect(status().isOk());
+
+        post("/api/flocks/" + flockId + "/transfer", Map.of("targetBarnId", empty, "quantity", 100, "transferDate", TODAY.minusDays(3).toString()))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("TRANSFER_BEFORE_LAST_CYCLE"));
+        post("/api/flocks/" + flockId + "/transfer", Map.of("targetBarnId", empty, "quantity", 100, "transferDate", TODAY.toString()))
+            .andExpect(status().isCreated());
     }
 
     @Test
@@ -179,9 +258,6 @@ class CycleIntegrationTest {
         long flockId = importFlock(cycle, "Gà Mía", "FEMALE", START, 1000);
         long target = barn("Nhà A4", 300);
         Map<String, Object> transfer = new HashMap<>(Map.of("targetBarnId", target, "quantity", 200, "transferDate", TODAY.toString()));
-        post("/api/flocks/" + flockId + "/transfer", transfer)
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("TRANSFER_TARGET_NO_CYCLE"));
-
         long targetCycle = startCycle(target, START.plusDays(5));
         transfer.put("quantity", 301);
         post("/api/flocks/" + flockId + "/transfer", transfer)

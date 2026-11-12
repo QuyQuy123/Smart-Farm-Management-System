@@ -72,9 +72,6 @@ export const MOVEMENT_TYPES = [
 ];
 
 export const EXPENSE_CATEGORIES = [
-  { value: 'ELECTRICITY', label: 'Tiền điện' },
-  { value: 'WATER', label: 'Tiền nước' },
-  { value: 'LABOR', label: 'Công nhân' },
   { value: 'MEDICINE', label: 'Thuốc & vắc-xin' },
   { value: 'OTHER', label: 'Chi phí khác' },
 ];

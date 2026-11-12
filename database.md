@@ -5,7 +5,7 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
 - File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), sử dụng cú pháp `ON CONFLICT DO NOTHING`, `ON CONFLICT DO UPDATE` và `WHERE NOT EXISTS` để đảm bảo tính lũy kế (idempotent), an toàn tuyệt đối khi thực thi nhiều lần (kể cả trước và sau khi các runner nâng cấp schema khởi chạy).
-- Backend sử dụng Spring Data JPA / Hibernate (`spring.jpa.hibernate.ddl-auto=update`), tự động kiểm tra và cập nhật cấu trúc bảng khi khởi động.
+- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp với các `ApplicationRunner` nâng cấp và khởi tạo dữ liệu tự động khi khởi động (`FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`).
 
 ---
 
@@ -21,13 +21,17 @@ erDiagram
     farm_areas ||--o{ barns : "contains"
     farm_areas }o--o{ warehouse_categories : "linked_via_farm_area_warehouses"
     farm_areas }o--o{ accounts : "assigned_via_farm_area_workers"
+    warehouse_categories }o--o{ accounts : "assigned_via_warehouse_workers"
     barns ||--o{ farming_cycles : "hosts"
     farming_cycles ||--o{ flocks : "contains"
     flocks ||--o{ flock_movements : "tracks"
     farming_cycles ||--o{ feed_records : "logs"
     farming_cycles ||--o{ weight_samples : "weighs"
     farming_cycles ||--o{ cycle_expenses : "incurs"
+    farming_cycles ||--o{ cycle_carried_expenses : "carries_expenses"
     farming_cycles ||--o{ daily_task_logs : "confirms_tasks"
+    daily_task_logs ||--o| feed_records : "creates_feed"
+    daily_task_logs ||--o| cycle_expenses : "creates_expense"
     daily_task_logs ||--o{ daily_stock_allocations : "allocates_lots"
     farming_programs ||--o{ farming_program_steps : "defines"
     farming_programs ||--o{ flocks : "applies_to"
@@ -65,7 +69,8 @@ erDiagram
     warehouse_categories ||--o{ internal_stock_vouchers : "source_or_target"
     internal_stock_vouchers ||--o{ internal_stock_voucher_items : "contains"
     product_categories ||--o{ internal_stock_voucher_items : "transfers"
-    farming_cycles ||--o{ internal_stock_vouchers : "charges_expense"
+    farming_cycles ||--o{ internal_stock_vouchers : "references_cycle"
+    cycle_expenses |o--o{ internal_stock_vouchers : "charges_expense"
 
     %% Sales & Harvest
     customer_contacts ||--o{ sales_orders : "buys"
@@ -397,6 +402,7 @@ Entity: `InternalStockCategory` (và `TransferCategory`). Quản lý phân loạ
 
 **Thuộc tính tính toán trả về qua API:**
 - `voucherCount` (`Số phiếu`): Số lượng phiếu xuất nhập đang hiệu lực (khác `CANCELLED`) thuộc danh mục này.
+- **Dữ liệu khởi tạo tự động (`InternalStockSeedRunner`):** Tự động seed 3 danh mục hệ thống (`IMPORT`: `Nhập đầu kì`, `EXPORT`: `Xuất hủy`, `TRANSFER`: `Chuyển kho nội bộ`) và 5 danh mục nghiệp vụ (`Nhập thừa sau kiểm kê`, `Nhập hoàn lại từ chuồng`, `Xuất hao hụt kiểm kê`, `Xuất vật tư tiêu hao`, `Chuyển sang kho đệm chuồng`).
 
 **API:** `GET /api/internal-stock/categories` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Không thể xóa danh mục hệ thống hoặc danh mục đã phát sinh phiếu (`CATEGORY_IN_USE`).
 
@@ -589,9 +595,15 @@ Entity: `FarmingCycle`. Quản lý từng chu kỳ sản xuất khép kín từ 
 | `end_date` | DATE | Ngày xuất chuồng kết thúc lứa. |
 | `status` | VARCHAR(20) | NOT NULL. `ACTIVE` (Đang nuôi) hoặc `CLOSED` (Đã hoàn thành/kết thúc). |
 | `note` | VARCHAR(1000) | Ghi chú về diễn biến lứa nuôi. |
+| `carried_feed_kg` | NUMERIC(19,3) | NOT NULL, DEFAULT 0. Phần lượng cám đã ăn chuyển theo số con khi tách đàn (`+` lứa đích, `-` lứa gốc) để giữ nguyên chỉ số cám/con và FCR (nâng cấp bởi `FarmJournalSchemaUpgrade`). |
+| `carried_feed_cost` | NUMERIC(19,3) | NOT NULL, DEFAULT 0. Phần chi phí cám chuyển theo số con khi tách đàn (VNĐ). |
+| `carried_gain_kg` | NUMERIC(19,3) | NOT NULL, DEFAULT 0. Phần khối lượng tăng trưởng chuyển theo số con khi tách đàn (kg). |
+| `carried_days` | INT | NOT NULL, DEFAULT 0. Số ngày nuôi đã tích lũy của lứa gốc khi tách đàn sang chuồng trống, giúp trường "ngày nuôi thứ" nối tiếp lứa gốc. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**Quy tắc:** Mỗi chuồng chỉ có duy nhất 1 lứa ở trạng thái `ACTIVE` tại một thời điểm. Chỉ được kết thúc lứa khi tồn đàn đã về 0.
+**Quy tắc:**
+- Mỗi chuồng chỉ có duy nhất 1 lứa ở trạng thái `ACTIVE` tại một thời điểm. Chỉ được kết thúc lứa khi tồn đàn đã về 0.
+- **Tách/chuyển đàn (`FlockService.transfer`, `CycleService.openForTransfer` & `carryWithFlock`)**: Có thể chuyển một phần hoặc toàn bộ đàn sang chuồng đang nuôi hoặc **chuồng trống** (hệ thống tự mở lứa mới từ ngày chuyển — không được trước `end_date` của lứa trước ở chuồng đích — giữ nguyên `hatch_date`, chương trình nuôi, cân mẫu gần nhất, cộng dồn `carried_days` và phân bổ `carried_feed_kg`, `carried_feed_cost`, `carried_gain_kg`, `cycle_carried_expenses` tỷ lệ thuận theo số con chuyển).
 
 ### 6.4 Bảng `flocks` — Đàn vật nuôi
 
@@ -651,7 +663,7 @@ Entity: `FeedRecord`. Nhật ký ghi nhận lượng cám cho ăn hằng ngày c
 | `record_date` | DATE | NOT NULL. Ngày cấp thức ăn. |
 | `feed_name` | VARCHAR(150) | NOT NULL. Tên loại cám (VD: `Higro 01`, `Higro 02`). |
 | `quantity_kg` | NUMERIC(14,3) | NOT NULL. Khối lượng cám cho ăn (kg). |
-| `unit_price` | NUMERIC(14,2) | Đơn giá cám (VNĐ/kg) để tính chi phí hạch toán. |
+| `unit_price` | NUMERIC(14,2) | NOT NULL. Đơn giá cám (VNĐ/kg) để tính chi phí hạch toán. |
 | `note` | VARCHAR(1000) | Ghi chú. |
 | `created_by` | VARCHAR(150) | Tài khoản / Email người ghi nhận. |
 | `created_at` | TIMESTAMP | Thời điểm tạo bản ghi hệ thống. |
@@ -671,20 +683,33 @@ Entity: `WeightSample`. Lưu trữ kết quả cân mẫu định kỳ để the
 | `created_by` | VARCHAR(150) | Tài khoản / Email người ghi nhận cân mẫu. |
 | `created_at` | TIMESTAMP | Thời điểm tạo bản ghi hệ thống. |
 
-### 6.8 Bảng `cycle_expenses` — Khoản chi bổ sung lứa nuôi
+### 6.8 Bảng `cycle_expenses` & `cycle_carried_expenses` — Khoản chi bổ sung và chi phí mang theo khi tách đàn
 
-Entity: `CycleExpense`. Lưu trữ các khoản chi trực tiếp phát sinh trong lứa nuôi phục vụ tính lãi lỗ P&L.
+Entity: `CycleExpense` & `CycleCarriedExpense`. Lưu trữ các khoản chi trực tiếp phát sinh trong lứa nuôi và phần chi phí phân bổ lại giữa hai lứa khi tách đàn phục vụ tính giá thành và lãi lỗ P&L.
 
+**Bảng `cycle_expenses`:**
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. |
 | `expense_date` | DATE | NOT NULL. Ngày phát sinh chi phí. |
-| `category` | VARCHAR(20) | NOT NULL. `ELECTRICITY` (điện), `WATER` (nước), `LABOR` (nhân công), `MEDICINE` (thuốc), `OTHER` (chi phí khác). |
+| `category` | VARCHAR(20) | NOT NULL. Đang hạch toán vào giá thành lứa (`countsInCycleCost()`): `MEDICINE` (thuốc, vắc-xin) và `OTHER` (chi phí khác). Giá trị cũ `ELECTRICITY`, `WATER`, `LABOR` chỉ giữ lại trong enum để bảo toàn dữ liệu lịch sử, không tạo mới và không cộng vào tổng chi phí lứa. |
 | `amount` | NUMERIC(16,2) | NOT NULL. Số tiền chi trả (VNĐ). |
 | `note` | VARCHAR(1000) | Diễn giải nội dung khoản chi. |
 | `created_by` | VARCHAR(150) | Tài khoản / Email người hạch toán chi phí. |
 | `created_at` | TIMESTAMP | Thời điểm tạo bản ghi hệ thống. |
+
+**Bảng `cycle_carried_expenses` (nâng cấp bởi `FarmJournalSchemaUpgrade`):**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGINT | PRIMARY KEY, tự tăng. |
+| `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. |
+| `category` | VARCHAR(20) | NOT NULL. Loại chi phí mang theo (`ExpenseCategory`); UNIQUE (`cycle_id`, `category`) qua `uk_cycle_carried_expense`. |
+| `amount` | NUMERIC(19,3) | NOT NULL, DEFAULT 0. Giá trị chi phí điều chỉnh khi tách đàn (số dương `+` ở lứa đích nhận đàn, số âm `-` ở lứa gốc tách đi). |
+
+**Quy tắc chi phí lứa (`CycleService.finance` & `ExpenseCategory`):**
+- Tổng chi phí lứa = **Con giống + Cám ăn + Thuốc (`MEDICINE`) + Chi phí khác (`OTHER`)**, đã tính gộp phần mang theo (`carried_feed_cost`, `cycle_carried_expenses`).
+- Điện (`ELECTRICITY`), nước (`WATER`), công nhân (`LABOR`) không được ghi mới từ màn hình chi tiết lứa và bị Trợ lý AI từ chối ghi nhận.
 
 ### 6.9 Bảng `farming_programs` & `farming_program_steps` — Chương trình nuôi theo giống
 
@@ -835,7 +860,7 @@ Entity: `SalesOrder`. Quản lý chứng từ xuất bán gà thương phẩm, t
 | `total_amount` | NUMERIC(19,2) | Tổng thành tiền của đơn hàng = `total_weight * unit_price` (VNĐ). |
 | `paid_amount` | NUMERIC(19,2) | Số tiền khách đã thanh toán (VNĐ). |
 | `status` | VARCHAR(255) | Trạng thái thanh toán: `Đã thanh toán`, `Chưa thanh toán`, `Thanh toán 1 phần`. |
-| `weight_slip_url` | VARCHAR(500) | Đường dẫn tệp ảnh phiếu cân đính kèm (`/uploads/weight-slips/...`). |
+| `weight_slip_url` | VARCHAR(500) | Đường dẫn tệp ảnh phiếu cân đính kèm (`/weigh-slips/<UUID>.<ext>`). |
 | `note` | TEXT | Ghi chú chi tiết của đơn xuất bán. |
 | `customer_id` | BIGINT | FOREIGN KEY → `customer_contacts.id`. Liên kết khách hàng trong danh bạ để đồng bộ công nợ và xuất hóa đơn. |
 | `cycle_id` | BIGINT | FOREIGN KEY → `farming_cycles.id`. Lứa nuôi được chọn khi xuất bán. |
@@ -871,11 +896,13 @@ Entity: `SalesInvoiceNumber`. Quản lý chuỗi số tự tăng để cấp ph�
 
 ## PHẦN 8: LƯU TRỮ VÀ QUẢN LÝ TỆP TIN (MEDIA & ATTACHMENTS)
 
-Hệ thống hỗ trợ linh hoạt 2 chế độ lưu trữ qua biến môi trường `STORAGE_PROVIDER`:
-1. `STORAGE_PROVIDER=local` (môi trường Dev / Local):
-   - Ảnh đại diện được lưu vào thư mục: `frontendFarmShift/public/img/avatars/<UUID>.<ext>`.
-   - Cơ sở dữ liệu lưu đường dẫn tương đối phục vụ web: `/img/avatars/<UUID>.<ext>`.
-   - File đính kèm hóa đơn nhập hàng và phiếu cân xuất bán lưu vào thư mục `uploads/...` (phục vụ qua `/uploads/**`).
-2. `STORAGE_PROVIDER=r2` (môi trường Production / Cloud):
+Hệ thống hỗ trợ linh hoạt 2 chế độ lưu trữ qua biến môi trường `STORAGE_PROVIDER` (kèm thư mục phiếu cân bán hàng riêng qua `WeightSlipStorage`):
+1. `STORAGE_PROVIDER=local` (`LocalFileUploadService` — môi trường Dev / Local):
+   - Ảnh upload (hồ sơ `avatars`, sản phẩm `products`, ảnh hao hụt/chứng từ...) được lưu vào `STORAGE_LOCAL_DIRECTORY` (mặc định `frontendFarmShift/public/img/<folder>/<UUID>.<ext>`, trong Docker Compose ánh xạ `/shared/frontend-public/img`), hỗ trợ PNG/JPEG/GIF tối đa 5MB.
+   - Cơ sở dữ liệu lưu đường dẫn tương đối phục vụ trực tiếp qua Vite/Nginx: `/img/<folder>/<UUID>.<ext>`.
+2. `STORAGE_PROVIDER=r2` (`FileUploadServiceImpl` — môi trường Production / Cloud, mặc định nếu không cấu hình `local`):
    - Tệp tin tải trực tiếp lên Cloudflare R2 bucket thông qua AWS S3 SDK.
    - Cơ sở dữ liệu lưu URL đầy đủ truy cập công khai CDN (VD: `https://pub-xxxx.r2.dev/avatars/<UUID>.png`).
+3. Phiếu cân xuất bán (`WeightSlipStorage`, độc lập với `STORAGE_PROVIDER`):
+   - Lưu file gốc (`JPG`/`PNG`/`PDF`) vào `SALES_WEIGHT_SLIPS_DIRECTORY` (mặc định `frontendFarmShift/public/weigh-slips/<UUID>.<ext>`, trong Docker Compose ánh xạ `/shared/frontend-public/weigh-slips`).
+   - Cơ sở dữ liệu lưu đường dẫn `/weigh-slips/<UUID>.<ext>` trong `sales_orders.weight_slip_url`.

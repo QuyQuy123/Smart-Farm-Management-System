@@ -98,7 +98,6 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         {/* Bản gọn (trang chuồng) ẩn liều lượng và phần chia theo đàn; xem đủ ở trang Việc hôm nay. */}
         {!compact && <small>
           {[task.method && labelOf(METHODS, task.method), task.doseText, task.note].filter(Boolean).join(' · ')}
-          {task.shares.length > 1 && task.plannedQuantity != null && <> · {task.shares.map(share => `${share.flockCode}: ${formatAmount(share.plannedQuantity)} ${task.unit}`).join(', ')}</>}
         </small>}
         {task.plannedCost != null && <small className={styles.planned}>Dự kiến {money(task.plannedCost)}
           {task.averagePrice != null && task.stockUnit && ` · giá TB ${money(task.averagePrice)}/${task.stockUnit}`}</small>}
@@ -203,7 +202,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
       : <div className={styles.schedule} aria-label="Lịch việc trong ngày">
         {(allDay.length > 0 || allDayAssigned.length > 0) && <div className={styles.slot}>
           <div className={`${styles.slotTime} ${styles.slotAllDay}`}><strong>Trong ngày</strong><small>không hẹn giờ</small></div>
-          <div className={styles.slotTasks}>
+          <div className={`${styles.slotTasks} ${styles.allDayTasks}`}>
             {allDay.map(section => {
               const Icon = section.icon;
               return <div key={section.category} className={styles.section}>

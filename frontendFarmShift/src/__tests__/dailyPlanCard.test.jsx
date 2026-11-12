@@ -42,11 +42,11 @@ describe('DailyPlanCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Xong Cữ 1/3 · Higro 02' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(current, feed, { sourceItemId: 8 }));
   });
-  it('full card shows dose, per-flock split and records a different amount with a reason', async () => {
+  it('full card shows the whole-barn amount only (mixed flocks share one feed) and records a different amount with a reason', async () => {
     const onConfirm = vi.fn().mockResolvedValueOnce('Lượng thực tế lệch -50% so với kế hoạch (5.100 g). Vui lòng ghi lý do.');
     render(<DailyPlanCard plan={plan} role="ROLE_FARM_OWNER" userEmail="owner@farm.test" busyKey={null} onConfirm={onConfirm} onUndo={vi.fn()} />);
     expect(screen.getByText('850 kg = 34 Bao 25kg')).toBeInTheDocument();
-    expect(screen.getByText(/H0004: 566,667 kg, H0005: 283,333 kg/)).toBeInTheDocument();
+    expect(screen.queryByText(/H0004/)).not.toBeInTheDocument();
     expect(screen.getByText('Kho không đủ: còn 2 Gói 1kg')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Khác kế hoạch Men tiêu hóa' }));
