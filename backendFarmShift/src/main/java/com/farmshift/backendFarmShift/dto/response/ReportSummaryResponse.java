@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Báo cáo tổng hợp toàn trang trại chuẩn FarmShift cho 9 phân hệ báo cáo.
+ * Báo cáo tổng hợp toàn trang trại chuẩn FarmShift cho 8 phân hệ báo cáo.
  */
 public record ReportSummaryResponse(
         LocalDate from,
@@ -16,7 +16,6 @@ public record ReportSummaryResponse(
         SalesReport salesReport,
         PurchasesReport purchasesReport,
         InventoryReport inventoryReport,
-        CashbookReport cashbookReport,
         HarvestReport harvestReport,
         GrowthReport growthReport,
         InternalStockReport internalStockReport,
@@ -131,33 +130,6 @@ public record ReportSummaryResponse(
             LocalDate expiryDate,
             boolean lowStock,
             String expiryStatus
-    ) {}
-
-    public record CashbookReport(
-            long cashIn,
-            long cashOut,
-            long netCashflow,
-            long totalFundsBalance,
-            int transactionCount,
-            List<FundFlowRow> funds,
-            List<CategoryBreakdownRow> categoryBreakdown
-    ) {}
-
-    public record FundFlowRow(
-            Long id,
-            String name,
-            String fundType,
-            String bank,
-            long cashIn,
-            long cashOut,
-            long balance
-    ) {}
-
-    public record CategoryBreakdownRow(
-            String category,
-            String type,
-            int count,
-            long totalAmount
     ) {}
 
     public record HarvestReport(

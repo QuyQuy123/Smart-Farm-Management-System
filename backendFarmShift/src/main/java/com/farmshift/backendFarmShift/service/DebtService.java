@@ -252,7 +252,6 @@ public class DebtService {
                         p.getPaymentDate(),
                         p.getAmount(),
                         p.getPaymentMethod(),
-                        p.getCashFundId(),
                         p.getNote(),
                         p.getCreatedBy(),
                         p.getCreatedAt()

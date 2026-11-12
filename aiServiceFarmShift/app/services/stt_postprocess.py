@@ -1,6 +1,6 @@
 """Hậu xử lý văn bản STT tiếng Việt cho lĩnh vực chăn nuôi (FarmShift).
 
-Whisper / Web Speech thường nhận nhầm các từ đồng âm: "nhật kí", "sổ quỷ", "nhà a một"...
+Whisper / Web Speech thường nhận nhầm các từ đồng âm: "nhật kí", "hao hục", "nhà a một"...
 Module này chuẩn hóa chúng trước khi trả văn bản về Backend (AiAssistantService).
 """
 import re
@@ -18,7 +18,6 @@ _B = r"(?<![^\W\d_])"  # không đứng sau chữ cái
 _RULES = [
     # chính tả đồng âm nghiệp vụ chăn nuôi
     (re.compile(_B + r"nhật\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)(?![^\W\d_])", _FLAGS), "nhật ký"),
-    (re.compile(_B + r"(?:sổ|số|xổ)\s+(?:quỷ|quĩ|quý|quỹ|qũy|quỳ)(?![^\W\d_])", _FLAGS), "sổ quỹ"),
     (re.compile(_B + r"(?:cần\s+mẫu|cân\s+mẩu)(?![^\W\d_])", _FLAGS), "cân mẫu"),
     (re.compile(_B + r"hao\s+hục(?![^\W\d_])", _FLAGS), "hao hụt"),
     (re.compile(_B + r"thải\s+lọai(?![^\W\d_])", _FLAGS), "thải loại"),

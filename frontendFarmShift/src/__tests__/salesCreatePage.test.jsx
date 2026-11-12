@@ -5,7 +5,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { SalesView } from '../features/farmshift/SalesView';
 import { extractWeightSlip, confirmWeightSlip } from '../services/weightSlipService';
 import { createSalesOrder } from '../services/salesCustomerService';
-import { listCashFunds } from '../services/cashbookService';
 
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children, actions }) => <main>{actions}{children}</main> }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'owner@test.local' } }) }));
@@ -15,7 +14,6 @@ vi.mock('../services/farmAreaService', () => ({ listBarns: async () => [{ id: 1,
 vi.mock('../services/cycleService', () => ({ listCycles: async () => [{ id: 2, code: 'L000002' }] }));
 vi.mock('../features/farmshift/SalesInvoiceTemplate', () => ({ SalesInvoiceTemplate: () => null }));
 vi.mock('../services/weightSlipService', () => ({ extractWeightSlip: vi.fn(), confirmWeightSlip: vi.fn(), previewWeightSlip: vi.fn() }));
-vi.mock('../services/cashbookService', () => ({ listCashFunds: vi.fn(async () => []) }));
 const objectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
 const revokeUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
 beforeAll(() => {
@@ -119,31 +117,4 @@ it('offers file upload when camera access is denied', async () => {
   } finally {
     if (previous) Object.defineProperty(navigator, 'mediaDevices', previous); else delete navigator.mediaDevices;
   }
-});
-
-it('auto-selects matching cash fund for payment method and submits cashFundId', async () => {
-  listCashFunds.mockResolvedValueOnce([
-    { id: 10, name: 'Tài khoản MB Bank (TK Chính)', fundType: 'BANK', balance: 391070000, active: true },
-    { id: 20, name: 'Tiền mặt tại quỹ trại', fundType: 'CASH', balance: 30500000, active: true }
-  ]);
-  render(<MemoryRouter initialEntries={['/sales?tab=create']}><SalesView /></MemoryRouter>);
-  const form = await screen.findByRole('region', { name: 'Tạo đơn bán hàng' });
-  await within(form).findByRole('option', { name: 'Khu A - Chuồng A - L000002' });
-  const fundSelect = await within(form).findByLabelText(/Thu vào nguồn quỹ/);
-  expect(fundSelect.value).toBe('20');
-  fireEvent.change(within(form).getByLabelText(/Hình thức thanh toán/), { target: { value: 'Chuyển khoản' } });
-  expect(fundSelect.value).toBe('10');
-  fireEvent.change(within(form).getAllByRole('textbox')[0], { target: { value: 'Thương lái Quỹ' } });
-  fireEvent.change(within(form).getByLabelText(/Số điện thoại/), { target: { value: '0912345678' } });
-  fireEvent.change(within(form).getByLabelText(/Địa chỉ/), { target: { value: 'Hà Nội' } });
-  fireEvent.change(within(form).getAllByRole('combobox')[0], { target: { value: '2' } });
-  fireEvent.change(within(form).getByPlaceholderText('VD: 1000'), { target: { value: '10' } });
-  fireEvent.change(within(form).getByPlaceholderText('VD: 2150'), { target: { value: '20' } });
-  fireEvent.change(within(form).getByPlaceholderText('VD: 78.000'), { target: { value: '50000' } });
-  fireEvent.click(within(form).getByRole('button', { name: 'Lưu đơn bán' }));
-  await waitFor(() => expect(createSalesOrder).toHaveBeenCalledWith(expect.objectContaining({
-    customer: 'Thương lái Quỹ',
-    paymentMethod: 'Chuyển khoản',
-    cashFundId: 10
-  })));
 });

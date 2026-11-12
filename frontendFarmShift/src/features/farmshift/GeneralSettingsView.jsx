@@ -302,7 +302,6 @@ export const GeneralSettingsView = () => {
                   <th>Khu nuôi & Chuồng</th>
                   <th>Kho hàng</th>
                   <th>Hóa đơn & Bán hàng</th>
-                  <th>Sổ quỹ</th>
                   <th>Báo cáo</th>
                 </tr>
               </thead>
@@ -313,21 +312,18 @@ export const GeneralSettingsView = () => {
                   <td><span className="farmshift-badge farmshift-badge-success">Toàn quyền</span></td>
                   <td><span className="farmshift-badge farmshift-badge-success">Toàn quyền</span></td>
                   <td><span className="farmshift-badge farmshift-badge-success">Toàn quyền</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Toàn quyền</span></td>
                 </tr>
                 <tr>
                   <td><strong style={{ color: 'var(--color-link)' }}>Kế toán</strong></td>
                   <td><span className="farmshift-badge farmshift-badge-neutral">Xem số lượng</span></td>
                   <td><span className="farmshift-badge farmshift-badge-success">Nhập/Xuất/Tồn</span></td>
                   <td><span className="farmshift-badge farmshift-badge-success">Toàn quyền</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-success">Thu / Chi</span></td>
                   <td><span className="farmshift-badge farmshift-badge-success">Tài chính</span></td>
                 </tr>
                 <tr>
                   <td><strong style={{ color: 'var(--color-ink)' }}>Kỹ thuật viên / Công nhân</strong></td>
                   <td><span className="farmshift-badge farmshift-badge-success">Ghi nhật ký</span></td>
                   <td><span className="farmshift-badge farmshift-badge-neutral">Xem tồn cám</span></td>
-                  <td><span className="farmshift-badge farmshift-badge-danger">Không</span></td>
                   <td><span className="farmshift-badge farmshift-badge-danger">Không</span></td>
                   <td><span className="farmshift-badge farmshift-badge-neutral">Xem tăng trọng</span></td>
                 </tr>
@@ -461,7 +457,7 @@ export const GeneralSettingsView = () => {
               <div style={{ border: '1px solid var(--color-hairline)', borderRadius: 'var(--rounded-md)', padding: '20px' }}>
                 <h4 style={{ margin: '0 0 8px', fontSize: '15px', color: 'var(--color-ink)' }}>Sao lưu dữ liệu JSON</h4>
                 <p style={{ fontSize: '14.5px', color: 'var(--color-body)', lineHeight: 1.5, margin: '0 0 16px' }}>
-                  Xuất toàn bộ dữ liệu đàn, chuồng trại, hóa đơn, tồn kho và sổ quỹ hiện tại thành tệp tin JSON an toàn.
+                  Xuất toàn bộ dữ liệu đàn, chuồng trại, hóa đơn và tồn kho hiện tại thành tệp tin JSON an toàn.
                 </p>
                 <button
                   className="farmshift-btn farmshift-btn-primary"

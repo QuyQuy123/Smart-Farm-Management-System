@@ -56,15 +56,6 @@ const EMPTY_REPORT = {
     expiryAlertCount: 0,
     items: [],
   },
-  cashbookReport: {
-    cashIn: 0,
-    cashOut: 0,
-    netCashflow: 0,
-    totalFundsBalance: 0,
-    transactionCount: 0,
-    funds: [],
-    categoryBreakdown: [],
-  },
   harvestReport: {
     harvestEvents: 0,
     totalHead: 0,
@@ -101,12 +92,6 @@ const normalizeReportData = (raw) => {
     salesReport: { ...EMPTY_REPORT.salesReport, ...(raw.salesReport || {}), orders: Array.isArray(raw.salesReport?.orders) ? raw.salesReport.orders : [] },
     purchasesReport: { ...EMPTY_REPORT.purchasesReport, ...(raw.purchasesReport || {}), invoices: Array.isArray(raw.purchasesReport?.invoices) ? raw.purchasesReport.invoices : [] },
     inventoryReport: { ...EMPTY_REPORT.inventoryReport, ...(raw.inventoryReport || {}), items: Array.isArray(raw.inventoryReport?.items) ? raw.inventoryReport.items : [] },
-    cashbookReport: {
-      ...EMPTY_REPORT.cashbookReport,
-      ...(raw.cashbookReport || {}),
-      funds: Array.isArray(raw.cashbookReport?.funds) ? raw.cashbookReport.funds : [],
-      categoryBreakdown: Array.isArray(raw.cashbookReport?.categoryBreakdown) ? raw.cashbookReport.categoryBreakdown : [],
-    },
     harvestReport: { ...EMPTY_REPORT.harvestReport, ...(raw.harvestReport || {}), rows: Array.isArray(raw.harvestReport?.rows) ? raw.harvestReport.rows : [] },
     growthReport: { ...EMPTY_REPORT.growthReport, ...(raw.growthReport || {}), cycles: Array.isArray(raw.growthReport?.cycles) ? raw.growthReport.cycles : [] },
     internalStockReport: { ...EMPTY_REPORT.internalStockReport, ...(raw.internalStockReport || {}), items: Array.isArray(raw.internalStockReport?.items) ? raw.internalStockReport.items : [] },
@@ -201,8 +186,6 @@ export const ReportsView = () => {
     sales: 1,
     purchases: 1,
     inventory: 1,
-    cashbookFunds: 1,
-    cashbookCategories: 1,
     harvest: 1,
     growth: 1,
     internal: 1,
@@ -213,8 +196,6 @@ export const ReportsView = () => {
     sales: 10,
     purchases: 10,
     inventory: 10,
-    cashbookFunds: 10,
-    cashbookCategories: 10,
     harvest: 10,
     growth: 9,
     internal: 10,
@@ -227,8 +208,6 @@ export const ReportsView = () => {
       sales: 1,
       purchases: 1,
       inventory: 1,
-      cashbookFunds: 1,
-      cashbookCategories: 1,
       harvest: 1,
       growth: 1,
       internal: 1,
@@ -304,7 +283,6 @@ export const ReportsView = () => {
     salesReport,
     purchasesReport,
     inventoryReport,
-    cashbookReport,
     harvestReport,
     growthReport,
     internalStockReport,
@@ -444,8 +422,6 @@ export const ReportsView = () => {
   const salesPaging = paginateList(filteredSales, pages.sales, pageSizes.sales);
   const purchasePaging = paginateList(filteredPurchases, pages.purchases, pageSizes.purchases);
   const inventoryPaging = paginateList(filteredInventory, pages.inventory, pageSizes.inventory);
-  const fundPaging = paginateList(cashbookReport.funds, pages.cashbookFunds, pageSizes.cashbookFunds);
-  const categoryPaging = paginateList(cashbookReport.categoryBreakdown, pages.cashbookCategories, pageSizes.cashbookCategories);
   const harvestPaging = paginateList(filteredHarvest, pages.harvest, pageSizes.harvest);
   const growthPaging = paginateList(filteredGrowth, pages.growth, pageSizes.growth);
   const internalPaging = paginateList(filteredInternal, pages.internal, pageSizes.internal);
@@ -484,12 +460,6 @@ export const ReportsView = () => {
       rows = filteredInventory.map((i) => [
         i.code, i.name, i.warehouseName, i.unitName, i.stock, i.minStock ?? '', i.unitPrice, i.totalValue, i.lotNumber || '', i.expiryDate || '',
         i.lowStock ? 'Sắp hết hàng' : (EXPIRY_LABELS[i.expiryStatus] || ''),
-      ]);
-    } else if (activeTab === 'cashbook') {
-      filePrefix = 'Bao_cao_so_quy';
-      headers = ['Nguồn quỹ', 'Loại', 'Ngân hàng', 'Thu (VND)', 'Chi (VND)', 'Tồn quỹ (VND)'];
-      rows = cashbookReport.funds.map((f) => [
-        f.name, f.fundType === 'CASH' ? 'Tiền mặt' : 'Ngân hàng', f.bank || '', f.cashIn, f.cashOut, f.balance,
       ]);
     } else if (activeTab === 'harvest') {
       filePrefix = 'Bao_cao_thu_hoach';
@@ -539,7 +509,6 @@ export const ReportsView = () => {
     { id: 'sales', label: 'Báo cáo bán hàng', count: salesReport.orderCount },
     { id: 'purchases', label: 'Báo cáo nhập hàng', count: purchasesReport.invoiceCount },
     { id: 'inventory', label: 'Báo cáo tồn kho', count: inventoryReport.totalSkus },
-    { id: 'cashbook', label: 'Báo cáo sổ quỹ', count: cashbookReport.transactionCount },
     { id: 'harvest', label: 'Báo cáo thu hoạch', count: harvestReport.harvestEvents },
     { id: 'growth', label: 'Xu hướng lứa nuôi (FCR)', count: growthReport.analyzedCycles },
     { id: 'internal', label: 'Xuất nhập nội bộ', count: internalStockReport.voucherCount },
@@ -893,7 +862,7 @@ export const ReportsView = () => {
                 <span className={styles.kpiIcon}><CheckCircle2 size={16} /></span>
               </div>
               <div className={`${styles.kpiValue} ${styles.kpiValueAccent}`}>{fmtVnd(purchasesReport.paidAmount)}</div>
-              <div className={styles.kpiSub}>Đã ghi nhận trong sổ quỹ</div>
+              <div className={styles.kpiSub}>Tổng tiền đã thanh toán nhà cung cấp</div>
             </div>
             <div className={styles.kpiCard}>
               <div className={styles.kpiHeader}>
@@ -1086,120 +1055,7 @@ export const ReportsView = () => {
         </div>
       )}
 
-      {/* ── Tab 5: Báo cáo sổ quỹ ────────────────────────── */}
-      {activeTab === 'cashbook' && (
-        <div className={styles.stack}>
-          <div className={styles.kpiGrid}>
-            <div className={`${styles.kpiCard} ${styles.kpiCardHighlight}`}>
-              <div className={styles.kpiHeader}>
-                <span className={styles.kpiLabel}>Dòng tiền thu trong kỳ</span>
-                <span className={styles.kpiIcon}><Wallet size={16} /></span>
-              </div>
-              <div className={`${styles.kpiValue} ${styles.kpiValueAccent}`}>+{fmtVnd(cashbookReport.cashIn)}</div>
-              <div className={styles.kpiSub}>{cashbookReport.transactionCount} phiếu thu / chi trong kỳ</div>
-            </div>
-            <div className={styles.kpiCard}>
-              <div className={styles.kpiHeader}>
-                <span className={styles.kpiLabel}>Dòng tiền chi trong kỳ</span>
-                <span className={styles.kpiIcon}><Wallet size={16} /></span>
-              </div>
-              <div className={`${styles.kpiValue} ${styles.kpiValueMuted}`}>-{fmtVnd(cashbookReport.cashOut)}</div>
-              <div className={styles.kpiSub}>Tổng chi hoạt động & trả công nợ</div>
-            </div>
-            <div className={styles.kpiCard}>
-              <div className={styles.kpiHeader}>
-                <span className={styles.kpiLabel}>Dòng tiền thuần (Thu - Chi)</span>
-                <span className={styles.kpiIcon}><TrendingUp size={16} /></span>
-              </div>
-              <div className={`${styles.kpiValue} ${cashbookReport.netCashflow >= 0 ? styles.kpiValueAccent : styles.kpiValueWarn}`}>
-                {cashbookReport.netCashflow >= 0 ? '+' : '-'}{fmtVnd(Math.abs(cashbookReport.netCashflow || 0))}
-              </div>
-              <div className={styles.kpiSub}>Tồn quỹ hiện tại: <strong>{fmtVnd(cashbookReport.totalFundsBalance)}</strong></div>
-            </div>
-          </div>
-
-          <div className={styles.twoColGrid}>
-            <div className="farmshift-card">
-              <div className={styles.sectionToolbar}>
-                <div className={styles.sectionTitleGroup}>
-                  <h3 className={styles.sectionTitle}>Lưu chuyển theo nguồn quỹ</h3>
-                  <span className={styles.sectionSubtitle}>Thu chi phát sinh trong kỳ & số dư hiện hành</span>
-                </div>
-              </div>
-              <div className="farmshift-table-container" style={{ border: 'none' }}>
-                <table className={`farmshift-table ${styles.compactTable}`}>
-                  <thead>
-                    <tr>
-                      <th>Nguồn quỹ</th>
-                      <th className={styles.numCell}>Thu trong kỳ</th>
-                      <th className={styles.numCell}>Chi trong kỳ</th>
-                      <th className={styles.numCell}>Số dư hiện tại</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fundPaging.rows.length === 0 ? (
-                      <tr><td colSpan={4} className={styles.emptyRow}>Chưa có nguồn quỹ.</td></tr>
-                    ) : fundPaging.rows.map((f) => (
-                      <tr key={f.id}>
-                        <td>
-                          <strong>{f.name}</strong>
-                          <span className={styles.subText}>
-                            {f.fundType === 'CASH' ? 'Tiền mặt' : 'Ngân hàng'}{f.bank ? ` · ${f.bank}` : ''}
-                          </span>
-                        </td>
-                        <td className={`${styles.numCell} ${styles.positiveText}`}>+{fmtVnd(f.cashIn)}</td>
-                        <td className={styles.numCell}>-{fmtVnd(f.cashOut)}</td>
-                        <td className={styles.numCell}><strong>{fmtVnd(f.balance)}</strong></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {renderPager(fundPaging, 'cashbookFunds', 'nguồn quỹ')}
-            </div>
-
-            <div className="farmshift-card">
-              <div className={styles.sectionToolbar}>
-                <div className={styles.sectionTitleGroup}>
-                  <h3 className={styles.sectionTitle}>Cơ cấu theo khoản mục Thu / Chi</h3>
-                  <span className={styles.sectionSubtitle}>Xếp hạng khoản mục lớn nhất trong kỳ</span>
-                </div>
-              </div>
-              <div className="farmshift-table-container" style={{ border: 'none' }}>
-                <table className={`farmshift-table ${styles.compactTable}`}>
-                  <thead>
-                    <tr>
-                      <th>Khoản mục</th>
-                      <th>Loại</th>
-                      <th className={styles.numCell}>Số phiếu</th>
-                      <th className={styles.numCell}>Tổng tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {categoryPaging.rows.length === 0 ? (
-                      <tr><td colSpan={4} className={styles.emptyRow}>Chưa phát sinh phiếu thu / chi trong kỳ.</td></tr>
-                    ) : categoryPaging.rows.map((cat, idx) => (
-                      <tr key={`${cat.type}-${cat.category}-${idx}`}>
-                        <td><strong>{cat.category}</strong></td>
-                        <td>
-                          <span className={cat.type === 'Thu' ? styles.mintBadge : styles.sageBadge}>
-                            {cat.type}
-                          </span>
-                        </td>
-                        <td className={styles.numCell}>{cat.count}</td>
-                        <td className={styles.numCell}><strong>{fmtVnd(cat.totalAmount)}</strong></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {renderPager(categoryPaging, 'cashbookCategories', 'khoản mục')}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 6: Báo cáo thu hoạch ─────────────────────── */}
+      {/* ── Tab 5: Báo cáo thu hoạch ─────────────────────── */}
       {activeTab === 'harvest' && (
         <div className={styles.stack}>
           <div className={styles.kpiGrid}>
@@ -1440,7 +1296,7 @@ export const ReportsView = () => {
                 Nhật ký hoạt động nghiệp vụ toàn trang trại
               </h3>
               <span className={styles.sectionSubtitle}>
-                Tổng hợp thao tác thực từ Sổ quỹ, Bán hàng, Nhập hàng, Kho nội bộ và Nhật ký công việc
+                Tổng hợp thao tác thực từ Bán hàng, Nhập hàng, Kho nội bộ và Nhật ký công việc
               </span>
             </div>
             {renderSearchBar(

@@ -152,28 +152,6 @@ const MOCK_PAYLOAD = {
       },
     ],
   },
-  cashbookReport: {
-    cashIn: 150000000,
-    cashOut: 98000000,
-    netCashflow: 52000000,
-    totalFundsBalance: 690000000,
-    transactionCount: 2,
-    funds: [
-      {
-        id: 1,
-        name: 'Quỹ trang trại',
-        fundType: 'BANK',
-        bank: 'MB Bank',
-        cashIn: 150000000,
-        cashOut: 98000000,
-        balance: 690000000,
-      },
-    ],
-    categoryBreakdown: [
-      { category: 'Đơn bán gà', type: 'Thu', count: 1, totalAmount: 150000000 },
-      { category: 'Tiền thức ăn (Cám)', type: 'Chi', count: 1, totalAmount: 98000000 },
-    ],
-  },
   harvestReport: {
     harvestEvents: 1,
     totalHead: 1200,
@@ -260,14 +238,14 @@ const MOCK_PAYLOAD = {
         referenceCode: 'BH00010',
       },
       {
-        id: 'cb-1',
+        id: 'po-1',
         timestamp: '2026-10-15T10:00:00',
         date: '2026-10-15',
-        actor: 'Kế toán',
-        module: 'Sổ quỹ',
-        action: 'Chi quỹ',
+        actor: 'Kế toán / Kho',
+        module: 'Nhập hàng',
+        action: 'Hóa đơn nhập',
         detail: 'Thanh toán hóa đơn cám',
-        referenceCode: 'PC00001',
+        referenceCode: 'NH00005',
       },
     ],
   },
@@ -292,7 +270,7 @@ describe('ReportsView real analytics integration', () => {
     vi.restoreAllMocks();
   });
 
-  it('loads real data and switches across all 9 report tabs accurately', async () => {
+  it('loads real data and switches across all 8 report tabs accurately', async () => {
     renderView();
 
     await waitFor(() => {
@@ -311,10 +289,6 @@ describe('ReportsView real analytics integration', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Báo cáo tồn kho/i }));
     expect(screen.getByText('Cám Higro 01')).toBeInTheDocument();
     expect(screen.getByText('Sắp hết hàng')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: /Báo cáo sổ quỹ/i }));
-    expect(screen.getByText('Quỹ trang trại')).toBeInTheDocument();
-    expect(screen.getByText('Đơn bán gà')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: /Báo cáo thu hoạch/i }));
     expect(screen.getByText(/Gà Mía Dabaco/)).toBeInTheDocument();

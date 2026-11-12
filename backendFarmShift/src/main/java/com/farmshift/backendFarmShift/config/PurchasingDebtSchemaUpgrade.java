@@ -35,13 +35,11 @@ public class PurchasingDebtSchemaUpgrade implements ApplicationRunner {
                     amount BIGINT NOT NULL,
                     payment_date DATE NOT NULL,
                     payment_method VARCHAR(50),
-                    cash_fund_id BIGINT,
                     note VARCHAR(500),
                     created_by VARCHAR(150),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """);
-        jdbc.execute("ALTER TABLE purchase_payments ADD COLUMN IF NOT EXISTS cash_fund_id BIGINT");
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_purchase_payments_supplier ON purchase_payments(supplier_id)");
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_purchase_payments_invoice ON purchase_payments(invoice_id)");
 

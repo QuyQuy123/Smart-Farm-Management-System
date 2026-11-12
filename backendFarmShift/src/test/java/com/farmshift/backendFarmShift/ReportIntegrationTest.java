@@ -52,7 +52,6 @@ class ReportIntegrationTest {
     @Autowired InventoryItemRepository inventoryRepository;
     @Autowired InternalStockCategoryRepository internalCategoryRepository;
     @Autowired PurchaseInvoiceRepository purchaseInvoiceRepository;
-    @Autowired CashFundRepository cashFundRepository;
 
     long barnId;
     long cycleId;
@@ -197,20 +196,13 @@ class ReportIntegrationTest {
         );
         post("/api/internal-stock/vouchers", transferReq).andExpect(status().isCreated());
 
-        // 5. Cashbook fund + Thu/Chi vouchers (distinct dates for range filter testing)
-        var fundRes = post("/api/cashbook/funds", new CashFundRequest(
-                "Quỹ Report Test", "—", "Thủ quỹ", "CASH", 50_000_000L, ""
-        )).andExpect(status().isCreated()).andReturn();
-        long fundId = mapper.readTree(fundRes.getResponse().getContentAsString()).path("data").path("id").asLong();
-
-        post("/api/cashbook/transactions", new CashTransactionRequest(
-                TODAY.minusDays(1), "Thu", "Nạp vốn / Góp vốn", 15_000_000L,
-                "Chủ trại", "Nạp vốn report", fundId, "Nạp vốn test"
-        )).andExpect(status().isCreated());
-
-        post("/api/cashbook/transactions", new CashTransactionRequest(
-                TODAY.minusDays(40), "Chi", "Tiền điện & nước trang trại", 3_000_000L,
-                "Đối tượng khác", "Điện lực", fundId, "Phiếu ngoài khoảng 14 ngày"
+        // Second older PO outside 7-day range for date filtering test
+        post("/api/purchases", Map.of(
+                "supplierName", "NCC Cũ Ngoài 7 Ngày",
+                "date", TODAY.minusDays(40).toString(),
+                "paymentStatus", "Trả sau",
+                "stockStatus", "Chưa nhập kho",
+                "items", List.of(Map.of("name", "Cám cũ", "qty", 5, "unit", "Bao", "price", 400_000))
         )).andExpect(status().isCreated());
 
         em.flush();
@@ -242,7 +234,7 @@ class ReportIntegrationTest {
     }
 
     @Test
-    void aggregatesAllNineReportSectionsWithRealDatabaseCalculations() throws Exception {
+    void aggregatesAllEightReportSectionsWithRealDatabaseCalculations() throws Exception {
         String raw = mvc.perform(get("/api/reports/summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -277,12 +269,6 @@ class ReportIntegrationTest {
         assertTrue(inventory.path("lowStockCount").asInt() >= 1);
         assertTrue(inventory.path("items").toString().contains("Vắc-xin Report"));
 
-        // Cashbook cashIn/cashOut + category breakdown
-        JsonNode cashbook = data.path("cashbookReport");
-        assertTrue(cashbook.path("cashIn").asLong() >= 15_000_000L);
-        assertTrue(cashbook.path("cashOut").asLong() >= 3_000_000L);
-        assertTrue(cashbook.path("categoryBreakdown").toString().contains("Nạp vốn / Góp vốn"));
-
         // Harvest report
         JsonNode harvest = data.path("harvestReport");
         assertTrue(harvest.path("totalHead").asInt() >= 200);
@@ -307,7 +293,7 @@ class ReportIntegrationTest {
     }
 
     @Test
-    void filtersCashbookAndHarvestAndPurchasesByDateRange() throws Exception {
+    void filtersHarvestAndPurchasesByDateRange() throws Exception {
         String from = TODAY.minusDays(7).toString();
         String to = TODAY.toString();
 
@@ -321,9 +307,9 @@ class ReportIntegrationTest {
         assertEquals(from, data.path("from").asText());
         assertEquals(to, data.path("to").asText());
 
-        // Out-of-range 40-day-old cash expense ("Điện lực") must NOT appear when querying last 7 days
-        String categoriesJson = data.path("cashbookReport").path("categoryBreakdown").toString();
-        assertTrue(categoriesJson.contains("Nạp vốn / Góp vốn"));
-        assertFalse(categoriesJson.contains("Tiền điện & nước trang trại"));
+        // Out-of-range 40-day-old PO ("NCC Cũ Ngoài 7 Ngày") must NOT appear when querying last 7 days
+        String purchasesJson = data.path("purchasesReport").path("invoices").toString();
+        assertTrue(purchasesJson.contains("NCC Cám Report"));
+        assertFalse(purchasesJson.contains("NCC Cũ Ngoài 7 Ngày"));
     }
 }

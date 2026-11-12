@@ -197,27 +197,7 @@ export const INITIAL_FARMSHIFT_DATA = {
         }
     ],
 
-    // 5. Sổ quỹ (Cashbook — đối soát 1 quỹ duy nhất 'Quỹ trang trại', tự đồng bộ từ bán hàng, nhập hàng, lương & chi phí lứa)
-    cashbook: [
-        { id: 'cb-pt3', code: 'PT000003', date: '2026-11-10', type: 'Thu', category: 'Đơn bán gà', amount: 100000000, contact: 'Khách hàng', name: 'Trần Thị Mai (Đại lý Gia cầm Miền Bắc)', fund: 'Quỹ trang trại', note: 'Thu tiền đơn bán gà BH00002', creator: 'Trần Kế Toán', referenceInvoiceCode: 'BH00002' },
-        { id: 'cb-pt2', code: 'PT000002', date: '2026-11-08', type: 'Thu', category: 'Đơn bán gà', amount: 200000000, contact: 'Khách hàng', name: 'Nguyễn Văn Hùng (Thương lái Lái Thiêu)', fund: 'Quỹ trang trại', note: 'Thu tiền đơn bán gà BH00001', creator: 'Trần Kế Toán', referenceInvoiceCode: 'BH00001' },
-        { id: 'cb-pc13', code: 'PC000013', date: '2026-10-31', type: 'Chi', category: 'Tiền lương công nhân', amount: 12700000, contact: 'Nhân sự', name: 'Trần Kế Toán', fund: 'Quỹ trang trại', note: 'Thanh toán lương tháng 10/2026 (CC0004)', creator: 'Admin', referenceInvoiceCode: 'CC0004' },
-        { id: 'cb-pc12', code: 'PC000012', date: '2026-10-15', type: 'Chi', category: 'Chi phí khác', amount: 650000, contact: 'Đối tượng khác', name: 'Vật tư chuồng nuôi Nhà A1', fund: 'Quỹ trang trại', note: 'Trấu độn chuồng và dung dịch sát trùng tiêu độc lứa 1 (lứa Nhà A1)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'CE-2' },
-        { id: 'cb-pc11', code: 'PC000011', date: '2026-10-08', type: 'Chi', category: 'Thuốc thú y & vắc-xin', amount: 850000, contact: 'Đối tượng khác', name: 'Chi phí thuốc bổ Nhà A1', fund: 'Quỹ trang trại', note: 'Thuốc bổ và men tiêu hóa phòng ngừa stress (lứa Nhà A1)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'CE-1' },
-        { id: 'cb-pc10', code: 'PC000010', date: '2026-10-02', type: 'Chi', category: 'Tiền điện & nước trang trại', amount: 8200000, contact: 'Đối tượng khác', name: 'Điện lực Tam Đảo', fund: 'Quỹ trang trại', note: 'Thanh toán tiền điện nước vận hành chuồng nuôi tháng 09/2026', creator: 'Trần Kế Toán' },
-        { id: 'cb-pc9', code: 'PC000009', date: '2026-10-01', type: 'Chi', category: 'Tiền con giống', amount: 115000000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Quỹ trang trại', note: 'Thanh toán nhập 10.000 gà giống Nhà A3 (Mái)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NHCG000004' },
-        { id: 'cb-pc8', code: 'PC000008', date: '2026-10-01', type: 'Chi', category: 'Tiền con giống', amount: 220000000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Quỹ trang trại', note: 'Thanh toán nhập 20.000 gà giống Nhà A3 (Trống)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NHCG000003' },
-        { id: 'cb-pc7', code: 'PC000007', date: '2026-10-01', type: 'Chi', category: 'Tiền con giống', amount: 440000000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Quỹ trang trại', note: 'Thanh toán nhập 40.000 gà giống Nhà A2', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NHCG000002' },
-        { id: 'cb-pc6', code: 'PC000006', date: '2026-10-01', type: 'Chi', category: 'Tiền con giống', amount: 550000000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Quỹ trang trại', note: 'Thanh toán nhập 50.000 gà giống Nhà A1', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NHCG000001' },
-        { id: 'cb-pc5', code: 'PC000005', date: '2026-09-30', type: 'Chi', category: 'Tiền lương công nhân', amount: 9000000, contact: 'Nhân sự', name: 'Dương Văn Hùng', fund: 'Quỹ trang trại', note: 'Thanh toán lương tháng 09/2026 (CC0002)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'CC0002' },
-        { id: 'cb-pc4', code: 'PC000004', date: '2026-09-30', type: 'Chi', category: 'Tiền lương công nhân', amount: 9000000, contact: 'Nhân sự', name: 'Nguyễn Văn Ba', fund: 'Quỹ trang trại', note: 'Thanh toán lương tháng 09/2026 (CC0001)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'CC0001' },
-        { id: 'cb-pc3', code: 'PC000003', date: '2026-09-25', type: 'Chi', category: 'Thuốc thú y & vắc-xin', amount: 8480000, contact: 'Nhà cung cấp', name: 'Công ty Thuốc Thú y Hanvet', fund: 'Quỹ trang trại', note: 'Thanh toán hóa đơn NH000002', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NH000002' },
-        { id: 'cb-pc2', code: 'PC000002', date: '2026-09-18', type: 'Chi', category: 'Tiền con giống', amount: 92500000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Quỹ trang trại', note: 'Thanh toán hóa đơn NH000001', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NH000001' },
-        { id: 'cb-pc1', code: 'PC000001', date: '2026-09-15', type: 'Chi', category: 'Tiền thức ăn (Cám)', amount: 112050000, contact: 'Nhà cung cấp', name: 'Công ty CP Chăn nuôi C.P. Việt Nam', fund: 'Quỹ trang trại', note: 'Thanh toán hóa đơn NH000000', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NH000000' },
-        { id: 'cb-pt1', code: 'PT000001', date: '2026-09-01', type: 'Thu', category: 'Thu khác', amount: 1750000000, contact: 'Đối tượng khác', name: 'Chủ trang trại', fund: 'Quỹ trang trại', note: 'Vốn lưu động ban đầu trang trại (nhập giống, cám và vận hành)', creator: 'Admin' },
-    ],
-
-    // 6. Ghi nhật ký chăn nuôi gần nhất
+    // 5. Ghi nhật ký chăn nuôi gần nhất
     journalLogs: [
         { id: 'log-1', date: '2026-10-07', barn: 'Nhà A1', feedMeal1: 75, feedMeal2: 75, totalFeed: 150, temp: 28.5, humidity: 72, mortality: 2, cull: 0, healthStatus: 'Bình thường, gà ăn mạnh, nhanh nhẹn', note: 'Bổ sung men tiêu hóa vào nước uống buổi sáng' },
         { id: 'log-2', date: '2026-10-07', barn: 'Nhà A2', feedMeal1: 72, feedMeal2: 74, totalFeed: 146, temp: 28.2, humidity: 71, mortality: 1, cull: 0, healthStatus: 'Bình thường', note: 'Không có dấu hiệu bất thường' },
@@ -230,7 +210,7 @@ export const INITIAL_FARMSHIFT_DATA = {
     staff: [
         { id: 'st-1', name: 'Admin', email: 'hiepgacute1989@gmail.com', phone: '0966755095', role: 'Chủ trang trại (Admin)', barnAssigned: 'Toàn bộ trang trại', status: 'Hoạt động' },
         { id: 'st-2', name: 'Miền Bính', email: 'mienbinh@smartfarm.com', phone: '0988111222', role: 'Chủ trang trại', barnAssigned: 'Toàn bộ trang trại', status: 'Hoạt động' },
-        { id: 'st-3', name: 'Trần Kế Toán', email: 'ketoan@smartfarm.com', phone: '0977222333', role: 'Kế toán', barnAssigned: 'Sổ quỹ & Kho hàng', status: 'Hoạt động' },
+        { id: 'st-3', name: 'Trần Kế Toán', email: 'ketoan@smartfarm.com', phone: '0977222333', role: 'Kế toán', barnAssigned: 'Hóa đơn & Kho hàng', status: 'Hoạt động' },
         { id: 'st-4', name: 'Nguyễn Văn Ba', email: 'congnhan@smartfarm.com', phone: '0966333444', role: 'Công nhân trại', barnAssigned: 'Khu J Thịt, Chuồng B6', status: 'Hoạt động' },
     ],
 

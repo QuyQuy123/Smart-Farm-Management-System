@@ -278,7 +278,7 @@ export const NotificationProvider = ({ children }) => {
     else if (textLower.includes('chuồng') || textLower.includes('nhà') || textLower.includes('khu')) source = 'Khu nuôi & Chuồng trại';
     else if (textLower.includes('kho') || textLower.includes('nhập hàng') || textLower.includes('xuất')) source = 'Kho hàng hóa';
     else if (textLower.includes('bán') || textLower.includes('đơn hàng')) source = 'Quản lý bán hàng';
-    else if (textLower.includes('quỹ') || textLower.includes('thu') || textLower.includes('chi') || textLower.includes('tiền')) source = 'Sổ quỹ';
+    else if (textLower.includes('công nợ') || textLower.includes('thanh toán') || textLower.includes('hóa đơn')) source = 'Hóa đơn & Công nợ';
     else if (textLower.includes('tiêu chuẩn') || textLower.includes('định mức')) source = 'Thiết lập chăn nuôi';
 
     const toastObj = {

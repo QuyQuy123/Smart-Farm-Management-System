@@ -5,7 +5,7 @@ import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
     Menu, Maximize, Minimize, Bell, User, LogOut,
     LayoutDashboard, Warehouse, ClipboardList, Package,
-    ArrowLeftRight, FileText, ShoppingCart, DollarSign,
+    ArrowLeftRight, FileText, ShoppingCart,
     Users, BarChart3, Layers, Settings, Sliders,
     Utensils, HeartPulse, Thermometer, CheckSquare, X,
     CheckCircle, AlertTriangle, AlertCircle, ListChecks
@@ -256,7 +256,6 @@ export const FarmShiftLayout = ({
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'] },
         { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
-        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users, roles: ['ROLE_FARM_OWNER'] },
         { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
     ];

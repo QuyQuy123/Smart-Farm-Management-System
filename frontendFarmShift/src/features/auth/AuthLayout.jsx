@@ -24,7 +24,7 @@ export const AuthLayout = ({ children }) => {
             Tự động hóa sổ sách & IoT.
           </h1>
           <p>
-            Tích hợp đầy đủ từ nhật ký cho ăn từng cữ, cảm biến vi khí hậu trực tuyến, hóa đơn nhập xuất kho đến cân đối sổ quỹ theo thời gian thực.
+            Tích hợp đầy đủ từ nhật ký cho ăn từng cữ, cảm biến vi khí hậu trực tuyến, hóa đơn nhập xuất kho đến báo cáo chi phí & công nợ theo thời gian thực.
           </p>
         </div>
 

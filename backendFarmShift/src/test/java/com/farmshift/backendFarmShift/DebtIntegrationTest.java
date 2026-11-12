@@ -3,14 +3,10 @@ package com.farmshift.backendFarmShift;
 import com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceItemRequest;
 import com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceRequest;
 import com.farmshift.backendFarmShift.dto.request.PurchasePaymentRequest;
-import com.farmshift.backendFarmShift.entity.CashFund;
 import com.farmshift.backendFarmShift.entity.CustomerContact;
 import com.farmshift.backendFarmShift.entity.ProductType;
 import com.farmshift.backendFarmShift.entity.SalesOrder;
 import com.farmshift.backendFarmShift.entity.Supplier;
-import com.farmshift.backendFarmShift.repository.CashFundRepository;
-import com.farmshift.backendFarmShift.repository.CashFundTransferRepository;
-import com.farmshift.backendFarmShift.repository.CashTransactionRepository;
 import com.farmshift.backendFarmShift.repository.CustomerContactRepository;
 import com.farmshift.backendFarmShift.repository.ProductTypeRepository;
 import com.farmshift.backendFarmShift.repository.PurchaseInvoiceRepository;
@@ -52,12 +48,8 @@ class DebtIntegrationTest {
     @Autowired PurchasePaymentRepository paymentRepository;
     @Autowired CustomerContactRepository customerRepository;
     @Autowired SalesOrderRepository salesOrderRepository;
-    @Autowired CashFundRepository cashFundRepository;
-    @Autowired CashFundTransferRepository cashFundTransferRepository;
-    @Autowired CashTransactionRepository cashTxRepository;
 
     Long supplierId;
-    Long fundId;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -66,9 +58,6 @@ class DebtIntegrationTest {
         salesOrderRepository.deleteAll();
         customerRepository.deleteAll();
         supplierRepository.deleteAll();
-        cashFundTransferRepository.deleteAll();
-        cashTxRepository.deleteAll();
-        cashFundRepository.deleteAll();
 
         ProductType type = new ProductType();
         type.setName("Thức ăn công nợ test");
@@ -85,16 +74,6 @@ class DebtIntegrationTest {
         supplier.setPaymentPolicy("Gối đầu 30 ngày");
         supplier = supplierRepository.saveAndFlush(supplier);
         supplierId = supplier.getId();
-
-        CashFund fund = new CashFund();
-        fund.setName("Quỹ Trả Nợ NCC");
-        fund.setAccountNo("999");
-        fund.setBank("VCB");
-        fund.setFundType("BANK");
-        fund.setBalance(20_000_000L);
-        fund.setNote("");
-        fund.setActive(true);
-        fundId = cashFundRepository.saveAndFlush(fund).getId();
 
         CustomerContact customer = new CustomerContact();
         customer.setName("Thương lái Thu Mua");
@@ -120,7 +99,7 @@ class DebtIntegrationTest {
 
     @Test
     @WithMockUser(username = "ketoan@smartfarm.com", authorities = "ROLE_ACCOUNTANT")
-    void unifiedDebtSummarySupplierLedgerWithPaymentAndCashbookIntegration() throws Exception {
+    void unifiedDebtSummarySupplierLedgerWithPaymentIntegration() throws Exception {
         LocalDate exp = LocalDate.of(2027, 3, 1);
         // Create PO with partial payment (total 10M, paid 2M) + attachmentUrl + lotNumber/expiryDate
         var poReq = new PurchaseInvoiceRequest(
@@ -142,20 +121,14 @@ class DebtIntegrationTest {
                 .andExpect(jsonPath("$.data.items[0].lotNumber").value("LOT-DEBT-01"))
                 .andReturn();
         long invoiceId = mapper.readTree(createdPo.getResponse().getContentAsString()).path("data").path("id").asLong();
-        String invoiceCode = mapper.readTree(createdPo.getResponse().getContentAsString()).path("data").path("code").asText();
 
-        // Pay additional 3,000,000 linked with CashFund
+        // Pay additional 3,000,000
         mvc.perform(post("/api/purchases/" + invoiceId + "/pay")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(new PurchasePaymentRequest(3_000_000L, "Trả đợt 2 qua VCB", fundId, "Chuyển khoản", LocalDate.of(2026, 10, 11)))))
+                .content(mapper.writeValueAsString(new PurchasePaymentRequest(3_000_000L, "Trả đợt 2 qua VCB", "Chuyển khoản", LocalDate.of(2026, 10, 11)))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.paidAmount").value(5_000_000))
                 .andExpect(jsonPath("$.data.debtAmount").value(5_000_000));
-
-        // Verify CashFund balance deducted & disbursement voucher recorded
-        assertEquals(17_000_000L, cashFundRepository.findById(fundId).orElseThrow().getBalance());
-        assertTrue(cashTxRepository.findAll().stream()
-                .anyMatch(t -> "Chi".equals(t.getType()) && invoiceCode.equals(t.getReferenceInvoiceCode()) && t.getAmount() == 3_000_000L));
 
         // Verify FIN-17 Unified Debt Summary:
         // Supplier Payable = opening 1,000,000 + (10,000,000 - 5,000,000) = 6,000,000

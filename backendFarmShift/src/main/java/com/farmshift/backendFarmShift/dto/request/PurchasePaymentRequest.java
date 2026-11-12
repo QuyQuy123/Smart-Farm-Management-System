@@ -12,13 +12,11 @@ public record PurchasePaymentRequest(
 
     String note,
 
-    Long cashFundId,
-
     String paymentMethod,
 
     LocalDate paymentDate
 ) {
     public PurchasePaymentRequest(Long amount, String note) {
-        this(amount, note, null, null, null);
+        this(amount, note, null, null);
     }
 }

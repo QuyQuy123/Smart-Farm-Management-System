@@ -48,7 +48,6 @@ public record SupplierDebtHistoryResponse(
             LocalDate paymentDate,
             long amount,
             String paymentMethod,
-            Long cashFundId,
             String note,
             String createdBy,
             LocalDateTime createdAt

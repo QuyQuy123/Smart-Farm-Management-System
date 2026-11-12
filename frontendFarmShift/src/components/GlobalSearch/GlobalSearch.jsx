@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Search, X, LayoutDashboard, Warehouse, ClipboardList,
-  Package, ArrowLeftRight, FileText, ShoppingCart, DollarSign,
+  Package, ArrowLeftRight, FileText, ShoppingCart,
   Users, BarChart3, Layers, Settings, Sliders, Fan, Thermometer,
   HeartPulse, ShieldAlert, Zap, CornerDownLeft, Sparkles
 } from 'lucide-react';
@@ -111,15 +111,6 @@ const SEARCHABLE_ITEMS = [
     path: '/sales',
     icon: ShoppingCart,
     keywords: ['ban hang', 'xuat ban', 'thuong lai', 'can xe', 'ga thit', 'hoa don ban']
-  },
-  {
-    id: 'cashbook',
-    category: 'Mua bán & Tài chính',
-    title: 'Sổ quỹ thu chi & Dòng tiền',
-    description: 'Theo dõi tồn Quỹ trang trại, dòng tiền thu bán gà, chi nhập hàng, chi phí lứa & lương',
-    path: '/cashbook',
-    icon: DollarSign,
-    keywords: ['so quy', 'thu chi', 'dong tien', 'quy trang trai', 'tien mat', 'phieu thu', 'phieu chi']
   },
   {
     id: 'account',
@@ -291,7 +282,7 @@ export const GlobalSearch = () => {
   // Lọc theo Role người dùng
   const roleAllowedItems = SEARCHABLE_ITEMS.filter(item => {
     if (role === 'ROLE_FARM_WORKER') {
-      const blockedPaths = ['/dashboard', '/purchases', '/sales', '/cashbook', '/account', '/reports', '/catalog-settings', '/breeding-settings', '/general-settings'];
+      const blockedPaths = ['/dashboard', '/purchases', '/sales', '/account', '/reports', '/catalog-settings', '/breeding-settings', '/general-settings'];
       return !blockedPaths.includes(item.path);
     }
     if (role === 'ROLE_ACCOUNTANT') {
@@ -373,7 +364,7 @@ export const GlobalSearch = () => {
               ref={inputRef}
               type="text"
               className={styles.modalInput}
-              placeholder="Nhập tên chức năng (ví dụ: quạt, cám, chuồng A1, sổ quỹ)..."
+              placeholder="Nhập tên chức năng (ví dụ: quạt, cám, chuồng A1, báo cáo)..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleInputKeyDown}
@@ -435,7 +426,7 @@ export const GlobalSearch = () => {
               <div className={styles.emptyState}>
                 <Sparkles size={24} color="#94a3b8" />
                 <p>Không tìm thấy chức năng hoặc chuồng nuôi nào khớp với "<strong>{query}</strong>"</p>
-                <span>Thử tìm với từ khóa: <em>quạt, cám, chuồng, sổ quỹ, báo cáo, nhật ký...</em></span>
+                <span>Thử tìm với từ khóa: <em>quạt, cám, chuồng, bán hàng, báo cáo, nhật ký...</em></span>
               </div>
             )}
           </div>

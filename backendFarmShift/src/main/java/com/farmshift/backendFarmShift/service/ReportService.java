@@ -35,8 +35,6 @@ public class ReportService {
     private final SalesOrderRepository salesOrderRepository;
     private final PurchaseInvoiceRepository purchaseInvoiceRepository;
     private final InventoryItemRepository inventoryRepository;
-    private final CashFundRepository cashFundRepository;
-    private final CashTransactionRepository cashTransactionRepository;
     private final InternalStockVoucherRepository internalVoucherRepository;
     private final DailyTaskLogRepository dailyTaskLogRepository;
 
@@ -348,56 +346,7 @@ public class ReportService {
         InventoryReport inventoryReport = new InventoryReport(
                 inventoryRows.size(), invTotalValue, lowStockCount, expiryAlertCount, inventoryRows);
 
-        // ── 5. Cashbook Report ────────────────────────────────────────────────────────────────
-        List<CashFund> funds = cashFundRepository.findAll(Sort.by("id").ascending());
-        List<CashTransaction> txInRange = cashTransactionRepository.findAllByOrderByTxDateDescIdDesc()
-                .stream()
-                .filter(t -> inDateRange(t.getTxDate(), from, to))
-                .toList();
-
-        long cashIn = 0L, cashOut = 0L;
-        Map<Long, long[]> flowByFund = new HashMap<>();
-        Map<String, CategoryBreakdownRow> catMap = new LinkedHashMap<>();
-
-        for (CashTransaction t : txInRange) {
-            boolean isIn = "Thu".equalsIgnoreCase(t.getType());
-            long amt = t.getAmount() != null ? t.getAmount() : 0L;
-            if (isIn) cashIn += amt;
-            else cashOut += amt;
-
-            if (t.getFund() != null) {
-                long[] arr = flowByFund.computeIfAbsent(t.getFund().getId(), k -> new long[2]);
-                if (isIn) arr[0] += amt;
-                else arr[1] += amt;
-            }
-
-            String cat = t.getCategory() != null && !t.getCategory().isBlank() ? t.getCategory() : "Khác";
-            String typeLabel = isIn ? "Thu" : "Chi";
-            String key = typeLabel + "::" + cat;
-            CategoryBreakdownRow prev = catMap.get(key);
-            if (prev == null) {
-                catMap.put(key, new CategoryBreakdownRow(cat, typeLabel, 1, amt));
-            } else {
-                catMap.put(key, new CategoryBreakdownRow(cat, typeLabel, prev.count() + 1, prev.totalAmount() + amt));
-            }
-        }
-
-        long totalFundsBalance = funds.stream().mapToLong(f -> f.getBalance() != null ? f.getBalance() : 0L).sum();
-        List<FundFlowRow> fundRows = funds.stream().map(f -> {
-            long[] flow = flowByFund.getOrDefault(f.getId(), new long[]{0L, 0L});
-            return new FundFlowRow(
-                    f.getId(), f.getName(), f.getFundType(), f.getBank(),
-                    flow[0], flow[1], f.getBalance() != null ? f.getBalance() : 0L
-            );
-        }).toList();
-        List<CategoryBreakdownRow> categoryRows = catMap.values().stream()
-                .sorted(Comparator.comparingLong(CategoryBreakdownRow::totalAmount).reversed())
-                .toList();
-
-        CashbookReport cashbookReport = new CashbookReport(
-                cashIn, cashOut, cashIn - cashOut, totalFundsBalance, txInRange.size(), fundRows, categoryRows);
-
-        // ── 6. Harvest Report ─────────────────────────────────────────────────────────────────
+        // ── 5. Harvest Report ─────────────────────────────────────────────────────────────────
         Map<Long, HarvestAccumulator> harvestMap = new LinkedHashMap<>();
         for (FarmingCycle cycle : allCycles) {
             List<FlockMovement> harvestMoves = movementsByCycle.getOrDefault(cycle.getId(), List.of())
@@ -509,20 +458,19 @@ public class ReportService {
                 vouchers.size(), exportCount, transferCount,
                 internalTotalAmt.setScale(0, RoundingMode.HALF_UP), internalRows);
 
-        // ── 9. Activity Report (Aggregated Real Audit Feed) ───────────────────────────────────
+        // ── 8. Activity Report (Aggregated Real Audit Feed) ───────────────────────────────────
         List<ActivityRow> activities = buildActivityFeed(
-                txInRange, salesInRange, purchasesInRange, vouchers, from, to);
+                salesInRange, purchasesInRange, vouchers, from, to);
         ActivityReport activityReport = new ActivityReport(activities.size(), activities);
 
         return new ReportSummaryResponse(
                 from, to, today,
                 farmSummary, salesReport, purchasesReport, inventoryReport,
-                cashbookReport, harvestReport, growthReport, internalStockReport, activityReport
+                harvestReport, growthReport, internalStockReport, activityReport
         );
     }
 
     private List<ActivityRow> buildActivityFeed(
-            List<CashTransaction> cashTx,
             List<SalesOrder> sales,
             List<PurchaseInvoice> purchases,
             List<InternalStockVoucher> vouchers,
@@ -530,16 +478,6 @@ public class ReportService {
             LocalDate to
     ) {
         List<ActivityRow> feed = new ArrayList<>();
-
-        for (CashTransaction t : cashTx) {
-            LocalDateTime ts = t.getCreatedAt() != null ? t.getCreatedAt()
-                    : (t.getTxDate() != null ? t.getTxDate().atTime(12, 0) : LocalDateTime.now(VN_ZONE));
-            String actor = nonBlank(t.getCreator(), "Kế toán / Hệ thống");
-            String action = "Thu".equalsIgnoreCase(t.getType()) ? "Thu quỹ" : "Chi quỹ";
-            String detail = t.getCategory() + " · " + VN_NUMBER.format(t.getAmount() != null ? t.getAmount() : 0L) + " đ"
-                    + (t.getPersonName() != null && !t.getPersonName().isBlank() ? " (" + t.getPersonName() + ")" : "");
-            feed.add(new ActivityRow("cb-" + t.getId(), ts, t.getTxDate(), actor, "Sổ quỹ", action, detail, t.getCode()));
-        }
 
         for (SalesOrder o : sales) {
             LocalDateTime ts = o.getCreatedAt() != null ? o.getCreatedAt()

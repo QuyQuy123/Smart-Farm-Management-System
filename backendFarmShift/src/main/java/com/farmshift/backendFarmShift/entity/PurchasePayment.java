@@ -34,9 +34,6 @@ public class PurchasePayment {
     @Column(name = "payment_method", length = 50)
     private String paymentMethod;
 
-    @Column(name = "cash_fund_id")
-    private Long cashFundId;
-
     @Column(length = 500)
     private String note;
 

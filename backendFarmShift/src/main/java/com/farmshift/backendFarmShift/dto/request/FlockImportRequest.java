@@ -27,18 +27,11 @@ public record FlockImportRequest(
         @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note,
         /** Nhà cung cấp con giống; có nhà cung cấp và giá > 0 thì tự tạo hóa đơn nhập hàng. */
         Long supplierId,
-        @Pattern(regexp = "Trả sau|Thanh toán hoàn tất", message = "Trạng thái thanh toán không hợp lệ.") String paymentStatus,
-        Long cashFundId) {
+        @Pattern(regexp = "Trả sau|Thanh toán hoàn tất", message = "Trạng thái thanh toán không hợp lệ.") String paymentStatus) {
 
     /** Kiểu cũ: chỉ ghi nguồn nhập bằng chữ, không gắn nhà cung cấp. */
     public FlockImportRequest(String name, Long programId, FlockGender gender, LocalDate importDate, Integer ageAtImport, Integer quantity,
                               BigDecimal avgWeight, BigDecimal unitPrice, String sourceNote, String note) {
-        this(name, programId, gender, importDate, ageAtImport, quantity, avgWeight, unitPrice, sourceNote, note, null, null, null);
-    }
-
-    public FlockImportRequest(String name, Long programId, FlockGender gender, LocalDate importDate, Integer ageAtImport, Integer quantity,
-                              BigDecimal avgWeight, BigDecimal unitPrice, String sourceNote, String note,
-                              Long supplierId, String paymentStatus) {
-        this(name, programId, gender, importDate, ageAtImport, quantity, avgWeight, unitPrice, sourceNote, note, supplierId, paymentStatus, null);
+        this(name, programId, gender, importDate, ageAtImport, quantity, avgWeight, unitPrice, sourceNote, note, null, null);
     }
 }

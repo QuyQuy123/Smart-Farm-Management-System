@@ -14,7 +14,6 @@ import {
 } from '../../services/cycleService';
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
-import { listCashFunds } from '../../services/cashbookService';
 import { FormDialog } from './CycleDialogs';
 import { SupplierPicker } from './SupplierPicker';
 import { FlockDetailDialog } from './FlockDetailDialog';
@@ -32,39 +31,6 @@ const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocal
 const money = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN')}đ`;
 const isInt = value => value !== '' && Number.isInteger(Number(value));
 const IMPORT_PAYMENT_OPTIONS = [{ value: 'Trả sau', label: 'Trả sau (ghi công nợ)' }, { value: 'Thanh toán hoàn tất', label: 'Đã trả đủ tiền' }];
-
-function ImportCashFundSelect({ props, onPick }) {
-  const [funds, setFunds] = useState([]);
-  useEffect(() => {
-    let cancelled = false;
-    listCashFunds()
-      .then(data => {
-        if (cancelled) return;
-        const list = (Array.isArray(data) ? data : []).filter(f => f.active !== false);
-        setFunds(list);
-        if (!props.value && list[0]) onPick(String(list[0].id));
-      })
-      .catch(() => { if (!cancelled) setFunds([]); });
-    return () => { cancelled = true; };
-  }, []);
-  if (funds.length === 1) {
-    return (
-      <div className={props.className} style={{ backgroundColor: 'var(--color-surface-soft)', color: 'var(--color-ink)' }}>
-        Tự động chi từ {funds[0].name} (Số dư: {Number(funds[0].balance || 0).toLocaleString('vi-VN')} đ)
-      </div>
-    );
-  }
-  return (
-    <select {...props}>
-      <option value="">-- Không hạch toán vào Sổ quỹ --</option>
-      {funds.map(f => (
-        <option key={f.id} value={f.id}>
-          {f.name} (Số dư: {Number(f.balance || 0).toLocaleString('vi-VN')} đ)
-        </option>
-      ))}
-    </select>
-  );
-}
 
 const COST_COLORS = { chick: '#f59e0b', feed: '#06b6d4', MEDICINE: '#ef4444', OTHER: '#ec4899' };
 
@@ -220,7 +186,7 @@ export const BarnDetailView = () => {
       intro: `${first ? `Đàn đầu tiên nhập ngày ${formatDay(first)}: các đàn tiếp theo phải nhập trong khoảng ${formatDay([addDaysIso(first, -MAX_IMPORT_SPREAD_DAYS), cycle.startDate].sort()[1])} – ${formatDay(windowEnd < today ? windowEnd : today)}. `
         : `Các đàn của lứa phải nhập cách nhau không quá ${MAX_IMPORT_SPREAD_DAYS} ngày. `}Chuồng còn chỗ cho ${num(room)} con (sức chứa ${num(barn.capacity)}).`,
       warning: programs.length ? null : 'Chưa có chương trình nuôi. Vào Thiết lập chăn nuôi → Chương trình nuôi để tạo chương trình cho giống gà trước khi nhập đàn.',
-      initial: { programId: programs[0] ? String(programs[0].id) : '', name: '', gender: 'MALE', importDate: windowEnd && windowEnd < today ? windowEnd : today, ageAtImport: '1', quantity: '', avgWeight: '0.04', unitPrice: '', supplierId: '', paymentStatus: 'Trả sau', cashFundId: '', note: '' },
+      initial: { programId: programs[0] ? String(programs[0].id) : '', name: '', gender: 'MALE', importDate: windowEnd && windowEnd < today ? windowEnd : today, ageAtImport: '1', quantity: '', avgWeight: '0.04', unitPrice: '', supplierId: '', paymentStatus: 'Trả sau', note: '' },
       fields: [
         { key: 'programId', label: 'Chương trình nuôi (giống)', type: 'select', required: true, full: true,
           hint: 'Cám định mức, lịch vắc-xin, thuốc và nhiệt độ của đàn sẽ theo chương trình này.',
@@ -237,9 +203,6 @@ export const BarnDetailView = () => {
           render: (props, setValue) => <SupplierPicker props={props} onPick={setValue} canCreate={isOwner} /> },
         { key: 'unitPrice', label: 'Giá con giống (đ/con)', type: 'number', required: true, min: 0, step: 1 },
         { key: 'paymentStatus', label: 'Thanh toán', type: 'select', required: true, options: IMPORT_PAYMENT_OPTIONS },
-        { key: 'cashFundId', label: 'Chi từ nguồn quỹ (Tự động ghi Sổ quỹ)', full: true,
-          visible: values => values.paymentStatus === 'Thanh toán hoàn tất' && canFinance,
-          render: (props, setValue) => <ImportCashFundSelect props={props} onPick={setValue} /> },
         { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
       ],
       validate: values => {
@@ -259,10 +222,8 @@ export const BarnDetailView = () => {
         return found;
       },
       onSubmit: async values => {
-        const { cashFundId, ...rest } = values;
-        const created = await importFlock(cycle.id, { ...rest, programId: Number(values.programId), name: values.name.trim(), ageAtImport: Number(values.ageAtImport),
-          quantity: Number(values.quantity), avgWeight: Number(values.avgWeight), unitPrice: Number(values.unitPrice), supplierId: Number(values.supplierId), note: values.note.trim(),
-          ...(values.paymentStatus === 'Thanh toán hoàn tất' && cashFundId ? { cashFundId: Number(cashFundId) } : {}) });
+        const created = await importFlock(cycle.id, { ...values, programId: Number(values.programId), name: values.name.trim(), ageAtImport: Number(values.ageAtImport),
+          quantity: Number(values.quantity), avgWeight: Number(values.avgWeight), unitPrice: Number(values.unitPrice), supplierId: Number(values.supplierId), note: values.note.trim() });
         return `Đã nhập đàn ${values.name.trim()} (${num(values.quantity)} con)${created?.purchaseInvoiceCode ? ` và tạo hóa đơn nhập hàng ${created.purchaseInvoiceCode}` : ''}.`;
       },
     });

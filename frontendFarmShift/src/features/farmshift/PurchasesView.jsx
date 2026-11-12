@@ -7,7 +7,7 @@ import {
   DollarSign, Upload, Tag, Printer,
   Trash2, Pencil, AlertTriangle, PackageCheck, Loader2,
   ZoomIn, ZoomOut, RotateCw, ExternalLink, FileText,
-  Camera, RefreshCw, Smartphone, ArrowLeft, Wallet, Image as ImageIcon
+  Camera, RefreshCw, Smartphone, ArrowLeft, Image as ImageIcon
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -26,7 +26,6 @@ import {
 } from '../../services/purchaseService';
 import { listSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../services/supplierService';
 import { getDebtSummary, getSupplierDebtHistory } from '../../services/debtService';
-import { listCashFunds } from '../../services/cashbookService';
 import { fileService } from '../../services/fileService';
 import { listProductTypes } from '../../services/productTypeService';
 import { listAllInventoryItems } from '../../services/inventoryItemService';
@@ -126,8 +125,6 @@ export const PurchasesView = () => {
   const [stockConfirmation, setStockConfirmation] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
-  const [paymentFundId, setPaymentFundId] = useState('');
-  const [cashFunds, setCashFunds] = useState([]);
   const [attachedInvoiceFile, setAttachedInvoiceFile] = useState(null);
   const [debtSummary, setDebtSummary] = useState(null);
   const [debtLoading, setDebtLoading] = useState(false);
@@ -165,7 +162,6 @@ export const PurchasesView = () => {
     referenceCode: '',
     paymentStatus: 'Trả sau',
     paidAmount: '',
-    cashFundId: '',
     stockStatus: 'Chưa nhập kho',
     tagIds: [],
     items: [
@@ -227,28 +223,6 @@ export const PurchasesView = () => {
       .finally(() => { if (!cancelled) setDebtLoading(false); });
     return () => { cancelled = true; };
   }, [activeTab, revision]);
-
-  useEffect(() => {
-    if (!showPaymentModal && !showAddModal) return;
-    let cancelled = false;
-    listCashFunds()
-      .then(data => {
-        if (cancelled) return;
-        const list = Array.isArray(data) ? data : [];
-        setCashFunds(list);
-        const firstActive = list.find(f => f.active !== false);
-        if (firstActive) {
-          if (showAddModal) {
-            setNewPo(prev => (prev.cashFundId ? prev : { ...prev, cashFundId: String(firstActive.id) }));
-          }
-          if (showPaymentModal) {
-            setPaymentFundId(prev => prev || String(firstActive.id));
-          }
-        }
-      })
-      .catch(() => { if (!cancelled) setCashFunds([]); });
-    return () => { cancelled = true; };
-  }, [showPaymentModal, showAddModal]);
 
   const openSupplierDetailModal = async (sup) => {
     if (!sup) return;
@@ -797,7 +771,6 @@ export const PurchasesView = () => {
         note: newPo.note,
         paymentStatus: finalStatus,
         paidAmount: paid,
-        ...(finalStatus !== 'Trả sau' && newPo.cashFundId ? { cashFundId: Number(newPo.cashFundId) } : {}),
         stockStatus: newPo.stockStatus,
         discountAmount: discount,
         otherCost: otherCost,
@@ -831,7 +804,6 @@ export const PurchasesView = () => {
         referenceCode: '',
         paymentStatus: 'Trả sau',
         paidAmount: '',
-        cashFundId: '',
         stockStatus: 'Chưa nhập kho',
         discountAmount: 0,
         otherCost: 0,
@@ -874,15 +846,11 @@ export const PurchasesView = () => {
         amount: Number(paymentAmount),
         note: paymentNote
       };
-      if (paymentFundId) {
-        payload.cashFundId = Number(paymentFundId);
-      }
       const updated = await payPurchase(selectedOrder.id, payload);
       showToast('Đã ghi nhận thanh toán thành công.', 'success');
       setShowPaymentModal(false);
       setPaymentAmount('');
       setPaymentNote('');
-      setPaymentFundId('');
       setPaymentError('');
       setSelectedOrder(updated);
       fetchData();
@@ -1961,40 +1929,6 @@ export const PurchasesView = () => {
                     onChange={(e) => setPaymentNote(e.target.value)}
                   />
                 </div>
-                {(() => {
-                  const activeFunds = cashFunds.filter(f => f.active !== false);
-                  if (activeFunds.length === 1) {
-                    return (
-                      <div className="farmshift-form-group" style={{ marginTop: '10px' }}>
-                        <label className="farmshift-form-label">Chi từ nguồn quỹ (Tự động ghi Sổ quỹ)</label>
-                        <div className="farmshift-form-control" style={{ backgroundColor: 'var(--color-surface-soft)', color: 'var(--color-ink)' }}>
-                          Tự động trừ vào {activeFunds[0].name} (Dư: {Number(activeFunds[0].balance || 0).toLocaleString('vi-VN')} đ)
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (activeFunds.length > 1) {
-                    return (
-                      <div className="farmshift-form-group" style={{ marginTop: '10px' }}>
-                        <label htmlFor="pay-fund" className="farmshift-form-label">Chi từ nguồn quỹ (tùy chọn)</label>
-                        <select
-                          id="pay-fund"
-                          className="farmshift-form-control"
-                          value={paymentFundId}
-                          onChange={(e) => setPaymentFundId(e.target.value)}
-                        >
-                          <option value="">-- Không tự động trừ sổ quỹ --</option>
-                          {activeFunds.map(fund => (
-                            <option key={fund.id} value={fund.id}>
-                              {fund.name} (Dư: {Number(fund.balance || 0).toLocaleString('vi-VN')} đ)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
               </div>
               <div className="farmshift-modal-footer">
                 <button
@@ -2551,12 +2485,10 @@ export const PurchasesView = () => {
                           const discount = Number(newPo.discountAmount || 0);
                           const otherCost = Number(newPo.otherCost || 0);
                           const totalAmt = Math.max(0, subtotal - discount + otherCost);
-                          const firstActive = cashFunds.find(f => f.active !== false);
                           setNewPo({
                             ...newPo,
                             paymentStatus: newStatus,
-                            paidAmount: newStatus === 'Thanh toán một phần' && !newPo.paidAmount ? String(Math.round(totalAmt / 2)) : (newStatus === 'Thanh toán một phần' ? newPo.paidAmount : ''),
-                            cashFundId: newStatus !== 'Trả sau' && !newPo.cashFundId && firstActive ? String(firstActive.id) : newPo.cashFundId
+                            paidAmount: newStatus === 'Thanh toán một phần' && !newPo.paidAmount ? String(Math.round(totalAmt / 2)) : (newStatus === 'Thanh toán một phần' ? newPo.paidAmount : '')
                           });
                           if (poErrors.paidAmount) {
                             setPoErrors(prev => ({ ...prev, paidAmount: '' }));
@@ -2581,41 +2513,6 @@ export const PurchasesView = () => {
                       </select>
                     </div>
                   </div>
-
-                  {newPo.paymentStatus !== 'Trả sau' && (() => {
-                    const activeFunds = cashFunds.filter(f => f.active !== false);
-                    if (activeFunds.length === 1) {
-                      return (
-                        <div className="farmshift-form-group" style={{ marginBottom: '16px' }}>
-                          <label className="farmshift-form-label">Nguồn quỹ thanh toán (Tự động ghi Sổ quỹ)</label>
-                          <div className="farmshift-form-control" style={{ backgroundColor: 'var(--color-surface-soft)', color: 'var(--color-ink)' }}>
-                            Tự động chi từ {activeFunds[0].name} (Số dư: {Number(activeFunds[0].balance || 0).toLocaleString('vi-VN')} đ)
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (activeFunds.length > 1) {
-                      return (
-                        <div className="farmshift-form-group" style={{ marginBottom: '16px' }}>
-                          <label htmlFor="po-cash-fund" className="farmshift-form-label">Chi từ nguồn quỹ (Tự động ghi Sổ quỹ)</label>
-                          <select
-                            id="po-cash-fund"
-                            className="farmshift-form-control"
-                            value={newPo.cashFundId}
-                            onChange={(e) => setNewPo({ ...newPo, cashFundId: e.target.value })}
-                          >
-                            <option value="">-- Không hạch toán vào Sổ quỹ --</option>
-                            {activeFunds.map(f => (
-                              <option key={f.id} value={f.id}>
-                                {f.name} (Số dư: {Number(f.balance || 0).toLocaleString('vi-VN')} đ)
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
 
                   {newPo.paymentStatus === 'Thanh toán một phần' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px', padding: '12px 14px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>

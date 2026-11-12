@@ -87,12 +87,6 @@ public class AiAssistantService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private DynamicVietnameseSpeechNormalizer dynamicNormalizer;
 
-    @org.springframework.beans.factory.annotation.Autowired(required = false)
-    private CashFundRepository cashFundRepository;
-
-    @org.springframework.beans.factory.annotation.Autowired(required = false)
-    private CashbookService cashbookService;
-
     public AiAssistantService(
             BarnRepository barnRepository,
             FarmingCycleRepository cycleRepository,
@@ -215,7 +209,7 @@ public class AiAssistantService {
             }
         }
 
-        // GIAI ĐOẠN 1b: Điều hướng màn hình thuần túy ("mở ghi nhật ký", "sổ quỹ"...) — chạy TRƯỚC các engine thao tác dữ liệu
+        // GIAI ĐOẠN 1b: Điều hướng màn hình thuần túy ("mở ghi nhật ký", "kho hàng"...) — chạy TRƯỚC các engine thao tác dữ liệu
         AssistantNavigationRouter.Route navRoute = AssistantNavigationRouter.resolve(normalizeText(message));
         if (navRoute != null) {
             AiAssistantResponse navResponse = AiAssistantResponse.builder()
@@ -1189,7 +1183,7 @@ public class AiAssistantService {
         }
 
         // 4. NAVIGATE_AND_PREFILL (Điều hướng trang hoặc Mở Modal tạo đơn / form nhanh)
-        if (norm.startsWith("mo ") || norm.startsWith("chuyen sang ") || norm.startsWith("chuyen den ") || norm.startsWith("di toi ") || norm.startsWith("xem ") || norm.startsWith("vao ") || norm.startsWith("tao don") || norm.contains("tao don nhap") || norm.contains("quet hoa don") || norm.contains("boc tach hoa don") || norm.contains("tao phieu xuat") || norm.contains("man hinh ") || norm.matches(".*\\btrang\\s+(?:hoa don|nhap hang|khu nuoi|chuong|kho|nhat ky|tai khoan|bao cao|so quy|ban hang|nha cung cap)\\b.*")) {
+        if (norm.startsWith("mo ") || norm.startsWith("chuyen sang ") || norm.startsWith("chuyen den ") || norm.startsWith("di toi ") || norm.startsWith("xem ") || norm.startsWith("vao ") || norm.startsWith("tao don") || norm.contains("tao don nhap") || norm.contains("quet hoa don") || norm.contains("boc tach hoa don") || norm.contains("tao phieu xuat") || norm.contains("man hinh ") || norm.matches(".*\\btrang\\s+(?:hoa don|nhap hang|khu nuoi|chuong|kho|nhat ky|tai khoan|bao cao|ban hang|nha cung cap)\\b.*")) {
             AiAssistantResponse navResponse = handleNavigationAndPrefill(norm, message);
             if (navResponse != null) {
                 return navResponse;
@@ -2041,10 +2035,7 @@ public class AiAssistantService {
         expense.setAmount(BigDecimal.valueOf(amount));
         expense.setNote("Ghi nhận tự động qua Trợ lý Giọng nói FarmShift AI");
         expense.setCreatedBy(username != null && !username.isBlank() ? username : "Trợ lý AI");
-        CycleExpense saved = expenseRepository.saveAndFlush(expense);
-        if (cashbookService != null) {
-            cashbookService.syncCycleExpense(saved);
-        }
+        expenseRepository.saveAndFlush(expense);
 
         String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -2510,13 +2501,7 @@ public class AiAssistantService {
                 if (amount <= 0) {
                     return AiAssistantResponse.builder().reply("⚠️ Số tiền thanh toán phải lớn hơn 0.").executed(false).build();
                 }
-                Long defaultFundId = cashFundRepository == null ? null : cashFundRepository
-                        .findAll(org.springframework.data.domain.Sort.by("id").ascending()).stream()
-                        .filter(f -> Boolean.TRUE.equals(f.getActive()))
-                        .map(CashFund::getId)
-                        .findFirst()
-                        .orElse(null);
-                var updated = purchaseService.pay(invoice.getId(), new PurchasePaymentRequest(amount, "Thanh toán qua Trợ lý AI", defaultFundId, null, null));
+                var updated = purchaseService.pay(invoice.getId(), new PurchasePaymentRequest(amount, "Thanh toán qua Trợ lý AI"));
                 String moneyFormatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
                 Map<String, Object> summary = new LinkedHashMap<>();
                 summary.put("title", "Đã thanh toán hóa đơn " + updated.code());

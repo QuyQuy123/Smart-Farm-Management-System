@@ -53,7 +53,6 @@ public class AiAssistantIntegrationTest {
     @Autowired ProductTypeRepository productTypeRepository;
     @Autowired WarehouseCategoryRepository warehouseCategoryRepository;
     @Autowired ProductCategoryRepository productCategoryRepository;
-    @Autowired CashTransactionRepository cashTransactionRepository;
     @Autowired(required = false) com.farmshift.backendFarmShift.service.ai.AiRateLimiter rateLimiter;
 
     private Barn barnA1;
@@ -224,7 +223,7 @@ public class AiAssistantIntegrationTest {
         for (String message : List.of("Ghi chi phí tiền điện Nhà A1 500 nghìn", "Ghi tiền nước Nhà A1 300 nghìn", "Ghi tiền nhân công Nhà A1 2 triệu")) {
             mvc.perform(post(ASSISTANT_API)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(mapper.writeValueAsString(Map.of("message", message, "currentRoute", "/cashbook", "autoExecute", true))))
+                    .content(mapper.writeValueAsString(Map.of("message", message, "currentRoute", "/barns", "autoExecute", true))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.executed").value(false))
                     .andExpect(jsonPath("$.reply", org.hamcrest.Matchers.containsString("chưa tính")));
@@ -237,7 +236,7 @@ public class AiAssistantIntegrationTest {
         long initialCount = expenseRepository.count();
         mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(Map.of("message", "Ghi chi phí làm cổng Nhà A1 500 nghìn", "currentRoute", "/cashbook", "autoExecute", true))))
+                .content(mapper.writeValueAsString(Map.of("message", "Ghi chi phí làm cổng Nhà A1 500 nghìn", "currentRoute", "/barns", "autoExecute", true))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true));
         assertEquals(initialCount + 1, expenseRepository.count());
@@ -287,7 +286,7 @@ public class AiAssistantIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                         "message", "Ghi chi phí tiền thuốc Nhà A1 500 nghìn",
-                        "currentRoute", "/cashbook",
+                        "currentRoute", "/barns",
                         "autoExecute", true
                 ))))
                 .andExpect(status().isOk())
@@ -300,9 +299,6 @@ public class AiAssistantIntegrationTest {
         CycleExpense latest = list.get(list.size() - 1);
         assertEquals(ExpenseCategory.MEDICINE, latest.getCategory());
         assertEquals(500000L, latest.getAmount().longValue());
-        var syncedTx = cashTransactionRepository.findFirstByReferenceInvoiceCodeAndTypeOrderByIdDesc("CE-" + latest.getId(), "Chi");
-        assertTrue(syncedTx.isPresent());
-        assertEquals(500000L, syncedTx.get().getAmount());
     }
 
     @Test
@@ -825,9 +821,6 @@ public class AiAssistantIntegrationTest {
         PurchaseInvoice updated = invoiceRepository.findByCode("NH000003").orElseThrow();
         assertEquals(20000000L, updated.getPaidAmount());
         assertEquals("Thanh toán một phần", updated.getPaymentStatus());
-        var cashTx = cashTransactionRepository.findFirstByReferenceInvoiceCodeAndTypeOrderByIdDesc("NH000003", "Chi");
-        assertTrue(cashTx.isPresent());
-        assertEquals(20000000L, cashTx.get().getAmount());
     }
 
     @Test
@@ -902,9 +895,9 @@ public class AiAssistantIntegrationTest {
         // Additional sidebar routes
         mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(Map.of("message", "Mở sổ quỹ"))))
+                .content(mapper.writeValueAsString(Map.of("message", "Mở báo cáo"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.navigateTo").value("/cashbook"));
+                .andExpect(jsonPath("$.navigateTo").value("/reports"));
 
         mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -1037,19 +1030,19 @@ public class AiAssistantIntegrationTest {
 
     @Test
     void testHomophoneSpeechNormalization_HandlesSpellingVariants() throws Exception {
-        // "sổ quỷ" normalized to "sổ quỹ" -> navigates to /cashbook
-        mvc.perform(post(ASSISTANT_API)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(Map.of("message", "mở sổ quỷ"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.navigateTo").value("/cashbook"));
-
         // "nhật kí" normalized to "nhật ký" -> navigates to /journal
         mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("message", "mở nhật kí"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.navigateTo").value("/journal"));
+
+        // "hoá đơn" -> navigates to /purchases
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "mở hoá đơn"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.navigateTo").value("/purchases"));
     }
 
     @Test
