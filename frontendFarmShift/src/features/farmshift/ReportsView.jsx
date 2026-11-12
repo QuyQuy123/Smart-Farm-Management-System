@@ -404,7 +404,7 @@ export const ReportsView = () => {
           <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h3 className="farmshift-card-title">Dòng tiền lưu chuyển trang trại</h3>
             <span className="farmshift-badge farmshift-badge-neutral">
-              Tổng tồn tất cả quỹ: {Number(cashbookReport.totalFundsBalance || 0).toLocaleString('vi-VN')} đ
+              Tồn Quỹ trang trại: {Number(cashbookReport.totalFundsBalance || 0).toLocaleString('vi-VN')} đ
             </span>
           </div>
           <div className="farmshift-card-body">

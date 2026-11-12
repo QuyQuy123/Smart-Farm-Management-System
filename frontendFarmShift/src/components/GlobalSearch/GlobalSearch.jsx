@@ -116,10 +116,10 @@ const SEARCHABLE_ITEMS = [
     id: 'cashbook',
     category: 'Mua bán & Tài chính',
     title: 'Sổ quỹ thu chi & Dòng tiền',
-    description: 'Theo dõi số dư MB Bank, quỹ tiền mặt, phiếu thu tiền bán, phiếu chi tiền cám',
+    description: 'Theo dõi tồn Quỹ trang trại, dòng tiền thu bán gà, chi nhập hàng, chi phí lứa & lương',
     path: '/cashbook',
     icon: DollarSign,
-    keywords: ['so quy', 'thu chi', 'dong tien', 'mb bank', 'tien mat', 'phieu thu', 'phieu chi']
+    keywords: ['so quy', 'thu chi', 'dong tien', 'quy trang trai', 'tien mat', 'phieu thu', 'phieu chi']
   },
   {
     id: 'account',

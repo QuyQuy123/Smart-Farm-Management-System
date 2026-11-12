@@ -77,14 +77,19 @@ export const CashbookView = () => {
   const user = auth?.user;
   const canWrite = !user || ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'].includes(user?.role);
 
-  const searchParams = new URLSearchParams(location.search);
-  const initialTab = location.pathname.includes('/payroll')
-    ? 'payroll'
-    : location.pathname.includes('/assets')
-    ? 'assets'
-    : searchParams.get('tab') || 'ledger';
+  const VALID_TABS = new Set(['ledger', 'funds', 'costs', 'assets', 'payroll', 'categories']);
+  const resolveTabFromLocation = (loc) => {
+    if (loc.pathname.includes('/payroll')) return 'payroll';
+    if (loc.pathname.includes('/assets')) return 'assets';
+    const rawTab = new URLSearchParams(loc.search).get('tab');
+    return rawTab && VALID_TABS.has(rawTab) ? rawTab : 'ledger';
+  };
+  const resolveTypeFromLocation = (loc) => {
+    const rawType = new URLSearchParams(loc.search).get('type');
+    return rawType === 'Thu' || rawType === 'Chi' ? rawType : 'ALL';
+  };
 
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState(() => resolveTabFromLocation(location));
   const [apiMode, setApiMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -99,7 +104,15 @@ export const CashbookView = () => {
   const [cycleOptions, setCycleOptions] = useState([]);
   const [summaryTotals, setSummaryTotals] = useState(null);
 
-  const [filterType, setFilterType] = useState('ALL');
+  const [filterType, setFilterType] = useState(() => resolveTypeFromLocation(location));
+
+  useEffect(() => {
+    setActiveTab(resolveTabFromLocation(location));
+    const urlType = new URLSearchParams(location.search).get('type');
+    if (urlType === 'Thu' || urlType === 'Chi') {
+      setFilterType(urlType);
+    }
+  }, [location.pathname, location.search]);
   const [filterFundId, setFilterFundId] = useState('ALL');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
@@ -1535,7 +1548,7 @@ export const CashbookView = () => {
                   <div className="farmshift-form-group">
                     <label htmlFor="pay-fund" className="farmshift-form-label">Chi từ nguồn quỹ *</label>
                     {funds.length <= 1 ? (
-                      <div className="farmshift-form-control" style={{ background: 'var(--bg-soft, #f6f8f7)', display: 'flex', alignItems: 'center' }}>
+                      <div className="farmshift-form-control" style={{ background: 'var(--color-surface-soft)', display: 'flex', alignItems: 'center' }}>
                         {funds[0] ? `${funds[0].name} (${Number(funds[0].balance || 0).toLocaleString('vi-VN')} đ)` : 'Quỹ trang trại'}
                       </div>
                     ) : (

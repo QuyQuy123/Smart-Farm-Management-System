@@ -6,7 +6,7 @@ import {
   Home, Warehouse, Repeat, Utensils, ClipboardCheck,
   HeartPulse, Thermometer, Box, Scale, Award,
   Truck, ShoppingCart, ArrowLeftRight, CheckCircle2,
-  DollarSign, ArrowDownRight, ArrowUpRight, ArrowRight,
+  DollarSign, ArrowDownRight, ArrowUpRight, ArrowRight, Users,
   Info, Sparkles, Layers, ShieldCheck, Zap
 } from 'lucide-react';
 
@@ -73,12 +73,12 @@ export const FarmSystemMap = ({ onSelectNode }) => {
       id: 'money',
       title: 'DÒNG TIỀN & SỔ QUỸ',
       icon: <DollarSign size={18} color="var(--color-primary)" />,
-      description: 'Quản lý quỹ tiền mặt, ngân hàng, phiếu thu, phiếu chi, chuyển quỹ và tài sản',
+      description: 'Quản lý Quỹ trang trại, phiếu thu bán hàng, phiếu chi nhập hàng, lương nhân viên và tài sản',
       nodes: [
-        { id: 'funds', title: 'Nguồn quỹ', desc: 'MB Bank, Tiền mặt, VCB', count: '282.1M đ', route: '/cashbook?tab=funds', icon: <DollarSign size={16} /> },
-        { id: 'payments', title: 'Phiếu chi', desc: 'Chi tiền cám, điện nước, nhân công', count: 'PC000036', route: '/cashbook?type=Chi', icon: <ArrowUpRight size={16} /> },
-        { id: 'receipts', title: 'Phiếu thu', desc: 'Thu tiền bán gà, thu nợ', count: 'PT000022', route: '/cashbook?type=Thu', icon: <ArrowDownRight size={16} /> },
-        { id: 'fund-transfers', title: 'Chuyển quỹ nội bộ', desc: 'Rút tiền mặt, nộp tài khoản', count: '2 lệnh chuyển', route: '/cashbook?tab=transfers', icon: <ArrowLeftRight size={16} /> }
+        { id: 'funds', title: 'Quỹ trang trại', desc: 'Quỹ tập trung toàn trang trại', count: '1 quỹ', route: '/cashbook?tab=funds', icon: <DollarSign size={16} /> },
+        { id: 'payments', title: 'Phiếu chi', desc: 'Chi nhập hàng, chi phí lứa, lương', count: 'Tự động PC', route: '/cashbook?type=Chi', icon: <ArrowUpRight size={16} /> },
+        { id: 'receipts', title: 'Phiếu thu', desc: 'Thu tiền bán gà, thu nợ', count: 'Tự động PT', route: '/cashbook?type=Thu', icon: <ArrowDownRight size={16} /> },
+        { id: 'payroll', title: 'Tiền công nhân viên', desc: 'Chấm công & chi trả lương từ quỹ', count: 'Bảng lương', route: '/cashbook?tab=payroll', icon: <Users size={16} /> }
       ]
     }
   ];

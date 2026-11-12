@@ -157,5 +157,20 @@ describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categ
       costGroup: 'Chi phí vận hành'
     })));
   });
+
+  it('falls back to ledger tab on deprecated ?tab=transfers and honors ?type=Thu query filter', async () => {
+    render(
+      <MemoryRouter initialEntries={['/cashbook?tab=transfers&type=Thu']}>
+        <CashbookView />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(cashbookService.getCashbookSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'Thu' })
+    ));
+    expect(await screen.findByText('Nguyễn Văn Hùng')).toBeInTheDocument();
+    expect(screen.getByText('PT000002')).toBeInTheDocument();
+    expect(screen.getByText(/Đồng bộ tự động:/i)).toBeInTheDocument();
+  });
 });
 

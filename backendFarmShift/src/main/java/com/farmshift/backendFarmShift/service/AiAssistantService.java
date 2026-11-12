@@ -87,6 +87,12 @@ public class AiAssistantService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private DynamicVietnameseSpeechNormalizer dynamicNormalizer;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CashFundRepository cashFundRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CashbookService cashbookService;
+
     public AiAssistantService(
             BarnRepository barnRepository,
             FarmingCycleRepository cycleRepository,
@@ -2035,7 +2041,10 @@ public class AiAssistantService {
         expense.setAmount(BigDecimal.valueOf(amount));
         expense.setNote("Ghi nhận tự động qua Trợ lý Giọng nói FarmShift AI");
         expense.setCreatedBy(username != null && !username.isBlank() ? username : "Trợ lý AI");
-        expenseRepository.save(expense);
+        CycleExpense saved = expenseRepository.saveAndFlush(expense);
+        if (cashbookService != null) {
+            cashbookService.syncCycleExpense(saved);
+        }
 
         String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -2501,7 +2510,13 @@ public class AiAssistantService {
                 if (amount <= 0) {
                     return AiAssistantResponse.builder().reply("⚠️ Số tiền thanh toán phải lớn hơn 0.").executed(false).build();
                 }
-                var updated = purchaseService.pay(invoice.getId(), new PurchasePaymentRequest(amount, "Thanh toán qua Trợ lý AI"));
+                Long defaultFundId = cashFundRepository == null ? null : cashFundRepository
+                        .findAll(org.springframework.data.domain.Sort.by("id").ascending()).stream()
+                        .filter(f -> Boolean.TRUE.equals(f.getActive()))
+                        .map(CashFund::getId)
+                        .findFirst()
+                        .orElse(null);
+                var updated = purchaseService.pay(invoice.getId(), new PurchasePaymentRequest(amount, "Thanh toán qua Trợ lý AI", defaultFundId, null, null));
                 String moneyFormatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
                 Map<String, Object> summary = new LinkedHashMap<>();
                 summary.put("title", "Đã thanh toán hóa đơn " + updated.code());

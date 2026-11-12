@@ -53,6 +53,7 @@ public class AiAssistantIntegrationTest {
     @Autowired ProductTypeRepository productTypeRepository;
     @Autowired WarehouseCategoryRepository warehouseCategoryRepository;
     @Autowired ProductCategoryRepository productCategoryRepository;
+    @Autowired CashTransactionRepository cashTransactionRepository;
     @Autowired(required = false) com.farmshift.backendFarmShift.service.ai.AiRateLimiter rateLimiter;
 
     private Barn barnA1;
@@ -299,6 +300,9 @@ public class AiAssistantIntegrationTest {
         CycleExpense latest = list.get(list.size() - 1);
         assertEquals(ExpenseCategory.MEDICINE, latest.getCategory());
         assertEquals(500000L, latest.getAmount().longValue());
+        var syncedTx = cashTransactionRepository.findFirstByReferenceInvoiceCodeAndTypeOrderByIdDesc("CE-" + latest.getId(), "Chi");
+        assertTrue(syncedTx.isPresent());
+        assertEquals(500000L, syncedTx.get().getAmount());
     }
 
     @Test
@@ -821,6 +825,9 @@ public class AiAssistantIntegrationTest {
         PurchaseInvoice updated = invoiceRepository.findByCode("NH000003").orElseThrow();
         assertEquals(20000000L, updated.getPaidAmount());
         assertEquals("Thanh toán một phần", updated.getPaymentStatus());
+        var cashTx = cashTransactionRepository.findFirstByReferenceInvoiceCodeAndTypeOrderByIdDesc("NH000003", "Chi");
+        assertTrue(cashTx.isPresent());
+        assertEquals(20000000L, cashTx.get().getAmount());
     }
 
     @Test
