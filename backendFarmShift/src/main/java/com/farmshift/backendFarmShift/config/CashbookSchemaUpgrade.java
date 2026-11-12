@@ -229,6 +229,8 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
             createCat("Thanh toán công nợ NCC", "Chi", "Công nợ", "Trả tiền hóa đơn nhập hàng");
             createCat("Chi phí khác", "Chi", "Chi phí khác", "Chi phí phát sinh khác tại trang trại");
         }
+        ensureCat("Nạp vốn / Góp vốn", "Thu", "Vốn chủ sở hữu", "Bổ sung vốn lưu động, góp vốn vào quỹ trang trại");
+        ensureCat("Rút vốn", "Chi", "Vốn chủ sở hữu", "Chủ trang trại rút vốn hoặc chia lợi nhuận");
 
         if (assetRepository.count() == 0) {
             createAsset("TS0001", "Quạt hút công nghiệp 1.2kW (Hệ 5 quạt)", 35000000L, 36, "Nhà A1, A2, A3", LocalDate.of(2025, 1, 15), "Hệ thống thông gió chuồng kín");
@@ -718,6 +720,13 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
         tx.setNote(note);
         tx.setCreator(creator);
         txRepository.save(tx);
+    }
+
+    private void ensureCat(String name, String type, String group, String note) {
+        String key = type.toLowerCase(Locale.ROOT) + ":" + name.toLowerCase(Locale.ROOT);
+        if (!categoryRepository.existsByNameKeyAndIdNot(key, -1L)) {
+            createCat(name, type, group, note);
+        }
     }
 
     private void createCat(String name, String type, String group, String note) {

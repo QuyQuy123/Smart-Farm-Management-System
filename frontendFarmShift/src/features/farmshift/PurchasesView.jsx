@@ -88,7 +88,13 @@ export const PurchasesView = () => {
   const [filterPayment, setFilterPayment] = useState('ALL');
   const [filterStock, setFilterStock] = useState('ALL');
   const [filterTag, setFilterTag] = useState('ALL');
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(15);
   const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [searchTerm, filterPayment, filterStock, filterTag]);
 
   // Modals state
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -1288,22 +1294,31 @@ export const PurchasesView = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
-                        Đang tải danh sách hóa đơn...
-                      </td>
-                    </tr>
-                  ) : purchases.filter(p => (filterStock === 'ALL' || p.stockStatus === filterStock) && (filterTag === 'ALL' || (p.tags && p.tags.includes(filterTag)))).length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
-                        Không tìm thấy hóa đơn nhập hàng nào phù hợp.
-                      </td>
-                    </tr>
-                  ) : (
-                    purchases
-                      .filter(p => (filterStock === 'ALL' || p.stockStatus === filterStock) && (filterTag === 'ALL' || (p.tags && p.tags.includes(filterTag))))
-                      .map(p => (
+                  {(() => {
+                    const filteredPurchases = purchases.filter(p => (filterStock === 'ALL' || p.stockStatus === filterStock) && (filterTag === 'ALL' || (p.tags && p.tags.includes(filterTag))));
+                    const orderPages = Math.max(1, Math.ceil(filteredPurchases.length / orderPageSize));
+                    const safeOrderPage = Math.min(Math.max(1, orderPage), orderPages);
+                    const pagedPurchases = filteredPurchases.slice((safeOrderPage - 1) * orderPageSize, safeOrderPage * orderPageSize);
+
+                    if (loading) {
+                      return (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
+                            Đang tải danh sách hóa đơn...
+                          </td>
+                        </tr>
+                      );
+                    }
+                    if (filteredPurchases.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
+                            Không tìm thấy hóa đơn nhập hàng nào phù hợp.
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return pagedPurchases.map(p => (
                         <tr key={p.id}>
                           <td>
                             <button type="button" className={styles.invoiceCode} onClick={() => setSelectedOrder(p)} aria-label={`Xem hóa đơn ${p.code}`}>
@@ -1326,11 +1341,38 @@ export const PurchasesView = () => {
                           <td>{p.stockStatus === 'Đã nhập kho' && p.importedDate ? p.importedDate.split('-').reverse().join('/') : '—'}</td>
                           <td><PurchaseRowActions invoice={p} canEdit={isOwnerOrAccountant} suppliers={suppliers} tags={tags} onView={setSelectedOrder} onReload={fetchData} /></td>
                         </tr>
-                      ))
-                  )}
+                      ));
+                  })()}
                 </tbody>
               </table>
             </div>
+            {(() => {
+              const filteredPurchases = purchases.filter(p => (filterStock === 'ALL' || p.stockStatus === filterStock) && (filterTag === 'ALL' || (p.tags && p.tags.includes(filterTag))));
+              if (loading || filteredPurchases.length <= 10) return null;
+              const orderPages = Math.max(1, Math.ceil(filteredPurchases.length / orderPageSize));
+              const safeOrderPage = Math.min(Math.max(1, orderPage), orderPages);
+              const fromIdx = (safeOrderPage - 1) * orderPageSize + 1;
+              const toIdx = Math.min(filteredPurchases.length, safeOrderPage * orderPageSize);
+              return (
+                <div className={styles.pagination}>
+                  <span>Hiển thị <strong>{fromIdx}–{toIdx}</strong> / <strong>{filteredPurchases.length}</strong> hóa đơn</span>
+                  <div className={styles.paginationControls}>
+                    <select
+                      className="farmshift-select"
+                      style={{ padding: '4px 8px', fontSize: '13px' }}
+                      aria-label="Số hóa đơn mỗi trang"
+                      value={orderPageSize}
+                      onChange={(e) => { setOrderPageSize(Number(e.target.value)); setOrderPage(1); }}
+                    >
+                      {[15, 30, 50].map(opt => <option key={opt} value={opt}>{opt} / trang</option>)}
+                    </select>
+                    <button type="button" className="farmshift-btn farmshift-btn-secondary" style={{ padding: '5px 10px', fontSize: '13px' }} disabled={safeOrderPage <= 1} onClick={() => setOrderPage(safeOrderPage - 1)}>Trước</button>
+                    <span>Trang <strong>{safeOrderPage}</strong> / {orderPages}</span>
+                    <button type="button" className="farmshift-btn farmshift-btn-secondary" style={{ padding: '5px 10px', fontSize: '13px' }} disabled={safeOrderPage >= orderPages} onClick={() => setOrderPage(safeOrderPage + 1)}>Sau</button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </>
       )}

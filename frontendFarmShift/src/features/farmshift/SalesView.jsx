@@ -31,6 +31,7 @@ export const SalesView = () => {
   const invoiceRef = useRef(null);
   const [invoiceReady, setInvoiceReady] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('customer') || '');
+  const [orderPage, setOrderPage] = useState(0);
   const customerFilter = searchParams.get('customer') || '';
   const showCustomerOrders = customer => {
     setSearchTerm(customer.name);
@@ -273,6 +274,10 @@ export const SalesView = () => {
     const searchable = normalizeSearch([s.code, s.customer, s.flock].join(' '));
     return searchWords.every(word => searchable.includes(word));
   });
+  const orderPageSize = 15;
+  const orderPageCount = Math.max(1, Math.ceil(filteredSales.length / orderPageSize));
+  const currentOrderPage = Math.min(orderPage, orderPageCount - 1);
+  const pagedSales = filteredSales.slice(currentOrderPage * orderPageSize, (currentOrderPage + 1) * orderPageSize);
 
   return (
     <FarmShiftLayout
@@ -324,6 +329,7 @@ export const SalesView = () => {
                 value={customerFilter || searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
+                  setOrderPage(0);
                   if (customerFilter) setSearchParams({ tab: 'orders' }, { replace: true });
                 }}
               />
@@ -358,7 +364,7 @@ export const SalesView = () => {
                       </td>
                     </tr>
                   )}
-                  {filteredSales.map(s => (
+                  {pagedSales.map(s => (
                     <tr key={s.id}>
                       <td>
                         <button type="button" className={styles.invoiceLink} onClick={() => { setInvoiceReady(false); setSelectedSale(s); }} aria-label={`Xem hóa đơn ${s.code}`}>
@@ -387,6 +393,16 @@ export const SalesView = () => {
                 </tbody>
               </table>
             </div>
+            {filteredSales.length > 10 && (
+              <nav aria-label="Phân trang đơn bán" className={styles.pagination}>
+                <span>{`${currentOrderPage * orderPageSize + 1}–${Math.min((currentOrderPage + 1) * orderPageSize, filteredSales.length)} / ${filteredSales.length} đơn bán`}</span>
+                <div>
+                  <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={currentOrderPage === 0} onClick={() => setOrderPage(currentOrderPage - 1)}>Trước</button>
+                  <span>Trang {currentOrderPage + 1} / {orderPageCount}</span>
+                  <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={currentOrderPage + 1 >= orderPageCount} onClick={() => setOrderPage(currentOrderPage + 1)}>Sau</button>
+                </div>
+              </nav>
+            )}
           </div>
         </>
       )}
