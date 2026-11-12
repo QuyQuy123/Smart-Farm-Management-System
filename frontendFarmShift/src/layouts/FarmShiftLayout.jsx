@@ -6,7 +6,7 @@ import {
     Menu, Maximize, Minimize, Bell, User, LogOut,
     LayoutDashboard, Warehouse, ClipboardList, Package,
     ArrowLeftRight, FileText, ShoppingCart,
-    Users, BarChart3, Layers, Settings, Sliders,
+    Users, BarChart3, Layers, Settings, Sliders, Radio,
     Utensils, HeartPulse, Thermometer, CheckSquare, X,
     CheckCircle, AlertTriangle, AlertCircle, ListChecks
 } from 'lucide-react';
@@ -105,6 +105,7 @@ export const FarmShiftLayout = ({
     breadcrumbTitle = pageTitle,
     breadcrumbs = [],
     showShortcuts = false,
+    environmentHref = '/journal?tab=env',
     actions = null,
 }) => {
     const { user, logout } = useAuth();
@@ -290,6 +291,7 @@ export const FarmShiftLayout = ({
         { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users, roles: ['ROLE_FARM_OWNER'] },
+        { id: 'iot', label: 'Thiết bị IoT', path: '/iot', icon: Radio, roles: ['ROLE_FARM_OWNER'] },
         { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
     ];
 
@@ -743,7 +745,7 @@ export const FarmShiftLayout = ({
                             </div>
                         </Link>
 
-                        <Link to="/journal?tab=env" className="farmshift-shortcut-card">
+                        <Link to={environmentHref} className="farmshift-shortcut-card">
                             <div className="farmshift-shortcut-icon env">
                                 <Thermometer size={20} />
                             </div>

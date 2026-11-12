@@ -667,7 +667,7 @@ export const BarnDetailView = () => {
     </div>;
   };
 
-  return <FarmShiftLayout pageTitle={barn ? barn.name : 'Chi tiết chuồng'} showShortcuts
+  return <FarmShiftLayout pageTitle={barn ? barn.name : 'Chi tiết chuồng'} showShortcuts environmentHref={`/iot?barn=${encodeURIComponent(id)}`}
     breadcrumbs={[{ label: 'Quản lý khu nuôi', path: '/areas' }, ...(barn ? [{ label: barn.areaName, path: `/areas/${barn.areaId}` }] : [])]}>
     {loading ? <p className={styles.loading} role="status">Đang tải chi tiết chuồng...</p>
       : error ? <div role="alert" className={`${styles.card} ${styles.emptyCycle}`}><p>{error}</p>

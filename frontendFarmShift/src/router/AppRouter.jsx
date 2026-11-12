@@ -29,6 +29,7 @@ const CatalogSettingsView = lazy(() => import('../features/farmshift/CatalogSett
 const BreedingSettingsView = lazy(() => import('../features/farmshift/BreedingSettingsView').then(m => ({ default: m.BreedingSettingsView })));
 const GeneralSettingsView = lazy(() => import('../features/farmshift/GeneralSettingsView').then(m => ({ default: m.GeneralSettingsView })));
 const AccountView = lazy(() => import('../features/farmshift/AccountView').then(m => ({ default: m.AccountView })));
+const IotView = lazy(() => import('../features/farmshift/IotView').then(m => ({ default: m.IotView })));
 
 /* ── Role Constants ─────────────────────────────────────────── */
 const OWNER_ONLY = ['ROLE_FARM_OWNER'];
@@ -117,7 +118,7 @@ export const AppRouter = () => {
         <Route path="/worker-dashboard" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
         <Route path="/batches" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
         <Route path="/tasks" element={<ProtectedRoute><JournalView /></ProtectedRoute>} />
-        <Route path="/iot" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
+        <Route path="/iot" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><IotView /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><AccountView /></ProtectedRoute>} />
 
         {/* Catch-all */}

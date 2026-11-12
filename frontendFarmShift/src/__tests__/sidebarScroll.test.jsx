@@ -13,6 +13,11 @@ vi.mock('../components/GlobalSearch/GlobalSearch', () => ({ GlobalSearch: () => 
 
 afterEach(() => vi.restoreAllMocks());
 
+it('links the environment shortcut to the selected barn IoT detail', () => {
+    render(<MemoryRouter><FarmShiftLayout showShortcuts environmentHref="/iot?barn=11" /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /Môi trường/ })).toHaveAttribute('href', '/iot?barn=11');
+});
+
 it.each([
     { position: 'bottom', itemTop: 690, itemBottom: 750, expected: 530 },
     { position: 'top', itemTop: 120, itemBottom: 180, expected: 240 },
