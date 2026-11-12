@@ -4,7 +4,7 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
-- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), sử dụng cú pháp `ON CONFLICT DO NOTHING`, `ON CONFLICT DO UPDATE` và `WHERE NOT EXISTS` để đảm bảo tính lũy kế (idempotent), an toàn tuyệt đối khi thực thi nhiều lần (kể cả trước và sau khi các runner nâng cấp schema khởi chạy).
+- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), đồng bộ cột/bảng nâng cấp (`ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`) và tự động làm sạch toàn bộ bảng dữ liệu (`TRUNCATE ... RESTART IDENTITY CASCADE`) trước khi nạp lại đầy đủ bộ dữ liệu giả lập xuyên suốt từ `01/01/2026` đến `12/11/2026` (an toàn tuyệt đối khi thực thi lại nhiều lần trên cả DB trống lẫn DB đang có dữ liệu cũ).
 - Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp với các `ApplicationRunner` nâng cấp và khởi tạo dữ liệu tự động khi khởi động (`FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `CashbookSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`).
 
 ---
