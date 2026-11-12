@@ -953,7 +953,7 @@ Hệ thống hỗ trợ linh hoạt 2 chế độ lưu trữ qua biến môi tr�
 
 ## PHẦN 9: SỔ QUỸ TỰ ĐỘNG & QUỸ TRANG TRẠI
 
-Được khởi tạo tự động và hợp nhất về một quỹ tập trung duy nhất **`Quỹ trang trại`** qua `CashbookSchemaUpgrade`. Toàn bộ biến động thu / chi tại giao diện **Sổ quỹ** (`/cashbook`) được tự động đồng bộ từ các chứng từ phát sinh ở **Quản lý bán hàng**, **Hóa đơn nhập hàng**, **Chi phí lứa** (`CE-{id}`) và **Tiền công nhân viên** (`CC...`); giao diện không còn lập phiếu thu/chi thủ công hay chuyển quỹ nội bộ.
+Được khởi tạo tự động và hợp nhất về một quỹ tập trung duy nhất **`Quỹ trang trại`** qua `CashbookSchemaUpgrade`. Giao diện **Sổ quỹ** (`/cashbook`) tổ chức gọn thành 5 tab (`Sổ quỹ thu chi`, `Nguồn quỹ tiền`, `Phân bổ chi phí lứa`, `Tài sản & Khấu hao`, `Tiền công nhân viên`), vừa tự động đồng bộ biến động thu / chi từ chứng từ phát sinh ở **Quản lý bán hàng**, **Hóa đơn nhập hàng**, **Chi phí lứa** (`CE-{id}`) và **Tiền công nhân viên** (`CC...`), vừa hỗ trợ **lập phiếu thu / phiếu chi thủ công** (`+ Lập phiếu thu`, `+ Lập phiếu chi`, kèm mẫu nhanh `Nạp vốn / Góp vốn`, `Rút vốn`, `Tiền điện & nước trang trại`, ...). Chuyển quỹ nội bộ (`cash_fund_transfers`) đã được gỡ bỏ khỏi giao diện do chuẩn hóa về một quỹ tập trung duy nhất.
 
 ### 9.1 Bảng `cash_funds` — Nguồn quỹ tiền tệ tập trung
 
@@ -1010,7 +1010,7 @@ Entity: `CashFundTransfer`. Giữ lại cấu trúc bảng trong PostgreSQL đ�
 
 ### 9.4 Bảng `cash_transaction_categories` — Danh mục Loại Phiếu Thu / Chi
 
-Entity: `CashTransactionCategory`. Quản lý các hạng mục thu/chi tại **Sổ quỹ → Loại phiếu thu / chi** và đồng bộ trực tiếp vào dropdown khi lập/sửa phiếu thu/chi.
+Entity: `CashTransactionCategory`. Lưu trữ chuẩn hóa các hạng mục thu/chi mặc định trong hệ thống (bao gồm `Đơn bán gà`, `Thu hồi công nợ`, `Nạp vốn / Góp vốn`, `Thu khác`, `Tiền thức ăn (Cám)`, `Tiền con giống`, `Thuốc thú y & vắc-xin`, `Tiền điện & nước trang trại`, `Tiền lương công nhân`, `Thanh toán công nợ NCC`, `Rút vốn`, `Chi phí khác`) để đồng bộ vào dropdown lập phiếu thu/chi và thống kê Sổ quỹ (tab `Loại phiếu thu / chi` trên UI đã được lược bỏ để giao diện gọn hơn, bảng & API danh mục vẫn duy trì phục vụ hạch toán và báo cáo).
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
@@ -1082,10 +1082,35 @@ Entity: `CycleCostAllocation`. Quản lý khoản chi được phân bổ cụ t
 | `created_at` | TIMESTAMP | Thời điểm tạo bản ghi. |
 
 **Quy tắc & API Quản lý Sổ quỹ (`CashbookController`, yêu cầu `ROLE_FARM_OWNER` hoặc `ROLE_ACCOUNTANT`):**
-- `GET /api/cashbook/summary?type=&fundId=&from=&to=&search=`: Trả về tổng thu, tổng chi, tổng số dư quỹ tập trung (`Quỹ trang trại`), danh sách nguồn quỹ, danh sách phiếu thu/chi tự đồng bộ, phân bổ chi phí lứa, tài sản cố định, bảng lương, danh mục loại phiếu và danh sách `staffOptions` / `cycleOptions`.
+- `GET /api/cashbook/summary?type=&fundId=&from=&to=&search=`: Trả về tổng thu, tổng chi, tổng số dư quỹ tập trung (`Quỹ trang trại`), danh sách nguồn quỹ, danh sách phiếu thu/chi (tự động + thủ công), phân bổ chi phí lứa, tài sản cố định, bảng lương, danh mục loại phiếu và danh sách `staffOptions` / `cycleOptions`.
 - `GET /api/cashbook/funds`, `POST /api/cashbook/funds`, `PUT /api/cashbook/funds/{id}`, `DELETE /api/cashbook/funds/{id}`: Quản lý nguồn tiền (biến động số dư thực hiện qua câu `UPDATE` nguyên tử kèm điều kiện `balance >= amount`; `PUT` chỉ cập nhật thông tin định danh/ghi chú mà không ghi đè `balance` đang đối soát theo sổ cái; không xóa được quỹ đã phát sinh phiếu → 409 `CASH_FUND_IN_USE` hoặc quỹ vẫn còn số dư → 409 `CASH_FUND_HAS_BALANCE`).
-- **Đồng bộ tự động từ chứng từ nguồn (`CashbookService`)**: Phiếu thu/chi trên Sổ quỹ được sinh tự động khi thanh toán đơn bán hàng (`syncSalesReceipt` → `BH...`), tạo/thanh toán hóa đơn nhập hàng (`syncPurchasePayment` → `NH...` / `NHCG...`), ghi nhận chi phí lứa (`syncCycleExpense` / `deleteCycleExpenseVoucher` → `CE-{id}`), hoặc chi trả tiền công nhân viên (`payPayroll` → `CC...`). Endpoint `POST/PUT/DELETE /api/cashbook/transactions/**` vẫn chặn sửa/xóa trực tiếp mọi phiếu có `reference_invoice_code IS NOT NULL` (`409 CASH_TX_LINKED`) để bảo toàn đối soát chứng từ gốc; giao diện Sổ quỹ ẩn nút `+ Lập phiếu thu`, `+ Lập phiếu chi` và `Chuyển quỹ nội bộ`.
+- **Đồng bộ tự động từ chứng từ nguồn & Lập phiếu thủ công (`CashbookService`)**:
+  - Phiếu thu/chi liên kết được sinh/cập nhật tự động khi thanh toán đơn bán hàng (`syncSalesReceipt` → `BH...`), tạo/thanh toán hóa đơn nhập hàng (`syncPurchasePayment` → `NH...` / `NHCG...`), ghi nhận chi phí lứa (`syncCycleExpense` / `deleteCycleExpenseVoucher` → `CE-{id}`), hoặc chi trả tiền công nhân viên (`payPayroll` → `CC...`). Mọi phiếu có `reference_invoice_code IS NOT NULL` bị khóa sửa/xóa trực tiếp (`409 CASH_TX_LINKED`) để bảo toàn đối soát với chứng từ gốc.
+  - Endpoint `POST/PUT/DELETE /api/cashbook/transactions/**` đồng thời phục vụ nút **`+ Lập phiếu thu`** / **`+ Lập phiếu chi`** trên giao diện Sổ quỹ cho các nghiệp vụ tài chính ngoài hóa đơn (như `Nạp vốn / Góp vốn`, `Rút vốn`, `Tiền điện & nước trang trại`, `Thu khác`, `Chi phí khác`), tự động cộng/trừ nguyên tử `cash_funds.balance`. Chuyển quỹ nội bộ (`Chuyển quỹ nội bộ`) và tab `Loại phiếu thu / chi` không hiển thị trên giao diện.
 - `POST/PUT/DELETE /api/cashbook/cost-allocations/**`: CRUD phân bổ chi phí lứa.
 - `POST/PUT/DELETE /api/cashbook/assets/**`: CRUD tài sản cố định & khấu hao.
 - `POST/PUT/DELETE /api/cashbook/payrolls/**` & `POST /api/cashbook/payrolls/{id}/pay`: CRUD bảng lương & thanh toán lương nguyên tử vào `Quỹ trang trại` (tự sinh phiếu chi `PC...` danh mục `Tiền lương công nhân` và cập nhật `paid_amount`/`remaining_amount`); chặn xóa bảng lương đã phát sinh thanh toán (`PAYROLL_IN_USE`).
-- `POST/PUT/DELETE /api/cashbook/categories/**`: CRUD loại phiếu thu/chi (chặn trùng `CATEGORY_DUPLICATE` và chặn xóa danh mục đang có phiếu tham chiếu `CATEGORY_IN_USE`).
+- `POST/PUT/DELETE /api/cashbook/categories/**`: CRUD loại phiếu thu/chi qua API (chặn trùng `CATEGORY_DUPLICATE` và chặn xóa danh mục đang có phiếu tham chiếu `CATEGORY_IN_USE`).
+
+---
+
+## PHẦN 10: BÁO CÁO & THỐNG KÊ TOÀN DIỆN (`ReportController` / `ReportService`)
+
+Phân hệ **Báo cáo & Thống kê** (`/reports`, giao diện `ReportsView`) tổng hợp dữ liệu trực tiếp 100% từ PostgreSQL thông qua kiến trúc truy vấn **@EntityGraph chống N+1** (`ReportService`, giao dịch `@Transactional(readOnly = true)`), phục vụ 9 tab báo cáo cho `ROLE_FARM_OWNER` và `ROLE_ACCOUNTANT`.
+
+### 10.1 Endpoint & Quy tắc Tổng hợp (`GET /api/reports/summary`)
+
+| Tham số / Khối dữ liệu | Bảng nguồn chính | Quy tắc nghiệp vụ & Anti-N+1 |
+| :--- | :--- | :--- |
+| Query `?from=YYYY-MM-DD&to=YYYY-MM-DD` | Toàn hệ thống | Tùy chọn lọc khoảng ngày; nếu bỏ trống sẽ tổng hợp toàn bộ lịch sử trang trại. |
+| `farmSummary` (Tổng quan trang trại) | `farming_cycles`, `flocks`, `flock_movements`, `cycle_expenses`, `cycle_carried_expenses` | Tổng nhập, xuất bán, sản lượng kg, chết/loại, tỷ lệ hao hụt/sống sót, tổng chi phí lứa, doanh thu & lợi nhuận gộp từng lứa/chuồng (lọc theo khoảng giao `[startDate, endDate]`). |
+| `salesReport` (Báo cáo bán hàng) | `sales_orders` | Đếm đơn, tổng doanh thu, tiền đã thu, công nợ còn lại, tổng sản lượng kg/con, đơn giá bình quân gia quyền theo kg. |
+| `purchasesReport` (Báo cáo nhập hàng) | `purchase_invoices` (fetch kèm `supplier`, `items`, `warehouse`, `flock.barn`) | Tự động loại trừ các hóa đơn `stock_status = 'Đã hủy'` khỏi tổng giá trị nhập/đã trả/công nợ nhưng vẫn đếm riêng `cancelledCount`. |
+| `inventoryReport` (Tồn kho & Cảnh báo) | `inventory_items` (fetch kèm `warehouse`, `product`, `unit`) | Ảnh chụp tồn kho hiện hành (`stock`, `unitPrice`, `totalValue`), cảnh báo sắp hết (`lowStock`) và hạn dùng (`EXPIRED` / `NEAR_EXPIRY`). |
+| `cashbookReport` (Sổ quỹ Thu / Chi) | `cash_funds`, `cash_transactions` | Tổng thu, tổng chi, lưu chuyển tiền thuần, số dư `Quỹ trang trại`, phân tích thu/chi theo từng quỹ và bảng phân loại theo hạng mục (`Nạp vốn / Góp vốn`, `Rút vốn`, `Đơn bán gà`, ...). |
+| `harvestReport` (Xuất bán / Thu hoạch) | `flock_movements` (`HARVEST`), `farming_cycles`, `flocks` | Số đợt xuất chuồng, tổng con, tổng kg, trọng lượng TB/con, đơn giá bán TB/kg và doanh thu theo từng lứa/chuồng. |
+| `growthReport` (Tăng trưởng & FCR) | `farming_cycles`, `feed_records`, `weight_samples`, `flocks`, `flock_movements` | Tính tuổi nuôi, trọng lượng TB so với chuẩn chương trình nuôi, lượng cám ăn/con, tăng trọng, chỉ số **FCR** (`feedKg / gainKg`), **ADG** (`g/ngày`) và tỷ lệ sống. |
+| `internalStockReport` (Xuất nhập nội bộ) | `internal_stock_vouchers`, `internal_stock_voucher_items` | Thống kê số lượng và giá trị chứng từ `EXPORT` / `TRANSFER` phát sinh trong kỳ kèm chi tiết kho nguồn/đích. |
+| `activityReport` (Nhật ký hoạt động) | `daily_task_logs`, `sales_orders`, `purchase_invoices`, `cash_transactions`, `internal_stock_vouchers`, `flock_movements` | Hợp nhất dòng thời gian hoạt động đa phân hệ (`Xác nhận việc`, `Bán hàng`, `Nhập hàng`, `Sổ quỹ`, `Kho nội bộ`, `Đàn gia cầm`) sắp xếp mới nhất trước. |
+
+**Phân quyền (`@PreAuthorize`):** Toàn bộ endpoint `/api/reports/**` yêu cầu `ROLE_FARM_OWNER` hoặc `ROLE_ACCOUNTANT` (`403 Forbidden` đối với `ROLE_FARM_WORKER`). Giao diện hỗ trợ chọn nhanh mốc thời gian (Tháng này, Tháng trước, Quý/Năm, Toàn bộ), lọc/tìm kiếm trực tiếp trên bảng và xuất file **CSV UTF-8 BOM** từng tab.

@@ -42,4 +42,8 @@ public interface PurchaseInvoiceRepository extends JpaRepository<PurchaseInvoice
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"supplier"})
     List<PurchaseInvoice> findByStockStatusNot(String stockStatus);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"supplier", "flock", "flock.cycle", "flock.cycle.barn", "items", "items.warehouse"})
+    @Query("SELECT DISTINCT p FROM PurchaseInvoice p ORDER BY p.invoiceDate DESC, p.id DESC")
+    List<PurchaseInvoice> findAllWithDetailsForReport();
 }

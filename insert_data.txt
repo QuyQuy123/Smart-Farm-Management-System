@@ -90,6 +90,8 @@ ON CONFLICT (id) DO UPDATE SET
   first_meal_time = EXCLUDED.first_meal_time,
   scale = EXCLUDED.scale;
 
+SELECT setval(pg_get_serial_sequence('farms', 'id'), COALESCE((SELECT MAX(id) FROM farms), 1));
+
 INSERT INTO customer_contacts (code, name, phone, address, tax_code, payment_method, total_bought, debt, note, created_at, updated_at)
 VALUES ('KH00000000000000000000000000001', 'Nguyễn Văn Hùng (Thương lái Lái Thiêu)', '0912345678', 'Bình Hòa, Thuận An, Bình Dương',
         NULL, 'Chuyển khoản', 0, 0, 'Khách sỉ thu mua gà thịt định kỳ sản lượng lớn', TIMESTAMP '2026-01-02 08:00:00', TIMESTAMP '2026-01-02 08:00:00'),
@@ -1477,6 +1479,24 @@ BEGIN
     v_pc_seq := v_pc_seq + 1;
   END LOOP;
 
+  -- E2. Phiếu chi thủ công mẫu: Chủ trang trại rút một phần lợi nhuận / thu hồi vốn sau Lứa 1 & Lứa 2
+  INSERT INTO cash_transactions (code, tx_date, type, category, amount, contact, person_name, fund_id, note, creator, created_at, updated_at)
+  VALUES (
+    'PC' || LPAD(v_pc_seq::text, 6, '0'),
+    DATE '2026-10-15',
+    'Chi',
+    'Rút vốn',
+    500000000,
+    'Chủ trang trại',
+    'Chủ trang trại',
+    v_farm_id,
+    'Rút một phần lợi nhuận sau quyết toán Lứa 1 & Lứa 2',
+    'Admin',
+    TIMESTAMP '2026-10-15 15:30:00',
+    TIMESTAMP '2026-10-15 15:30:00'
+  );
+  v_pc_seq := v_pc_seq + 1;
+
   -- F. Phiếu thu từ tất cả đơn bán gà đã thu tiền (BH00001..BH00018)
   FOR r_so IN
     SELECT so.code, so.date, ROUND(so.paid_amount)::bigint AS paid_amt, so.customer
@@ -1529,7 +1549,9 @@ END $$;
 INSERT INTO cycle_cost_allocations (code, cycle_id, barn_name, cycle_code, cost_type, amount, source_voucher_code, allocation_date, note, created_at)
 SELECT v.pb_code, c.id, b.name, 'L' || LPAD(c.id::text, 6, '0'), v.cost_type, v.amount,
        COALESCE(v.exact_voucher,
-                (SELECT tx.code FROM cash_transactions tx WHERE tx.category = v.tx_cat ORDER BY tx.tx_date DESC, tx.id DESC LIMIT 1),
+                (SELECT tx.code FROM cash_transactions tx
+                 WHERE tx.category = v.tx_cat AND tx.tx_date <= v.alloc_date
+                 ORDER BY tx.tx_date DESC, tx.id DESC LIMIT 1),
                 'NH000018'),
        v.alloc_date, v.note, v.alloc_date::timestamp + TIME '16:00:00'
 FROM (VALUES

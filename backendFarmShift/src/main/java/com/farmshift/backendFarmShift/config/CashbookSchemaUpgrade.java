@@ -375,8 +375,8 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
         boolean hasOperationalData = !paidPurchases.isEmpty() || !paidSales.isEmpty();
 
         long capitalAmount = hasOperationalData ? 1_750_000_000L : 500_000_000L;
-        createTx("PT000001", LocalDate.of(2026, 9, 1), "Thu", "Thu khác", capitalAmount,
-                "Đối tượng khác", "Chủ trang trại", farmFund, null,
+        createTx("PT000001", LocalDate.of(2026, 9, 1), "Thu", "Nạp vốn / Góp vốn", capitalAmount,
+                "Chủ trang trại", "Chủ trang trại", farmFund, null,
                 "Góp vốn lưu động nhập giống, cám và vận hành trang trại", "Admin");
 
         int pcSeq = 1;
