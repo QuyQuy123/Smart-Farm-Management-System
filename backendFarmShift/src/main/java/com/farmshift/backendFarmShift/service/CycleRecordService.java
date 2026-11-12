@@ -10,7 +10,7 @@ import com.farmshift.backendFarmShift.repository.CycleExpenseRepository;
 import com.farmshift.backendFarmShift.repository.DailyTaskLogRepository;
 import com.farmshift.backendFarmShift.repository.FeedRecordRepository;
 import com.farmshift.backendFarmShift.repository.WeightSampleRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +19,6 @@ import static com.farmshift.backendFarmShift.service.CycleService.clean;
 
 /** Nhật ký hằng ngày của lứa: cám, cân mẫu, khoản chi bổ sung. Chỉ ghi được khi lứa đang nuôi. */
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class CycleRecordService {
     private final CycleService cycleService;
@@ -27,6 +26,25 @@ public class CycleRecordService {
     private final WeightSampleRepository weightRepository;
     private final CycleExpenseRepository expenseRepository;
     private final DailyTaskLogRepository taskLogRepository;
+    private final CashbookService cashbookService;
+
+    @Autowired
+    public CycleRecordService(CycleService cycleService, FeedRecordRepository feedRepository,
+                              WeightSampleRepository weightRepository, CycleExpenseRepository expenseRepository,
+                              DailyTaskLogRepository taskLogRepository, CashbookService cashbookService) {
+        this.cycleService = cycleService;
+        this.feedRepository = feedRepository;
+        this.weightRepository = weightRepository;
+        this.expenseRepository = expenseRepository;
+        this.taskLogRepository = taskLogRepository;
+        this.cashbookService = cashbookService;
+    }
+
+    public CycleRecordService(CycleService cycleService, FeedRecordRepository feedRepository,
+                              WeightSampleRepository weightRepository, CycleExpenseRepository expenseRepository,
+                              DailyTaskLogRepository taskLogRepository) {
+        this(cycleService, feedRepository, weightRepository, expenseRepository, taskLogRepository, null);
+    }
 
     /** Dữ liệu sinh ra khi xác nhận phiếu việc phải hoàn tác ở phiếu việc để tồn kho được hoàn lại cùng lúc. */
     private static ConflictException fromDailyPlan(String label) {
@@ -84,13 +102,21 @@ public class CycleRecordService {
         expense.setAmount(request.amount());
         expense.setNote(clean(request.note()));
         expense.setCreatedBy(user);
-        return expenseRepository.save(expense).getId();
+        CycleExpense saved = expenseRepository.saveAndFlush(expense);
+        if (cashbookService != null) {
+            cashbookService.syncCycleExpense(saved);
+        }
+        return saved.getId();
     }
 
     public void deleteExpense(Long cycleId, Long id) {
         cycleService.requireActive(cycleId);
         if (taskLogRepository.existsByExpenseId(id)) throw fromDailyPlan("Khoản chi");
-        expenseRepository.delete(expenseRepository.findByIdAndCycleId(id, cycleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khoản chi.")));
+        CycleExpense existing = expenseRepository.findByIdAndCycleId(id, cycleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khoản chi."));
+        if (cashbookService != null) {
+            cashbookService.deleteCycleExpenseVoucher(existing.getId());
+        }
+        expenseRepository.delete(existing);
     }
 }

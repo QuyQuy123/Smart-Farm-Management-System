@@ -2,6 +2,8 @@ package com.farmshift.backendFarmShift.config;
 
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -18,9 +20,11 @@ import java.util.*;
 @Order(30)
 @RequiredArgsConstructor
 public class CashbookSchemaUpgrade implements ApplicationRunner {
+    private static final String FUND_FARM = "Quỹ trang trại";
     private static final String FUND_MB = "Tài khoản MB Bank (TK Chính)";
     private static final String FUND_CASH = "Tiền mặt tại quỹ trại";
     private static final String FUND_VCB = "Tài khoản Vietcombank dự phòng";
+    private static final Set<String> LEGACY_FUND_NAMES = Set.of(FUND_MB, FUND_CASH, FUND_VCB);
 
     private static final Set<String> LEGACY_TX_CODES = Set.of(
             "PT000020", "PT000021", "PC000033", "PC000034", "PC000035"
@@ -41,6 +45,9 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
     private final PayrollRecordRepository payrollRepository;
     private final CycleCostAllocationRepository costAllocationRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
@@ -51,16 +58,10 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
         boolean hasUntouchedLegacyCashbook = isUntouchedLegacyCashbook();
 
         if (isFreshFunds) {
-            CashFund mb = createFund(FUND_MB, "0987654321", "Ngân hàng Quân Đội", "BANK", 0L,
-                    "Tài khoản nhận tiền bán sỉ & thanh toán cám / con giống");
-            CashFund cash = createFund(FUND_CASH, "—", "Quỹ thủ quỹ", "CASH", 0L,
-                    "Chi trả lương, vật tư tiêu hao và thu tiền mặt tại trại");
-            CashFund vcb = createFund(FUND_VCB, "1023456789", "Vietcombank", "BANK", 0L,
-                    "Quỹ dự phòng rủi ro dịch bệnh");
-
+            CashFund farmFund = createFarmFund();
             seedPayrollsIfNeeded(true);
             if (txRepository.count() == 0 && transferRepository.count() == 0) {
-                populateReconciledLedger(mb, cash, vcb);
+                populateReconciledLedger(farmFund);
             }
             seedCostAllocationsIfNeeded(true);
             return;
@@ -73,10 +74,23 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
         seedPayrollsIfNeeded(hasUntouchedLegacyCashbook);
 
         if (hasUntouchedLegacyCashbook) {
-            upgradeLegacyLedger();
+            upgradeLegacyLedgerToSingleFund();
+        } else {
+            consolidateThreeFundsIfNeeded();
         }
 
         seedCostAllocationsIfNeeded(hasUntouchedLegacyCashbook);
+    }
+
+    private CashFund createFarmFund() {
+        return createFund(
+                FUND_FARM,
+                "0987654321",
+                "MB Bank & Quỹ tiền mặt trại",
+                "BANK",
+                0L,
+                "Quỹ tập trung toàn trang trại (thu bán gà, góp vốn và chi nhập hàng / lương / vận hành)"
+        );
     }
 
     private void ensureTablesExist() {
@@ -226,9 +240,17 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
 
     private boolean isUntouchedLegacyCashbook() {
         List<CashTransaction> txs = txRepository.findAll();
-        if (txs.size() != LEGACY_TX_CODES.size()) return false;
+        if (txs.isEmpty()) return false;
+        boolean hasAnyLegacyVoucher = txs.stream().anyMatch(t -> LEGACY_TX_CODES.contains(t.getCode()));
+        if (!hasAnyLegacyVoucher) return false;
         for (CashTransaction tx : txs) {
-            if (!LEGACY_TX_CODES.contains(tx.getCode())) return false;
+            boolean isLegacyMock = LEGACY_TX_CODES.contains(tx.getCode());
+            boolean isLegacyPayrollDisbursement = tx.getReferenceInvoiceCode() != null
+                    && tx.getReferenceInvoiceCode().startsWith("CC")
+                    && LEGACY_PAYROLL_NAMES.contains(tx.getPersonName());
+            if (!isLegacyMock && !isLegacyPayrollDisbursement) {
+                return false;
+            }
         }
         List<CashFundTransfer> transfers = transferRepository.findAll();
         if (transfers.size() > LEGACY_TRANSFER_CODES.size()) return false;
@@ -238,63 +260,147 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
         return true;
     }
 
-    private void upgradeLegacyLedger() {
+    private void flushAndClear() {
+        if (entityManager != null) {
+            entityManager.flush();
+            entityManager.clear();
+        }
+    }
+
+    private void upgradeLegacyLedgerToSingleFund() {
+        if (entityManager != null) entityManager.flush();
+        transferRepository.deleteAllInBatch();
+        txRepository.deleteAllInBatch();
+        flushAndClear();
+
+        CashFund farmFund = ensureSingleFarmFund();
+        populateReconciledLedger(farmFund);
+    }
+
+    private void consolidateThreeFundsIfNeeded() {
+        List<CashFund> funds = fundRepository.findAll();
+        if (funds.size() != 3 || !funds.stream().allMatch(f -> LEGACY_FUND_NAMES.contains(f.getName()))) {
+            return;
+        }
+        // Không đụng nếu người dùng đã tự tạo chuyển quỹ ngoài bộ seed mẫu
+        List<CashFundTransfer> transfers = transferRepository.findAll();
+        boolean onlySeededTransfers = transfers.stream().allMatch(tr ->
+                "CQ000001".equals(tr.getCode()) || "CQ000002".equals(tr.getCode())
+                        || LEGACY_TRANSFER_CODES.contains(tr.getCode()));
+        if (!onlySeededTransfers) {
+            return;
+        }
+
         CashFund mb = fundRepository.findFirstByNameIgnoreCase(FUND_MB).orElse(null);
         CashFund cash = fundRepository.findFirstByNameIgnoreCase(FUND_CASH).orElse(null);
         CashFund vcb = fundRepository.findFirstByNameIgnoreCase(FUND_VCB).orElse(null);
-        if (mb == null || cash == null || vcb == null) return;
+        if (mb == null) return;
+        Long mbId = mb.getId();
+
+        if (entityManager != null) entityManager.flush();
+        if (cash != null) {
+            jdbc.update("UPDATE cash_transactions SET fund_id = ? WHERE fund_id = ?", mbId, cash.getId());
+            jdbc.update("UPDATE purchase_payments SET cash_fund_id = ? WHERE cash_fund_id = ?", mbId, cash.getId());
+        }
+        if (vcb != null) {
+            jdbc.update("UPDATE cash_transactions SET fund_id = ? WHERE fund_id = ?", mbId, vcb.getId());
+            jdbc.update("UPDATE purchase_payments SET cash_fund_id = ? WHERE cash_fund_id = ?", mbId, vcb.getId());
+        }
+
+        // Gộp khoản vốn dự phòng PT000002 (50tr) vào PT000001 (1.7tỷ -> 1.75tỷ) nếu đúng bộ seed mẫu
+        Integer hasSeedPair = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM cash_transactions
+                WHERE (code = 'PT000001' AND amount = 1700000000)
+                   OR (code = 'PT000002' AND amount = 50000000 AND reference_invoice_code IS NULL)
+                """, Integer.class);
+        if (hasSeedPair != null && hasSeedPair == 2) {
+            jdbc.update("UPDATE cash_transactions SET amount = 1750000000 WHERE code = 'PT000001'");
+            jdbc.update("DELETE FROM cash_transactions WHERE code = 'PT000002' AND amount = 50000000 AND reference_invoice_code IS NULL");
+        }
 
         transferRepository.deleteAllInBatch();
-        txRepository.deleteAllInBatch();
-        txRepository.flush();
-        transferRepository.flush();
+        if (cash != null) jdbc.update("DELETE FROM cash_funds WHERE id = ?", cash.getId());
+        if (vcb != null) jdbc.update("DELETE FROM cash_funds WHERE id = ?", vcb.getId());
+        flushAndClear();
 
-        populateReconciledLedger(mb, cash, vcb);
+        // Đổi MB thành 1 quỹ tập trung duy nhất "Quỹ trang trại"
+        CashFund farmFund = fundRepository.findById(mbId).orElseThrow();
+        farmFund.setName(FUND_FARM);
+        farmFund.setAccountNo("0987654321");
+        farmFund.setBank("MB Bank & Quỹ tiền mặt trại");
+        farmFund.setFundType("BANK");
+        farmFund.setNote("Quỹ tập trung toàn trang trại (thu bán gà, góp vốn và chi nhập hàng / lương / vận hành)");
+        farmFund = fundRepository.saveAndFlush(farmFund);
+
+        recomputeFundBalance(farmFund);
     }
 
-    private void populateReconciledLedger(CashFund mb, CashFund cash, CashFund vcb) {
+    private CashFund ensureSingleFarmFund() {
+        List<CashFund> existing = fundRepository.findAll();
+        boolean onlyLegacyOrFarm = !existing.isEmpty() && existing.stream()
+                .allMatch(f -> FUND_FARM.equalsIgnoreCase(f.getName()) || LEGACY_FUND_NAMES.contains(f.getName()));
+        if (onlyLegacyOrFarm) {
+            CashFund keeper = fundRepository.findFirstByNameIgnoreCase(FUND_FARM)
+                    .or(() -> fundRepository.findFirstByNameIgnoreCase(FUND_MB))
+                    .orElse(existing.get(0));
+            Long keeperId = keeper.getId();
+            if (entityManager != null) entityManager.flush();
+            for (CashFund f : existing) {
+                if (!f.getId().equals(keeperId)) {
+                    jdbc.update("UPDATE purchase_payments SET cash_fund_id = ? WHERE cash_fund_id = ?", keeperId, f.getId());
+                    jdbc.update("DELETE FROM cash_funds WHERE id = ?", f.getId());
+                }
+            }
+            flushAndClear();
+            CashFund refreshed = fundRepository.findById(keeperId).orElseThrow();
+            refreshed.setName(FUND_FARM);
+            refreshed.setAccountNo("0987654321");
+            refreshed.setBank("MB Bank & Quỹ tiền mặt trại");
+            refreshed.setFundType("BANK");
+            refreshed.setBalance(0L);
+            refreshed.setNote("Quỹ tập trung toàn trang trại (thu bán gà, góp vốn và chi nhập hàng / lương / vận hành)");
+            refreshed.setActive(true);
+            return fundRepository.saveAndFlush(refreshed);
+        }
+        return fundRepository.findFirstByNameIgnoreCase(FUND_FARM).orElseGet(this::createFarmFund);
+    }
+
+    private void populateReconciledLedger(CashFund farmFund) {
         List<PaidPurchaseRow> paidPurchases = findPaidPurchases();
         List<SalesReceiptRow> paidSales = findPaidSalesOrders();
         List<CycleExpenseRow> cycleExpenses = findSeededCycleExpenses();
 
         boolean hasOperationalData = !paidPurchases.isEmpty() || !paidSales.isEmpty();
 
-        long capitalAmount = hasOperationalData ? 1_700_000_000L : 500_000_000L;
+        long capitalAmount = hasOperationalData ? 1_750_000_000L : 500_000_000L;
         createTx("PT000001", LocalDate.of(2026, 9, 1), "Thu", "Thu khác", capitalAmount,
-                "Đối tượng khác", "Chủ trang trại", mb, null,
+                "Đối tượng khác", "Chủ trang trại", farmFund, null,
                 "Góp vốn lưu động nhập giống, cám và vận hành trang trại", "Admin");
-        createTx("PT000002", LocalDate.of(2026, 9, 1), "Thu", "Thu khác", 50_000_000L,
-                "Đối tượng khác", "Chủ trang trại", vcb, null,
-                "Chuyển vốn vào quỹ dự phòng rủi ro dịch bệnh", "Admin");
-
-        createTransfer("CQ000001", LocalDate.of(2026, 9, 10), mb, cash, 30_000_000L,
-                "Rút tiền mặt về quỹ trại chi trả lương và vật tư phát sinh", "Trần Kế Toán");
 
         int pcSeq = 1;
         if (hasOperationalData) {
             for (PaidPurchaseRow p : paidPurchases) {
                 String code = String.format(Locale.ROOT, "PC%06d", pcSeq++);
                 createTx(code, p.date(), "Chi", p.category(), p.paidAmount(), "Nhà cung cấp",
-                        p.supplierName(), mb, p.code(), p.note(), "Trần Kế Toán");
+                        p.supplierName(), farmFund, p.code(), p.note(), "Trần Kế Toán");
             }
             jdbc.update("""
                     UPDATE purchase_payments
                     SET cash_fund_id = ?, payment_method = 'Chuyển khoản'
-                    WHERE cash_fund_id IS NULL
-                      AND invoice_id IN (SELECT id FROM purchase_invoices WHERE paid_amount > 0 AND stock_status <> 'Đã hủy')
-                    """, mb.getId());
+                    WHERE invoice_id IN (SELECT id FROM purchase_invoices WHERE paid_amount > 0 AND stock_status <> 'Đã hủy')
+                    """, farmFund.getId());
         }
 
         createTx(String.format(Locale.ROOT, "PC%06d", pcSeq++), LocalDate.of(2026, 9, 30),
                 "Chi", "Tiền lương công nhân", 9_000_000L, "Nhân sự", "Nguyễn Văn Ba",
-                cash, "CC0001", "Thanh toán lương tháng 09/2026 (CC0001)", "Trần Kế Toán");
+                farmFund, "CC0001", "Thanh toán lương tháng 09/2026 (CC0001)", "Trần Kế Toán");
         createTx(String.format(Locale.ROOT, "PC%06d", pcSeq++), LocalDate.of(2026, 9, 30),
                 "Chi", "Tiền lương công nhân", 9_000_000L, "Nhân sự", "Dương Văn Hùng",
-                cash, "CC0002", "Thanh toán lương tháng 09/2026 (CC0002)", "Trần Kế Toán");
+                farmFund, "CC0002", "Thanh toán lương tháng 09/2026 (CC0002)", "Trần Kế Toán");
 
         createTx(String.format(Locale.ROOT, "PC%06d", pcSeq++), LocalDate.of(2026, 10, 2),
                 "Chi", "Tiền điện & nước trang trại", 8_200_000L, "Đối tượng khác", "Điện lực Tam Đảo",
-                mb, null, "Thanh toán tiền điện nước vận hành chuồng nuôi tháng 09/2026", "Trần Kế Toán");
+                farmFund, null, "Thanh toán tiền điện nước vận hành chuồng nuôi tháng 09/2026", "Trần Kế Toán");
 
         for (CycleExpenseRow ce : cycleExpenses) {
             String category = "MEDICINE".equalsIgnoreCase(ce.category()) ? "Thuốc thú y & vắc-xin" : "Chi phí khác";
@@ -303,38 +409,23 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
                     : "Vật tư chuồng nuôi Nhà A1";
             createTx(String.format(Locale.ROOT, "PC%06d", pcSeq++), ce.date(),
                     "Chi", category, ce.amount(), "Đối tượng khác", person,
-                    cash, null, ce.note() + " (lứa Nhà A1)", "Trần Kế Toán");
+                    farmFund, "CE-" + ce.id(), ce.note() + " (lứa Nhà A1)", "Trần Kế Toán");
         }
 
         createTx(String.format(Locale.ROOT, "PC%06d", pcSeq), LocalDate.of(2026, 10, 31),
                 "Chi", "Tiền lương công nhân", 12_700_000L, "Nhân sự", "Trần Kế Toán",
-                mb, "CC0004", "Thanh toán lương tháng 10/2026 (CC0004)", "Admin");
+                farmFund, "CC0004", "Thanh toán lương tháng 10/2026 (CC0004)", "Admin");
 
-        int ptSeq = 3;
-        boolean hasCashSaleDeposit = false;
+        int ptSeq = 2;
         for (SalesReceiptRow s : paidSales) {
             String code = String.format(Locale.ROOT, "PT%06d", ptSeq++);
-            boolean viaCash = "Tiền mặt".equalsIgnoreCase(s.paymentMethod()) || "PARTIAL".equalsIgnoreCase(s.status());
-            CashFund target = viaCash ? cash : mb;
-            if (viaCash && s.paidAmount() >= 80_000_000L) {
-                hasCashSaleDeposit = true;
-            }
             createTx(code, s.date(), "Thu", "Đơn bán gà", s.paidAmount(), "Khách hàng",
-                    s.customer(), target, s.code(),
+                    s.customer(), farmFund, s.code(),
                     "Thu tiền đơn bán gà " + s.code() + " (" + s.customer() + ")", "Trần Kế Toán");
         }
 
-        if (hasCashSaleDeposit) {
-            createTransfer("CQ000002", LocalDate.of(2026, 11, 11), cash, mb, 80_000_000L,
-                    "Nộp tiền mặt thu bán gà vào tài khoản ngân hàng", "Trần Kế Toán");
-        }
-
         txRepository.flush();
-        transferRepository.flush();
-
-        recomputeFundBalance(mb);
-        recomputeFundBalance(cash);
-        recomputeFundBalance(vcb);
+        recomputeFundBalance(farmFund);
     }
 
     private void recomputeFundBalance(CashFund fund) {
@@ -562,10 +653,11 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
 
     private List<CycleExpenseRow> findSeededCycleExpenses() {
         return jdbc.query("""
-                SELECT expense_date, category, amount, note
+                SELECT id, expense_date, category, amount, note
                 FROM cycle_expenses
                 ORDER BY expense_date ASC, id ASC
                 """, (rs, rowNum) -> new CycleExpenseRow(
+                rs.getLong("id"),
                 rs.getObject("expense_date", LocalDate.class),
                 rs.getString("category"),
                 rs.getBigDecimal("amount").setScale(0, java.math.RoundingMode.HALF_UP).longValue(),
@@ -626,20 +718,6 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
         tx.setNote(note);
         tx.setCreator(creator);
         txRepository.save(tx);
-    }
-
-    private void createTransfer(String code, LocalDate date, CashFund from, CashFund to, long amount,
-                                String note, String creator) {
-        CashFundTransfer tr = new CashFundTransfer();
-        tr.setCode(code);
-        tr.setTransferDate(date);
-        tr.setFromFund(from);
-        tr.setToFund(to);
-        tr.setAmount(amount);
-        tr.setFee(0L);
-        tr.setNote(note);
-        tr.setCreator(creator);
-        transferRepository.save(tr);
     }
 
     private void createCat(String name, String type, String group, String note) {
@@ -710,7 +788,7 @@ public class CashbookSchemaUpgrade implements ApplicationRunner {
 
     private record PaidPurchaseRow(String code, LocalDate date, long paidAmount, String supplierName, String category, String note) {}
     private record SalesReceiptRow(String code, LocalDate date, long paidAmount, String customer, String status, String paymentMethod) {}
-    private record CycleExpenseRow(LocalDate date, String category, long amount, String note) {}
+    private record CycleExpenseRow(long id, LocalDate date, String category, long amount, String note) {}
     private record CycleRef(Long cycleId, String barnName, String cycleCode, FarmingCycle cycle) {
         CycleRef(long cycleId, String barnName, String cycleCode) {
             this(cycleId, barnName, cycleCode, null);

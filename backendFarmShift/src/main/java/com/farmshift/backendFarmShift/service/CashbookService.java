@@ -383,6 +383,65 @@ public class CashbookService {
         transactionRepository.save(tx);
     }
 
+    /**
+     * Synchronizes a disbursement voucher when adding a CycleExpense (Chi phí lứa) if an active CashFund exists.
+     */
+    @Transactional
+    public void syncCycleExpense(CycleExpense expense) {
+        if (expense == null || expense.getId() == null || expense.getAmount() == null) return;
+        long amount = expense.getAmount().setScale(0, RoundingMode.HALF_UP).longValue();
+        if (amount <= 0L) return;
+
+        CashFund primaryFund = fundRepository.findAll(Sort.by("id").ascending()).stream()
+                .filter(f -> Boolean.TRUE.equals(f.getActive()))
+                .findFirst()
+                .orElse(null);
+        if (primaryFund == null) return;
+
+        applyBalanceDelta(primaryFund, "Chi", amount);
+
+        String category = switch (expense.getCategory()) {
+            case MEDICINE -> "Thuốc thú y & vắc-xin";
+            case ELECTRICITY, WATER -> "Tiền điện & nước trang trại";
+            case LABOR -> "Tiền lương công nhân";
+            case OTHER -> "Chi phí khác";
+        };
+        FarmingCycle cycle = expense.getCycle();
+        String cycleCode = cycle != null ? CycleService.cycleCode(cycle) : "CHUNG";
+        String barnName = cycle != null && cycle.getBarn() != null ? cycle.getBarn().getName() : "Trang trại";
+        String baseNote = expense.getNote() != null && !expense.getNote().isBlank()
+                ? expense.getNote().strip()
+                : category;
+
+        CashTransaction tx = new CashTransaction();
+        tx.setCode(nextTxCode("Chi"));
+        tx.setTxDate(expense.getExpenseDate() != null ? expense.getExpenseDate() : LocalDate.now(VN_ZONE));
+        tx.setType("Chi");
+        tx.setCategory(category);
+        tx.setAmount(amount);
+        tx.setContact("Đối tượng khác");
+        tx.setPersonName("Chi phí lứa " + cycleCode + " (" + barnName + ")");
+        tx.setFund(primaryFund);
+        tx.setReferenceInvoiceCode("CE-" + expense.getId());
+        tx.setNote(baseNote + " · " + barnName + " (" + cycleCode + ")");
+        tx.setCreator(expense.getCreatedBy() != null && !expense.getCreatedBy().isBlank()
+                ? expense.getCreatedBy()
+                : currentActorName());
+
+        transactionRepository.save(tx);
+    }
+
+    @Transactional
+    public void deleteCycleExpenseVoucher(Long expenseId) {
+        if (expenseId == null) return;
+        transactionRepository.findFirstByReferenceInvoiceCodeAndTypeOrderByIdDesc("CE-" + expenseId, "Chi")
+                .ifPresent(tx -> {
+                    CashFund fund = findFund(tx.getFund().getId());
+                    reverseBalanceDelta(fund, tx.getType(), tx.getAmount());
+                    transactionRepository.delete(tx);
+                });
+    }
+
     // ── Cycle Cost Allocations ───────────────────────────────────────────────────────────
 
     @Transactional

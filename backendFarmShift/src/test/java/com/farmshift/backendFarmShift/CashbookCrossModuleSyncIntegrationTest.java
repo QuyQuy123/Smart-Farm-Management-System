@@ -284,7 +284,7 @@ class CashbookCrossModuleSyncIntegrationTest {
     }
 
     @Test
-    void schemaUpgradeReplacesUntouchedLegacyMockWithBalancedLedgerAndPreservesCustomLedger() throws Exception {
+    void schemaUpgradeReplacesUntouchedLegacyMockWithBalancedSingleFarmFundAndPreservesCustomLedger() throws Exception {
         CashFund vcb = new CashFund();
         vcb.setName("Tài khoản Vietcombank dự phòng");
         vcb.setAccountNo("1023456789");
@@ -297,13 +297,14 @@ class CashbookCrossModuleSyncIntegrationTest {
         CashFund mb = fundRepository.findById(bankFundId).orElseThrow();
         CashFund cash = fundRepository.findById(cashFundId).orElseThrow();
 
-        // Populate exact 5 legacy mock vouchers & 2 legacy transfers + 4 fake payrolls + 4 fake cost allocations
+        // Populate exact 5 legacy mock vouchers + a test payroll payment (Trần Văn Bình) & 2 legacy transfers + fake payrolls/costs
         for (String[] row : new String[][]{
-                {"PT000020", "Thu", "Đơn bán gà", "191880000"},
-                {"PT000021", "Thu", "Đơn bán gà", "100000000"},
-                {"PC000033", "Chi", "Tiền thức ăn (Cám)", "18000000"},
-                {"PC000034", "Chi", "Thuốc thú y & vắc-xin", "8560000"},
-                {"PC000035", "Chi", "Tiền điện & nước trang trại", "8200000"}
+                {"PT000020", "Thu", "Đơn bán gà", "191880000", null, "Mock"},
+                {"PT000021", "Thu", "Đơn bán gà", "100000000", null, "Mock"},
+                {"PC000033", "Chi", "Tiền thức ăn (Cám)", "18000000", null, "Mock"},
+                {"PC000034", "Chi", "Thuốc thú y & vắc-xin", "8560000", null, "Mock"},
+                {"PC000035", "Chi", "Tiền điện & nước trang trại", "8200000", null, "Mock"},
+                {"PC000006", "Chi", "Tiền lương công nhân", "3050000", "CC0002", "Trần Văn Bình"}
         }) {
             CashTransaction tx = new CashTransaction();
             tx.setCode(row[0]);
@@ -312,7 +313,8 @@ class CashbookCrossModuleSyncIntegrationTest {
             tx.setCategory(row[2]);
             tx.setAmount(Long.parseLong(row[3]));
             tx.setContact("Khác");
-            tx.setPersonName("Mock");
+            tx.setPersonName(row[5]);
+            tx.setReferenceInvoiceCode(row[4]);
             tx.setFund(mb);
             txRepository.save(tx);
         }
@@ -355,19 +357,23 @@ class CashbookCrossModuleSyncIntegrationTest {
         payrollRepository.flush();
         costAllocationRepository.flush();
 
-        // Run upgrade -> legacy mock records replaced, balances strictly equal Thu - Chi
+        // Run upgrade -> legacy mock records replaced, consolidated into 1 fund "Quỹ trang trại", balances equal Thu - Chi
         schemaUpgrade.run(null);
 
         assertTrue(txRepository.findByCode("PT000020").isEmpty());
         assertTrue(txRepository.findByCode("PC000035").isEmpty());
+        assertTrue(txRepository.findByCode("PC000006").isEmpty());
+        assertEquals(1, fundRepository.count());
+        CashFund singleFarmFund = fundRepository.findAll().get(0);
+        assertEquals("Quỹ trang trại", singleFarmFund.getName());
+        assertEquals(0, transferRepository.count());
         assertEquals(26, payrollRepository.findAll().get(0).getWorkDays());
         assertTrue(payrollRepository.findAll().stream().anyMatch(p -> "Nguyễn Văn Ba".equals(p.getEmployeeName())));
         assertFalse(costAllocationRepository.findAll().stream().anyMatch(c -> "LUA-2026-MIA01".equals(c.getCycleCode())));
 
         long thu = txRepository.findAll().stream().filter(t -> "Thu".equals(t.getType())).mapToLong(CashTransaction::getAmount).sum();
         long chi = txRepository.findAll().stream().filter(t -> "Chi".equals(t.getType())).mapToLong(CashTransaction::getAmount).sum();
-        long sumFunds = fundRepository.findAll().stream().mapToLong(CashFund::getBalance).sum();
-        assertEquals(thu - chi, sumFunds);
+        assertEquals(thu - chi, singleFarmFund.getBalance());
 
         // Add a custom user transaction -> next run MUST preserve everything
         CashTransaction custom = new CashTransaction();
@@ -378,12 +384,123 @@ class CashbookCrossModuleSyncIntegrationTest {
         custom.setAmount(1_234_567L);
         custom.setContact("Khác");
         custom.setPersonName("Custom User");
-        custom.setFund(vcb);
+        custom.setFund(singleFarmFund);
         txRepository.saveAndFlush(custom);
         long countAfterCustom = txRepository.count();
 
         schemaUpgrade.run(null);
         assertEquals(countAfterCustom, txRepository.count());
         assertTrue(txRepository.findByCode("PT999999").isPresent());
+    }
+
+    @Test
+    void schemaUpgradeConsolidatesLegacyThreeFundsIntoSingleFarmFund() throws Exception {
+        CashFund vcb = new CashFund();
+        vcb.setName("Tài khoản Vietcombank dự phòng");
+        vcb.setAccountNo("1023456789");
+        vcb.setBank("Vietcombank");
+        vcb.setFundType("BANK");
+        vcb.setBalance(50_000_000L);
+        vcb.setActive(true);
+        vcb = fundRepository.saveAndFlush(vcb);
+
+        CashFund mb = fundRepository.findById(bankFundId).orElseThrow();
+        CashFund cash = fundRepository.findById(cashFundId).orElseThrow();
+
+        CashTransaction pt1 = new CashTransaction();
+        pt1.setCode("PT000001");
+        pt1.setTxDate(LocalDate.of(2026, 9, 1));
+        pt1.setType("Thu");
+        pt1.setCategory("Thu khác");
+        pt1.setAmount(1_700_000_000L);
+        pt1.setContact("Đối tượng khác");
+        pt1.setPersonName("Chủ trang trại");
+        pt1.setFund(mb);
+        txRepository.save(pt1);
+
+        CashTransaction pt2 = new CashTransaction();
+        pt2.setCode("PT000002");
+        pt2.setTxDate(LocalDate.of(2026, 9, 1));
+        pt2.setType("Thu");
+        pt2.setCategory("Thu khác");
+        pt2.setAmount(50_000_000L);
+        pt2.setContact("Đối tượng khác");
+        pt2.setPersonName("Chủ trang trại");
+        pt2.setFund(vcb);
+        txRepository.save(pt2);
+
+        CashTransaction pt3 = new CashTransaction();
+        pt3.setCode("PT000003");
+        pt3.setTxDate(LocalDate.of(2026, 11, 8));
+        pt3.setType("Thu");
+        pt3.setCategory("Đơn bán gà");
+        pt3.setAmount(200_000_000L);
+        pt3.setContact("Khách hàng");
+        pt3.setPersonName("Thương lái");
+        pt3.setReferenceInvoiceCode("BH00001");
+        pt3.setFund(mb);
+        txRepository.save(pt3);
+
+        CashFundTransfer tr = new CashFundTransfer();
+        tr.setCode("CQ000001");
+        tr.setTransferDate(LocalDate.of(2026, 9, 1));
+        tr.setFromFund(mb);
+        tr.setToFund(cash);
+        tr.setAmount(50_000_000L);
+        tr.setFee(0L);
+        transferRepository.save(tr);
+        txRepository.flush();
+        transferRepository.flush();
+
+        schemaUpgrade.run(null);
+
+        assertEquals(1, fundRepository.count());
+        CashFund single = fundRepository.findAll().get(0);
+        assertEquals("Quỹ trang trại", single.getName());
+        assertEquals(0, transferRepository.count());
+        assertEquals(1_950_000_000L, single.getBalance());
+        assertEquals(1_750_000_000L, txRepository.findByCode("PT000001").orElseThrow().getAmount());
+        assertTrue(txRepository.findByCode("PT000002").isEmpty());
+        CashTransaction bh = txRepository.findFirstByReferenceInvoiceCodeOrderByIdDesc("BH00001").orElseThrow();
+        assertEquals(single.getId(), bh.getFund().getId());
+    }
+
+    @Test
+    void cycleExpenseCreationAndDeletionSynchronizesCashbookAtomically() throws Exception {
+        long areaId = mapper.readTree(mvc.perform(post("/api/farm-areas")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("name", "Khu Sync Chi phí"))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).path("data").path("id").asLong();
+        long barnId = mapper.readTree(mvc.perform(post("/api/barns")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("areaId", areaId, "name", "Nhà Expense 1", "capacity", 5000, "areaM2", 400))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).path("data").path("id").asLong();
+        LocalDate start = LocalDate.now().minusDays(2);
+        long cycleId = mapper.readTree(mvc.perform(post("/api/barns/" + barnId + "/cycles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("startDate", start.toString()))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        long expenseId = mapper.readTree(mvc.perform(post("/api/cycles/" + cycleId + "/expenses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "expenseDate", LocalDate.now().toString(),
+                                "category", "MEDICINE",
+                                "amount", 850_000,
+                                "note", "Mua thuốc bổ tổng hợp"
+                        ))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).path("data").asLong();
+
+        assertEquals(99_150_000L, fundRepository.findById(bankFundId).orElseThrow().getBalance());
+        CashTransaction tx = txRepository.findFirstByReferenceInvoiceCodeOrderByIdDesc("CE-" + expenseId).orElseThrow();
+        assertEquals("Chi", tx.getType());
+        assertEquals("Thuốc thú y & vắc-xin", tx.getCategory());
+        assertEquals(850_000L, tx.getAmount());
+
+        mvc.perform(delete("/api/cycles/" + cycleId + "/expenses/" + expenseId))
+                .andExpect(status().isOk());
+
+        assertEquals(100_000_000L, fundRepository.findById(bankFundId).orElseThrow().getBalance());
+        assertTrue(txRepository.findFirstByReferenceInvoiceCodeOrderByIdDesc("CE-" + expenseId).isEmpty());
     }
 }

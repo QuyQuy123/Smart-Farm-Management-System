@@ -47,6 +47,13 @@ function ImportCashFundSelect({ props, onPick }) {
       .catch(() => { if (!cancelled) setFunds([]); });
     return () => { cancelled = true; };
   }, []);
+  if (funds.length === 1) {
+    return (
+      <div className={props.className} style={{ backgroundColor: 'var(--color-surface-soft)', color: 'var(--color-ink)' }}>
+        Tự động chi từ {funds[0].name} (Số dư: {Number(funds[0].balance || 0).toLocaleString('vi-VN')} đ)
+      </div>
+    );
+  }
   return (
     <select {...props}>
       <option value="">-- Không hạch toán vào Sổ quỹ --</option>

@@ -185,8 +185,9 @@ export const SalesView = () => {
       ]);
       const fundList = Array.isArray(loadedFunds) ? loadedFunds : [];
       setCashFunds(fundList);
-      if (!sale && fundList.length > 0) {
-        setNewSale(prev => prev.cashFundId ? prev : {
+      const activeFunds = fundList.filter(f => f.active !== false);
+      if (activeFunds.length > 0 && (!sale || activeFunds.length === 1)) {
+        setNewSale(prev => prev.cashFundId || prev.paymentStatus === 'DEBT' ? prev : {
           ...prev,
           cashFundId: pickFundForMethod(fundList, prev.paymentMethod)
         });
@@ -676,26 +677,42 @@ export const SalesView = () => {
                     </select>
                   </div>
                 </div>
-                {newSale.paymentStatus !== 'DEBT' && cashFunds.length > 0 && (
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" htmlFor="sale-cash-fund">
-                      Thu vào nguồn quỹ
-                    </label>
-                    <select
-                      id="sale-cash-fund"
-                      className="farmshift-form-control"
-                      value={newSale.cashFundId}
-                      onChange={event => setNewSale({ ...newSale, cashFundId: event.target.value })}
-                    >
-                      <option value="">{editingSale ? '-- Giữ nguyên quỹ cũ / Không ghi sổ quỹ --' : '-- Không ghi sổ quỹ --'}</option>
-                      {cashFunds.filter(f => f.active !== false).map(f => (
-                        <option key={f.id} value={f.id}>
-                          {f.name} ({Number(f.balance || 0).toLocaleString('vi-VN')} đ)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {newSale.paymentStatus !== 'DEBT' && (() => {
+                  const activeFunds = cashFunds.filter(f => f.active !== false);
+                  if (activeFunds.length === 1) {
+                    return (
+                      <div className="farmshift-form-group">
+                        <label className="farmshift-form-label">Nguồn quỹ nhận tiền (Tự động ghi Sổ quỹ)</label>
+                        <div className="farmshift-form-control" style={{ backgroundColor: 'var(--color-surface-soft)', color: 'var(--color-ink)' }}>
+                          Tự động thu vào {activeFunds[0].name} ({Number(activeFunds[0].balance || 0).toLocaleString('vi-VN')} đ)
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (activeFunds.length > 1) {
+                    return (
+                      <div className="farmshift-form-group">
+                        <label className="farmshift-form-label" htmlFor="sale-cash-fund">
+                          Thu vào nguồn quỹ
+                        </label>
+                        <select
+                          id="sale-cash-fund"
+                          className="farmshift-form-control"
+                          value={newSale.cashFundId}
+                          onChange={event => setNewSale({ ...newSale, cashFundId: event.target.value })}
+                        >
+                          <option value="">{editingSale ? '-- Giữ nguyên quỹ cũ / Không ghi sổ quỹ --' : '-- Không ghi sổ quỹ --'}</option>
+                          {activeFunds.map(f => (
+                            <option key={f.id} value={f.id}>
+                              {f.name} ({Number(f.balance || 0).toLocaleString('vi-VN')} đ)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 {newSale.paymentStatus === 'PARTIAL' && <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-paid-amount">Số tiền đã trả (đ) <span className={styles.required}>*</span></label>
                   <input id="sale-paid-amount" type="text" inputMode="numeric" required pattern="[1-9][0-9.]*" title="Nhập số tiền đã trả lớn hơn 0" className="farmshift-form-control" value={newSale.paidAmount.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} onChange={event => setNewSale({ ...newSale, paidAmount: event.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '') })} />

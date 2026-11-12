@@ -231,8 +231,13 @@ export const PurchasesView = () => {
         const list = Array.isArray(data) ? data : [];
         setCashFunds(list);
         const firstActive = list.find(f => f.active !== false);
-        if (showAddModal && firstActive) {
-          setNewPo(prev => (prev.cashFundId ? prev : { ...prev, cashFundId: String(firstActive.id) }));
+        if (firstActive) {
+          if (showAddModal) {
+            setNewPo(prev => (prev.cashFundId ? prev : { ...prev, cashFundId: String(firstActive.id) }));
+          }
+          if (showPaymentModal) {
+            setPaymentFundId(prev => prev || String(firstActive.id));
+          }
         }
       })
       .catch(() => { if (!cancelled) setCashFunds([]); });
@@ -1914,24 +1919,40 @@ export const PurchasesView = () => {
                     onChange={(e) => setPaymentNote(e.target.value)}
                   />
                 </div>
-                {cashFunds.length > 0 && (
-                  <div className="farmshift-form-group" style={{ marginTop: '10px' }}>
-                    <label htmlFor="pay-fund" className="farmshift-form-label">Chi từ nguồn quỹ (tùy chọn)</label>
-                    <select
-                      id="pay-fund"
-                      className="farmshift-form-control"
-                      value={paymentFundId}
-                      onChange={(e) => setPaymentFundId(e.target.value)}
-                    >
-                      <option value="">-- Không tự động trừ sổ quỹ --</option>
-                      {cashFunds.map(fund => (
-                        <option key={fund.id} value={fund.id}>
-                          {fund.name} (Dư: {Number(fund.balance || 0).toLocaleString('vi-VN')} đ)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {(() => {
+                  const activeFunds = cashFunds.filter(f => f.active !== false);
+                  if (activeFunds.length === 1) {
+                    return (
+                      <div className="farmshift-form-group" style={{ marginTop: '10px' }}>
+                        <label className="farmshift-form-label">Chi từ nguồn quỹ (Tự động ghi Sổ quỹ)</label>
+                        <div className="farmshift-form-control" style={{ backgroundColor: 'var(--color-surface-soft)', color: 'var(--color-ink)' }}>
+                          Tự động trừ vào {activeFunds[0].name} (Dư: {Number(activeFunds[0].balance || 0).toLocaleString('vi-VN')} đ)
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (activeFunds.length > 1) {
+                    return (
+                      <div className="farmshift-form-group" style={{ marginTop: '10px' }}>
+                        <label htmlFor="pay-fund" className="farmshift-form-label">Chi từ nguồn quỹ (tùy chọn)</label>
+                        <select
+                          id="pay-fund"
+                          className="farmshift-form-control"
+                          value={paymentFundId}
+                          onChange={(e) => setPaymentFundId(e.target.value)}
+                        >
+                          <option value="">-- Không tự động trừ sổ quỹ --</option>
+                          {activeFunds.map(fund => (
+                            <option key={fund.id} value={fund.id}>
+                              {fund.name} (Dư: {Number(fund.balance || 0).toLocaleString('vi-VN')} đ)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <div className="farmshift-modal-footer">
                 <button
@@ -2519,24 +2540,40 @@ export const PurchasesView = () => {
                     </div>
                   </div>
 
-                  {newPo.paymentStatus !== 'Trả sau' && cashFunds.length > 0 && (
-                    <div className="farmshift-form-group" style={{ marginBottom: '16px' }}>
-                      <label htmlFor="po-cash-fund" className="farmshift-form-label">Chi từ nguồn quỹ (Tự động ghi Sổ quỹ)</label>
-                      <select
-                        id="po-cash-fund"
-                        className="farmshift-form-control"
-                        value={newPo.cashFundId}
-                        onChange={(e) => setNewPo({ ...newPo, cashFundId: e.target.value })}
-                      >
-                        <option value="">-- Không hạch toán vào Sổ quỹ --</option>
-                        {cashFunds.filter(f => f.active !== false).map(f => (
-                          <option key={f.id} value={f.id}>
-                            {f.name} (Số dư: {Number(f.balance || 0).toLocaleString('vi-VN')} đ)
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  {newPo.paymentStatus !== 'Trả sau' && (() => {
+                    const activeFunds = cashFunds.filter(f => f.active !== false);
+                    if (activeFunds.length === 1) {
+                      return (
+                        <div className="farmshift-form-group" style={{ marginBottom: '16px' }}>
+                          <label className="farmshift-form-label">Nguồn quỹ thanh toán (Tự động ghi Sổ quỹ)</label>
+                          <div className="farmshift-form-control" style={{ backgroundColor: 'var(--color-surface-soft)', color: 'var(--color-ink)' }}>
+                            Tự động chi từ {activeFunds[0].name} (Số dư: {Number(activeFunds[0].balance || 0).toLocaleString('vi-VN')} đ)
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (activeFunds.length > 1) {
+                      return (
+                        <div className="farmshift-form-group" style={{ marginBottom: '16px' }}>
+                          <label htmlFor="po-cash-fund" className="farmshift-form-label">Chi từ nguồn quỹ (Tự động ghi Sổ quỹ)</label>
+                          <select
+                            id="po-cash-fund"
+                            className="farmshift-form-control"
+                            value={newPo.cashFundId}
+                            onChange={(e) => setNewPo({ ...newPo, cashFundId: e.target.value })}
+                          >
+                            <option value="">-- Không hạch toán vào Sổ quỹ --</option>
+                            {activeFunds.map(f => (
+                              <option key={f.id} value={f.id}>
+                                {f.name} (Số dư: {Number(f.balance || 0).toLocaleString('vi-VN')} đ)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   {newPo.paymentStatus === 'Thanh toán một phần' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px', padding: '12px 14px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>

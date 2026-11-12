@@ -1055,30 +1055,31 @@ ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO cash_funds (name, account_no, bank, fund_type, balance, note, active, created_at, updated_at)
 VALUES
-  ('Tài khoản MB Bank (TK Chính)', '0987654321', 'Ngân hàng Quân Đội', 'BANK', 0, 'Tài khoản nhận tiền bán sỉ & thanh toán cám / con giống', TRUE, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-11-11 08:00:00'),
-  ('Tiền mặt tại quỹ trại', '—', 'Quỹ thủ quỹ', 'CASH', 0, 'Chi trả lương, vật tư tiêu hao và thu tiền mặt tại trại', TRUE, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-11-11 08:00:00'),
-  ('Tài khoản Vietcombank dự phòng', '1023456789', 'Vietcombank', 'BANK', 0, 'Quỹ dự phòng rủi ro dịch bệnh', TRUE, TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-11-11 08:00:00')
+  ('Quỹ trang trại', '0987654321', 'MB Bank & Quỹ tiền mặt trại', 'BANK', 0,
+   'Quỹ tập trung toàn trang trại (thu bán gà, góp vốn và chi nhập hàng / lương / vận hành)', TRUE,
+   TIMESTAMP '2026-09-01 08:00:00', TIMESTAMP '2026-11-11 08:00:00')
 ON CONFLICT (name) DO NOTHING;
 
--- Nâng cấp an toàn & đối soát lại toàn bộ sổ quỹ nếu DB đang rỗng hoặc còn nguyên 5 phiếu mẫu cũ
+-- Nâng cấp an toàn về mô hình 1 quỹ duy nhất ("Quỹ trang trại"), bỏ chuyển quỹ nội bộ và đối soát 100% theo dữ liệu thật
 DO $$
 DECLARE
-  v_mb_id   BIGINT;
-  v_cash_id BIGINT;
-  v_vcb_id  BIGINT;
+  v_farm_id BIGINT;
   v_pc_seq  INT := 1;
-  v_pt_seq  INT := 3;
-  v_has_cash_sale BOOLEAN := FALSE;
+  v_pt_seq  INT := 2;
   r_po      RECORD;
   r_exp     RECORD;
   r_so      RECORD;
 BEGIN
-  IF (SELECT COUNT(*) FROM cash_transactions) = 5
+  -- 1. Nếu DB còn nguyên bộ mock cũ (PT000020..21, PC000033..35) hoặc kèm phiếu test lương trên bộ mock cũ -> xóa để dựng lại chuẩn
+  IF EXISTS (SELECT 1 FROM cash_transactions WHERE code IN ('PT000020', 'PT000021', 'PC000033', 'PC000034', 'PC000035'))
      AND NOT EXISTS (
        SELECT 1 FROM cash_transactions
        WHERE code NOT IN ('PT000020', 'PT000021', 'PC000033', 'PC000034', 'PC000035')
+         AND NOT (
+           COALESCE(reference_invoice_code, '') LIKE 'CC%'
+           AND person_name IN ('Nguyễn Văn An', 'Trần Văn Bình', 'Nguyễn Văn Hải', 'Nguyễn Thị Mai')
+         )
      )
-     AND (SELECT COUNT(*) FROM cash_fund_transfers) <= 2
      AND NOT EXISTS (
        SELECT 1 FROM cash_fund_transfers
        WHERE code NOT IN ('CQ000004', 'CQ000005')
@@ -1087,23 +1088,32 @@ BEGIN
     DELETE FROM cash_transactions;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM cash_transactions) AND NOT EXISTS (SELECT 1 FROM cash_fund_transfers) THEN
-    SELECT id INTO v_mb_id   FROM cash_funds WHERE name = 'Tài khoản MB Bank (TK Chính)' LIMIT 1;
-    SELECT id INTO v_cash_id FROM cash_funds WHERE name = 'Tiền mặt tại quỹ trại' LIMIT 1;
-    SELECT id INTO v_vcb_id  FROM cash_funds WHERE name = 'Tài khoản Vietcombank dự phòng' LIMIT 1;
+  SELECT id INTO v_farm_id FROM cash_funds WHERE name = 'Quỹ trang trại' LIMIT 1;
 
-    -- 1. Vốn lưu động & quỹ dự phòng ban đầu
+  -- 2. Nếu DB trước đó dùng 3 quỹ mẫu cũ -> gộp toàn bộ giao dịch sang 'Quỹ trang trại' và bỏ 3 quỹ + chuyển quỹ cũ
+  IF EXISTS (SELECT 1 FROM cash_funds WHERE name IN ('Tài khoản MB Bank (TK Chính)', 'Tiền mặt tại quỹ trại', 'Tài khoản Vietcombank dự phòng')) THEN
+    UPDATE cash_transactions
+    SET fund_id = v_farm_id
+    WHERE fund_id IN (
+      SELECT id FROM cash_funds WHERE name IN ('Tài khoản MB Bank (TK Chính)', 'Tiền mặt tại quỹ trại', 'Tài khoản Vietcombank dự phòng')
+    );
+    UPDATE purchase_payments
+    SET cash_fund_id = v_farm_id
+    WHERE cash_fund_id IN (
+      SELECT id FROM cash_funds WHERE name IN ('Tài khoản MB Bank (TK Chính)', 'Tiền mặt tại quỹ trại', 'Tài khoản Vietcombank dự phòng')
+    );
+    DELETE FROM cash_fund_transfers;
+    DELETE FROM cash_funds
+    WHERE name IN ('Tài khoản MB Bank (TK Chính)', 'Tiền mặt tại quỹ trại', 'Tài khoản Vietcombank dự phòng');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM cash_transactions) THEN
+    -- A. Vốn lưu động ban đầu
     INSERT INTO cash_transactions (code, tx_date, type, category, amount, contact, person_name, fund_id, note, creator, created_at, updated_at)
     VALUES
-      ('PT000001', DATE '2026-09-01', 'Thu', 'Thu khác', 1700000000, 'Đối tượng khác', 'Chủ trang trại', v_mb_id,  'Góp vốn lưu động nhập giống, cám và vận hành trang trại', 'Admin', NOW(), NOW()),
-      ('PT000002', DATE '2026-09-01', 'Thu', 'Thu khác',   50000000, 'Đối tượng khác', 'Chủ trang trại', v_vcb_id, 'Chuyển vốn vào quỹ dự phòng rủi ro dịch bệnh', 'Admin', NOW(), NOW());
+      ('PT000001', DATE '2026-09-01', 'Thu', 'Thu khác', 1750000000, 'Đối tượng khác', 'Chủ trang trại', v_farm_id, 'Góp vốn lưu động nhập giống, cám và vận hành trang trại', 'Admin', NOW(), NOW());
 
-    -- 2. Rút tiền mặt về quỹ trại chi lương & vật tư
-    INSERT INTO cash_fund_transfers (code, transfer_date, from_fund_id, to_fund_id, amount, fee, note, creator, created_at)
-    VALUES ('CQ000001', DATE '2026-09-10', v_mb_id, v_cash_id, 30000000, 0,
-            'Rút tiền mặt về quỹ trại chi trả lương và vật tư phát sinh', 'Trần Kế Toán', NOW());
-
-    -- 3. Phiếu chi khớp 100% các hóa đơn nhập hàng / nhập đàn đã thanh toán
+    -- B. Phiếu chi khớp 100% các hóa đơn nhập hàng / nhập đàn đã thanh toán
     FOR r_po IN
       SELECT pi.id, pi.code, pi.invoice_date, pi.paid_amount, s.name AS supplier_name, pi.flock_id, pi.note
       FROM purchase_invoices pi
@@ -1125,7 +1135,7 @@ BEGIN
         r_po.paid_amount,
         'Nhà cung cấp',
         r_po.supplier_name,
-        v_mb_id,
+        v_farm_id,
         r_po.code,
         'Thanh toán hóa đơn ' || r_po.code || COALESCE(' — ' || NULLIF(r_po.note, ''), ''),
         'Trần Kế Toán',
@@ -1136,31 +1146,30 @@ BEGIN
     END LOOP;
 
     UPDATE purchase_payments
-    SET cash_fund_id = v_mb_id,
+    SET cash_fund_id = v_farm_id,
         payment_method = 'Chuyển khoản'
-    WHERE cash_fund_id IS NULL
-      AND invoice_id IN (SELECT id FROM purchase_invoices WHERE paid_amount > 0 AND stock_status <> 'Đã hủy');
+    WHERE invoice_id IN (SELECT id FROM purchase_invoices WHERE paid_amount > 0 AND stock_status <> 'Đã hủy');
 
-    -- 4. Phiếu chi lương công nhân tháng 09/2026 (khớp CC0001 & CC0002)
+    -- C. Phiếu chi lương công nhân tháng 09/2026 (khớp CC0001 & CC0002)
     INSERT INTO cash_transactions (code, tx_date, type, category, amount, contact, person_name, fund_id, reference_invoice_code, note, creator, created_at, updated_at)
     VALUES
-      ('PC' || LPAD(v_pc_seq::text, 6, '0'), DATE '2026-09-30', 'Chi', 'Tiền lương công nhân', 9000000, 'Nhân sự', 'Nguyễn Văn Ba',  v_cash_id, 'CC0001', 'Thanh toán lương tháng 09/2026 (CC0001)', 'Trần Kế Toán', NOW(), NOW()),
-      ('PC' || LPAD((v_pc_seq + 1)::text, 6, '0'), DATE '2026-09-30', 'Chi', 'Tiền lương công nhân', 9000000, 'Nhân sự', 'Dương Văn Hùng', v_cash_id, 'CC0002', 'Thanh toán lương tháng 09/2026 (CC0002)', 'Trần Kế Toán', NOW(), NOW());
+      ('PC' || LPAD(v_pc_seq::text, 6, '0'), DATE '2026-09-30', 'Chi', 'Tiền lương công nhân', 9000000, 'Nhân sự', 'Nguyễn Văn Ba',  v_farm_id, 'CC0001', 'Thanh toán lương tháng 09/2026 (CC0001)', 'Trần Kế Toán', NOW(), NOW()),
+      ('PC' || LPAD((v_pc_seq + 1)::text, 6, '0'), DATE '2026-09-30', 'Chi', 'Tiền lương công nhân', 9000000, 'Nhân sự', 'Dương Văn Hùng', v_farm_id, 'CC0002', 'Thanh toán lương tháng 09/2026 (CC0002)', 'Trần Kế Toán', NOW(), NOW());
     v_pc_seq := v_pc_seq + 2;
 
-    -- 5. Tiền điện nước vận hành tháng 09/2026
+    -- D. Tiền điện nước vận hành tháng 09/2026
     INSERT INTO cash_transactions (code, tx_date, type, category, amount, contact, person_name, fund_id, note, creator, created_at, updated_at)
     VALUES ('PC' || LPAD(v_pc_seq::text, 6, '0'), DATE '2026-10-02', 'Chi', 'Tiền điện & nước trang trại', 8200000,
-            'Đối tượng khác', 'Điện lực Tam Đảo', v_mb_id, 'Thanh toán tiền điện nước vận hành chuồng nuôi tháng 09/2026', 'Trần Kế Toán', NOW(), NOW());
+            'Đối tượng khác', 'Điện lực Tam Đảo', v_farm_id, 'Thanh toán tiền điện nước vận hành chuồng nuôi tháng 09/2026', 'Trần Kế Toán', NOW(), NOW());
     v_pc_seq := v_pc_seq + 1;
 
-    -- 6. Chi phí lứa thực tế từ cycle_expenses (thuốc bổ & vật tư Nhà A1)
+    -- E. Chi phí lứa thực tế từ cycle_expenses (thuốc bổ & vật tư Nhà A1)
     FOR r_exp IN
-      SELECT expense_date, category, amount, note
+      SELECT id, expense_date, category, amount, note
       FROM cycle_expenses
       ORDER BY expense_date ASC, id ASC
     LOOP
-      INSERT INTO cash_transactions (code, tx_date, type, category, amount, contact, person_name, fund_id, note, creator, created_at, updated_at)
+      INSERT INTO cash_transactions (code, tx_date, type, category, amount, contact, person_name, fund_id, reference_invoice_code, note, creator, created_at, updated_at)
       VALUES (
         'PC' || LPAD(v_pc_seq::text, 6, '0'),
         r_exp.expense_date,
@@ -1169,7 +1178,8 @@ BEGIN
         ROUND(r_exp.amount)::bigint,
         'Đối tượng khác',
         CASE WHEN r_exp.category = 'MEDICINE' THEN 'Chi phí thuốc bổ Nhà A1' ELSE 'Vật tư chuồng nuôi Nhà A1' END,
-        v_cash_id,
+        v_farm_id,
+        'CE-' || r_exp.id,
         r_exp.note || ' (lứa Nhà A1)',
         'Trần Kế Toán',
         NOW(),
@@ -1178,17 +1188,15 @@ BEGIN
       v_pc_seq := v_pc_seq + 1;
     END LOOP;
 
-    -- 7. Chi lương tháng 10/2026 (khớp CC0004 - Trần Kế Toán; riêng CC0003 giữ 'Còn nợ lương')
+    -- F. Chi lương tháng 10/2026 (khớp CC0004 - Trần Kế Toán; riêng CC0003 giữ 'Còn nợ lương')
     INSERT INTO cash_transactions (code, tx_date, type, category, amount, contact, person_name, fund_id, reference_invoice_code, note, creator, created_at, updated_at)
     VALUES ('PC' || LPAD(v_pc_seq::text, 6, '0'), DATE '2026-10-31', 'Chi', 'Tiền lương công nhân', 12700000,
-            'Nhân sự', 'Trần Kế Toán', v_mb_id, 'CC0004', 'Thanh toán lương tháng 10/2026 (CC0004)', 'Admin', NOW(), NOW());
+            'Nhân sự', 'Trần Kế Toán', v_farm_id, 'CC0004', 'Thanh toán lương tháng 10/2026 (CC0004)', 'Admin', NOW(), NOW());
 
-    -- 8. Phiếu thu từ các đơn bán gà đã thu tiền (BH00001, BH00002)
+    -- G. Phiếu thu từ các đơn bán gà đã thu tiền (BH00001, BH00002)
     FOR r_so IN
-      SELECT so.code, so.date, ROUND(so.paid_amount)::bigint AS paid_amt, so.customer, so.status,
-             COALESCE(cc.payment_method, 'Chuyển khoản') AS pay_method
+      SELECT so.code, so.date, ROUND(so.paid_amount)::bigint AS paid_amt, so.customer
       FROM sales_orders so
-      LEFT JOIN customer_contacts cc ON cc.id = so.customer_id
       WHERE so.paid_amount > 0
       ORDER BY so.date ASC, so.code ASC
     LOOP
@@ -1201,35 +1209,22 @@ BEGIN
         r_so.paid_amt,
         'Khách hàng',
         r_so.customer,
-        CASE WHEN r_so.pay_method = 'Tiền mặt' OR r_so.status = 'PARTIAL' THEN v_cash_id ELSE v_mb_id END,
+        v_farm_id,
         r_so.code,
         'Thu tiền đơn bán gà ' || r_so.code || ' (' || r_so.customer || ')',
         'Trần Kế Toán',
         NOW(),
         NOW()
       );
-      IF (r_so.pay_method = 'Tiền mặt' OR r_so.status = 'PARTIAL') AND r_so.paid_amt >= 80000000 THEN
-        v_has_cash_sale := TRUE;
-      END IF;
       v_pt_seq := v_pt_seq + 1;
     END LOOP;
-
-    -- 9. Nộp bớt tiền mặt thu bán gà vào MB Bank
-    IF v_has_cash_sale THEN
-      INSERT INTO cash_fund_transfers (code, transfer_date, from_fund_id, to_fund_id, amount, fee, note, creator, created_at)
-      VALUES ('CQ000002', DATE '2026-11-11', v_cash_id, v_mb_id, 80000000, 0,
-              'Nộp tiền mặt thu bán gà vào tài khoản ngân hàng', 'Trần Kế Toán', NOW());
-    END IF;
-
-    -- 10. Tính lại số dư chính xác tuyệt đối cho 3 quỹ theo sổ cái Thu - Chi + Chuyển quỹ
-    --     (phí chuyển quỹ được ghi thành phiếu chi riêng nên chỉ trừ amount của phiếu chuyển)
-    UPDATE cash_funds cf
-    SET balance = COALESCE((SELECT SUM(CASE WHEN tx.type = 'Thu' THEN tx.amount ELSE -tx.amount END) FROM cash_transactions tx WHERE tx.fund_id = cf.id), 0)
-                + COALESCE((SELECT SUM(tr.amount) FROM cash_fund_transfers tr WHERE tr.to_fund_id = cf.id), 0)
-                - COALESCE((SELECT SUM(tr.amount) FROM cash_fund_transfers tr WHERE tr.from_fund_id = cf.id), 0),
-        updated_at = NOW()
-    WHERE cf.id IN (v_mb_id, v_cash_id, v_vcb_id);
   END IF;
+
+  -- H. Tính lại số dư chính xác tuyệt đối cho Quỹ trang trại theo sổ cái Thu - Chi
+  UPDATE cash_funds cf
+  SET balance = COALESCE((SELECT SUM(CASE WHEN tx.type = 'Thu' THEN tx.amount ELSE -tx.amount END) FROM cash_transactions tx WHERE tx.fund_id = cf.id), 0),
+      updated_at = NOW()
+  WHERE cf.id = v_farm_id;
 END $$;
 
 CREATE TABLE IF NOT EXISTS cycle_cost_allocations (

@@ -19,9 +19,7 @@ const DEFAULT_CASHBOOK_REPORT = {
     .reduce((sum, t) => sum + Number(t.amount || 0), 0),
   totalFundsBalance: 471570000,
   funds: [
-    { id: 'f-1', name: 'Tài khoản MB Bank (TK Chính)', fundType: 'BANK', bank: 'Ngân hàng Quân Đội', balance: 391070000 },
-    { id: 'f-2', name: 'Tiền mặt tại quỹ trại', fundType: 'CASH', bank: 'Quỹ thủ quỹ', balance: 30500000 },
-    { id: 'f-3', name: 'Tài khoản Vietcombank dự phòng', fundType: 'BANK', bank: 'Vietcombank', balance: 50000000 }
+    { id: 'f-1', name: 'Quỹ trang trại', fundType: 'BANK', bank: 'MB Bank & Quỹ tiền mặt trại', balance: 471570000 }
   ],
   transactions: INITIAL_FARMSHIFT_DATA.cashbook
 };
