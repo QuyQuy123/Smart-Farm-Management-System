@@ -113,15 +113,17 @@ describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categ
     expect(screen.getByRole('button', { name: /Mở đơn bán hàng/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Đóng chi tiết phiếu' }));
 
-    // Create a capital deposit voucher via preset + Lập phiếu thu
+    // Create a capital deposit voucher directly via Lập phiếu thu (defaults cleanly to Nạp vốn / Góp vốn)
     fireEvent.click(screen.getByRole('button', { name: /Lập phiếu thu/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Nạp vốn / Góp vốn' }));
+    expect(screen.getByLabelText(/Loại thu \/ chi/i).value).toBe('Nạp vốn / Góp vốn');
     fireEvent.change(screen.getByLabelText(/Số tiền \(đ\)/i), { target: { value: '50000000' } });
+    fireEvent.change(screen.getByLabelText(/Người nộp \/ nhận/i), { target: { value: 'Chủ trang trại' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu phiếu thu' }));
 
     await waitFor(() => expect(cashbookService.createCashTransaction).toHaveBeenCalledWith(expect.objectContaining({
       type: 'Thu',
       category: 'Nạp vốn / Góp vốn',
+      name: 'Chủ trang trại',
       amount: 50000000,
       fundId: 1
     })));

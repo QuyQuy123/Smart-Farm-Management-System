@@ -246,48 +246,6 @@ export const CashbookView = () => {
   const totalExpense = summaryTotals?.totalExpense ?? transactions.filter(t => t.type === 'Chi').reduce((sum, t) => sum + Number(t.amount || 0), 0);
   const totalFundsBalance = summaryTotals?.totalFundsBalance ?? funds.reduce((sum, f) => sum + Number(f.balance || 0), 0);
 
-  const TX_PRESETS = {
-    Thu: [
-      {
-        label: 'Nạp vốn / Góp vốn',
-        category: 'Nạp vốn / Góp vốn',
-        contact: 'Chủ trang trại',
-        name: 'Chủ trang trại',
-        note: 'Nạp bổ sung vốn lưu động vào Quỹ trang trại'
-      },
-      {
-        label: 'Thu khác',
-        category: 'Thu khác',
-        contact: 'Đối tượng khác',
-        name: '',
-        note: ''
-      }
-    ],
-    Chi: [
-      {
-        label: 'Rút vốn',
-        category: 'Rút vốn',
-        contact: 'Chủ trang trại',
-        name: 'Chủ trang trại',
-        note: 'Rút vốn / chia lợi nhuận từ Quỹ trang trại'
-      },
-      {
-        label: 'Tiền điện & nước trang trại',
-        category: 'Tiền điện & nước trang trại',
-        contact: 'Đối tượng khác',
-        name: 'Điện lực Tam Đảo',
-        note: 'Thanh toán tiền điện nước vận hành chuồng nuôi'
-      },
-      {
-        label: 'Chi phí khác',
-        category: 'Chi phí khác',
-        contact: 'Đối tượng khác',
-        name: '',
-        note: ''
-      }
-    ]
-  };
-
   const resolveDefaultTxCategory = (type) => {
     const matchingCats = txCategories.filter(c => c.type === type);
     const preferred = type === 'Thu'
@@ -299,17 +257,20 @@ export const CashbookView = () => {
     return matchingCats[0]?.name || (type === 'Thu' ? 'Thu khác' : 'Chi phí khác');
   };
 
+  const isCapitalCategory = (categoryName) => (
+    categoryName === 'Nạp vốn / Góp vốn' || categoryName === 'Rút vốn'
+  );
+
   const openCreateTxModal = (type) => {
     const defaultFund = funds[0];
     const defaultCategory = resolveDefaultTxCategory(type);
-    const preset = (TX_PRESETS[type] || []).find(p => p.category === defaultCategory);
     setModalType(type);
     setEditingTxId(null);
     setTxForm({
       date: new Date().toISOString().split('T')[0],
       category: defaultCategory,
       amount: '',
-      contact: preset?.contact || (type === 'Thu' ? 'Chủ trang trại' : 'Đối tượng khác'),
+      contact: isCapitalCategory(defaultCategory) ? 'Chủ trang trại' : 'Đối tượng khác',
       name: '',
       fundId: defaultFund ? String(defaultFund.id) : '',
       note: ''
@@ -333,20 +294,6 @@ export const CashbookView = () => {
       note: tx.note || ''
     });
     setTxModalMode('edit');
-  };
-
-  const applyTxPreset = (preset) => {
-    const matchingCats = txCategories.filter(c => c.type === modalType);
-    const targetCategory = matchingCats.some(c => c.name === preset.category)
-      ? preset.category
-      : resolveDefaultTxCategory(modalType);
-    setTxForm(prev => ({
-      ...prev,
-      category: targetCategory,
-      contact: preset.contact || prev.contact,
-      name: preset.name || prev.name,
-      note: preset.note || prev.note
-    }));
   };
 
   const handleSaveTx = async (e) => {
@@ -1869,49 +1816,98 @@ export const CashbookView = () => {
 
       {/* ── Modal: Lập / Sửa phiếu thu chi trực tiếp (FIN-08) ─ */}
       {txModalMode && (() => {
+        const isIncomeModal = modalType === 'Thu';
         const enteredAmt = Number(txForm.amount) || 0;
         const currentFundBalance = Number(txModalFund?.balance || 0);
         const editingOldTx = txModalMode === 'edit' ? transactions.find(t => t.id === editingTxId) : null;
         const oldSignedSameFund = editingOldTx && String(editingOldTx.fundId) === String(txModalFund?.id)
           ? (editingOldTx.type === 'Thu' ? Number(editingOldTx.amount || 0) : -Number(editingOldTx.amount || 0))
           : 0;
-        const newSigned = modalType === 'Thu' ? enteredAmt : -enteredAmt;
+        const newSigned = isIncomeModal ? enteredAmt : -enteredAmt;
         const projectedBalance = currentFundBalance - oldSignedSameFund + newSigned;
-        const activePresets = TX_PRESETS[modalType] || [];
+        const orderedCategories = [...categoryOptionsForModal].sort((a, b) => {
+          const priority = {
+            'Nạp vốn / Góp vốn': 1,
+            'Thu khác': 2,
+            'Rút vốn': 1,
+            'Tiền điện & nước trang trại': 2,
+            'Chi phí khác': 3
+          };
+          return (priority[a.name] || 10) - (priority[b.name] || 10);
+        });
 
         return (
           <div className="farmshift-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget && !txSaving) setTxModalMode(null); }}>
             <div className="farmshift-modal" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
-              <div className="farmshift-modal-header">
-                <h3 className="farmshift-modal-title">
-                  {txModalMode === 'edit'
-                    ? `Cập nhật phiếu ${modalType.toLowerCase()}`
-                    : modalType === 'Thu' ? 'Lập phiếu thu tiền' : 'Lập phiếu chi tiền'}
-                </h3>
-                <button type="button" onClick={() => !txSaving && setTxModalMode(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}>
+              <div className="farmshift-modal-header" style={{ alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span className={`farmshift-badge ${isIncomeModal ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}>
+                      {isIncomeModal ? '↑ Phiếu thu' : '↓ Phiếu chi'}
+                    </span>
+                    <h3 className="farmshift-modal-title" style={{ margin: 0 }}>
+                      {txModalMode === 'edit'
+                        ? `Cập nhật phiếu ${modalType.toLowerCase()}`
+                        : isIncomeModal ? 'Lập phiếu thu tiền' : 'Lập phiếu chi tiền'}
+                    </h3>
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', marginTop: '4px' }}>
+                    {txModalFund
+                      ? `Hạch toán trực tiếp tại ${txModalFund.name}`
+                      : 'Ghi nhận thu / chi trực tiếp vào Quỹ trang trại'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Đóng biểu mẫu phiếu"
+                  onClick={() => !txSaving && setTxModalMode(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)', fontSize: '16px', padding: '2px 4px' }}
+                >
                   ✕
                 </button>
               </div>
+
               <form onSubmit={handleSaveTx}>
-                <div className="farmshift-modal-body">
-                  {txModalMode === 'create' && activePresets.length > 0 && (
-                    <div className={styles.presetRow}>
-                      <span className={styles.presetLabel}>Mẫu nhanh:</span>
-                      {activePresets.map(preset => (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          className={`${styles.presetBtn} ${txForm.category === preset.category ? styles.presetBtnActive : ''}`}
-                          onClick={() => applyTxPreset(preset)}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
+                <div className={`farmshift-modal-body ${styles.txModalBody}`}>
+                  {funds.length <= 1 ? (
+                    <div className={`${styles.txFundStrip} ${isIncomeModal ? styles.txFundStripIncome : styles.txFundStripExpense}`}>
+                      <div>
+                        <div className={styles.txFundName}>{txModalFund?.name || 'Quỹ trang trại'}</div>
+                        <div className={styles.txFundBalance}>
+                          Tồn hiện tại: <strong>{currentFundBalance.toLocaleString('vi-VN')} đ</strong>
+                        </div>
+                      </div>
+                      <div
+                        className={styles.txFundProjected}
+                        style={{
+                          color: projectedBalance < 0
+                            ? 'var(--color-danger)'
+                            : isIncomeModal ? 'var(--color-success)' : 'var(--color-signature-coral)'
+                        }}
+                      >
+                        {enteredAmt > 0
+                          ? `Sau phiếu: ${projectedBalance.toLocaleString('vi-VN')} đ`
+                          : (isIncomeModal ? '+ Tăng tồn quỹ' : '− Giảm tồn quỹ')}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="farmshift-form-group">
+                      <label htmlFor="tx-fund" className="farmshift-form-label">Nguồn quỹ *</label>
+                      <select
+                        id="tx-fund"
+                        className="farmshift-form-control"
+                        value={txForm.fundId}
+                        onChange={(e) => setTxForm({ ...txForm, fundId: e.target.value })}
+                      >
+                        {funds.map(f => (
+                          <option key={f.id} value={f.id}>{f.name} ({Number(f.balance || 0).toLocaleString('vi-VN')} đ)</option>
+                        ))}
+                      </select>
                     </div>
                   )}
 
                   {txModalMode === 'edit' && (
-                    <div className="farmshift-form-group" style={{ marginBottom: '12px' }}>
+                    <div className="farmshift-form-group">
                       <label htmlFor="tx-type" className="farmshift-form-label">Phân loại phiếu *</label>
                       <select
                         id="tx-type"
@@ -1929,16 +1925,25 @@ export const CashbookView = () => {
                     </div>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div className={styles.txGrid2}>
                     <div className="farmshift-form-group">
                       <label htmlFor="tx-category" className="farmshift-form-label">Loại thu / chi *</label>
                       <select
                         id="tx-category"
                         className="farmshift-form-control"
                         value={txForm.category}
-                        onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}
+                        onChange={(e) => {
+                          const nextCategory = e.target.value;
+                          setTxForm(prev => ({
+                            ...prev,
+                            category: nextCategory,
+                            contact: txModalMode === 'create'
+                              ? (isCapitalCategory(nextCategory) ? 'Chủ trang trại' : 'Đối tượng khác')
+                              : prev.contact
+                          }));
+                        }}
                       >
-                        {categoryOptionsForModal.map(cat => (
+                        {orderedCategories.map(cat => (
                           <option key={cat.id || cat.name} value={cat.name}>{cat.name}</option>
                         ))}
                       </select>
@@ -1956,55 +1961,31 @@ export const CashbookView = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                    <div className="farmshift-form-group">
+                  <div className="farmshift-form-group">
+                    <div className={styles.txLabelRow}>
                       <label htmlFor="tx-amount" className="farmshift-form-label">Số tiền (đ) *</label>
-                      <input
-                        id="tx-amount"
-                        type="number"
-                        min="1"
-                        required
-                        placeholder="VD: 50000000"
-                        className="farmshift-form-control"
-                        value={txForm.amount}
-                        onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
-                      />
-                      {enteredAmt > 0 && txModalFund && (
-                        <div
-                          className={styles.balancePreview}
-                          style={{ color: projectedBalance < 0 ? 'var(--color-danger)' : 'var(--color-muted)' }}
+                      {enteredAmt > 0 && (
+                        <span
+                          className={styles.txFormattedAmt}
+                          style={{ color: isIncomeModal ? 'var(--color-success)' : 'var(--color-signature-coral)' }}
                         >
-                          Dự kiến tồn sau phiếu: <strong>{projectedBalance.toLocaleString('vi-VN')} đ</strong>
-                        </div>
+                          {isIncomeModal ? '+' : '−'}{enteredAmt.toLocaleString('vi-VN')} đ
+                        </span>
                       )}
                     </div>
-                    <div className="farmshift-form-group">
-                      {funds.length <= 1 ? (
-                        <>
-                          <span className="farmshift-form-label">Nguồn quỹ *</span>
-                          <div className="farmshift-form-control" style={{ background: 'var(--bg-soft, #f6f8f7)', display: 'flex', alignItems: 'center' }}>
-                            {txModalFund ? `${txModalFund.name} (${currentFundBalance.toLocaleString('vi-VN')} đ)` : 'Quỹ trang trại'}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <label htmlFor="tx-fund" className="farmshift-form-label">Nguồn quỹ *</label>
-                          <select
-                            id="tx-fund"
-                            className="farmshift-form-control"
-                            value={txForm.fundId}
-                            onChange={(e) => setTxForm({ ...txForm, fundId: e.target.value })}
-                          >
-                            {funds.map(f => (
-                              <option key={f.id} value={f.id}>{f.name} ({Number(f.balance || 0).toLocaleString('vi-VN')} đ)</option>
-                            ))}
-                          </select>
-                        </>
-                      )}
-                    </div>
+                    <input
+                      id="tx-amount"
+                      type="number"
+                      min="1"
+                      required
+                      placeholder="Nhập số tiền (VD: 50000000)"
+                      className={`farmshift-form-control ${styles.txAmountInput}`}
+                      value={txForm.amount}
+                      onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
+                    />
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div className={styles.txGrid2}>
                     <div className="farmshift-form-group">
                       <label htmlFor="tx-contact" className="farmshift-form-label">Nhóm đối tượng</label>
                       <select
@@ -2027,7 +2008,13 @@ export const CashbookView = () => {
                         id="tx-name"
                         type="text"
                         required
-                        placeholder={modalType === 'Thu' ? 'VD: Chủ trang trại, Nguyễn Văn A...' : 'VD: Chủ trang trại, Điện lực Tam Đảo...'}
+                        placeholder={
+                          isCapitalCategory(txForm.category)
+                            ? 'VD: Chủ trang trại, Cổ đông góp vốn...'
+                            : isIncomeModal
+                              ? 'VD: Nguyễn Văn A, Đối tác...'
+                              : 'VD: Điện lực Tam Đảo, Đơn vị dịch vụ...'
+                        }
                         className="farmshift-form-control"
                         value={txForm.name}
                         onChange={(e) => setTxForm({ ...txForm, name: e.target.value })}
@@ -2040,8 +2027,15 @@ export const CashbookView = () => {
                     <textarea
                       id="tx-note"
                       rows="2"
-                      placeholder="VD: Nạp vốn lưu động bổ sung, rút vốn chia lợi nhuận, tiền điện nước..."
+                      placeholder={
+                        txForm.category === 'Nạp vốn / Góp vốn'
+                          ? 'VD: Nạp bổ sung vốn lưu động nhập giống, cám cho trại...'
+                          : txForm.category === 'Rút vốn'
+                            ? 'VD: Rút vốn hoặc tạm ứng phân chia lợi nhuận lứa...'
+                            : 'Mô tả cụ thể lý do thu / chi...'
+                      }
                       className="farmshift-form-control"
+                      style={{ minHeight: '72px' }}
                       value={txForm.note}
                       onChange={(e) => setTxForm({ ...txForm, note: e.target.value })}
                     />
