@@ -21,13 +21,15 @@ public class SalesOrderService {
  private final BarnRepository barns;
  private final FlockRepository flocks;
  private final FlockMovementRepository movements;
+ private final CashbookService cashbookService;
 
  @Autowired
  public SalesOrderService(SalesOrderRepository orders, CustomerContactRepository customers,
                           SalesInvoiceCodeService codes,
                           com.farmshift.backendFarmShift.service.ocr.WeightSlipStorage weightSlipStorage,
                           FarmingCycleRepository cycles, BarnRepository barns,
-                          FlockRepository flocks, FlockMovementRepository movements) {
+                          FlockRepository flocks, FlockMovementRepository movements,
+                          CashbookService cashbookService) {
   this.orders = orders;
   this.customers = customers;
   this.codes = codes;
@@ -36,12 +38,21 @@ public class SalesOrderService {
   this.barns = barns;
   this.flocks = flocks;
   this.movements = movements;
+  this.cashbookService = cashbookService;
+ }
+
+ public SalesOrderService(SalesOrderRepository orders, CustomerContactRepository customers,
+                          SalesInvoiceCodeService codes,
+                          com.farmshift.backendFarmShift.service.ocr.WeightSlipStorage weightSlipStorage,
+                          FarmingCycleRepository cycles, BarnRepository barns,
+                          FlockRepository flocks, FlockMovementRepository movements) {
+  this(orders, customers, codes, weightSlipStorage, cycles, barns, flocks, movements, null);
  }
 
  public SalesOrderService(SalesOrderRepository orders, CustomerContactRepository customers,
                           SalesInvoiceCodeService codes,
                           com.farmshift.backendFarmShift.service.ocr.WeightSlipStorage weightSlipStorage) {
-  this(orders, customers, codes, weightSlipStorage, null, null, null, null);
+  this(orders, customers, codes, weightSlipStorage, null, null, null, null, null);
  }
 
  @Transactional
@@ -120,7 +131,18 @@ public class SalesOrderService {
    applyHarvest(order, request, cycle);
   }
 
-  return orders.save(order);
+  SalesOrder saved = orders.save(order);
+  if (cashbookService != null) {
+   cashbookService.syncSalesReceipt(
+     request.cashFundId(),
+     saved.getDate(),
+     saved.getPaidAmount(),
+     saved.getCustomer(),
+     saved.getCode(),
+     saved.getNote()
+   );
+  }
+  return saved;
  }
 
  private void revertPreviousHarvest(SalesOrder order) {

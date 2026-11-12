@@ -71,7 +71,7 @@ public class FlockService {
         barn.setCurrentQuantity(barn.getCurrentQuantity() + request.quantity());
         // Mua ngoài có nhà cung cấp và có tiền thì ghi luôn hóa đơn nhập hàng (công nợ nhà cung cấp, chi phí con giống).
         PurchaseInvoice invoice = supplier != null && request.unitPrice().signum() > 0
-                ? purchaseService.createForFlock(flock, supplier, request.paymentStatus()) : null;
+                ? purchaseService.createForFlock(flock, supplier, request.paymentStatus(), request.cashFundId()) : null;
         return flockResponse(flock, today(), true, invoice);
     }
 

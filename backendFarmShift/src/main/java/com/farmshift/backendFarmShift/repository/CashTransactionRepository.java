@@ -13,6 +13,12 @@ public interface CashTransactionRepository extends JpaRepository<CashTransaction
 
     Optional<CashTransaction> findByCode(String code);
 
+    Optional<CashTransaction> findFirstByReferenceInvoiceCodeOrderByIdDesc(String referenceInvoiceCode);
+
+    Optional<CashTransaction> findFirstByReferenceInvoiceCodeAndTypeOrderByIdDesc(String referenceInvoiceCode, String type);
+
+    long countByCodeStartingWith(String prefix);
+
     boolean existsByFund_Id(Long fundId);
 
     boolean existsByCategoryIgnoreCaseAndTypeIgnoreCase(String category, String type);

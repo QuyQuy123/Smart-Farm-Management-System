@@ -9,6 +9,7 @@ import * as supplierService from '../services/supplierService';
 import * as productTypeService from '../services/productTypeService';
 import * as productCategoryService from '../services/inventoryItemService';
 import * as debtService from '../services/debtService';
+import * as cashbookService from '../services/cashbookService';
 
 const mockToast = vi.fn();
 const mockUser = { role: 'ROLE_FARM_OWNER', fullName: 'Chủ Trại Test' };
@@ -1134,6 +1135,43 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       expect(await screen.findByText('Thông tin Lô hàng & Hạn sử dụng (INV-05)')).toBeInTheDocument();
       expect(screen.getByText('LOT-CP-2026')).toBeInTheDocument();
       expect(screen.getByAltText('Ảnh chứng từ NH000000')).toHaveAttribute('src', '/img/purchases/scanned-po.png');
+    });
+
+    it('lets user choose a cash fund on paid PO creation and submits cashFundId', async () => {
+      cashbookService.listCashFunds.mockResolvedValueOnce([
+        { id: 1, name: 'Tài khoản MB Bank (TK Chính)', fundType: 'BANK', balance: 391070000, active: true },
+        { id: 2, name: 'Tiền mặt tại quỹ trại', fundType: 'CASH', balance: 30500000, active: true }
+      ]);
+      render(
+        <MemoryRouter>
+          <PurchasesView />
+        </MemoryRouter>
+      );
+      await screen.findByText('NH000000');
+
+      fireEvent.click(screen.getByRole('button', { name: /Tạo đơn nhập hàng/i }));
+      expect(await screen.findByText('Tạo mới đơn nhập hàng')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText(/Trạng thái thanh toán/i), { target: { value: 'Thanh toán hoàn tất' } });
+      const fundSelect = await screen.findByLabelText(/Chi từ nguồn quỹ/i);
+      expect(fundSelect.value).toBe('1');
+      fireEvent.change(fundSelect, { target: { value: '2' } });
+
+      fireEvent.change(screen.getByLabelText(/Nhà cung cấp \*/i), { target: { value: '1' } });
+      await waitFor(() => expect(screen.getAllByRole('combobox', { name: /Tên hàng hóa/ })[0]).toBeEnabled());
+      fireEvent.change(screen.getAllByRole('combobox', { name: /Tên hàng hóa/ })[0], { target: { value: '1' } });
+      fireEvent.change(screen.getAllByPlaceholderText('0')[0], { target: { value: '300000' } });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu hóa đơn nhập' }));
+
+      await waitFor(() => {
+        expect(purchaseService.createPurchase).toHaveBeenCalledWith(
+          expect.objectContaining({
+            paymentStatus: 'Thanh toán hoàn tất',
+            cashFundId: 2
+          })
+        );
+      });
     });
   });
 });

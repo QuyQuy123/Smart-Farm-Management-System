@@ -15,10 +15,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -121,9 +124,14 @@ public class CashbookService {
         }
         CashFund fund = new CashFund();
         applyFundFields(fund, request, name);
+        fund.setBalance(request.balance());
         return toFundResponse(fundRepository.saveAndFlush(fund));
     }
 
+    /**
+     * Updates fund metadata only. The balance is ledger-derived (vouchers & transfers),
+     * so it is never overwritten from the request to avoid stale-form drift.
+     */
     @Transactional
     public FundResponse updateFund(Long id, CashFundRequest request) {
         CashFund fund = findFund(id);
@@ -140,6 +148,9 @@ public class CashbookService {
         CashFund fund = findFund(id);
         if (transactionRepository.existsByFund_Id(id) || transferRepository.existsByFromFund_IdOrToFund_Id(id, id)) {
             throw new ConflictException("Nguồn quỹ đã phát sinh giao dịch hoặc chuyển quỹ nên không thể xóa.", "CASH_FUND_IN_USE", null);
+        }
+        if (fund.getBalance() != null && fund.getBalance() != 0L) {
+            throw new ConflictException("Nguồn quỹ vẫn còn số dư nên không thể xóa. Vui lòng chuyển hết số dư sang quỹ khác trước.", "CASH_FUND_HAS_BALANCE", null);
         }
         fundRepository.delete(fund);
     }
@@ -174,14 +185,13 @@ public class CashbookService {
     public TransactionResponse updateTransaction(Long id, CashTransactionRequest request) {
         CashTransaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiếu thu / chi."));
+        requireManualVoucher(tx, "sửa");
         String newType = normalizeTxType(request.type());
 
         Long oldFundId = tx.getFund().getId();
         CashFund oldFund = findFund(oldFundId);
-        reverseBalanceDelta(oldFund, tx.getType(), tx.getAmount());
-
         CashFund targetFund = oldFundId.equals(request.fundId()) ? oldFund : findFund(request.fundId());
-        applyBalanceDelta(targetFund, newType, request.amount());
+        moveVoucherBalance(oldFund, tx.getType(), tx.getAmount(), targetFund, newType, request.amount());
 
         tx.setTxDate(request.date());
         tx.setType(newType);
@@ -199,9 +209,24 @@ public class CashbookService {
     public void deleteTransaction(Long id) {
         CashTransaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiếu thu / chi."));
+        requireManualVoucher(tx, "xóa");
         CashFund fund = findFund(tx.getFund().getId());
         reverseBalanceDelta(fund, tx.getType(), tx.getAmount());
         transactionRepository.delete(tx);
+    }
+
+    /**
+     * Vouchers auto-generated from source documents (purchase invoice, sales order, payroll, fund transfer fee)
+     * must be adjusted at the source document so both modules stay in sync.
+     */
+    private static void requireManualVoucher(CashTransaction tx, String action) {
+        String ref = tx.getReferenceInvoiceCode();
+        if (ref != null && !ref.isBlank()) {
+            throw new ConflictException(
+                    "Phiếu " + tx.getCode() + " được sinh tự động từ chứng từ " + ref
+                            + " nên không thể " + action + " trực tiếp tại Sổ quỹ. Vui lòng điều chỉnh tại chứng từ gốc.",
+                    "CASH_TX_LINKED", null);
+        }
     }
 
     @Transactional
@@ -212,8 +237,14 @@ public class CashbookService {
         CashFund fromFund = findFund(request.fromFundId());
         CashFund toFund = findFund(request.toFundId());
         long fee = request.fee() != null ? request.fee() : 0L;
+        if (fee < 0) {
+            throw new BadRequestException("Phí chuyển quỹ không được âm.");
+        }
         long totalDeduct = request.amount() + fee;
-        if (fundRepository.takeBalance(fromFund.getId(), totalDeduct) == 0) {
+        if (fromFund.getBalance() == null || fromFund.getBalance() < totalDeduct) {
+            throw new BadRequestException("Số dư quỹ nguồn (" + fromFund.getName() + ") không đủ để thực hiện chuyển quỹ.");
+        }
+        if (fundRepository.takeBalance(fromFund.getId(), request.amount()) == 0) {
             throw new BadRequestException("Số dư quỹ nguồn (" + fromFund.getName() + ") không đủ để thực hiện chuyển quỹ.");
         }
         fundRepository.addBalance(toFund.getId(), request.amount());
@@ -229,8 +260,34 @@ public class CashbookService {
         transfer.setFee(fee);
         transfer.setNote(request.note() != null ? request.note().strip() : "");
         transfer.setCreator(currentActorName());
+        CashFundTransfer saved = transferRepository.saveAndFlush(transfer);
 
-        return toTransferResponse(transferRepository.saveAndFlush(transfer));
+        // Phí chuyển khoản là chi phí thật -> ghi phiếu chi để Tổng thu - Tổng chi luôn khớp tổng tồn quỹ.
+        if (fee > 0) {
+            applyBalanceDelta(fromFund, "Chi", fee);
+            CashTransaction feeTx = new CashTransaction();
+            feeTx.setCode(nextTxCode("Chi"));
+            feeTx.setTxDate(request.date());
+            feeTx.setType("Chi");
+            feeTx.setCategory("Chi phí khác");
+            feeTx.setAmount(fee);
+            feeTx.setContact("Đối tượng khác");
+            feeTx.setPersonName(fromFund.getBank() != null && !fromFund.getBank().isBlank() ? fromFund.getBank() : fromFund.getName());
+            feeTx.setFund(fromFund);
+            feeTx.setReferenceInvoiceCode(saved.getCode());
+            feeTx.setNote("Phí chuyển quỹ " + saved.getCode() + " (" + fromFund.getName() + " → " + toFund.getName() + ")");
+            feeTx.setCreator(currentActorName());
+            transactionRepository.save(feeTx);
+        }
+
+        return toTransferResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public String resolveFundPaymentMethod(Long cashFundId) {
+        if (cashFundId == null) return "Tiền mặt";
+        CashFund fund = findFund(cashFundId);
+        return "CASH".equalsIgnoreCase(fund.getFundType()) ? "Tiền mặt" : "Chuyển khoản";
     }
 
     /**
@@ -238,6 +295,11 @@ public class CashbookService {
      */
     @Transactional
     public void recordPurchaseDisbursement(Long cashFundId, LocalDate date, long amount, String supplierName, String invoiceCode, String note) {
+        recordPurchaseDisbursement(cashFundId, date, amount, supplierName, invoiceCode, "Thanh toán công nợ NCC", note);
+    }
+
+    @Transactional
+    public void recordPurchaseDisbursement(Long cashFundId, LocalDate date, long amount, String supplierName, String invoiceCode, String category, String note) {
         if (cashFundId == null || amount <= 0) return;
         CashFund fund = findFund(cashFundId);
         if (fundRepository.takeBalance(fund.getId(), amount) == 0) {
@@ -249,13 +311,73 @@ public class CashbookService {
         tx.setCode(nextTxCode("Chi"));
         tx.setTxDate(date != null ? date : LocalDate.now(VN_ZONE));
         tx.setType("Chi");
-        tx.setCategory("Thanh toán công nợ NCC");
+        tx.setCategory(category != null && !category.isBlank() ? category.strip() : "Thanh toán công nợ NCC");
         tx.setAmount(amount);
         tx.setContact("Nhà cung cấp");
         tx.setPersonName(supplierName != null ? supplierName : "Nhà cung cấp");
         tx.setFund(fund);
         tx.setReferenceInvoiceCode(invoiceCode);
         tx.setNote(note != null && !note.isBlank() ? note.strip() : "Chi thanh toán hóa đơn nhập " + invoiceCode);
+        tx.setCreator(currentActorName());
+
+        transactionRepository.save(tx);
+    }
+
+    /**
+     * Synchronizes a cash receipt voucher when creating or updating a sales order with a selected CashFund.
+     * Passing cashFundId == null on creation leaves Cashbook untouched for backward compatibility.
+     */
+    @Transactional
+    public void syncSalesReceipt(Long cashFundId, LocalDate date, BigDecimal paidAmount, String customerName, String orderCode, String note) {
+        long paid = paidAmount == null ? 0L : paidAmount.setScale(0, RoundingMode.HALF_UP).longValueExact();
+        Optional<CashTransaction> existingOpt = (orderCode != null && !orderCode.isBlank())
+                ? transactionRepository.findFirstByReferenceInvoiceCodeAndTypeOrderByIdDesc(orderCode, "Thu")
+                : Optional.empty();
+
+        if (existingOpt.isPresent()) {
+            CashTransaction existing = existingOpt.get();
+            CashFund oldFund = findFund(existing.getFund().getId());
+            if (paid <= 0) {
+                reverseBalanceDelta(oldFund, existing.getType(), existing.getAmount());
+                transactionRepository.delete(existing);
+                return;
+            }
+            CashFund targetFund = cashFundId != null
+                    ? (oldFund.getId().equals(cashFundId) ? oldFund : findFund(cashFundId))
+                    : oldFund;
+            moveVoucherBalance(oldFund, existing.getType(), existing.getAmount(), targetFund, "Thu", paid);
+            existing.setTxDate(date != null ? date : LocalDate.now(VN_ZONE));
+            existing.setType("Thu");
+            existing.setCategory("Đơn bán gà");
+            existing.setAmount(paid);
+            existing.setContact("Khách hàng");
+            existing.setPersonName(customerName != null && !customerName.isBlank() ? customerName.strip() : "Khách hàng");
+            existing.setFund(targetFund);
+            existing.setNote(note != null && !note.isBlank()
+                    ? note.strip() + " (" + orderCode + ")"
+                    : "Thu tiền đơn bán " + orderCode);
+            transactionRepository.save(existing);
+            return;
+        }
+
+        if (cashFundId == null || paid <= 0) return;
+
+        CashFund fund = findFund(cashFundId);
+        applyBalanceDelta(fund, "Thu", paid);
+
+        CashTransaction tx = new CashTransaction();
+        tx.setCode(nextTxCode("Thu"));
+        tx.setTxDate(date != null ? date : LocalDate.now(VN_ZONE));
+        tx.setType("Thu");
+        tx.setCategory("Đơn bán gà");
+        tx.setAmount(paid);
+        tx.setContact("Khách hàng");
+        tx.setPersonName(customerName != null && !customerName.isBlank() ? customerName.strip() : "Khách hàng");
+        tx.setFund(fund);
+        tx.setReferenceInvoiceCode(orderCode);
+        tx.setNote(note != null && !note.isBlank()
+                ? note.strip() + " (" + orderCode + ")"
+                : "Thu tiền đơn bán " + orderCode);
         tx.setCreator(currentActorName());
 
         transactionRepository.save(tx);
@@ -506,7 +628,6 @@ public class CashbookService {
         fund.setBank(request.bank().strip());
         String type = request.fundType() != null && request.fundType().equalsIgnoreCase("CASH") ? "CASH" : "BANK";
         fund.setFundType(type);
-        fund.setBalance(request.balance());
         fund.setNote(request.note() != null ? request.note().strip() : "");
         fund.setActive(true);
     }
@@ -539,9 +660,33 @@ public class CashbookService {
         entityManager.refresh(fund);
     }
 
+    /**
+     * Moves a voucher's balance effect from (oldFund, oldType, oldAmount) to (newFund, newType, newAmount).
+     * On the same fund only the net difference is applied, so editing a receipt whose money was already
+     * spent does not fail on an intermediate full reversal.
+     */
+    private void moveVoucherBalance(CashFund oldFund, String oldType, long oldAmount,
+                                    CashFund newFund, String newType, long newAmount) {
+        if (oldFund.getId().equals(newFund.getId())) {
+            long net = signed(newType, newAmount) - signed(oldType, oldAmount);
+            if (net > 0) {
+                applyBalanceDelta(newFund, "Thu", net);
+            } else if (net < 0) {
+                applyBalanceDelta(newFund, "Chi", -net);
+            }
+            return;
+        }
+        reverseBalanceDelta(oldFund, oldType, oldAmount);
+        applyBalanceDelta(newFund, newType, newAmount);
+    }
+
+    private static long signed(String type, long amount) {
+        return "Thu".equalsIgnoreCase(type) ? amount : -amount;
+    }
+
     private String nextTxCode(String type) {
         String prefix = "Thu".equalsIgnoreCase(type) ? "PT" : "PC";
-        long num = transactionRepository.count() + 1;
+        long num = transactionRepository.countByCodeStartingWith(prefix) + 1;
         String code = String.format(Locale.ROOT, "%s%06d", prefix, num);
         while (transactionRepository.findByCode(code).isPresent()) {
             num++;

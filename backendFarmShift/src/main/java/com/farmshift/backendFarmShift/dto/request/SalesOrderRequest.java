@@ -17,14 +17,20 @@ public record SalesOrderRequest(
  @Size(max=5000) String note,
  @Size(max=50) String taxCode,
  @Size(max=100) String paymentMethod,
- Long cycleId) {
+ Long cycleId,
+ Long cashFundId) {
  public SalesOrderRequest(String id, LocalDate date, String customer, String phone, String address, String flock,
                           int quantity, BigDecimal totalWeight, BigDecimal unitPrice, String status, BigDecimal paidAmount, String note) {
-  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,null,null,null);
+  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,null,null,null,null);
  }
  public SalesOrderRequest(String id, LocalDate date, String customer, String phone, String address, String flock,
                           int quantity, BigDecimal totalWeight, BigDecimal unitPrice, String status, BigDecimal paidAmount, String note,
                           String taxCode, String paymentMethod) {
-  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,taxCode,paymentMethod,null);
+  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,taxCode,paymentMethod,null,null);
+ }
+ public SalesOrderRequest(String id, LocalDate date, String customer, String phone, String address, String flock,
+                          int quantity, BigDecimal totalWeight, BigDecimal unitPrice, String status, BigDecimal paidAmount, String note,
+                          String taxCode, String paymentMethod, Long cycleId) {
+  this(id,date,customer,phone,address,flock,quantity,totalWeight,unitPrice,status,paidAmount,note,taxCode,paymentMethod,cycleId,null);
  }
 }

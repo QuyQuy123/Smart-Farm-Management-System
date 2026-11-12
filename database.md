@@ -547,6 +547,7 @@ Entity: `PurchaseInvoiceItem`. Danh sách từng mặt hàng cụ thể trong đ
 - `GET /api/purchases?search=...&paymentStatus=...`: Tìm kiếm, lọc hóa đơn nhập hàng.
 - `GET /api/purchases/{id}`: Xem chi tiết hóa đơn kèm danh sách mặt hàng, số lô/HSD, ảnh hóa đơn (`attachmentUrl`) và thẻ tags.
 - `POST /api/purchases`: Tạo mới hóa đơn. Tự động tăng tồn kho nếu chọn `stock_status = 'Đã nhập kho'` và ghi nhận giao dịch vào `purchase_payments` nếu `paid_amount > 0` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `POST /api/purchases`: Tạo hóa đơn nhập hàng; nếu thanh toán ngay (`paidAmount > 0`) và truyền `cashFundId`, tự động ghi nhận `purchase_payments` và lập phiếu chi Sổ quỹ tương ứng (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/purchases/{id}/import-stock`: Xác nhận nhập kho cho các đơn tạo trước ở trạng thái `'Chưa nhập kho'` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`, `ROLE_FARM_WORKER`).
 - `POST /api/purchases/{id}/pay`: Ghi nhận thanh toán bổ sung cho hóa đơn trả sau (`{amount, note, cashFundId?}`), đồng thời lưu `purchase_payments` và tự động trừ số dư / tạo phiếu chi `cash_transactions` nếu truyền `cashFundId` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/purchases/{id}/cancel` (hoặc `DELETE /{id}`): Hủy đơn nhập hàng, tự động hoàn trả tồn kho nếu đã nhập trước đó (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
@@ -886,7 +887,7 @@ Entity: `SalesOrder`. Quản lý chứng từ xuất bán gà thương phẩm, t
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | VARCHAR(255) | PRIMARY KEY. Định danh đơn hàng (UUID). |
-| `code` | VARCHAR(255) | NOT NULL, UNIQUE. Mã chứng từ bán hàng tự sinh dạng `BH000001` (nâng cấp từ mã `BH<32-hex>` cũ qua `SalesInvoiceCodeMigration`). |
+| `code` | VARCHAR(255) | NOT NULL, UNIQUE. Mã chứng từ bán hàng tự sinh dạng `BH00001` (nâng cấp từ mã `BH<32-hex>` cũ qua `SalesInvoiceCodeMigration`). |
 | `date` | DATE | Ngày xuất bán trên chứng từ. |
 | `customer` | VARCHAR(255) | Tên khách hàng / thương lái thu mua. |
 | `phone` | VARCHAR(255) | Số điện thoại người mua. |
@@ -907,19 +908,21 @@ Entity: `SalesOrder`. Quản lý chứng từ xuất bán gà thương phẩm, t
 
 ### 7.2 Bảng `sales_invoice_numbers` — Bộ đếm mã hóa đơn bán hàng
 
-Entity: `SalesInvoiceNumber`. Quản lý chuỗi số tự tăng để cấp phát mã đơn bán hàng `BH000001`, `BH000002`...
+Entity: `SalesInvoiceNumber`. Quản lý chuỗi số tự tăng để cấp phát mã đơn bán hàng `BH00001`, `BH00002`...
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
-| `id` | BIGSERIAL | PRIMARY KEY, tự tăng (`GenerationType.IDENTITY`). Dùng làm số thứ tự sinh mã `BH%06d`. |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng (`GenerationType.IDENTITY`). Dùng làm số thứ tự sinh mã `BH%05d`. |
 
 **Quy tắc nghiệp vụ & Tương tác Xuất bán:**
 1. **Tự động trừ đàn & cộng doanh thu lứa nuôi (`applyHarvest` / `revertPreviousHarvest`)**:
    - Khi tạo đơn bán hàng (`POST /api/sales/orders`) có gắn `cycleId` (hoặc khớp tên chuồng/đàn), hệ thống tự động trừ `quantity` vào `Flock.quantity` và `Barn.currentQuantity`, đồng thời tạo bản ghi `FlockMovement` (`type = HARVEST`, `quantity`, `weightKg = totalWeight`, `unitPrice`). Nhờ đó báo cáo lứa nuôi (`CycleService.metrics()`) tự động cộng dồn sản lượng thịt xuất chuồng và doanh thu thực tế của lứa.
    - Khi cập nhật đơn bán hàng (`PUT /api/sales/orders/{id}`), hệ thống hoàn trả số lượng của biến động `HARVEST` cũ trước khi áp dụng số lượng mới.
-2. **Nhận diện phiếu cân bằng AI OCR (`SalesWeightVisionClient` & `aiServiceFarmShift`)**:
+2. **Đồng bộ Sổ quỹ khi thu tiền (`CashbookService.syncSalesReceipt`)**:
+   - Khi tạo/sửa đơn bán ở trạng thái `PAID` hoặc `PARTIAL` có chọn nguồn quỹ (`cashFundId`), hệ thống tự động lập/cập nhật phiếu thu `PT...` (`category = 'Đơn bán gà'`, `reference_invoice_code = code`) và cộng số dư tương ứng vào `cash_funds`. Khi cập nhật sang `DEBT`, phiếu thu liên kết cũ (nếu có) được hoàn tác sạch.
+3. **Nhận diện phiếu cân bằng AI OCR (`SalesWeightVisionClient` & `aiServiceFarmShift`)**:
    - Cho phép tải ảnh chụp hoặc PDF phiếu cân để bóc tách tự động bảng cân, số lượng con, tổng khối lượng, vẽ khung vị trí nhận diện (bounding boxes) trên ảnh xem trước độ phân giải cao và tự động gợi ý chuồng/đàn tương ứng.
-3. **Thông tin xuất hóa đơn bán hàng (`GET /api/sales/orders/{id}/invoice`)**:
+4. **Thông tin xuất hóa đơn bán hàng (`GET /api/sales/orders/{id}/invoice`)**:
    - Đọc thông tin bên mua từ `customer_contacts` (`tax_code`, `payment_method`, `address`, `phone`) và thông tin bên bán từ cấu hình `sales.invoice.seller.*` (`name`, `tax-code`, `address`, `phone`, `fax`, `bank-account`).
 
 **API Quản lý Xuất bán:**
@@ -1069,19 +1072,19 @@ Entity: `CycleCostAllocation`. Quản lý khoản chi được phân bổ cụ t
 | `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã phân bổ tự sinh `PB0001`, `PB0002`... |
 | `cycle_id` | BIGINT | FOREIGN KEY → `farming_cycles.id` (`fk_cost_alloc_cycle`, nullable). Lứa nuôi nhận chi phí. |
 | `barn_name` | VARCHAR(120) | NOT NULL. Tên chuồng nuôi (tự đồng bộ nếu chọn `cycle_id`). |
-| `cycle_code` | VARCHAR(80) | NOT NULL. Mã lứa nuôi (VD: `L000001`, `LUA-2026-MIA01`). |
+| `cycle_code` | VARCHAR(80) | NOT NULL. Mã lứa nuôi (VD: `L000001`). |
 | `cost_type` | VARCHAR(150) | NOT NULL. Loại chi phí phân bổ (VD: `Thức ăn chăn nuôi (Cám)`, `Điện năng vận hành`). |
 | `amount` | BIGINT | NOT NULL. Số tiền phân bổ (VNĐ). |
-| `source_voucher_code` | VARCHAR(80) | Mã chứng từ nguồn liên quan (VD: `PC000035`). |
+| `source_voucher_code` | VARCHAR(80) | Mã chứng từ nguồn liên quan (VD: `NH000000`, `PC000010`). |
 | `allocation_date` | DATE | NOT NULL. Ngày ghi nhận phân bổ. |
 | `note` | VARCHAR(500) | Ghi chú chi tiết. |
 | `created_at` | TIMESTAMP | Thời điểm tạo bản ghi. |
 
 **Quy tắc & API Quản lý Sổ quỹ (`CashbookController`, yêu cầu `ROLE_FARM_OWNER` hoặc `ROLE_ACCOUNTANT`):**
 - `GET /api/cashbook/summary?type=&fundId=&from=&to=&search=`: Trả về tổng thu, tổng chi, tổng số dư toàn quỹ, danh sách nguồn quỹ, danh sách phiếu thu/chi đã lọc, lịch sử chuyển quỹ, phân bổ chi phí lứa, tài sản cố định, bảng lương, danh mục loại phiếu và danh sách `staffOptions` / `cycleOptions`.
-- `GET /api/cashbook/funds`, `POST /api/cashbook/funds`, `PUT /api/cashbook/funds/{id}`, `DELETE /api/cashbook/funds/{id}`: Quản lý nguồn tiền (biến động số dư thực hiện qua câu `UPDATE` nguyên tử kèm điều kiện `balance >= amount`; không xóa được quỹ đã phát sinh phiếu hoặc chuyển quỹ → 409 `CASH_FUND_IN_USE`).
-- `POST /api/cashbook/transactions`, `PUT /api/cashbook/transactions/{id}`, `DELETE /api/cashbook/transactions/{id}`: Lập, sửa, xóa phiếu thu/chi; chặn chi vượt số dư quỹ; tự động hoàn tác biến động số dư cũ trên `oldFund` rồi áp dụng biến động mới lên `targetFund` trong cùng transaction.
-- `POST /api/cashbook/transfers`: Chuyển quỹ nội bộ (kiểm tra quỹ nguồn khác quỹ đích và đủ số dư `amount + fee`).
+- `GET /api/cashbook/funds`, `POST /api/cashbook/funds`, `PUT /api/cashbook/funds/{id}`, `DELETE /api/cashbook/funds/{id}`: Quản lý nguồn tiền (biến động số dư thực hiện qua câu `UPDATE` nguyên tử kèm điều kiện `balance >= amount`; `PUT` chỉ cập nhật thông tin định danh/ghi chú mà không ghi đè `balance` đang đối soát theo sổ cái; không xóa được quỹ đã phát sinh phiếu/chuyển quỹ → 409 `CASH_FUND_IN_USE` hoặc quỹ vẫn còn số dư → 409 `CASH_FUND_HAS_BALANCE`).
+- `POST /api/cashbook/transactions`, `PUT /api/cashbook/transactions/{id}`, `DELETE /api/cashbook/transactions/{id}`: Lập, sửa, xóa phiếu thu/chi thủ công; sinh mã theo từng tiền tố (`PT%06d` / `PC%06d`); chặn sửa/xóa trực tiếp phiếu tự động liên kết chứng từ gốc (`reference_invoice_code IS NOT NULL` → 409 `CASH_TX_LINKED`); chặn chi vượt số dư quỹ; tự động tính chênh lệch ròng (cùng quỹ) hoặc hoàn tác `oldFund` rồi áp dụng lên `targetFund` (khác quỹ) trong cùng transaction.
+- `POST /api/cashbook/transfers`: Chuyển quỹ nội bộ (kiểm tra quỹ nguồn khác quỹ đích, `fee >= 0` và đủ số dư `amount + fee`; nếu `fee > 0` sẽ tự động sinh thêm 1 phiếu chi `PC...` liên kết `CQ...` để đảm bảo `Tổng thu - Tổng chi == Tổng tồn tất cả quỹ`).
 - `POST/PUT/DELETE /api/cashbook/cost-allocations/**`: CRUD phân bổ chi phí lứa.
 - `POST/PUT/DELETE /api/cashbook/assets/**`: CRUD tài sản cố định & khấu hao.
 - `POST/PUT/DELETE /api/cashbook/payrolls/**` & `POST /api/cashbook/payrolls/{id}/pay`: CRUD bảng lương & thanh toán lương nguyên tử (khóa quỹ nguồn, trừ `CashFund.balance`, tự sinh phiếu chi `PC...` danh mục `Tiền lương công nhân` và cập nhật `paid_amount`/`remaining_amount`); chặn xóa bảng lương đã phát sinh thanh toán (`PAYROLL_IN_USE`).

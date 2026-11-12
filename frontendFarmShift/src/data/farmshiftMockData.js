@@ -113,13 +113,13 @@ export const INITIAL_FARMSHIFT_DATA = {
             code: 'NH000000',
             date: '2026-09-15',
             supplier: 'Công ty CP Chăn nuôi C.P. Việt Nam',
-            totalAmount: 112500000,
+            totalAmount: 112050000,
             paymentStatus: 'Thanh toán hoàn tất',
             stockStatus: 'Đã nhập kho',
             note: 'Nhập cám gà giai đoạn 1 và giai đoạn 2 lứa tháng 9',
             items: [
                 { name: 'Cám Gà úm Higro 01', qty: 150, unit: 'Bao (25kg)', price: 345000, amount: 51750000 },
-                { name: 'Cám Gà thịt Higro 02', qty: 180, unit: 'Bao (25kg)', price: 335000, amount: 60750000 },
+                { name: 'Cám Gà thịt Higro 02', qty: 180, unit: 'Bao (25kg)', price: 335000, amount: 60300000 },
             ]
         },
         {
@@ -130,7 +130,7 @@ export const INITIAL_FARMSHIFT_DATA = {
             totalAmount: 92500000,
             paymentStatus: 'Thanh toán hoàn tất',
             stockStatus: 'Đã nhập kho',
-            note: 'Nhập 5,000 con gà giống J-Dabaco',
+            note: 'Nhập 5,000 con gà giống J-Dabaco đợt tháng 9',
             items: [
                 { name: 'Gà giống J-Dabaco trống', qty: 5000, unit: 'Con', price: 18500, amount: 92500000 }
             ]
@@ -140,10 +140,10 @@ export const INITIAL_FARMSHIFT_DATA = {
             code: 'NH000002',
             date: '2026-09-25',
             supplier: 'Công ty Thuốc Thú y Hanvet',
-            totalAmount: 8560000,
+            totalAmount: 8480000,
             paymentStatus: 'Thanh toán hoàn tất',
             stockStatus: 'Đã nhập kho',
-            note: 'Vắc-xin phòng Newcastle & Gumboro định kỳ',
+            note: 'Vắc-xin phòng Newcastle & kháng sinh định kỳ',
             items: [
                 { name: 'Vắc-xin Newcastle Lasota', qty: 30, unit: 'Lọ 1000 liều', price: 42000, amount: 1260000 },
                 { name: 'Kháng sinh Doxycycline 50%', qty: 10, unit: 'Gói 1kg', price: 450000, amount: 4500000 },
@@ -168,42 +168,54 @@ export const INITIAL_FARMSHIFT_DATA = {
     // 4. Bán hàng (Sales & Harvest)
     sales: [
         {
-            id: 'so-1',
-            code: 'BH000045',
-            date: '2026-09-28',
-            customer: 'Thương lái Trần Văn Tuấn (Hà Nội)',
-            flock: 'Khu J Thịt - Lứa J01',
-            quantity: 1200,
-            totalWeight: 2460, // kg
-            unitPrice: 78000, // đ/kg
-            totalAmount: 191880000,
-            paidAmount: 191880000,
-            status: 'Đã thu tiền',
-            note: 'Xuất bán đợt 1 chuồng J1'
+            id: 'seed-bh-00001',
+            code: 'BH00001',
+            date: '2026-11-08',
+            customer: 'Nguyễn Văn Hùng (Thương lái Lái Thiêu)',
+            flock: 'Khu Mía Thịt - Nhà A1 - L000001',
+            quantity: 2000,
+            totalWeight: 2500, // kg
+            unitPrice: 80000, // đ/kg
+            totalAmount: 200000000,
+            paidAmount: 200000000,
+            status: 'PAID',
+            note: 'Xuất bán tỉa đợt 1 Nhà A1 — chuyển khoản MB Bank'
         },
         {
-            id: 'so-2',
-            code: 'BH000046',
-            date: '2026-10-04',
-            customer: 'Công ty Thực phẩm Sạch Minh Tâm',
-            flock: 'Khu Mía Thịt - Lứa M01',
-            quantity: 800,
-            totalWeight: 1720,
-            unitPrice: 84000,
-            totalAmount: 144480000,
+            id: 'seed-bh-00002',
+            code: 'BH00002',
+            date: '2026-11-10',
+            customer: 'Trần Thị Mai (Đại lý Gia cầm Miền Bắc)',
+            flock: 'Khu J Thịt - Nhà B1 - L000004',
+            quantity: 1200,
+            totalWeight: 1800,
+            unitPrice: 78000,
+            totalAmount: 140400000,
             paidAmount: 100000000,
-            status: 'Còn thiếu 44,480,000 đ',
-            note: 'Gà Mía Dabaco tuyển chọn loại 1'
+            status: 'PARTIAL',
+            note: 'Xuất bán đợt 1 Nhà B1 — trả trước 100tr tiền mặt, còn nợ 40,4tr'
         }
     ],
 
-    // 5. Sổ quỹ (Cashbook)
+    // 5. Sổ quỹ (Cashbook — đối soát khớp 100% với hóa đơn nhập, đơn bán, lương & chi phí lứa)
     cashbook: [
-        { id: 'cb-1', code: 'PT000021', date: '2026-10-04', type: 'Thu', category: 'Đơn bán gà', amount: 100000000, contact: 'Khách hàng', name: 'Công ty Thực phẩm Sạch Minh Tâm', fund: 'Tài khoản MB Bank', note: 'Thu tiền bán gà Mía đợt 1', creator: 'Admin FarmShift' },
-        { id: 'cb-2', code: 'PC000035', date: '2026-10-02', type: 'Chi', category: 'Tiền điện & nước trang trại', amount: 8200000, contact: 'Đối tượng khác', name: 'Điện lực Sóc Sơn', fund: 'Tài khoản MB Bank', note: 'Thanh toán tiền điện tháng 9', creator: 'Admin FarmShift' },
-        { id: 'cb-3', code: 'PT000020', date: '2026-09-28', type: 'Thu', category: 'Đơn bán gà', amount: 191880000, contact: 'Khách hàng', name: 'Trần Văn Tuấn', fund: 'Tiền mặt tại quỹ', note: 'Thu trọn tiền bán chuồng J1', creator: 'Admin FarmShift' },
-        { id: 'cb-4', code: 'PC000034', date: '2026-09-25', type: 'Chi', category: 'Thuốc thú y', amount: 8560000, contact: 'Nhà cung cấp', name: 'Công ty Thuốc Thú y Hanvet', fund: 'Tài khoản MB Bank', note: 'Chi tiền mua thuốc & vắc-xin', creator: 'Admin FarmShift' },
-        { id: 'cb-5', code: 'PC000033', date: '2026-09-20', type: 'Chi', category: 'Tiền lương công nhân', amount: 18000000, contact: 'Nhân sự', name: 'Lương tổ chăm sóc tháng 9', fund: 'Tiền mặt tại quỹ', note: 'Thanh toán lương 2 công nhân', creator: 'Admin FarmShift' },
+        { id: 'cb-pt4', code: 'PT000004', date: '2026-11-10', type: 'Thu', category: 'Đơn bán gà', amount: 100000000, contact: 'Khách hàng', name: 'Trần Thị Mai (Đại lý Gia cầm Miền Bắc)', fund: 'Tiền mặt tại quỹ trại', note: 'Thu tiền đơn bán gà BH00002', creator: 'Trần Kế Toán', referenceInvoiceCode: 'BH00002' },
+        { id: 'cb-pt3', code: 'PT000003', date: '2026-11-08', type: 'Thu', category: 'Đơn bán gà', amount: 200000000, contact: 'Khách hàng', name: 'Nguyễn Văn Hùng (Thương lái Lái Thiêu)', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thu tiền đơn bán gà BH00001', creator: 'Trần Kế Toán', referenceInvoiceCode: 'BH00001' },
+        { id: 'cb-pc13', code: 'PC000013', date: '2026-10-31', type: 'Chi', category: 'Tiền lương công nhân', amount: 12700000, contact: 'Nhân sự', name: 'Trần Kế Toán', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán lương tháng 10/2026 (CC0004)', creator: 'Admin', referenceInvoiceCode: 'CC0004' },
+        { id: 'cb-pc12', code: 'PC000012', date: '2026-10-15', type: 'Chi', category: 'Chi phí khác', amount: 650000, contact: 'Đối tượng khác', name: 'Vật tư chuồng nuôi Nhà A1', fund: 'Tiền mặt tại quỹ trại', note: 'Trấu độn chuồng và dung dịch sát trùng tiêu độc lứa 1 (lứa Nhà A1)', creator: 'Trần Kế Toán' },
+        { id: 'cb-pc11', code: 'PC000011', date: '2026-10-08', type: 'Chi', category: 'Thuốc thú y & vắc-xin', amount: 850000, contact: 'Đối tượng khác', name: 'Chi phí thuốc bổ Nhà A1', fund: 'Tiền mặt tại quỹ trại', note: 'Thuốc bổ và men tiêu hóa phòng ngừa stress (lứa Nhà A1)', creator: 'Trần Kế Toán' },
+        { id: 'cb-pc10', code: 'PC000010', date: '2026-10-02', type: 'Chi', category: 'Tiền điện & nước trang trại', amount: 8200000, contact: 'Đối tượng khác', name: 'Điện lực Tam Đảo', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán tiền điện nước vận hành chuồng nuôi tháng 09/2026', creator: 'Trần Kế Toán' },
+        { id: 'cb-pc9', code: 'PC000009', date: '2026-10-01', type: 'Chi', category: 'Tiền con giống', amount: 115000000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán nhập 10.000 gà giống Nhà A3 (Mái)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NHCG000004' },
+        { id: 'cb-pc8', code: 'PC000008', date: '2026-10-01', type: 'Chi', category: 'Tiền con giống', amount: 220000000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán nhập 20.000 gà giống Nhà A3 (Trống)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NHCG000003' },
+        { id: 'cb-pc7', code: 'PC000007', date: '2026-10-01', type: 'Chi', category: 'Tiền con giống', amount: 440000000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán nhập 40.000 gà giống Nhà A2', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NHCG000002' },
+        { id: 'cb-pc6', code: 'PC000006', date: '2026-10-01', type: 'Chi', category: 'Tiền con giống', amount: 550000000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán nhập 50.000 gà giống Nhà A1', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NHCG000001' },
+        { id: 'cb-pc5', code: 'PC000005', date: '2026-09-30', type: 'Chi', category: 'Tiền lương công nhân', amount: 9000000, contact: 'Nhân sự', name: 'Dương Văn Hùng', fund: 'Tiền mặt tại quỹ trại', note: 'Thanh toán lương tháng 09/2026 (CC0002)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'CC0002' },
+        { id: 'cb-pc4', code: 'PC000004', date: '2026-09-30', type: 'Chi', category: 'Tiền lương công nhân', amount: 9000000, contact: 'Nhân sự', name: 'Nguyễn Văn Ba', fund: 'Tiền mặt tại quỹ trại', note: 'Thanh toán lương tháng 09/2026 (CC0001)', creator: 'Trần Kế Toán', referenceInvoiceCode: 'CC0001' },
+        { id: 'cb-pc3', code: 'PC000003', date: '2026-09-25', type: 'Chi', category: 'Thuốc thú y & vắc-xin', amount: 8480000, contact: 'Nhà cung cấp', name: 'Công ty Thuốc Thú y Hanvet', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán hóa đơn NH000002', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NH000002' },
+        { id: 'cb-pc2', code: 'PC000002', date: '2026-09-18', type: 'Chi', category: 'Tiền con giống', amount: 92500000, contact: 'Nhà cung cấp', name: 'Tập đoàn Dabaco Việt Nam', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán hóa đơn NH000001', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NH000001' },
+        { id: 'cb-pc1', code: 'PC000001', date: '2026-09-15', type: 'Chi', category: 'Tiền thức ăn (Cám)', amount: 112050000, contact: 'Nhà cung cấp', name: 'Công ty CP Chăn nuôi C.P. Việt Nam', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Thanh toán hóa đơn NH000000', creator: 'Trần Kế Toán', referenceInvoiceCode: 'NH000000' },
+        { id: 'cb-pt2', code: 'PT000002', date: '2026-09-01', type: 'Thu', category: 'Thu khác', amount: 50000000, contact: 'Đối tượng khác', name: 'Chủ trang trại', fund: 'Tài khoản Vietcombank dự phòng', note: 'Chuyển vốn vào quỹ dự phòng rủi ro dịch bệnh', creator: 'Admin' },
+        { id: 'cb-pt1', code: 'PT000001', date: '2026-09-01', type: 'Thu', category: 'Thu khác', amount: 1700000000, contact: 'Đối tượng khác', name: 'Chủ trang trại', fund: 'Tài khoản MB Bank (TK Chính)', note: 'Góp vốn lưu động nhập giống, cám và vận hành trang trại', creator: 'Admin' },
     ],
 
     // 6. Ghi nhật ký chăn nuôi gần nhất

@@ -36,21 +36,21 @@ import {
 import styles from './CashbookView.module.css';
 
 const DEFAULT_FUNDS = [
-  { id: 'f-1', name: 'Tài khoản MB Bank (TK Chính)', accountNo: '0987654321', bank: 'Ngân hàng Quân Đội', fundType: 'BANK', balance: 228920000, note: 'Tài khoản nhận tiền bán sỉ & thanh toán cám', active: true },
-  { id: 'f-2', name: 'Tiền mặt tại quỹ trại', accountNo: '—', bank: 'Quỹ thủ quỹ', fundType: 'CASH', balance: 53200000, note: 'Chi trả tiền điện, xăng xe, chi tiêu vặt hàng ngày', active: true },
+  { id: 'f-1', name: 'Tài khoản MB Bank (TK Chính)', accountNo: '0987654321', bank: 'Ngân hàng Quân Đội', fundType: 'BANK', balance: 391070000, note: 'Tài khoản nhận tiền bán sỉ & thanh toán cám / con giống', active: true },
+  { id: 'f-2', name: 'Tiền mặt tại quỹ trại', accountNo: '—', bank: 'Quỹ thủ quỹ', fundType: 'CASH', balance: 30500000, note: 'Chi trả lương, vật tư tiêu hao và thu tiền mặt tại trại', active: true },
   { id: 'f-3', name: 'Tài khoản Vietcombank dự phòng', accountNo: '1023456789', bank: 'Vietcombank', fundType: 'BANK', balance: 50000000, note: 'Quỹ dự phòng rủi ro dịch bệnh', active: true },
 ];
 
 const DEFAULT_TRANSFERS = [
-  { id: 'cq-1', code: 'CQ000005', date: '2026-10-01', from: 'Tài khoản MB Bank (TK Chính)', to: 'Tiền mặt tại quỹ trại', amount: 20000000, fee: 0, note: 'Rút tiền mặt chi lương và vật tư tiêu hao', creator: 'Nguyễn Văn Hải' },
-  { id: 'cq-2', code: 'CQ000004', date: '2026-09-28', from: 'Tiền mặt tại quỹ trại', to: 'Tài khoản MB Bank (TK Chính)', amount: 150000000, fee: 0, note: 'Nộp tiền mặt bán gà chuồng J1 vào tài khoản', creator: 'Nguyễn Văn Hải' },
+  { id: 'cq-2', code: 'CQ000002', date: '2026-11-11', from: 'Tiền mặt tại quỹ trại', to: 'Tài khoản MB Bank (TK Chính)', amount: 80000000, fee: 0, note: 'Nộp tiền mặt thu bán gà vào tài khoản ngân hàng', creator: 'Trần Kế Toán' },
+  { id: 'cq-1', code: 'CQ000001', date: '2026-09-10', from: 'Tài khoản MB Bank (TK Chính)', to: 'Tiền mặt tại quỹ trại', amount: 30000000, fee: 0, note: 'Rút tiền mặt về quỹ trại chi trả lương và vật tư phát sinh', creator: 'Trần Kế Toán' },
 ];
 
 const DEFAULT_COSTS = [
-  { id: 'pb-1', code: 'PB0001', house: 'Nhà A1', cycle: 'LUA-2026-MIA01', type: 'Thức ăn chăn nuôi (Cám)', amount: 48500000, source: 'PC000036', date: '2026-10-18', notes: 'Cám Higro 01 úm gà con tuần 1' },
-  { id: 'pb-2', code: 'PB0002', house: 'Nhà A2', cycle: 'LUA-2026-MIA01', type: 'Thuốc thú y & Vắc-xin', amount: 8200000, source: 'PC000034', date: '2026-10-19', notes: 'Vắc-xin Newcastle Lasota + Kháng thể' },
-  { id: 'pb-3', code: 'PB0003', house: 'Nhà B1', cycle: 'LUA-2026-J02', type: 'Thức ăn chăn nuôi (Cám)', amount: 92400000, source: 'PC000038', date: '2026-10-15', notes: 'Cám Higro 03 giai đoạn vỗ béo' },
-  { id: 'pb-4', code: 'PB0004', house: 'Nhà B1', cycle: 'LUA-2026-J02', type: 'Điện năng vận hành', amount: 3600000, source: 'PC000035', date: '2026-10-20', notes: 'Tiền điện quạt hút công nghiệp 1.5kW' },
+  { id: 'pb-1', code: 'PB0001', house: 'Nhà A1', cycle: 'L000001', type: 'Thức ăn chăn nuôi (Cám)', amount: 51750000, source: 'NH000000', date: '2026-10-02', notes: '150 bao cám Gà úm Higro 01 từ hóa đơn NH000000' },
+  { id: 'pb-2', code: 'PB0002', house: 'Nhà A2', cycle: 'L000002', type: 'Thuốc thú y & vắc-xin', amount: 8480000, source: 'PC000003', date: '2026-10-05', notes: 'Vắc-xin Newcastle Lasota & kháng sinh theo hóa đơn NH000002' },
+  { id: 'pb-3', code: 'PB0003', house: 'Nhà B1', cycle: 'L000004', type: 'Thức ăn chăn nuôi (Cám)', amount: 60300000, source: 'NH000000', date: '2026-10-15', notes: '180 bao cám Gà thịt Higro 02 từ hóa đơn NH000000' },
+  { id: 'pb-4', code: 'PB0004', house: 'Nhà B1', cycle: 'L000004', type: 'Tiền điện & nước trang trại', amount: 8200000, source: 'PC000010', date: '2026-10-02', notes: 'Chi phí điện nước quạt hút làm mát lứa chuồng B1' },
 ];
 
 const DEFAULT_ASSETS = [
@@ -61,10 +61,10 @@ const DEFAULT_ASSETS = [
 ];
 
 const DEFAULT_PAYROLLS = [
-  { id: 'cc-1', code: 'CC0001', employee: 'Nguyễn Văn An', period: '2026-10', days: 26, rate: 350000, bonus: 1000000, advance: 2000000, total: 10100000, paid: 8100000, remain: 0, status: 'Đã thanh toán', note: '' },
-  { id: 'cc-2', code: 'CC0002', employee: 'Trần Văn Bình', period: '2026-10', days: 25, rate: 350000, bonus: 800000, advance: 1500000, total: 9550000, paid: 5000000, remain: 3050000, status: 'Còn nợ lương', note: '' },
-  { id: 'cc-3', code: 'CC0003', employee: 'Nguyễn Văn Hải', period: '2026-10', days: 28, rate: 500000, bonus: 2000000, advance: 3000000, total: 16000000, paid: 13000000, remain: 0, status: 'Đã thanh toán', note: '' },
-  { id: 'cc-4', code: 'CC0004', employee: 'Nguyễn Thị Mai', period: '2026-10', days: 24, rate: 400000, bonus: 500000, advance: 0, total: 10100000, paid: 10100000, remain: 0, status: 'Đã thanh toán', note: '' },
+  { id: 'cc-1', code: 'CC0001', employee: 'Nguyễn Văn Ba', period: '2026-09', days: 26, rate: 350000, bonus: 900000, advance: 1000000, total: 10000000, paid: 9000000, remain: 0, status: 'Đã thanh toán', note: 'Chăm sóc Khu Mía Thịt (Nhà A1-A3)' },
+  { id: 'cc-2', code: 'CC0002', employee: 'Dương Văn Hùng', period: '2026-09', days: 26, rate: 350000, bonus: 900000, advance: 1000000, total: 10000000, paid: 9000000, remain: 0, status: 'Đã thanh toán', note: 'Chăm sóc Khu J Thịt (Nhà B1-B2)' },
+  { id: 'cc-3', code: 'CC0003', employee: 'Nông Thị Hằng', period: '2026-10', days: 26, rate: 350000, bonus: 500000, advance: 1000000, total: 9600000, paid: 0, remain: 8600000, status: 'Còn nợ lương', note: 'Chăm sóc Khu Đông Tảo & kiểm kê kho' },
+  { id: 'cc-4', code: 'CC0004', employee: 'Trần Kế Toán', period: '2026-10', days: 26, rate: 450000, bonus: 1000000, advance: 0, total: 12700000, paid: 12700000, remain: 0, status: 'Đã thanh toán', note: 'Kế toán công nợ & thủ quỹ' },
 ];
 
 const DEFAULT_CATEGORIES = [
@@ -497,6 +497,10 @@ export const CashbookView = () => {
     }
     if (amt <= 0) {
       showToast('Số tiền chuyển phải lớn hơn 0.', 'warning');
+      return;
+    }
+    if (amt > Number(fromFund.balance || 0)) {
+      showToast(`Số dư quỹ nguồn (${fromFund.name}) không đủ để chuyển ${amt.toLocaleString('vi-VN')} đ.`, 'warning');
       return;
     }
 
@@ -1099,7 +1103,7 @@ export const CashbookView = () => {
                           >
                             <Eye size={14} />
                           </button>
-                          {canWrite && (
+                          {canWrite && !t.referenceInvoiceCode && (
                             <>
                               <button
                                 type="button"
@@ -1121,6 +1125,15 @@ export const CashbookView = () => {
                                 <Trash2 size={14} />
                               </button>
                             </>
+                          )}
+                          {t.referenceInvoiceCode && (
+                            <span
+                              className="farmshift-badge farmshift-badge-neutral"
+                              title={`Phiếu tự động từ chứng từ ${t.referenceInvoiceCode} — điều chỉnh tại chứng từ gốc`}
+                              aria-label={`Phiếu ${t.code} liên kết chứng từ ${t.referenceInvoiceCode}`}
+                            >
+                              {t.referenceInvoiceCode}
+                            </span>
                           )}
                         </div>
                       </td>
@@ -1579,12 +1592,12 @@ export const CashbookView = () => {
               <div><span style={{ color: 'var(--color-muted)' }}>Đối tượng ({viewTx.contact}):</span> <strong>{viewTx.name}</strong></div>
               <div><span style={{ color: 'var(--color-muted)' }}>Người lập:</span> <strong>{viewTx.creator}</strong></div>
               {viewTx.referenceInvoiceCode && (
-                <div><span style={{ color: 'var(--color-muted)' }}>Chứng từ liên kết:</span> <strong>{viewTx.referenceInvoiceCode}</strong></div>
+                <div><span style={{ color: 'var(--color-muted)' }}>Chứng từ liên kết:</span> <strong>{viewTx.referenceInvoiceCode}</strong> <span style={{ color: 'var(--color-muted)', fontSize: '0.85em' }}>(phiếu tự động — chỉnh sửa tại chứng từ gốc)</span></div>
               )}
               <div><span style={{ color: 'var(--color-muted)' }}>Diễn giải:</span> <strong>{viewTx.note || '—'}</strong></div>
             </div>
             <div className="farmshift-modal-footer">
-              {canWrite && (
+              {canWrite && !viewTx.referenceInvoiceCode && (
                 <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => { const t = viewTx; setViewTx(null); openEditTxModal(t); }}>
                   <Pencil size={14} /> Chỉnh sửa
                 </button>

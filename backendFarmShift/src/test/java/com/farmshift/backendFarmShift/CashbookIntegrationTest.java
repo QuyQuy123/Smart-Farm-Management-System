@@ -267,6 +267,102 @@ class CashbookIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "ketoan@smartfarm.com", authorities = "ROLE_ACCOUNTANT")
+    void ledgerStaysReconciledForFundEditsTransferFeesLinkedVouchersAndNetEdits() throws Exception {
+        var fundARes = mvc.perform(post("/api/cashbook/funds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashFundRequest("Quỹ Đối Soát A", "—", "Thủ quỹ", "CASH", 0L, ""))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long fundAId = mapper.readTree(fundARes.getResponse().getContentAsString()).path("data").path("id").asLong();
+        var fundBRes = mvc.perform(post("/api/cashbook/funds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashFundRequest("Quỹ Đối Soát B", "999", "MB Bank", "BANK", 0L, ""))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long fundBId = mapper.readTree(fundBRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        // Per-prefix voucher numbering: first Chi then first Thu -> PC000001 / PT000001
+        var thuRes = mvc.perform(post("/api/cashbook/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashTransactionRequest(
+                                LocalDate.of(2026, 11, 1), "Thu", "Thu khác", 10_000_000L,
+                                "Đối tượng khác", "Chủ trại", fundAId, "Góp vốn"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.code").value("PT000001"))
+                .andReturn();
+        long thuId = mapper.readTree(thuRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mvc.perform(post("/api/cashbook/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashTransactionRequest(
+                                LocalDate.of(2026, 11, 2), "Chi", "Chi phí khác", 8_000_000L,
+                                "Đối tượng khác", "Vật tư", fundAId, "Mua vật tư"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.code").value("PC000001"));
+        assertEquals(2_000_000L, fundRepository.findById(fundAId).orElseThrow().getBalance());
+
+        // Editing a receipt whose money was already spent applies only the net difference (10M -> 12M)
+        mvc.perform(put("/api/cashbook/transactions/" + thuId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashTransactionRequest(
+                                LocalDate.of(2026, 11, 1), "Thu", "Thu khác", 12_000_000L,
+                                "Đối tượng khác", "Chủ trại", fundAId, "Góp vốn (sửa)"))))
+                .andExpect(status().isOk());
+        assertEquals(4_000_000L, fundRepository.findById(fundAId).orElseThrow().getBalance());
+
+        // Updating fund metadata never overwrites the ledger-derived balance
+        mvc.perform(put("/api/cashbook/funds/" + fundAId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashFundRequest("Quỹ Đối Soát A (sửa)", "—", "Thủ quỹ", "CASH", 99_000_000L, ""))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.balance").value(4_000_000));
+
+        // Transfer fee is booked as a linked Chi voucher so Thu - Chi == total balances
+        mvc.perform(post("/api/cashbook/transfers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashFundTransferRequest(
+                                LocalDate.of(2026, 11, 3), fundAId, fundBId, 3_000_000L, 20_000L, "Nộp ngân hàng"))))
+                .andExpect(status().isCreated());
+        assertEquals(980_000L, fundRepository.findById(fundAId).orElseThrow().getBalance());
+        assertEquals(3_000_000L, fundRepository.findById(fundBId).orElseThrow().getBalance());
+
+        var feeTx = txRepository.findAll().stream()
+                .filter(t -> "Chi".equals(t.getType()) && t.getAmount() == 20_000L)
+                .findFirst().orElseThrow();
+        assertNotNull(feeTx.getReferenceInvoiceCode());
+        assertTrue(feeTx.getReferenceInvoiceCode().startsWith("CQ"));
+
+        var summary = mapper.readTree(mvc.perform(get("/api/cashbook/summary"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        long revenue = summary.path("totalRevenue").asLong();
+        long expense = summary.path("totalExpense").asLong();
+        long balances = summary.path("totalFundsBalance").asLong();
+        assertEquals(12_000_000L, revenue);
+        assertEquals(8_020_000L, expense);
+        assertEquals(revenue - expense, balances);
+
+        // Auto-generated (linked) vouchers cannot be edited or deleted directly
+        mvc.perform(put("/api/cashbook/transactions/" + feeTx.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashTransactionRequest(
+                                LocalDate.of(2026, 11, 3), "Chi", "Chi phí khác", 1L,
+                                "Đối tượng khác", "Ngân hàng", fundAId, ""))))
+                .andExpect(status().isConflict());
+        mvc.perform(delete("/api/cashbook/transactions/" + feeTx.getId()))
+                .andExpect(status().isConflict());
+
+        // Funds that still hold money cannot be deleted
+        var emptyRes = mvc.perform(post("/api/cashbook/funds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashFundRequest("Quỹ Có Số Dư", "—", "Thủ quỹ", "CASH", 1_000_000L, ""))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long withBalanceId = mapper.readTree(emptyRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mvc.perform(delete("/api/cashbook/funds/" + withBalanceId))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_FARM_WORKER")
     void workerIsForbiddenFromCashbookEndpoints() throws Exception {
         mvc.perform(get("/api/cashbook/summary")).andExpect(status().isForbidden());

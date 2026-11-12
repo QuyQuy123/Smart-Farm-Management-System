@@ -180,8 +180,21 @@ public class PurchaseService {
         PurchaseInvoice saved = invoiceRepository.saveAndFlush(invoice);
 
         if (paid > 0) {
-            recordPayment(saved, paid, saved.getInvoiceDate(), "Tiền mặt", null,
-                    "Thanh toán khi tạo hóa đơn " + saved.getCode());
+            Long cashFundId = request.cashFundId();
+            String method = cashFundId != null ? cashbookService.resolveFundPaymentMethod(cashFundId) : "Tiền mặt";
+            String payNote = "Thanh toán khi tạo hóa đơn " + saved.getCode();
+            recordPayment(saved, paid, saved.getInvoiceDate(), method, cashFundId, payNote);
+            if (cashFundId != null) {
+                cashbookService.recordPurchaseDisbursement(
+                        cashFundId,
+                        saved.getInvoiceDate(),
+                        paid,
+                        saved.getSupplier().getName(),
+                        saved.getCode(),
+                        resolvePurchaseCategory(saved),
+                        payNote
+                );
+            }
         }
 
         // If stock is marked as IMPORTED on creation, update inventory immediately
@@ -199,6 +212,11 @@ public class PurchaseService {
      */
     @Transactional
     public PurchaseInvoice createForFlock(Flock flock, Supplier supplier, String paymentStatus) {
+        return createForFlock(flock, supplier, paymentStatus, null);
+    }
+
+    @Transactional
+    public PurchaseInvoice createForFlock(Flock flock, Supplier supplier, String paymentStatus, Long cashFundId) {
         long unitPrice;
         long total;
         try {
@@ -224,10 +242,44 @@ public class PurchaseService {
         invoice.setNote("Nhập đàn " + flock.getName() + " vào " + cycle.getBarn().getName() + " · lứa " + cycle.getCycleNumber());
         PurchaseInvoice saved = invoiceRepository.saveAndFlush(invoice);
         if (paid && total > 0) {
-            recordPayment(saved, total, flock.getImportDate(), "Tiền mặt", null,
-                    "Thanh toán nhập đàn " + flock.getName());
+            String method = cashFundId != null ? cashbookService.resolveFundPaymentMethod(cashFundId) : "Tiền mặt";
+            String payNote = "Thanh toán nhập đàn " + flock.getName();
+            recordPayment(saved, total, flock.getImportDate(), method, cashFundId, payNote);
+            if (cashFundId != null) {
+                cashbookService.recordPurchaseDisbursement(
+                        cashFundId,
+                        flock.getImportDate(),
+                        total,
+                        supplier.getName(),
+                        saved.getCode(),
+                        "Tiền con giống",
+                        payNote + " (" + saved.getCode() + ")"
+                );
+            }
         }
         return saved;
+    }
+
+    private String resolvePurchaseCategory(PurchaseInvoice invoice) {
+        if (invoice.getFlock() != null) return "Tiền con giống";
+        if (invoice.getItems() == null || invoice.getItems().isEmpty()) return "Thanh toán công nợ NCC";
+        boolean hasFeed = false;
+        boolean hasMed = false;
+        boolean hasChick = false;
+        for (PurchaseInvoiceItem item : invoice.getItems()) {
+            String type = item.getProductCategory() != null ? item.getProductCategory().getProductType() : null;
+            String combined = ((type != null ? type : "") + " " + (item.getProductName() != null ? item.getProductName() : ""))
+                    .toLowerCase(Locale.ROOT);
+            if (combined.contains("cám") || combined.contains("thức ăn") || combined.contains("ngô")) hasFeed = true;
+            else if (combined.contains("thuốc") || combined.contains("vắc-xin") || combined.contains("vac-xin") || combined.contains("sát trùng")) hasMed = true;
+            else if (combined.contains("giống")) hasChick = true;
+            else return "Thanh toán công nợ NCC";
+        }
+        int kinds = (hasFeed ? 1 : 0) + (hasMed ? 1 : 0) + (hasChick ? 1 : 0);
+        if (kinds != 1) return "Thanh toán công nợ NCC";
+        if (hasFeed) return "Tiền thức ăn (Cám)";
+        if (hasMed) return "Thuốc thú y & vắc-xin";
+        return "Tiền con giống";
     }
 
     @Transactional
@@ -280,7 +332,9 @@ public class PurchaseService {
         LocalDate payDate = request.paymentDate() != null
                 ? request.paymentDate()
                 : LocalDate.now(java.time.ZoneId.of("Asia/Bangkok"));
-        String method = request.paymentMethod() != null && !request.paymentMethod().isBlank()
+        String method = request.cashFundId() != null
+                ? cashbookService.resolveFundPaymentMethod(request.cashFundId())
+                : request.paymentMethod() != null && !request.paymentMethod().isBlank()
                 ? request.paymentMethod().strip()
                 : "Tiền mặt";
         recordPayment(saved, request.amount(), payDate, method, request.cashFundId(), request.note());

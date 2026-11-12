@@ -17,10 +17,10 @@ const DEFAULT_CASHBOOK_REPORT = {
   totalExpense: INITIAL_FARMSHIFT_DATA.cashbook
     .filter(t => t.type === 'Chi')
     .reduce((sum, t) => sum + Number(t.amount || 0), 0),
-  totalFundsBalance: 332120000,
+  totalFundsBalance: 471570000,
   funds: [
-    { id: 'f-1', name: 'Tài khoản MB Bank (TK Chính)', fundType: 'BANK', bank: 'Ngân hàng Quân Đội', balance: 228920000 },
-    { id: 'f-2', name: 'Tiền mặt tại quỹ trại', fundType: 'CASH', bank: 'Quỹ thủ quỹ', balance: 53200000 },
+    { id: 'f-1', name: 'Tài khoản MB Bank (TK Chính)', fundType: 'BANK', bank: 'Ngân hàng Quân Đội', balance: 391070000 },
+    { id: 'f-2', name: 'Tiền mặt tại quỹ trại', fundType: 'CASH', bank: 'Quỹ thủ quỹ', balance: 30500000 },
     { id: 'f-3', name: 'Tài khoản Vietcombank dự phòng', fundType: 'BANK', bank: 'Vietcombank', balance: 50000000 }
   ],
   transactions: INITIAL_FARMSHIFT_DATA.cashbook
@@ -232,13 +232,13 @@ export const ReportsView = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
                 <div style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Tổng doanh thu thực tế</div>
-                <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>336,360,000 đ</div>
-                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Đã thu tiền: 291,880,000 đ · Còn nợ: 44,480,000 đ</div>
+                <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>340,400,000 đ</div>
+                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Đã thu tiền: 300,000,000 đ · Còn nợ: 40,400,000 đ</div>
               </div>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
                 <div style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Tổng khối lượng xuất bán</div>
-                <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '4px' }}>4,180 kg</div>
-                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Đơn giá trung bình: 80,468 đ/kg</div>
+                <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '4px' }}>4,300 kg</div>
+                <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Đơn giá trung bình: 79,163 đ/kg</div>
               </div>
             </div>
 
@@ -248,7 +248,7 @@ export const ReportsView = () => {
                   <tr>
                     <th>Mã đơn</th>
                     <th>Khách hàng</th>
-                    <th>Kho hàng</th>
+                    <th>Khu nuôi / Chuồng / Lứa</th>
                     <th>Tổng tiền</th>
                     <th>Thanh toán</th>
                     <th>NV Tạo đơn</th>
@@ -256,20 +256,20 @@ export const ReportsView = () => {
                 </thead>
                 <tbody>
                   <tr>
-                    <td><strong style={{ color: 'var(--color-link)', fontFamily: 'monospace' }}>DH000001</strong></td>
-                    <td><strong>Thương lái Tuấn (Hà Nội)</strong></td>
-                    <td>Kho Con giống & Thành phẩm</td>
-                    <td><strong>196,800,000 đ</strong></td>
+                    <td><strong style={{ color: 'var(--color-link)', fontFamily: 'monospace' }}>BH00001</strong></td>
+                    <td><strong>Nguyễn Văn Hùng (Thương lái Lái Thiêu)</strong></td>
+                    <td>Khu Mía Thịt - Nhà A1 - L000001</td>
+                    <td><strong>200,000,000 đ</strong></td>
                     <td><span className="farmshift-badge farmshift-badge-success">Đã thanh toán đủ</span></td>
-                    <td>Nguyen Hiep</td>
+                    <td>Nguyễn Hữu Hiệp</td>
                   </tr>
                   <tr>
-                    <td><strong style={{ color: 'var(--color-link)', fontFamily: 'monospace' }}>DH000002</strong></td>
-                    <td><strong>Hợp tác xã Gia Cầm Yên Thế</strong></td>
-                    <td>Kho Con giống & Thành phẩm</td>
-                    <td><strong>139,560,000 đ</strong></td>
-                    <td><span className="farmshift-badge farmshift-badge-warning">Còn nợ 44.48 tr</span></td>
-                    <td>Nguyen Hiep</td>
+                    <td><strong style={{ color: 'var(--color-link)', fontFamily: 'monospace' }}>BH00002</strong></td>
+                    <td><strong>Công ty Thực phẩm Sạch Minh Tâm</strong></td>
+                    <td>Khu Mía Thịt - Nhà A2 - L000002</td>
+                    <td><strong>140,400,000 đ</strong></td>
+                    <td><span className="farmshift-badge farmshift-badge-warning">Còn nợ 40.4 tr</span></td>
+                    <td>Nguyễn Hữu Hiệp</td>
                   </tr>
                 </tbody>
               </table>
@@ -286,9 +286,9 @@ export const ReportsView = () => {
           </div>
           <div className="farmshift-card-body">
             <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)', marginBottom: '16px' }}>
-              <div style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Tổng giá trị vật tư đã mua</div>
-              <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>281,810,000 đ</div>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Gồm: Cám (180.75 tr) + Con giống (92.5 tr) + Thuốc thú y (8.56 tr)</div>
+              <div style={{ fontSize: '14.5px', color: 'var(--color-muted)' }}>Tổng giá trị hóa đơn nhập kho vật tư</div>
+              <div style={{ fontSize: '28px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '4px' }}>281,280,000 đ</div>
+              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', marginTop: '2px' }}>Gồm: Cám (180.3 tr) + Con giống lẻ (92.5 tr) + Thuốc thú y (8.48 tr) · Đã trả 213.03 tr · Công nợ 68.25 tr</div>
             </div>
 
             <div className="farmshift-table-container" style={{ border: 'none' }}>
@@ -305,24 +305,31 @@ export const ReportsView = () => {
                 <tbody>
                   <tr>
                     <td><strong style={{ color: 'var(--color-link)', fontFamily: 'monospace' }}>NH000000</strong></td>
-                    <td>Công ty Cổ phần Chăn nuôi C.P. Việt Nam</td>
+                    <td>Công ty CP Chăn nuôi C.P. Việt Nam</td>
                     <td>Kho Cám & Thức ăn</td>
-                    <td><strong>18,000,000 đ</strong></td>
+                    <td><strong>112,050,000 đ</strong></td>
                     <td><span className="farmshift-badge farmshift-badge-success">Đã thanh toán</span></td>
                   </tr>
                   <tr>
                     <td><strong style={{ color: 'var(--color-link)', fontFamily: 'monospace' }}>NH000001</strong></td>
-                    <td>Tập đoàn DABACO Việt Nam</td>
-                    <td>Kho Cám & Thức ăn</td>
-                    <td><strong>227,250,000 đ</strong></td>
+                    <td>Tập đoàn Dabaco Việt Nam</td>
+                    <td>Kho Con giống</td>
+                    <td><strong>92,500,000 đ</strong></td>
                     <td><span className="farmshift-badge farmshift-badge-success">Đã thanh toán</span></td>
                   </tr>
                   <tr>
                     <td><strong style={{ color: 'var(--color-link)', fontFamily: 'monospace' }}>NH000002</strong></td>
-                    <td>Công ty Thuốc Thú Y Hanvet</td>
+                    <td>Công ty Thuốc Thú y Hanvet</td>
                     <td>Kho Thuốc thú y</td>
-                    <td><strong>2,560,000 đ</strong></td>
+                    <td><strong>8,480,000 đ</strong></td>
                     <td><span className="farmshift-badge farmshift-badge-success">Đã thanh toán</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong style={{ color: 'var(--color-link)', fontFamily: 'monospace' }}>NH000003</strong></td>
+                    <td>Công ty CP Chăn nuôi C.P. Việt Nam</td>
+                    <td>Kho Cám & Thức ăn</td>
+                    <td><strong>68,250,000 đ</strong></td>
+                    <td><span className="farmshift-badge farmshift-badge-warning">Trả sau (công nợ)</span></td>
                   </tr>
                 </tbody>
               </table>

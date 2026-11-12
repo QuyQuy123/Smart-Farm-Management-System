@@ -23,6 +23,24 @@ public record PurchaseInvoiceRequest(
     @Size(max=100) @Pattern(regexp="^[\\p{L}\\p{N}\\s._/()\\-]*$", message="Số chứng từ chứa ký tự không hợp lệ.") String referenceCode,
     @Size(max=1000) @Pattern(regexp="(?s)^(?:\\s*|.*\\p{L}.*)$", message="Ghi chú phải có nội dung chữ.") String note,
     String attachmentUrl,
-    List<Long> tagIds
+    List<Long> tagIds,
+    Long cashFundId
 ) {
+    public PurchaseInvoiceRequest(
+            Long supplierId,
+            String supplierName,
+            LocalDate date,
+            List<PurchaseInvoiceItemRequest> items,
+            Long discountAmount,
+            Long otherCost,
+            Long paidAmount,
+            String paymentStatus,
+            String stockStatus,
+            String referenceCode,
+            String note,
+            String attachmentUrl,
+            List<Long> tagIds) {
+        this(supplierId, supplierName, date, items, discountAmount, otherCost,
+                paidAmount, paymentStatus, stockStatus, referenceCode, note, attachmentUrl, tagIds, null);
+    }
 }

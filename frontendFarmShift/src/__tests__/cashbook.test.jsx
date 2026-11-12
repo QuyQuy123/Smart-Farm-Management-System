@@ -103,6 +103,28 @@ describe('CashbookView - Funds, Vouchers, Assets, Payroll & Categories', () => {
     await waitFor(() => expect(cashbookService.deleteCashTransaction).toHaveBeenCalledWith(101));
   });
 
+  it('locks auto-generated vouchers linked to source documents from direct edit/delete', async () => {
+    const base = await cashbookService.getCashbookSummary();
+    cashbookService.getCashbookSummary.mockResolvedValue({
+      ...base,
+      transactions: [
+        ...base.transactions,
+        { id: 102, code: 'PT000003', date: '2026-11-08', type: 'Thu', category: 'Đơn bán gà', amount: 200000000, contact: 'Khách hàng', name: 'Nguyễn Văn Hùng', fundId: 2, fund: 'TK MB Bank', creator: 'Trần Kế Toán', note: 'Thu tiền đơn bán gà BH00001', referenceInvoiceCode: 'BH00001' }
+      ]
+    });
+    render(<MemoryRouter><CashbookView /></MemoryRouter>);
+    await screen.findByText('PT000003');
+
+    expect(screen.getByRole('button', { name: 'Sửa phiếu PC000099' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sửa phiếu PT000003' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xóa phiếu PT000003' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Phiếu PT000003 liên kết chứng từ BH00001')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xem phiếu PT000003' }));
+    expect(await screen.findByText(/phiếu tự động — chỉnh sửa tại chứng từ gốc/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Chỉnh sửa/i })).not.toBeInTheDocument();
+  });
+
   it('creates, updates and deletes cash funds in tab Nguồn quỹ tiền (FIN-07)', async () => {
     render(<MemoryRouter><CashbookView /></MemoryRouter>);
     await screen.findByText('PC000099');

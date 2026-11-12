@@ -159,6 +159,7 @@ export const PurchasesView = () => {
     referenceCode: '',
     paymentStatus: 'Trả sau',
     paidAmount: '',
+    cashFundId: '',
     stockStatus: 'Chưa nhập kho',
     tagIds: [],
     items: [
@@ -222,13 +223,21 @@ export const PurchasesView = () => {
   }, [activeTab, revision]);
 
   useEffect(() => {
-    if (!showPaymentModal) return;
+    if (!showPaymentModal && !showAddModal) return;
     let cancelled = false;
     listCashFunds()
-      .then(data => { if (!cancelled) setCashFunds(Array.isArray(data) ? data : []); })
+      .then(data => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setCashFunds(list);
+        const firstActive = list.find(f => f.active !== false);
+        if (showAddModal && firstActive) {
+          setNewPo(prev => (prev.cashFundId ? prev : { ...prev, cashFundId: String(firstActive.id) }));
+        }
+      })
       .catch(() => { if (!cancelled) setCashFunds([]); });
     return () => { cancelled = true; };
-  }, [showPaymentModal]);
+  }, [showPaymentModal, showAddModal]);
 
   const openSupplierDetailModal = async (sup) => {
     if (!sup) return;
@@ -777,6 +786,7 @@ export const PurchasesView = () => {
         note: newPo.note,
         paymentStatus: finalStatus,
         paidAmount: paid,
+        ...(finalStatus !== 'Trả sau' && newPo.cashFundId ? { cashFundId: Number(newPo.cashFundId) } : {}),
         stockStatus: newPo.stockStatus,
         discountAmount: discount,
         otherCost: otherCost,
@@ -801,6 +811,24 @@ export const PurchasesView = () => {
       setPoErrors({});
       setOcrBanner(false); setIsOcrDraft(false);
       setOcrWarnings([]);
+      setNewPo({
+        supplierId: '',
+        supplierName: '',
+        supplierTaxCode: '',
+        date: new Date().toISOString().split('T')[0],
+        note: '',
+        referenceCode: '',
+        paymentStatus: 'Trả sau',
+        paidAmount: '',
+        cashFundId: '',
+        stockStatus: 'Chưa nhập kho',
+        discountAmount: 0,
+        otherCost: 0,
+        tagIds: [],
+        items: [
+          { productCategoryId: '', name: '', qty: 1, unit: '', price: 0, lotNumber: '', expiryDate: '' }
+        ]
+      });
       fetchData();
       if (created) setSelectedOrder(created);
     } catch (err) {
@@ -2460,10 +2488,12 @@ export const PurchasesView = () => {
                           const discount = Number(newPo.discountAmount || 0);
                           const otherCost = Number(newPo.otherCost || 0);
                           const totalAmt = Math.max(0, subtotal - discount + otherCost);
+                          const firstActive = cashFunds.find(f => f.active !== false);
                           setNewPo({
                             ...newPo,
                             paymentStatus: newStatus,
-                            paidAmount: newStatus === 'Thanh toán một phần' && !newPo.paidAmount ? String(Math.round(totalAmt / 2)) : (newStatus === 'Thanh toán một phần' ? newPo.paidAmount : '')
+                            paidAmount: newStatus === 'Thanh toán một phần' && !newPo.paidAmount ? String(Math.round(totalAmt / 2)) : (newStatus === 'Thanh toán một phần' ? newPo.paidAmount : ''),
+                            cashFundId: newStatus !== 'Trả sau' && !newPo.cashFundId && firstActive ? String(firstActive.id) : newPo.cashFundId
                           });
                           if (poErrors.paidAmount) {
                             setPoErrors(prev => ({ ...prev, paidAmount: '' }));
@@ -2488,6 +2518,25 @@ export const PurchasesView = () => {
                       </select>
                     </div>
                   </div>
+
+                  {newPo.paymentStatus !== 'Trả sau' && cashFunds.length > 0 && (
+                    <div className="farmshift-form-group" style={{ marginBottom: '16px' }}>
+                      <label htmlFor="po-cash-fund" className="farmshift-form-label">Chi từ nguồn quỹ (Tự động ghi Sổ quỹ)</label>
+                      <select
+                        id="po-cash-fund"
+                        className="farmshift-form-control"
+                        value={newPo.cashFundId}
+                        onChange={(e) => setNewPo({ ...newPo, cashFundId: e.target.value })}
+                      >
+                        <option value="">-- Không hạch toán vào Sổ quỹ --</option>
+                        {cashFunds.filter(f => f.active !== false).map(f => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} (Số dư: {Number(f.balance || 0).toLocaleString('vi-VN')} đ)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {newPo.paymentStatus === 'Thanh toán một phần' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px', padding: '12px 14px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { readLocalSales } from '../../services/localSalesStorage';
 import { useSearchParams } from 'react-router-dom';
 import { listSalesCustomers, listSalesOrders, createSalesOrder, updateSalesOrder } from '../../services/salesCustomerService';
+import { listCashFunds } from '../../services/cashbookService';
 import { listBarns } from '../../services/farmAreaService';
 import { listCycles } from '../../services/cycleService';
 import styles from './SalesView.module.css';
@@ -77,6 +78,7 @@ export const SalesView = () => {
     paymentMethod: 'Tiền mặt',
     paymentStatus: 'PAID',
     paidAmount: '',
+    cashFundId: '',
     date: new Date().toISOString().split('T')[0],
     flock: '',
     quantity: '',
@@ -130,10 +132,12 @@ export const SalesView = () => {
 
       const numeric = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? String(value) : '';
       const ocrStatus = ['PAID', 'DEBT', 'PARTIAL'].includes(draft.status) ? draft.status : 'DEBT';
+      const ocrMethod = ocrStatus === 'DEBT' ? '' : (draft.paymentMethod || 'Tiền mặt');
       setNewSale(previous => ({ ...previous, customer: draft.customer || '', phone: String(draft.phone || '').replace(/[^0-9]/g, ''),
         address: draft.address || '', taxCode: draft.taxCode || '', date: draft.date || '',
         quantity: numeric(draft.quantity), totalWeight: numeric(draft.totalWeight), unitPrice: numeric(draft.unitPrice),
-        paymentMethod: ocrStatus === 'DEBT' ? '' : (draft.paymentMethod || 'Tiền mặt'), paymentStatus: ocrStatus,
+        paymentMethod: ocrMethod, paymentStatus: ocrStatus,
+        cashFundId: ocrStatus === 'DEBT' ? '' : (previous.cashFundId || pickFundForMethod(cashFunds, ocrMethod)),
         paidAmount: numeric(draft.paidAmount), flock: selectedFlockId, note: previous.note || '' }));
     } catch (error) {
       if (!controller.signal.aborted) setOcrError(error.response?.data?.message || error.message || 'Không bóc tách được phiếu cân. Vui lòng thử lại.');
@@ -142,6 +146,14 @@ export const SalesView = () => {
   const [cycleOptions, setCycleOptions] = useState([]);
   const [cyclesLoading, setCyclesLoading] = useState(false);
   const [cyclesError, setCyclesError] = useState('');
+  const [cashFunds, setCashFunds] = useState([]);
+  const pickFundForMethod = (fundsList, method) => {
+    const activeFunds = (Array.isArray(fundsList) ? fundsList : []).filter(f => f.active !== false);
+    if (activeFunds.length === 0) return '';
+    const preferType = method === 'Tiền mặt' ? 'CASH' : 'BANK';
+    const match = activeFunds.find(f => String(f.fundType || '').toUpperCase() === preferType);
+    return String((match || activeFunds[0]).id);
+  };
   const openSaleModal = async (sale = null) => {
     clearOcr();
     setEditingSale(sale);
@@ -156,17 +168,29 @@ export const SalesView = () => {
         unitPrice: String(sale.unitPrice), note: sale.note || '',
         paymentStatus: sale.totalAmount <= sale.paidAmount ? 'PAID' : sale.paidAmount > 0 ? 'PARTIAL' : 'DEBT',
         paidAmount: String(sale.paidAmount),
+        cashFundId: '',
       });
     } else {
       setNewSale({ customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt',
-        paymentStatus: 'PAID', paidAmount: '', date: new Date().toISOString().split('T')[0],
+        paymentStatus: 'PAID', paidAmount: '', cashFundId: '', date: new Date().toISOString().split('T')[0],
         flock: '', quantity: '', totalWeight: '', unitPrice: '', note: '' });
     }
     setShowAddModal(Boolean(sale));
     setCyclesLoading(true);
     setCyclesError('');
     try {
-      const barns = await listBarns();
+      const [barns, loadedFunds] = await Promise.all([
+        listBarns(),
+        listCashFunds().catch(() => [])
+      ]);
+      const fundList = Array.isArray(loadedFunds) ? loadedFunds : [];
+      setCashFunds(fundList);
+      if (!sale && fundList.length > 0) {
+        setNewSale(prev => prev.cashFundId ? prev : {
+          ...prev,
+          cashFundId: pickFundForMethod(fundList, prev.paymentMethod)
+        });
+      }
       const options = await Promise.all(barns.map(async barn => {
         const cycles = await listCycles(barn.id);
         return (cycles || []).map(cycle => ({
@@ -224,6 +248,7 @@ export const SalesView = () => {
         cycleId,
         quantity: qty, totalWeight: weight, unitPrice: price,
         status: newSale.paymentStatus, paidAmount, note: newSale.note,
+        ...(newSale.paymentStatus !== 'DEBT' && newSale.cashFundId ? { cashFundId: Number(newSale.cashFundId) } : {}),
       };
       const created = editingSale ? await updateSalesOrder(editingSale.id, body) : ocrFile ? await confirmWeightSlip(body, ocrFile) : await createSalesOrder(body);
       clearOcr();
@@ -232,7 +257,7 @@ export const SalesView = () => {
       setCustomerRevision(value => value + 1);
       setShowAddModal(false);
       if (!editingSale) setActiveTab('orders');
-      setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '' }));
+      setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '', cashFundId: cashFunds.length > 0 ? pickFundForMethod(cashFunds, 'Tiền mặt') : '' }));
       window.dispatchEvent(new Event('farm-areas-changed'));
       try { localStorage.setItem('farm-areas-changed', `${Date.now()}-${Math.random()}`); } catch {}
     } catch (error) {
@@ -597,12 +622,18 @@ export const SalesView = () => {
                       value={newSale.paymentStatus}
                       onChange={event => {
                         const nextStatus = event.target.value;
-                        setNewSale(previous => ({
-                          ...previous,
-                          paymentStatus: nextStatus,
-                          paymentMethod: nextStatus === 'DEBT' ? '' : (previous.paymentMethod || 'Tiền mặt'),
-                          paidAmount: nextStatus === 'PAID' ? '' : previous.paidAmount
-                        }));
+                        setNewSale(previous => {
+                          const nextMethod = nextStatus === 'DEBT' ? '' : (previous.paymentMethod || 'Tiền mặt');
+                          return {
+                            ...previous,
+                            paymentStatus: nextStatus,
+                            paymentMethod: nextMethod,
+                            paidAmount: nextStatus === 'PAID' ? '' : previous.paidAmount,
+                            cashFundId: nextStatus === 'DEBT'
+                              ? ''
+                              : (previous.cashFundId || (cashFunds.length > 0 ? pickFundForMethod(cashFunds, nextMethod) : ''))
+                          };
+                        });
                       }}
                     >
                       <option value="PAID">Đã thanh toán</option>
@@ -621,7 +652,14 @@ export const SalesView = () => {
                       disabled={newSale.paymentStatus === 'DEBT'}
                       required={newSale.paymentStatus !== 'DEBT'}
                       value={newSale.paymentStatus === 'DEBT' ? '' : newSale.paymentMethod}
-                      onChange={event => setNewSale({ ...newSale, paymentMethod: event.target.value })}
+                      onChange={event => {
+                        const method = event.target.value;
+                        setNewSale(previous => ({
+                          ...previous,
+                          paymentMethod: method,
+                          cashFundId: cashFunds.length > 0 ? pickFundForMethod(cashFunds, method) : previous.cashFundId
+                        }));
+                      }}
                     >
                       {newSale.paymentStatus === 'DEBT' ? (
                         <option value="">-- Để trống --</option>
@@ -638,6 +676,26 @@ export const SalesView = () => {
                     </select>
                   </div>
                 </div>
+                {newSale.paymentStatus !== 'DEBT' && cashFunds.length > 0 && (
+                  <div className="farmshift-form-group">
+                    <label className="farmshift-form-label" htmlFor="sale-cash-fund">
+                      Thu vào nguồn quỹ
+                    </label>
+                    <select
+                      id="sale-cash-fund"
+                      className="farmshift-form-control"
+                      value={newSale.cashFundId}
+                      onChange={event => setNewSale({ ...newSale, cashFundId: event.target.value })}
+                    >
+                      <option value="">{editingSale ? '-- Giữ nguyên quỹ cũ / Không ghi sổ quỹ --' : '-- Không ghi sổ quỹ --'}</option>
+                      {cashFunds.filter(f => f.active !== false).map(f => (
+                        <option key={f.id} value={f.id}>
+                          {f.name} ({Number(f.balance || 0).toLocaleString('vi-VN')} đ)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {newSale.paymentStatus === 'PARTIAL' && <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-paid-amount">Số tiền đã trả (đ) <span className={styles.required}>*</span></label>
                   <input id="sale-paid-amount" type="text" inputMode="numeric" required pattern="[1-9][0-9.]*" title="Nhập số tiền đã trả lớn hơn 0" className="farmshift-form-control" value={newSale.paidAmount.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} onChange={event => setNewSale({ ...newSale, paidAmount: event.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '') })} />
