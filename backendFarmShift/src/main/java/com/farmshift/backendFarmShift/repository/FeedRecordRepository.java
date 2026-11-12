@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FeedRecordRepository extends JpaRepository<FeedRecord, Long> {
+    @EntityGraph(attributePaths = {"cycle"})
+    List<FeedRecord> findAllByOrderByRecordDateDescIdDesc();
+
     List<FeedRecord> findAllByCycleIdOrderByRecordDateDescIdDesc(Long cycleId);
     Optional<FeedRecord> findByIdAndCycleId(Long id, Long cycleId);
 

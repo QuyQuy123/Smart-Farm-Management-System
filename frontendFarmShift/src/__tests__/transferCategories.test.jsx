@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({ showToast: vi.fn() }));
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children }) => <div>{children}</div> }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: 'ROLE_FARM_OWNER' } }) }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
-vi.mock('../services/transferCategoryService', () => ({ listTransferCategories: vi.fn(), createTransferCategory: vi.fn(), updateTransferCategory: vi.fn(), deleteTransferCategory: vi.fn(), TRANSFER_TYPES: { IMPORT: 'Nhập kho', EXPORT: 'Xuất kho', TRANSFER: 'Chuyển kho' } }));
+vi.mock('../services/transferCategoryService', () => ({ listTransferCategories: vi.fn(), createTransferCategory: vi.fn(), updateTransferCategory: vi.fn(), deleteTransferCategory: vi.fn(), TRANSFER_TYPES: { EXPORT: 'Xuất kho', TRANSFER: 'Chuyển kho' } }));
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };

@@ -12,7 +12,9 @@ import com.farmshift.backendFarmShift.dto.response.FlockResponse;
 import com.farmshift.backendFarmShift.dto.response.ProgramStepResponse;
 import com.farmshift.backendFarmShift.dto.response.WorkBoard;
 import com.farmshift.backendFarmShift.entity.FlockMovementType;
+import com.farmshift.backendFarmShift.entity.InventoryItem;
 import com.farmshift.backendFarmShift.entity.ProgramStepCategory;
+import com.farmshift.backendFarmShift.repository.InventoryItemRepository;
 import com.farmshift.backendFarmShift.repository.PurchaseInvoiceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -49,6 +51,7 @@ public class DashboardService {
     private final DailyPlanService dailyPlanService;
     private final CycleService cycleService;
     private final PurchaseInvoiceRepository invoiceRepository;
+    private final InventoryItemRepository inventoryRepository;
 
     /** workerEmail khác null: chỉ các chuồng công nhân đó phụ trách. now: giờ hiện tại để tính việc quá giờ. */
     public DashboardResponse get(boolean canSeeFinance, String workerEmail, LocalTime now) {
@@ -126,6 +129,7 @@ public class DashboardService {
                         "Tổng còn phải trả " + NumberFormat.getIntegerInstance(new Locale("vi", "VN")).format(debt) + "đ.", null));
             }
         }
+        addInventoryAlerts(alerts, today);
         alerts.sort(Comparator.comparing((Alert alert) -> List.of("DANGER", "WARN", "INFO").indexOf(alert.level())));
         upcoming.sort(Comparator.comparing(Upcoming::date).thenComparing(Upcoming::barnName));
         Finance finance = canSeeFinance ? new Finance(money[0], money[1], money[2], money[3], money[3].subtract(money[2]),
@@ -238,4 +242,38 @@ public class DashboardService {
     }
 
     private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
+
+    private void addInventoryAlerts(List<Alert> alerts, LocalDate today) {
+        List<InventoryItem> items = inventoryRepository.findAllWithDetailsBy(org.springframework.data.domain.Sort.by("warehouse.name", "product.name"));
+        for (InventoryItem item : items) {
+            String productName = item.getProduct() != null ? item.getProduct().getName() : "Hàng hóa";
+            String warehouseName = item.getWarehouse() != null ? item.getWarehouse().getName() : "Kho";
+            String unitName = item.getUnit() != null ? " " + item.getUnit().getName() : "";
+            if (InventoryItemService.isLowStock(item)) {
+                alerts.add(new Alert(
+                        item.getStock() != null && item.getStock().signum() <= 0 ? "DANGER" : "WARN",
+                        "LOW_STOCK",
+                        productName + " tại " + warehouseName + " sắp hết tồn",
+                        "Hiện còn " + item.getStock().stripTrailingZeros().toPlainString() + unitName
+                                + " (ngưỡng tối thiểu " + item.getMinStock().stripTrailingZeros().toPlainString() + unitName + ").",
+                        null));
+            }
+            String expStatus = InventoryItemService.computeExpiryStatus(item.getExpiryDate(), today, InventoryItemService.DEFAULT_NEAR_EXPIRY_DAYS);
+            if ("EXPIRED".equals(expStatus)) {
+                alerts.add(new Alert(
+                        "DANGER",
+                        "EXPIRY",
+                        productName + " (" + warehouseName + ") đã hết hạn sử dụng",
+                        "Hạn dùng: " + item.getExpiryDate() + (item.getLotNumber() != null ? " · Lô " + item.getLotNumber() : "") + ".",
+                        null));
+            } else if ("NEAR_EXPIRY".equals(expStatus)) {
+                alerts.add(new Alert(
+                        "WARN",
+                        "EXPIRY",
+                        productName + " (" + warehouseName + ") sắp hết hạn",
+                        "Hạn dùng: " + item.getExpiryDate() + (item.getLotNumber() != null ? " · Lô " + item.getLotNumber() : "") + ".",
+                        null));
+            }
+        }
+    }
 }

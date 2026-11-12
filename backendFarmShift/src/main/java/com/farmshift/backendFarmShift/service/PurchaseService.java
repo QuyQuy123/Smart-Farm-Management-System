@@ -33,6 +33,7 @@ public class PurchaseService {
     private final ProductTypeRepository productTypeRepository;
     private final WarehouseCategoryRepository warehouseCategoryRepository;
     private final MeasurementUnitRepository measurementUnitRepository;
+    private final PurchasePaymentRepository paymentRepository;
 
     public List<PurchaseInvoiceResponse> list(String search, String paymentStatus) {
         return invoiceRepository.searchInvoices(search, paymentStatus).stream().map(this::toResponse).toList();
@@ -65,6 +66,8 @@ public class PurchaseService {
                     .orElseThrow(() -> new ResourceNotFoundException("Mặt hàng không tồn tại."));
             var updatedItem = new PurchaseInvoiceItem(invoice, product, row.name().strip(), row.qty(), row.unit().strip(), row.price(), row.vatRate(), amount);
             updatedItem.setWarehouse(resolveItemWarehouse(product, row.warehouseId()));
+            updatedItem.setLotNumber(trimOrNull(row.lotNumber()));
+            updatedItem.setExpiryDate(row.expiryDate());
             updatedItems.add(updatedItem);
         }
         long total;
@@ -103,7 +106,11 @@ public class PurchaseService {
         invoice.setOtherCost(request.otherCost() != null ? request.otherCost() : 0L);
         invoice.setReferenceCode(request.referenceCode() != null ? request.referenceCode().strip() : null);
         invoice.setNote(request.note() != null ? request.note().strip() : "");
-        invoice.setAttachmentUrl(request.attachmentUrl());
+        String attachment = trimOrNull(request.attachmentUrl());
+        if (attachment != null && !(attachment.startsWith("/img/") || attachment.startsWith("https://") || attachment.startsWith("http://"))) {
+            throw new BadRequestException("Đường dẫn ảnh chứng từ không hợp lệ.");
+        }
+        invoice.setAttachmentUrl(attachment);
 
         if (request.tagIds() != null && !request.tagIds().isEmpty()) {
             invoice.setTags(new HashSet<>(tagRepository.findAllById(request.tagIds())));
@@ -131,6 +138,8 @@ public class PurchaseService {
                     lineAmount
             );
             item.setWarehouse(resolveItemWarehouse(category, itemReq.warehouseId()));
+            item.setLotNumber(trimOrNull(itemReq.lotNumber()));
+            item.setExpiryDate(itemReq.expiryDate());
             invoice.addItem(item);
         }
 
@@ -168,6 +177,11 @@ public class PurchaseService {
         invoice.setStockStatus(stockStatus);
 
         PurchaseInvoice saved = invoiceRepository.saveAndFlush(invoice);
+
+        if (paid > 0) {
+            String payNote = "Thanh toán khi tạo hóa đơn " + saved.getCode();
+            recordPayment(saved, paid, saved.getInvoiceDate(), "Tiền mặt", payNote);
+        }
 
         // If stock is marked as IMPORTED on creation, update inventory immediately
         if ("Đã nhập kho".equalsIgnoreCase(stockStatus)) {
@@ -207,7 +221,12 @@ public class PurchaseService {
         invoice.setStockStatus(STOCK_TO_BARN);
         invoice.setImportedDate(flock.getImportDate());
         invoice.setNote("Nhập đàn " + flock.getName() + " vào " + cycle.getBarn().getName() + " · lứa " + cycle.getCycleNumber());
-        return invoiceRepository.saveAndFlush(invoice);
+        PurchaseInvoice saved = invoiceRepository.saveAndFlush(invoice);
+        if (paid && total > 0) {
+            String payNote = "Thanh toán nhập đàn " + flock.getName();
+            recordPayment(saved, total, flock.getImportDate(), "Tiền mặt", payNote);
+        }
+        return saved;
     }
 
     @Transactional
@@ -235,6 +254,11 @@ public class PurchaseService {
             throw new BadRequestException("Không thể thanh toán cho hóa đơn đã bị hủy.");
         }
 
+        long remaining = Math.max(0L, invoice.getTotalAmount() - invoice.getPaidAmount());
+        if (request.amount() > remaining) {
+            throw new BadRequestException("Số tiền thanh toán vượt quá công nợ còn lại (" + remaining + "đ).");
+        }
+
         long newPaid = invoice.getPaidAmount() + request.amount();
         invoice.setPaidAmount(newPaid);
 
@@ -251,7 +275,16 @@ public class PurchaseService {
             invoice.setNote(updatedNote);
         }
 
-        return toResponse(invoiceRepository.saveAndFlush(invoice));
+        PurchaseInvoice saved = invoiceRepository.saveAndFlush(invoice);
+        LocalDate payDate = request.paymentDate() != null
+                ? request.paymentDate()
+                : LocalDate.now(java.time.ZoneId.of("Asia/Bangkok"));
+        String method = request.paymentMethod() != null && !request.paymentMethod().isBlank()
+                ? request.paymentMethod().strip()
+                : "Tiền mặt";
+        recordPayment(saved, request.amount(), payDate, method, request.note());
+
+        return toResponse(saved);
     }
 
     @Transactional
@@ -363,6 +396,11 @@ public class PurchaseService {
             inventoryItem.setStock(BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 0.0));
             inventoryItem.setPrice(BigDecimal.valueOf(item.getUnitPrice() != null ? item.getUnitPrice() : 0L));
             inventoryItem.setPurchaseInvoiceItemId(item.getId());
+            String lotNum = trimOrNull(item.getLotNumber());
+            inventoryItem.setLotNumber(lotNum != null ? lotNum : "LO-" + invoice.getCode());
+            if (item.getExpiryDate() != null) {
+                inventoryItem.setExpiryDate(item.getExpiryDate());
+            }
 
             inventoryRepository.save(inventoryItem);
         }
@@ -431,7 +469,9 @@ public class PurchaseService {
                         it.getUnitPrice(),
                         it.getVatRate(),
                         it.getAmount(),
-                        it.getWarehouse() == null ? null : it.getWarehouse().getId()
+                        it.getWarehouse() == null ? null : it.getWarehouse().getId(),
+                        it.getLotNumber(),
+                        it.getExpiryDate()
                 )
         ).toList();
 
@@ -471,5 +511,25 @@ public class PurchaseService {
                 cycle == null ? null : cycle.getBarn().getId(),
                 cycle == null ? null : cycle.getBarn().getName()
         );
+    }
+
+    private void recordPayment(PurchaseInvoice invoice, long amount, LocalDate date, String method, String note) {
+        if (amount <= 0) return;
+        PurchasePayment payment = new PurchasePayment();
+        payment.setInvoice(invoice);
+        payment.setSupplier(invoice.getSupplier());
+        payment.setAmount(amount);
+        payment.setPaymentDate(date != null ? date : LocalDate.now(java.time.ZoneId.of("Asia/Bangkok")));
+        payment.setPaymentMethod(method);
+        payment.setNote(note == null || note.isBlank() ? "Thanh toán công nợ hóa đơn " + invoice.getCode() : note.strip());
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        payment.setCreatedBy(auth != null && auth.getName() != null ? auth.getName() : "Hệ thống");
+        paymentRepository.save(payment);
+    }
+
+    private static String trimOrNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.strip();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

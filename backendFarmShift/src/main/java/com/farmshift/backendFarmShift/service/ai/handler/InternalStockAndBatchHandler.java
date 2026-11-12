@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 /**
  * Handles Internal Stock Movements & Batch-Price (#<date><time>) AI skills:
  * 1. Batch-Level Inventory & Price Inquiry (Weighted Average Price + Lots + RBAC Price Masking).
- * 2. Voice/Chat Internal Stock Vouchers (Disposal, Transfer, Opening Import) with 2-step PendingActionCard.
+ * 2. Voice/Chat Internal Stock Vouchers (Disposal / EXPORT, Transfer / TRANSFER) with 2-step PendingActionCard.
  */
 @Slf4j
 @Component
@@ -66,9 +66,9 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         boolean isBatchQuery = (norm.contains("ton kho") || norm.contains("trong kho") || norm.contains("kiem tra ton"))
                 && (norm.contains("gia") || norm.contains("dot") || norm.contains("chi tiet") || norm.contains("lo") || norm.contains("bao nhieu"));
 
-        // 2. Internal movement signals
-        boolean isMovement = norm.contains("xuat huy") || norm.contains("chuyen kho") || norm.contains("nhap dau ki")
-                || norm.contains("phieu xuat huy") || norm.contains("phieu chuyen kho") || norm.contains("phieu nhap dau ki")
+        // 2. Internal movement signals (only EXPORT & TRANSFER)
+        boolean isMovement = norm.contains("xuat huy") || norm.contains("chuyen kho")
+                || norm.contains("phieu xuat huy") || norm.contains("phieu chuyen kho")
                 || (norm.contains("chuyen") && norm.contains("kho") && norm.contains("sang"));
 
         return isBatchQuery || isMovement;
@@ -84,7 +84,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         String msg = context.getMessage();
         String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase();
 
-        if (norm.contains("xuat huy") || norm.contains("chuyen kho") || norm.contains("nhap dau ki")
+        if (norm.contains("xuat huy") || norm.contains("chuyen kho")
                 || (norm.contains("chuyen") && norm.contains("kho") && norm.contains("sang"))) {
             return handleInternalMovement(context);
         } else {
@@ -184,7 +184,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 2. INTERNAL STOCK MOVEMENTS (DISPOSAL, TRANSFER, IMPORT)
+    // 2. INTERNAL STOCK MOVEMENTS (EXPORT & TRANSFER ONLY)
     // ─────────────────────────────────────────────────────────────
     private AiAssistantResponse handleInternalMovement(AssistantExecutionContext context) {
         String msg = context.getMessage();
@@ -195,12 +195,9 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         if (norm.contains("xuat huy") || norm.contains("tieu huy") || Pattern.compile("\\bhuy\\b").matcher(norm).find()) {
             movementType = "EXPORT";
             categoryName = "Xuất hủy";
-        } else if (norm.contains("chuyen kho") || norm.contains("chuyen") || (norm.contains("kho") && norm.contains("sang"))) {
+        } else {
             movementType = "TRANSFER";
             categoryName = "Chuyển kho nội bộ";
-        } else {
-            movementType = "IMPORT";
-            categoryName = "Nhập đầu kì";
         }
 
         // RBAC Check via AiRbacPolicy
@@ -256,10 +253,8 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         details.put("Loại phiếu", categoryName + " (" + movementType + ")");
         if ("TRANSFER".equals(movementType)) {
             details.put("Kho xuất → Kho nhập", (sourceWh != null ? sourceWh.getName() : "Kho cám") + " → " + (targetWh != null ? targetWh.getName() : "Kho Khu B"));
-        } else if ("EXPORT".equals(movementType)) {
-            details.put("Kho xuất", sourceWh != null ? sourceWh.getName() : "Kho cám");
         } else {
-            details.put("Kho nhập", targetWh != null ? targetWh.getName() : "Kho cám");
+            details.put("Kho xuất", sourceWh != null ? sourceWh.getName() : "Kho cám");
         }
         details.put("Mặt hàng & Lô áp dụng", (product != null ? product.getName() : productName) + " `" + batchCode + "` (" + qtyBags + " bao)");
         details.put("Tồn kho sau thao tác", stockAfter + " bao (Giảm " + qtyBags + " bao)");

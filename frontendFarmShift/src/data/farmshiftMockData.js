@@ -113,13 +113,13 @@ export const INITIAL_FARMSHIFT_DATA = {
             code: 'NH000000',
             date: '2026-09-15',
             supplier: 'Công ty CP Chăn nuôi C.P. Việt Nam',
-            totalAmount: 112500000,
+            totalAmount: 112050000,
             paymentStatus: 'Thanh toán hoàn tất',
             stockStatus: 'Đã nhập kho',
             note: 'Nhập cám gà giai đoạn 1 và giai đoạn 2 lứa tháng 9',
             items: [
                 { name: 'Cám Gà úm Higro 01', qty: 150, unit: 'Bao (25kg)', price: 345000, amount: 51750000 },
-                { name: 'Cám Gà thịt Higro 02', qty: 180, unit: 'Bao (25kg)', price: 335000, amount: 60750000 },
+                { name: 'Cám Gà thịt Higro 02', qty: 180, unit: 'Bao (25kg)', price: 335000, amount: 60300000 },
             ]
         },
         {
@@ -130,7 +130,7 @@ export const INITIAL_FARMSHIFT_DATA = {
             totalAmount: 92500000,
             paymentStatus: 'Thanh toán hoàn tất',
             stockStatus: 'Đã nhập kho',
-            note: 'Nhập 5,000 con gà giống J-Dabaco',
+            note: 'Nhập 5,000 con gà giống J-Dabaco đợt tháng 9',
             items: [
                 { name: 'Gà giống J-Dabaco trống', qty: 5000, unit: 'Con', price: 18500, amount: 92500000 }
             ]
@@ -140,10 +140,10 @@ export const INITIAL_FARMSHIFT_DATA = {
             code: 'NH000002',
             date: '2026-09-25',
             supplier: 'Công ty Thuốc Thú y Hanvet',
-            totalAmount: 8560000,
+            totalAmount: 8480000,
             paymentStatus: 'Thanh toán hoàn tất',
             stockStatus: 'Đã nhập kho',
-            note: 'Vắc-xin phòng Newcastle & Gumboro định kỳ',
+            note: 'Vắc-xin phòng Newcastle & kháng sinh định kỳ',
             items: [
                 { name: 'Vắc-xin Newcastle Lasota', qty: 30, unit: 'Lọ 1000 liều', price: 42000, amount: 1260000 },
                 { name: 'Kháng sinh Doxycycline 50%', qty: 10, unit: 'Gói 1kg', price: 450000, amount: 4500000 },
@@ -168,45 +168,36 @@ export const INITIAL_FARMSHIFT_DATA = {
     // 4. Bán hàng (Sales & Harvest)
     sales: [
         {
-            id: 'so-1',
-            code: 'BH000045',
-            date: '2026-09-28',
-            customer: 'Thương lái Trần Văn Tuấn (Hà Nội)',
-            flock: 'Khu J Thịt - Lứa J01',
-            quantity: 1200,
-            totalWeight: 2460, // kg
-            unitPrice: 78000, // đ/kg
-            totalAmount: 191880000,
-            paidAmount: 191880000,
-            status: 'Đã thu tiền',
-            note: 'Xuất bán đợt 1 chuồng J1'
+            id: 'seed-bh-00001',
+            code: 'BH00001',
+            date: '2026-11-08',
+            customer: 'Nguyễn Văn Hùng (Thương lái Lái Thiêu)',
+            flock: 'Khu Mía Thịt - Nhà A1 - L000001',
+            quantity: 2000,
+            totalWeight: 2500, // kg
+            unitPrice: 80000, // đ/kg
+            totalAmount: 200000000,
+            paidAmount: 200000000,
+            status: 'PAID',
+            note: 'Xuất bán tỉa đợt 1 Nhà A1 — chuyển khoản MB Bank'
         },
         {
-            id: 'so-2',
-            code: 'BH000046',
-            date: '2026-10-04',
-            customer: 'Công ty Thực phẩm Sạch Minh Tâm',
-            flock: 'Khu Mía Thịt - Lứa M01',
-            quantity: 800,
-            totalWeight: 1720,
-            unitPrice: 84000,
-            totalAmount: 144480000,
+            id: 'seed-bh-00002',
+            code: 'BH00002',
+            date: '2026-11-10',
+            customer: 'Trần Thị Mai (Đại lý Gia cầm Miền Bắc)',
+            flock: 'Khu J Thịt - Nhà B1 - L000004',
+            quantity: 1200,
+            totalWeight: 1800,
+            unitPrice: 78000,
+            totalAmount: 140400000,
             paidAmount: 100000000,
-            status: 'Còn thiếu 44,480,000 đ',
-            note: 'Gà Mía Dabaco tuyển chọn loại 1'
+            status: 'PARTIAL',
+            note: 'Xuất bán đợt 1 Nhà B1 — trả trước 100tr tiền mặt, còn nợ 40,4tr'
         }
     ],
 
-    // 5. Sổ quỹ (Cashbook)
-    cashbook: [
-        { id: 'cb-1', code: 'PT000021', date: '2026-10-04', type: 'Thu', category: 'Đơn bán gà', amount: 100000000, contact: 'Khách hàng', name: 'Công ty Thực phẩm Sạch Minh Tâm', fund: 'Tài khoản MB Bank', note: 'Thu tiền bán gà Mía đợt 1', creator: 'Admin FarmShift' },
-        { id: 'cb-2', code: 'PC000035', date: '2026-10-02', type: 'Chi', category: 'Tiền điện & nước trang trại', amount: 8200000, contact: 'Đối tượng khác', name: 'Điện lực Sóc Sơn', fund: 'Tài khoản MB Bank', note: 'Thanh toán tiền điện tháng 9', creator: 'Admin FarmShift' },
-        { id: 'cb-3', code: 'PT000020', date: '2026-09-28', type: 'Thu', category: 'Đơn bán gà', amount: 191880000, contact: 'Khách hàng', name: 'Trần Văn Tuấn', fund: 'Tiền mặt tại quỹ', note: 'Thu trọn tiền bán chuồng J1', creator: 'Admin FarmShift' },
-        { id: 'cb-4', code: 'PC000034', date: '2026-09-25', type: 'Chi', category: 'Thuốc thú y', amount: 8560000, contact: 'Nhà cung cấp', name: 'Công ty Thuốc Thú y Hanvet', fund: 'Tài khoản MB Bank', note: 'Chi tiền mua thuốc & vắc-xin', creator: 'Admin FarmShift' },
-        { id: 'cb-5', code: 'PC000033', date: '2026-09-20', type: 'Chi', category: 'Tiền lương công nhân', amount: 18000000, contact: 'Nhân sự', name: 'Lương tổ chăm sóc tháng 9', fund: 'Tiền mặt tại quỹ', note: 'Thanh toán lương 2 công nhân', creator: 'Admin FarmShift' },
-    ],
-
-    // 6. Ghi nhật ký chăn nuôi gần nhất
+    // 5. Ghi nhật ký chăn nuôi gần nhất
     journalLogs: [
         { id: 'log-1', date: '2026-10-07', barn: 'Nhà A1', feedMeal1: 75, feedMeal2: 75, totalFeed: 150, temp: 28.5, humidity: 72, mortality: 2, cull: 0, healthStatus: 'Bình thường, gà ăn mạnh, nhanh nhẹn', note: 'Bổ sung men tiêu hóa vào nước uống buổi sáng' },
         { id: 'log-2', date: '2026-10-07', barn: 'Nhà A2', feedMeal1: 72, feedMeal2: 74, totalFeed: 146, temp: 28.2, humidity: 71, mortality: 1, cull: 0, healthStatus: 'Bình thường', note: 'Không có dấu hiệu bất thường' },
@@ -219,7 +210,7 @@ export const INITIAL_FARMSHIFT_DATA = {
     staff: [
         { id: 'st-1', name: 'Admin', email: 'hiepgacute1989@gmail.com', phone: '0966755095', role: 'Chủ trang trại (Admin)', barnAssigned: 'Toàn bộ trang trại', status: 'Hoạt động' },
         { id: 'st-2', name: 'Miền Bính', email: 'mienbinh@smartfarm.com', phone: '0988111222', role: 'Chủ trang trại', barnAssigned: 'Toàn bộ trang trại', status: 'Hoạt động' },
-        { id: 'st-3', name: 'Trần Kế Toán', email: 'ketoan@smartfarm.com', phone: '0977222333', role: 'Kế toán', barnAssigned: 'Sổ quỹ & Kho hàng', status: 'Hoạt động' },
+        { id: 'st-3', name: 'Trần Kế Toán', email: 'ketoan@smartfarm.com', phone: '0977222333', role: 'Kế toán', barnAssigned: 'Hóa đơn & Kho hàng', status: 'Hoạt động' },
         { id: 'st-4', name: 'Nguyễn Văn Ba', email: 'congnhan@smartfarm.com', phone: '0966333444', role: 'Công nhân trại', barnAssigned: 'Khu J Thịt, Chuồng B6', status: 'Hoạt động' },
     ],
 

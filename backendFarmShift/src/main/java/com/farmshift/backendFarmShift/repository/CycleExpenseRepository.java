@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CycleExpenseRepository extends JpaRepository<CycleExpense, Long> {
+    @EntityGraph(attributePaths = {"cycle"})
+    List<CycleExpense> findAllWithCycleBy();
+
     List<CycleExpense> findAllByCycleIdOrderByExpenseDateDescIdDesc(Long cycleId);
     Optional<CycleExpense> findByIdAndCycleId(Long id, Long cycleId);
 

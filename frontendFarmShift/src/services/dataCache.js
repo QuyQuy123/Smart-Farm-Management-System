@@ -33,7 +33,6 @@ export const INVALIDATION_MATRIX = {
     '/measurement-units',
     '/units',
     '/suppliers',
-    '/cashbook',
     '/reports',
     '/dashboard'
   ],
@@ -225,7 +224,6 @@ export const INVALIDATION_MATRIX = {
     '/customers',
     '/barns',
     '/cycles',
-    '/cashbook',
     '/reports',
     '/dashboard'
   ],
@@ -236,7 +234,6 @@ export const INVALIDATION_MATRIX = {
     '/customers',
     '/barns',
     '/cycles',
-    '/cashbook',
     '/reports',
     '/dashboard'
   ],
@@ -251,11 +248,6 @@ export const INVALIDATION_MATRIX = {
     '/customers',
     '/sales-orders',
     '/sales'
-  ],
-  '/cashbook': [
-    '/cashbook',
-    '/reports',
-    '/dashboard'
   ],
   '/reports': [
     '/reports',
@@ -592,7 +584,6 @@ export class DataCache {
       '/sales',
       '/customer-contacts',
       '/customers',
-      '/cashbook',
       '/reports',
       '/dashboard'
     ]);

@@ -24,5 +24,4 @@ public record PurchaseInvoiceRequest(
     @Size(max=1000) @Pattern(regexp="(?s)^(?:\\s*|.*\\p{L}.*)$", message="Ghi chú phải có nội dung chữ.") String note,
     String attachmentUrl,
     List<Long> tagIds
-) {
-}
+) {}

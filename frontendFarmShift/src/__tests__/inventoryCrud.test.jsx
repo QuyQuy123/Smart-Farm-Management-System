@@ -168,4 +168,39 @@ describe('Persistent inventory CRUD', () => {
     await screen.findByRole('button', { name: 'Kho cám' });
     expect(screen.queryByRole('button', { name: 'Tạo hàng hóa' })).not.toBeInTheDocument();
   });
+
+  it('persists lotNumber, expiryDate, minStock in create dialog (INV-05, INV-06)', async () => {
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText(/Tên hàng hóa/), { target: { value: 'Cám gà' } });
+    fireEvent.change(within(dialog).getByLabelText(/Đơn vị/), { target: { value: '7' } });
+    fireEvent.change(within(dialog).getByLabelText(/Giá tiền/), { target: { value: '210000' } });
+    fireEvent.change(within(dialog).getByLabelText('Ngưỡng tồn tối thiểu'), { target: { value: '15' } });
+    fireEvent.change(within(dialog).getByLabelText('Số lô'), { target: { value: 'LOT-A01' } });
+    fireEvent.change(within(dialog).getByLabelText('Hạn sử dụng'), { target: { value: '2026-12-01' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu hàng hóa' }));
+    await waitFor(() => expect(service.createInventoryItem).toHaveBeenCalledWith(expect.objectContaining({
+      lotNumber: 'LOT-A01',
+      expiryDate: '2026-12-01',
+      minStock: 15,
+    })));
+  });
+
+  it('displays low-stock and expiry alert banner and filter pills (INV-07)', async () => {
+    items = [
+      { id: 31, productId: 11, warehouseId: 1, name: 'Thuốc Sắp Hết', unitId: 7, unitName: 'Kg', price: 100000, stock: 5, minStock: 20, lowStock: true, lotNumber: 'LOT-LOW', expiryDate: '2027-06-01', expiryStatus: 'NORMAL' },
+      { id: 32, productId: 13, warehouseId: 1, name: 'Vắc-xin Cận Hạn', unitId: 7, unitName: 'Kg', price: 200000, stock: 50, minStock: 10, lowStock: false, lotNumber: 'LOT-EXP', expiryDate: '2026-11-20', expiryStatus: 'NEAR_EXPIRY' }
+    ];
+    renderView();
+    const banner = await screen.findByRole('region', { name: 'Cảnh báo tồn kho' });
+    expect(within(banner).getByText(/1 mặt hàng dưới ngưỡng tối thiểu/)).toBeInTheDocument();
+    expect(within(banner).getByText(/1 mặt hàng sắp\/đã hết hạn/)).toBeInTheDocument();
+
+    fireEvent.click(within(banner).getByRole('button', { name: 'Dưới ngưỡng tồn (1)' }));
+    expect(screen.getByText('Thuốc Sắp Hết')).toBeInTheDocument();
+    expect(screen.queryByText('Vắc-xin Cận Hạn')).not.toBeInTheDocument();
+
+    fireEvent.click(within(banner).getByRole('button', { name: 'Sắp / Đã hết hạn (1)' }));
+    expect(screen.getByText('Vắc-xin Cận Hạn')).toBeInTheDocument();
+    expect(screen.queryByText('Thuốc Sắp Hết')).not.toBeInTheDocument();
+  });
 });
