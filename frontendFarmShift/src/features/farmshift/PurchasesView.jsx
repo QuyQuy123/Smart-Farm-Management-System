@@ -7,7 +7,7 @@ import {
   DollarSign, Upload, Tag, Printer,
   Trash2, Pencil, AlertTriangle, PackageCheck, Loader2,
   ZoomIn, ZoomOut, RotateCw, ExternalLink, FileText,
-  Camera, RefreshCw, Smartphone, ArrowLeft
+  Camera, RefreshCw, Smartphone, ArrowLeft, Wallet, Image as ImageIcon
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -25,6 +25,9 @@ import {
   deletePurchaseTag
 } from '../../services/purchaseService';
 import { listSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../services/supplierService';
+import { getDebtSummary, getSupplierDebtHistory } from '../../services/debtService';
+import { listCashFunds } from '../../services/cashbookService';
+import { fileService } from '../../services/fileService';
 import { listProductTypes } from '../../services/productTypeService';
 import { listAllInventoryItems } from '../../services/inventoryItemService';
 import { listMeasurementUnits } from '../../services/measurementUnitService';
@@ -117,6 +120,12 @@ export const PurchasesView = () => {
   const [stockConfirmation, setStockConfirmation] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
+  const [paymentFundId, setPaymentFundId] = useState('');
+  const [cashFunds, setCashFunds] = useState([]);
+  const [attachedInvoiceFile, setAttachedInvoiceFile] = useState(null);
+  const [debtSummary, setDebtSummary] = useState(null);
+  const [debtLoading, setDebtLoading] = useState(false);
+  const [supplierDetailModal, setSupplierDetailModal] = useState(null);
 
   // Supplier modal
   const [supplierModal, setSupplierModal] = useState(null); // { mode: 'create'|'edit'|'delete', item }
@@ -153,7 +162,7 @@ export const PurchasesView = () => {
     stockStatus: 'Chưa nhập kho',
     tagIds: [],
     items: [
-      { productCategoryId: '', name: '', qty: 1, unit: '', price: 0 }
+      { productCategoryId: '', name: '', qty: 1, unit: '', price: 0, lotNumber: '', expiryDate: '' }
     ]
   });
 
@@ -196,6 +205,97 @@ export const PurchasesView = () => {
     })();
     return () => { cancelled = true; };
   }, [searchTerm, filterPayment, revision]);
+
+  useEffect(() => {
+    if (activeTab !== 'debts' && activeTab !== 'suppliers') return;
+    let cancelled = false;
+    setDebtLoading(true);
+    getDebtSummary()
+      .then(data => {
+        if (!cancelled && data && typeof data === 'object' && 'supplierPayables' in data) {
+          setDebtSummary(data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setDebtLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, revision]);
+
+  useEffect(() => {
+    if (!showPaymentModal) return;
+    let cancelled = false;
+    listCashFunds()
+      .then(data => { if (!cancelled) setCashFunds(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setCashFunds([]); });
+    return () => { cancelled = true; };
+  }, [showPaymentModal]);
+
+  const openSupplierDetailModal = async (sup) => {
+    if (!sup) return;
+    const localInvoices = purchases.filter(p => String(p.supplierId) === String(sup.id) || p.supplier === sup.name);
+    let running = 0;
+    const fallbackLedger = [...localInvoices]
+      .filter(inv => inv.stockStatus !== 'Đã hủy')
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+      .flatMap(inv => {
+        const entries = [];
+        running += Number(inv.totalAmount || 0);
+        entries.push({
+          entryType: 'PURCHASE_INVOICE',
+          date: inv.date,
+          referenceCode: inv.code,
+          description: `Nhập hàng ${inv.code}${inv.referenceCode ? ` (CT: ${inv.referenceCode})` : ''}`,
+          debitAmount: Number(inv.totalAmount || 0),
+          creditAmount: 0,
+          runningBalance: running,
+          invoiceId: inv.id,
+          paymentStatus: inv.paymentStatus
+        });
+        if (Number(inv.paidAmount || 0) > 0) {
+          running = Math.max(0, running - Number(inv.paidAmount || 0));
+          entries.push({
+            entryType: 'PAYMENT',
+            date: inv.date,
+            referenceCode: inv.code,
+            description: `Thanh toán đơn ${inv.code}`,
+            debitAmount: 0,
+            creditAmount: Number(inv.paidAmount || 0),
+            runningBalance: running,
+            invoiceId: inv.id,
+            paymentStatus: inv.paymentStatus
+          });
+        }
+        return entries;
+      });
+    const fallbackHistory = {
+      supplierId: sup.id,
+      supplierName: sup.name,
+      productTypeName: sup.productTypeName,
+      representative: sup.representative,
+      phone: sup.phone,
+      email: sup.email,
+      address: sup.address,
+      taxCode: sup.taxCode,
+      bankName: sup.bankName,
+      bankAccount: sup.bankAccount,
+      paymentPolicy: sup.paymentPolicy,
+      note: sup.note,
+      totalPurchased: Number(sup.totalPurchased ?? localInvoices.reduce((s, p) => s + Number(p.totalAmount || 0), 0)),
+      totalPaid: localInvoices.reduce((s, p) => s + Number(p.paidAmount || 0), 0),
+      currentDebt: Number(sup.debt ?? localInvoices.reduce((s, p) => s + Number(p.debtAmount || 0), 0)),
+      invoices: localInvoices,
+      ledger: fallbackLedger
+    };
+    setSupplierDetailModal({ supplier: sup, history: fallbackHistory, loading: true });
+    try {
+      const remote = await getSupplierDebtHistory(sup.id);
+      if (remote && typeof remote === 'object' && 'supplierId' in remote) {
+        setSupplierDetailModal({ supplier: sup, history: remote, loading: false });
+        return;
+      }
+    } catch {}
+    setSupplierDetailModal(prev => prev ? { ...prev, loading: false } : null);
+  };
 
   // Mở thẳng một hóa đơn từ liên kết ?invoice=<id> (ví dụ hóa đơn con giống ở trang chuồng).
   useEffect(() => {
@@ -607,7 +707,7 @@ export const PurchasesView = () => {
   const handleAddItemRow = () => {
     setNewPo(prev => ({
       ...prev,
-      items: [...prev.items, { productCategoryId: '', name: '', qty: 1, unit: '', price: 0 }]
+      items: [...prev.items, { productCategoryId: '', name: '', qty: 1, unit: '', price: 0, lotNumber: '', expiryDate: '' }]
     }));
     setPoErrors(prev => {
       if (!prev.items) return prev;
@@ -636,6 +736,18 @@ export const PurchasesView = () => {
     }
     setPoErrors({});
     try {
+      let attachmentUrl = null;
+      if (attachedInvoiceFile && typeof fileService?.uploadFile === 'function') {
+        try {
+          const uploaded = await fileService.uploadFile(attachedInvoiceFile, 'purchases');
+          if (typeof uploaded === 'string' && uploaded.trim()) {
+            attachmentUrl = uploaded.trim();
+          }
+        } catch {
+          // Do not block purchase creation if optional image upload fails offline
+        }
+      }
+
       const subtotal = newPo.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
       const discount = Number(newPo.discountAmount || 0);
       const otherCost = Number(newPo.otherCost || 0);
@@ -669,19 +781,23 @@ export const PurchasesView = () => {
         discountAmount: discount,
         otherCost: otherCost,
         tagIds: newPo.tagIds,
+        ...(attachmentUrl ? { attachmentUrl } : {}),
         items: newPo.items.map(it => ({
           productCategoryId: !isOcrDraft && it.productCategoryId ? Number(it.productCategoryId) : null,
           warehouseId: !isOcrDraft && it.warehouseId ? Number(it.warehouseId) : null,
           name: it.name,
           qty: Number(it.qty),
           unit: it.unit,
-          price: Number(it.price)
+          price: Number(it.price),
+          ...(it.lotNumber?.trim() ? { lotNumber: it.lotNumber.trim() } : {}),
+          ...(it.expiryDate ? { expiryDate: it.expiryDate } : {})
         }))
       };
 
       const created = await createPurchase(payload);
       showToast('Đã lưu các thay đổi thành công.', 'success');
       setShowAddModal(false);
+      setAttachedInvoiceFile(null);
       setPoErrors({});
       setOcrBanner(false); setIsOcrDraft(false);
       setOcrWarnings([]);
@@ -715,14 +831,19 @@ export const PurchasesView = () => {
       return;
     }
     try {
-      const updated = await payPurchase(selectedOrder.id, {
+      const payload = {
         amount: Number(paymentAmount),
         note: paymentNote
-      });
+      };
+      if (paymentFundId) {
+        payload.cashFundId = Number(paymentFundId);
+      }
+      const updated = await payPurchase(selectedOrder.id, payload);
       showToast('Đã ghi nhận thanh toán thành công.', 'success');
       setShowPaymentModal(false);
       setPaymentAmount('');
       setPaymentNote('');
+      setPaymentFundId('');
       setPaymentError('');
       setSelectedOrder(updated);
       fetchData();
@@ -751,6 +872,7 @@ export const PurchasesView = () => {
       let previewType = 'image/png';
 
       if (fileOrNull && (fileOrNull instanceof File || fileOrNull instanceof Blob)) {
+        setAttachedInvoiceFile(fileOrNull);
         previewName = fileOrNull.name || 'chung_tu_goc.png';
         previewType = fileOrNull.type || 'image/png';
         if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
@@ -763,6 +885,7 @@ export const PurchasesView = () => {
           previewUrl = '/samples/hoa_don_mau_cp.png';
         }
       } else {
+        setAttachedInvoiceFile(null);
         previewUrl = '/samples/hoa_don_mau_cp.png';
         previewName = 'hoa_don_mau_cp.png';
         previewType = 'image/png';
@@ -976,7 +1099,7 @@ export const PurchasesView = () => {
   return (
     <FarmShiftLayout
       pageTitle="Hóa đơn nhập hàng"
-      breadcrumbTitle={{ orders: 'Hóa đơn nhập hàng', suppliers: 'Nhà cung cấp', tags: 'Thẻ tag' }[activeTab]}
+      breadcrumbTitle={{ orders: 'Hóa đơn nhập hàng', suppliers: 'Nhà cung cấp', debts: 'Công nợ', tags: 'Thẻ tag' }[activeTab]}
       breadcrumbs={[{ label: 'Hóa đơn nhập hàng' }]}
       actions={
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -1000,6 +1123,7 @@ export const PurchasesView = () => {
                 setOcrBanner(false); setIsOcrDraft(false);
                 setOcrPreviewUrl(null);
                 setOcrPreviewName('');
+                setAttachedInvoiceFile(null);
                 setShowAddModal(true);
               }}
             >
@@ -1022,6 +1146,12 @@ export const PurchasesView = () => {
           onClick={() => setActiveTab('suppliers')}
         >
           Nhà cung cấp
+        </button>
+        <button
+          className={`farmshift-tab-btn ${activeTab === 'debts' ? 'active' : ''}`}
+          onClick={() => setActiveTab('debts')}
+        >
+          Công nợ
         </button>
         <button
           className={`farmshift-tab-btn ${activeTab === 'tags' ? 'active' : ''}`}
@@ -1204,7 +1334,7 @@ export const PurchasesView = () => {
                   <th>Tổng nhập lũy kế</th>
                   <th>Công nợ hiện tại</th>
                   <th>Ghi chú</th>
-                  {isOwnerOrAccountant && <th style={{ textAlign: 'center' }}>Thao tác</th>}
+                  <th style={{ textAlign: 'center' }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -1243,45 +1373,56 @@ export const PurchasesView = () => {
                         </span>
                       </td>
                       <td style={{ color: 'var(--color-muted)' }}>{sup.note || '—'}</td>
-                      {isOwnerOrAccountant && (
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                            <button
-                              className="farmshift-btn farmshift-btn-secondary"
-                              style={{ padding: '4px 8px' }}
-                              title="Sửa"
-                              onClick={() => {
-                                setSupplierForm({
-                                  name: sup.name,
-                                  representative: sup.representative || '',
-                                  phone: sup.phone,
-                                  productTypeId: sup.productTypeId ? String(sup.productTypeId) : (productTypes[0]?.id ? String(productTypes[0].id) : '1'),
-                                  email: sup.email || '',
-                                  address: sup.address || '',
-                                  taxCode: sup.taxCode || '',
-                                  bankName: sup.bankName || '',
-                                  bankAccount: sup.bankAccount || '',
-                                  paymentPolicy: sup.paymentPolicy || 'Trả theo đơn',
-                                  note: sup.note || '',
-                                  tagIds: sup.tagIds || []
-                                });
-                                setSupplierErrors({});
-                                setSupplierModal({ mode: 'edit', item: sup });
-                              }}
-                            >
-                              <Pencil size={13} />
-                            </button>
-                            <button
-                              className="farmshift-btn farmshift-btn-secondary"
-                              style={{ padding: '4px 8px', color: 'var(--color-danger)' }}
-                              title="Xóa"
-                              onClick={() => setSupplierModal({ mode: 'delete', item: sup })}
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          <button
+                            className="farmshift-btn farmshift-btn-secondary"
+                            style={{ padding: '4px 8px' }}
+                            title="Xem chi tiết & Công nợ"
+                            aria-label={`Xem chi tiết ${sup.name}`}
+                            onClick={() => openSupplierDetailModal(sup)}
+                          >
+                            <Eye size={13} />
+                          </button>
+                          {isOwnerOrAccountant && (
+                            <>
+                              <button
+                                className="farmshift-btn farmshift-btn-secondary"
+                                style={{ padding: '4px 8px' }}
+                                title="Sửa"
+                                onClick={() => {
+                                  setSupplierForm({
+                                    name: sup.name,
+                                    representative: sup.representative || '',
+                                    phone: sup.phone,
+                                    productTypeId: sup.productTypeId ? String(sup.productTypeId) : (productTypes[0]?.id ? String(productTypes[0].id) : '1'),
+                                    email: sup.email || '',
+                                    address: sup.address || '',
+                                    taxCode: sup.taxCode || '',
+                                    bankName: sup.bankName || '',
+                                    bankAccount: sup.bankAccount || '',
+                                    paymentPolicy: sup.paymentPolicy || 'Trả theo đơn',
+                                    note: sup.note || '',
+                                    tagIds: sup.tagIds || []
+                                  });
+                                  setSupplierErrors({});
+                                  setSupplierModal({ mode: 'edit', item: sup });
+                                }}
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                className="farmshift-btn farmshift-btn-secondary"
+                                style={{ padding: '4px 8px', color: 'var(--color-danger)' }}
+                                title="Xóa"
+                                onClick={() => setSupplierModal({ mode: 'delete', item: sup })}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -1290,6 +1431,160 @@ export const PurchasesView = () => {
           </div>
         </div>
       )}
+
+      {/* ── Tab: Tổng hợp Công nợ (FIN-17) ──────────────────── */}
+      {activeTab === 'debts' && (() => {
+        const computedPayables = Array.isArray(debtSummary?.supplierPayables)
+          ? debtSummary.supplierPayables
+          : suppliers.map(s => ({
+              supplierId: s.id,
+              supplierName: s.name,
+              productTypeName: s.productTypeName,
+              phone: s.phone,
+              paymentPolicy: s.paymentPolicy || 'Trả theo đơn',
+              totalPurchased: Number(s.totalPurchased || 0),
+              totalPaid: Math.max(0, Number(s.totalPurchased || 0) - Number(s.debt || 0)),
+              remainingDebt: Number(s.debt || 0),
+              openInvoiceCount: purchases.filter(p => (p.supplierId === s.id || p.supplier === s.name) && Number(p.debtAmount || 0) > 0).length
+            })).filter(r => r.remainingDebt > 0 || r.totalPurchased > 0);
+        const computedReceivables = Array.isArray(debtSummary?.customerReceivables) ? debtSummary.customerReceivables : [];
+        const totalPayable = debtSummary?.totalSupplierPayable ?? computedPayables.reduce((s, r) => s + Number(r.remainingDebt || 0), 0);
+        const totalReceivable = Number(debtSummary?.totalCustomerReceivable ?? computedReceivables.reduce((s, r) => s + Number(r.remainingDebt || 0), 0));
+        const netDebt = Number(debtSummary?.netDebtPosition ?? (totalReceivable - totalPayable));
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <div className="farmshift-card" style={{ padding: '16px 18px', margin: 0 }}>
+                <div style={{ fontSize: '12.5px', color: 'var(--color-muted)' }}>TỔNG NỢ PHẢI TRẢ NHÀ CUNG CẤP</div>
+                <strong style={{ fontSize: '20px', color: '#c63030', display: 'block', marginTop: '6px' }}>
+                  {Number(totalPayable).toLocaleString('vi-VN')} đ
+                </strong>
+                <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '4px' }}>
+                  {debtSummary?.unpaidSupplierCount ?? computedPayables.filter(r => Number(r.remainingDebt || 0) > 0).length} nhà cung cấp còn dư nợ
+                </div>
+              </div>
+              <div className="farmshift-card" style={{ padding: '16px 18px', margin: 0 }}>
+                <div style={{ fontSize: '12.5px', color: 'var(--color-muted)' }}>TỔNG NỢ PHẢI THU KHÁCH HÀNG</div>
+                <strong style={{ fontSize: '20px', color: '#0b7a5c', display: 'block', marginTop: '6px' }}>
+                  {Number(totalReceivable).toLocaleString('vi-VN')} đ
+                </strong>
+                <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '4px' }}>
+                  {debtSummary?.unpaidCustomerCount ?? computedReceivables.filter(r => Number(r.remainingDebt || 0) > 0).length} khách hàng chưa tất toán
+                </div>
+              </div>
+              <div className="farmshift-card" style={{ padding: '16px 18px', margin: 0 }}>
+                <div style={{ fontSize: '12.5px', color: 'var(--color-muted)' }}>CHÊNH LỆCH CÔNG NỢ RÒNG</div>
+                <strong style={{ fontSize: '20px', color: netDebt >= 0 ? '#0b7a5c' : '#c63030', display: 'block', marginTop: '6px' }}>
+                  {netDebt >= 0 ? '+' : ''}{Number(netDebt).toLocaleString('vi-VN')} đ
+                </strong>
+                <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '4px' }}>
+                  Phải thu khách hàng trừ phải trả NCC
+                </div>
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0 }}>
+              <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="farmshift-card-title">Công nợ phải trả nhà cung cấp</h3>
+                {debtLoading && <span style={{ fontSize: '12.5px', color: 'var(--color-muted)' }}>Đang đồng bộ...</span>}
+              </div>
+              <div className="farmshift-table-container" style={{ border: 'none' }}>
+                <table className="farmshift-table">
+                  <thead>
+                    <tr>
+                      <th>Nhà cung cấp</th>
+                      <th>Số điện thoại</th>
+                      <th>Chính sách TT</th>
+                      <th>Tổng mua lũy kế</th>
+                      <th>Đã thanh toán</th>
+                      <th>Nợ còn lại</th>
+                      <th>Đơn chưa tất toán</th>
+                      <th style={{ textAlign: 'center' }}>Sổ nợ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!computedPayables.length ? (
+                      <tr><td colSpan={8} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-muted)' }}>Chưa phát sinh công nợ nhà cung cấp.</td></tr>
+                    ) : computedPayables.map(row => (
+                      <tr key={row.supplierId || row.supplierName}>
+                        <td>
+                          <strong>{row.supplierName}</strong>
+                          {row.productTypeName && <div style={{ fontSize: '11.5px', color: 'var(--color-muted)' }}>{row.productTypeName}</div>}
+                        </td>
+                        <td>{row.phone || '—'}</td>
+                        <td>{row.paymentPolicy || 'Trả theo đơn'}</td>
+                        <td>{Number(row.totalPurchased || 0).toLocaleString('vi-VN')} đ</td>
+                        <td style={{ color: '#0b7a5c' }}>{Number(row.totalPaid || 0).toLocaleString('vi-VN')} đ</td>
+                        <td>
+                          <strong style={{ color: Number(row.remainingDebt || 0) > 0 ? '#c63030' : '#0b7a5c' }}>
+                            {Number(row.remainingDebt || 0).toLocaleString('vi-VN')} đ
+                          </strong>
+                        </td>
+                        <td>{row.openInvoiceCount || 0} đơn</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="farmshift-btn farmshift-btn-secondary"
+                            style={{ padding: '4px 10px', fontSize: '12.5px' }}
+                            onClick={() => {
+                              const sup = suppliers.find(s => String(s.id) === String(row.supplierId)) || {
+                                id: row.supplierId,
+                                name: row.supplierName,
+                                phone: row.phone,
+                                productTypeName: row.productTypeName,
+                                totalPurchased: row.totalPurchased,
+                                debt: row.remainingDebt
+                              };
+                              openSupplierDetailModal(sup);
+                            }}
+                          >
+                            <Eye size={13} /> Xem sổ nợ
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="farmshift-card" style={{ margin: 0 }}>
+              <div className="farmshift-card-header">
+                <h3 className="farmshift-card-title">Công nợ phải thu khách hàng</h3>
+              </div>
+              <div className="farmshift-table-container" style={{ border: 'none' }}>
+                <table className="farmshift-table">
+                  <thead>
+                    <tr>
+                      <th>Khách hàng</th>
+                      <th>Số điện thoại</th>
+                      <th>Tổng giá trị đơn</th>
+                      <th>Đã thu</th>
+                      <th>Còn phải thu</th>
+                      <th>Đơn còn nợ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!computedReceivables.length ? (
+                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-muted)' }}>Chưa phát sinh công nợ phải thu khách hàng.</td></tr>
+                    ) : computedReceivables.map(row => (
+                      <tr key={row.customerId || row.customerName}>
+                        <td><strong>{row.customerName}</strong></td>
+                        <td>{row.phone || '—'}</td>
+                        <td>{Number(row.totalBought || 0).toLocaleString('vi-VN')} đ</td>
+                        <td style={{ color: '#0b7a5c' }}>{Number(row.totalPaid || 0).toLocaleString('vi-VN')} đ</td>
+                        <td><strong style={{ color: '#0b7a5c' }}>{Number(row.remainingDebt || 0).toLocaleString('vi-VN')} đ</strong></td>
+                        <td>{row.openOrderCount || 0} đơn</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Tab 3: Danh sách Thẻ Tags ────────────────────── */}
       {activeTab === 'tags' && (
@@ -1451,6 +1746,46 @@ export const PurchasesView = () => {
                     </p>
                   )}
                   <PurchaseInvoiceTemplate ref={purchaseInvoiceRef} order={selectedOrder} supplier={suppliers.find(supplier => supplier.id === selectedOrder.supplierId)} />
+                  {Array.isArray(selectedOrder.items) && selectedOrder.items.some(it => it.lotNumber || it.expiryDate) && (
+                    <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', backgroundColor: '#f6f9f8', border: '1px solid var(--color-hairline)' }}>
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-ink)', marginBottom: '6px' }}>
+                        Thông tin Lô hàng & Hạn sử dụng (INV-05)
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12.5px' }}>
+                        {selectedOrder.items.filter(it => it.lotNumber || it.expiryDate).map((it, idx) => (
+                          <div key={it.id || idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                            <span><strong>{it.name}</strong></span>
+                            <span style={{ color: 'var(--color-muted)' }}>
+                              Lô: <strong>{it.lotNumber || '—'}</strong> · HSD: <strong>{it.expiryDate ? it.expiryDate.split('-').reverse().join('/') : '—'}</strong>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedOrder.attachmentUrl && (
+                    <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', backgroundColor: '#f6f9f8', border: '1px solid var(--color-hairline)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--color-ink)' }}>
+                          <ImageIcon size={15} color="var(--color-primary)" /> Ảnh hóa đơn / chứng từ đính kèm
+                        </span>
+                        <a
+                          href={selectedOrder.attachmentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="farmshift-btn farmshift-btn-secondary"
+                          style={{ padding: '3px 9px', fontSize: '12px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <ExternalLink size={12} /> Mở ảnh gốc
+                        </a>
+                      </div>
+                      <img
+                        src={selectedOrder.attachmentUrl}
+                        alt={`Ảnh chứng từ ${selectedOrder.code}`}
+                        style={{ maxWidth: '100%', maxHeight: '280px', objectFit: 'contain', borderRadius: '6px', border: '1px solid var(--color-hairline)', background: '#fff' }}
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1551,6 +1886,24 @@ export const PurchasesView = () => {
                     onChange={(e) => setPaymentNote(e.target.value)}
                   />
                 </div>
+                {cashFunds.length > 0 && (
+                  <div className="farmshift-form-group" style={{ marginTop: '10px' }}>
+                    <label htmlFor="pay-fund" className="farmshift-form-label">Chi từ nguồn quỹ (tùy chọn)</label>
+                    <select
+                      id="pay-fund"
+                      className="farmshift-form-control"
+                      value={paymentFundId}
+                      onChange={(e) => setPaymentFundId(e.target.value)}
+                    >
+                      <option value="">-- Không tự động trừ sổ quỹ --</option>
+                      {cashFunds.map(fund => (
+                        <option key={fund.id} value={fund.id}>
+                          {fund.name} (Dư: {Number(fund.balance || 0).toLocaleString('vi-VN')} đ)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               <div className="farmshift-modal-footer">
                 <button
@@ -2038,9 +2391,59 @@ export const PurchasesView = () => {
                             </button>
                           )}
                         </div>
+                        <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '2px', paddingBottom: '6px', borderBottom: '1px dashed var(--color-hairline)' }}>
+                          <input
+                            type="text"
+                            aria-label={`Số lô ${idx + 1}`}
+                            placeholder="Số lô nhập hàng (tùy chọn, VD: LO-2026-01)"
+                            className="farmshift-form-control"
+                            style={{ fontSize: '12.5px', height: '32px' }}
+                            maxLength={100}
+                            value={row.lotNumber || ''}
+                            onChange={(e) => {
+                              const updated = [...newPo.items];
+                              updated[idx].lotNumber = e.target.value;
+                              setNewPo({ ...newPo, items: updated });
+                            }}
+                          />
+                          <input
+                            type="date"
+                            aria-label={`Hạn sử dụng ${idx + 1}`}
+                            title="Hạn sử dụng lô hàng (tùy chọn)"
+                            className="farmshift-form-control"
+                            style={{ fontSize: '12.5px', height: '32px' }}
+                            value={row.expiryDate || ''}
+                            onChange={(e) => {
+                              const updated = [...newPo.items];
+                              updated[idx].expiryDate = e.target.value;
+                              setNewPo({ ...newPo, items: updated });
+                            }}
+                          />
+                        </div>
                       </div>
                     );
                   })}
+
+                  <div className="farmshift-form-group" style={{ marginBottom: '14px' }}>
+                    <label htmlFor="po-attachment-file" className="farmshift-form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <ImageIcon size={14} color="var(--color-primary)" /> Đính kèm ảnh hóa đơn / phiếu cân (tùy chọn)
+                    </label>
+                    <input
+                      id="po-attachment-file"
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="farmshift-form-control"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setAttachedInvoiceFile(file);
+                      }}
+                    />
+                    {attachedInvoiceFile && (
+                      <div style={{ fontSize: '12px', color: 'var(--color-primary)', marginTop: '4px' }}>
+                        Đã chọn chứng từ đính kèm: <strong>{attachedInvoiceFile.name}</strong>
+                      </div>
+                    )}
+                  </div>
 
 
 
@@ -3116,6 +3519,132 @@ export const PurchasesView = () => {
           </div>
         </div>
       )}
+      {/* ── Modal: Chi tiết Nhà cung cấp & Sổ nợ (FIN-10 / FIN-18) ─ */}
+      {supplierDetailModal && (() => {
+        const { supplier, history, loading: histLoading } = supplierDetailModal;
+        const ledger = Array.isArray(history?.ledger) ? history.ledger : [];
+        const supInvoices = Array.isArray(history?.invoices) ? history.invoices : [];
+        return (
+          <div
+            className="farmshift-modal-backdrop"
+            style={{ zIndex: 1150 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setSupplierDetailModal(null); }}
+          >
+            <div className="farmshift-modal" style={{ maxWidth: '820px' }} onClick={(e) => e.stopPropagation()}>
+              <div className="farmshift-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="farmshift-modal-title">Hồ sơ & Sổ công nợ: {history?.supplierName || supplier?.name}</h3>
+                <button
+                  type="button"
+                  onClick={() => setSupplierDetailModal(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}
+                  aria-label="Đóng hồ sơ nhà cung cấp"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="farmshift-modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px', marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)', fontSize: '13px' }}>
+                  <div><span style={{ color: 'var(--color-muted)' }}>Người đại diện:</span> <strong>{history?.representative || supplier?.representative || '—'}</strong></div>
+                  <div><span style={{ color: 'var(--color-muted)' }}>Số điện thoại:</span> <strong>{history?.phone || supplier?.phone || '—'}</strong></div>
+                  <div><span style={{ color: 'var(--color-muted)' }}>Email:</span> <strong>{history?.email || '—'}</strong></div>
+                  <div><span style={{ color: 'var(--color-muted)' }}>Mã số thuế:</span> <strong>{history?.taxCode || '—'}</strong></div>
+                  <div><span style={{ color: 'var(--color-muted)' }}>Địa chỉ:</span> <strong>{history?.address || '—'}</strong></div>
+                  <div><span style={{ color: 'var(--color-muted)' }}>Ngân hàng:</span> <strong>{history?.bankName ? `${history.bankName}${history.bankAccount ? ` - ${history.bankAccount}` : ''}` : '—'}</strong></div>
+                  <div><span style={{ color: 'var(--color-muted)' }}>Chính sách TT:</span> <strong>{history?.paymentPolicy || 'Trả theo đơn'}</strong></div>
+                  <div><span style={{ color: 'var(--color-muted)' }}>Nhóm hàng:</span> <strong>{history?.productTypeName || supplier?.productTypeName || '—'}</strong></div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                  <div className="farmshift-card" style={{ margin: 0, padding: '12px 14px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>TỔNG NHẬP LŨY KẾ</div>
+                    <strong style={{ fontSize: '17px', color: 'var(--color-ink)' }}>{Number(history?.totalPurchased || 0).toLocaleString('vi-VN')} đ</strong>
+                  </div>
+                  <div className="farmshift-card" style={{ margin: 0, padding: '12px 14px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>ĐÃ THANH TOÁN</div>
+                    <strong style={{ fontSize: '17px', color: '#0b7a5c' }}>{Number(history?.totalPaid || 0).toLocaleString('vi-VN')} đ</strong>
+                  </div>
+                  <div className="farmshift-card" style={{ margin: 0, padding: '12px 14px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>DƯ NỢ HIỆN TẠI</div>
+                    <strong style={{ fontSize: '17px', color: Number(history?.currentDebt || 0) > 0 ? '#c63030' : '#0b7a5c' }}>{Number(history?.currentDebt || 0).toLocaleString('vi-VN')} đ</strong>
+                  </div>
+                </div>
+
+                <h4 style={{ margin: '0 0 8px', fontSize: '14px', color: 'var(--color-ink)' }}>
+                  Lịch sử phát sinh công nợ & thanh toán {histLoading ? '(đang cập nhật...)' : ''}
+                </h4>
+                <div className="farmshift-table-container" style={{ border: '1px solid var(--color-hairline)', borderRadius: '8px', marginBottom: '16px' }}>
+                  <table className="farmshift-table" style={{ fontSize: '13px', margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Ngày</th>
+                        <th>Chứng từ</th>
+                        <th>Diễn giải</th>
+                        <th>Phát sinh (+)</th>
+                        <th>Thanh toán (-)</th>
+                        <th>Dư nợ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {!ledger.length ? (
+                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: '18px', color: 'var(--color-muted)' }}>Chưa có lịch sử phát sinh công nợ.</td></tr>
+                      ) : ledger.map((entry, idx) => (
+                        <tr key={`${entry.referenceCode}-${idx}`}>
+                          <td>{entry.date ? String(entry.date).split('-').reverse().join('/') : '—'}</td>
+                          <td><strong>{entry.referenceCode || '—'}</strong></td>
+                          <td>{entry.description}</td>
+                          <td>{Number(entry.debitAmount || 0) > 0 ? `${Number(entry.debitAmount).toLocaleString('vi-VN')} đ` : '—'}</td>
+                          <td style={{ color: '#0b7a5c' }}>{Number(entry.creditAmount || 0) > 0 ? `${Number(entry.creditAmount).toLocaleString('vi-VN')} đ` : '—'}</td>
+                          <td><strong>{Number(entry.runningBalance || 0).toLocaleString('vi-VN')} đ</strong></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {supInvoices.length > 0 && (
+                  <>
+                    <h4 style={{ margin: '0 0 8px', fontSize: '14px', color: 'var(--color-ink)' }}>Danh sách hóa đơn của nhà cung cấp ({supInvoices.length})</h4>
+                    <div className="farmshift-table-container" style={{ border: '1px solid var(--color-hairline)', borderRadius: '8px' }}>
+                      <table className="farmshift-table" style={{ fontSize: '13px', margin: 0 }}>
+                        <thead>
+                          <tr>
+                            <th>Mã đơn</th>
+                            <th>Ngày</th>
+                            <th>Tổng tiền</th>
+                            <th>Đã trả</th>
+                            <th>Còn nợ</th>
+                            <th>Trạng thái</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {supInvoices.map(inv => (
+                            <tr key={inv.id}>
+                              <td><strong>{inv.code}</strong></td>
+                              <td>{inv.date ? String(inv.date).split('-').reverse().join('/') : '—'}</td>
+                              <td>{Number(inv.totalAmount || 0).toLocaleString('vi-VN')} đ</td>
+                              <td style={{ color: '#0b7a5c' }}>{Number(inv.paidAmount || 0).toLocaleString('vi-VN')} đ</td>
+                              <td style={{ color: Number(inv.debtAmount || 0) > 0 ? '#c63030' : 'var(--color-muted)' }}>
+                                <strong>{Number(inv.debtAmount || 0).toLocaleString('vi-VN')} đ</strong>
+                              </td>
+                              <td>{inv.paymentStatus}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="farmshift-modal-footer">
+                <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setSupplierDetailModal(null)}>
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Printable A4 Voucher rendered for browser print dialog */}
       {selectedOrder && (
         <PrintablePurchaseVoucher order={selectedOrder} />

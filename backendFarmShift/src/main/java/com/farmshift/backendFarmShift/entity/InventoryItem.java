@@ -5,6 +5,7 @@ import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -28,6 +29,9 @@ public class InventoryItem {
     @JoinColumn(name = "unit_id", foreignKey = @ForeignKey(name = "fk_inventory_unit")) private MeasurementUnit unit;
     @Column(nullable = false, precision = 19, scale = 2) private BigDecimal price;
     @Column(nullable = false, precision = 19, scale = 6) private BigDecimal stock = BigDecimal.ZERO;
+    @Column(name = "lot_number", length = 100) private String lotNumber;
+    @Column(name = "expiry_date") private LocalDate expiryDate;
+    @Column(name = "min_stock", precision = 19, scale = 6) private BigDecimal minStock;
     @CreationTimestamp @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
     @UpdateTimestamp @Column(name = "updated_at") private LocalDateTime updatedAt;
     @PrePersist void assignCode() { code = "SP" + UUID.randomUUID().toString().replace("-", "").toUpperCase(java.util.Locale.ROOT); }

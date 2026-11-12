@@ -26,6 +26,9 @@ export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved })
   const [unitId, setUnitId] = useState(String(item?.unitId || ''));
   const [units, setUnits] = useState([]);
   const [price, setPrice] = useState(String(item?.price ?? ''));
+  const [lotNumber, setLotNumber] = useState(item?.lotNumber || '');
+  const [expiryDate, setExpiryDate] = useState(item?.expiryDate || '');
+  const [minStock, setMinStock] = useState(item?.minStock !== undefined && item?.minStock !== null ? String(item.minStock) : '');
   const [imageUrl, setImageUrl] = useState(item?.imageUrl || '');
   const [file, setFile] = useState(null), [preview, setPreview] = useState('');
   const [brands, setBrands] = useState([]);
@@ -68,6 +71,7 @@ export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved })
     if (!deleting && (loading || metadataError || !name.trim())) { setError('Vui lòng nhập tên hàng hóa.'); return; }
     if (!deleting && !units.some(unit => String(unit.id) === unitId)) { setError('Vui lòng chọn đơn vị tính.'); return; }
     if (!deleting && (!/^\d+(\.\d{1,2})?$/.test(price) || Number(price) < 0 || !Number.isFinite(Number(price)))) { setError('Giá tiền phải là số không âm, tối đa 2 số thập phân.'); return; }
+    if (!deleting && minStock !== '' && (!Number.isFinite(Number(minStock)) || Number(minStock) < 0)) { setError('Ngưỡng tồn tối thiểu phải là số không âm.'); return; }
     setSaving(true); setError('');
     try {
       if (deleting) await deleteInventoryItem(item.id);
@@ -79,6 +83,12 @@ export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved })
           setImageUrl(savedImage); setFile(null);
         }
         const payload = { warehouseId: warehouse.id, name: name.trim(), unitId: Number(unitId), brandId: brandId ? Number(brandId) : null, price, imageUrl: savedImage || null };
+        if (lotNumber.trim()) payload.lotNumber = lotNumber.trim();
+        else if (mode === 'edit' && item?.lotNumber) payload.lotNumber = null;
+        if (expiryDate) payload.expiryDate = expiryDate;
+        else if (mode === 'edit' && item?.expiryDate) payload.expiryDate = null;
+        if (minStock !== '') payload.minStock = Number(minStock);
+        else if (mode === 'edit' && item?.minStock !== undefined && item?.minStock !== null) payload.minStock = null;
         if (mode === 'edit') await updateInventoryItem(item.id, payload); else await createInventoryItem(payload);
       }
       onSaved(deleting ? 'Đã xóa hàng hóa.' : 'Đã lưu hàng hóa thành công.');
@@ -129,6 +139,18 @@ export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved })
           <div className={styles.formField}>
           <label htmlFor="inventory-brand">Nhãn hiệu</label>
           {readOnly ? <input id="inventory-brand" className="farmshift-form-control" value={item.brandName || 'Chưa chọn nhãn hiệu'} readOnly /> : <select id="inventory-brand" className="farmshift-form-control" value={brandId} onChange={event => setBrandId(event.target.value)} disabled={saving || loading || !!metadataError}><option value="">Chọn nhãn hiệu (không bắt buộc)</option>{brandOptions.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select>}
+          </div>
+          <div className={styles.formField}>
+          <label htmlFor="inventory-min-stock">Ngưỡng tồn tối thiểu</label>
+          <input id="inventory-min-stock" type="number" min="0" step="any" className="farmshift-form-control" placeholder="VD: 10 (không bắt buộc)" value={minStock} onChange={event => setMinStock(event.target.value)} readOnly={readOnly} disabled={saving} />
+          </div>
+          <div className={styles.formField}>
+          <label htmlFor="inventory-lot">Số lô</label>
+          <input id="inventory-lot" type="text" className="farmshift-form-control" placeholder="VD: LO-2026-01" maxLength={100} value={lotNumber} onChange={event => setLotNumber(event.target.value)} readOnly={readOnly} disabled={saving} />
+          </div>
+          <div className={styles.formField}>
+          <label htmlFor="inventory-expiry">Hạn sử dụng</label>
+          <input id="inventory-expiry" type="date" className="farmshift-form-control" value={expiryDate} onChange={event => setExpiryDate(event.target.value)} readOnly={readOnly} disabled={saving} />
           </div>
           </div>
           {metadataError && <p role="alert" className={styles.error}>{metadataError}<button type="button" onClick={() => setRevision(value => value + 1)}>Thử lại</button></p>}

@@ -5,7 +5,7 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
 - File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), sử dụng cú pháp `ON CONFLICT DO NOTHING`, `ON CONFLICT DO UPDATE` và `WHERE NOT EXISTS` để đảm bảo tính lũy kế (idempotent), an toàn tuyệt đối khi thực thi nhiều lần (kể cả trước và sau khi các runner nâng cấp schema khởi chạy).
-- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp với các `ApplicationRunner` nâng cấp và khởi tạo dữ liệu tự động khi khởi động (`FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`).
+- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp với các `ApplicationRunner` nâng cấp và khởi tạo dữ liệu tự động khi khởi động (`FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `CashbookSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`).
 
 ---
 
@@ -59,10 +59,16 @@ erDiagram
     flocks ||--o{ purchase_invoices : "chick_invoice"
     suppliers }o--o{ purchase_tags : "tagged_via_supplier_tags"
     purchase_invoices ||--o{ purchase_invoice_items : "contains"
+    purchase_invoices ||--o{ purchase_payments : "records_payments"
+    suppliers ||--o{ purchase_payments : "receives_payments"
     purchase_invoices }o--o{ purchase_tags : "tagged_via_invoice_tags"
     product_categories ||--o{ purchase_invoice_items : "references"
     warehouse_categories ||--o{ purchase_invoice_items : "destination_warehouse"
     purchase_invoice_items ||--o| inventory_items : "receipt_lot"
+
+    %% Cashbook & Funds
+    cash_funds ||--o{ cash_transactions : "tracks_vouchers"
+    cash_funds ||--o{ cash_fund_transfers : "transfers_between"
 
     %% Internal Stock Movements
     internal_stock_categories ||--o{ internal_stock_vouchers : "categorizes"
@@ -233,7 +239,7 @@ Entity: `Supplier`. Quản lý đối tác cung ứng tại **Thiết lập danh
 - `totalPurchased`: Tổng lũy kế giá trị các đơn nhập hàng từ nhà cung cấp này (loại trừ các đơn `Đã hủy`).
 - `debt`: Tổng dư nợ hiện tại = `openingDebt` + (tổng `totalAmount` - tổng `paidAmount` của các đơn chưa trả hết).
 
-**API:** `GET /api/suppliers`, `GET /api/suppliers/{id}` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/suppliers`, `GET /api/suppliers/{id}` (mọi tài khoản đã login), `GET /api/suppliers/{id}/debt-history` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`), `POST`, `PUT /{id}` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`), `DELETE /{id}` (`ROLE_FARM_OWNER`).
 **Quy tắc:** Không xóa được nhà cung cấp đã cung cấp con giống cho đàn (`flocks.supplier_id`) → 409 `SUPPLIER_HAS_FLOCKS`. Hộp thoại **Nhập đàn** có nút (+) thêm nhanh nhà cung cấp bằng chính `POST /api/suppliers`.
 
 ### 3.4 Bảng `warehouse_categories` & `farm_area_warehouses` — Danh mục kho và Liên kết kho theo khu nuôi
@@ -355,23 +361,29 @@ Entity: `InventoryItem`. Quản lý tồn kho thực tế, đơn giá theo từn
 | `unit_id` | BIGINT | FOREIGN KEY → `measurement_units.id` (`fk_inventory_unit`). Đơn vị tính định lượng. |
 | `price` | NUMERIC(19,2) | NOT NULL. Đơn giá vốn hoặc giá niêm yết của lô mặt hàng (VNĐ). |
 | `stock` | NUMERIC(19,6) | NOT NULL, DEFAULT 0.000000. Số lượng tồn kho thực tế hiện có của lô hàng (nâng cấp độ chính xác 6 chữ số thập phân bởi `DailyStockAllocationSchemaUpgrade`). |
+| `lot_number` | VARCHAR(100) | Mã số lô sản xuất / nhập kho (nâng cấp bởi `PurchasingDebtSchemaUpgrade`, tự động truyền từ `purchase_invoice_items.lot_number` khi nhập kho). |
+| `expiry_date` | DATE | Hạn sử dụng của lô hàng hóa (phục vụ cảnh báo hết hạn / cận hạn trong 30 ngày). |
+| `min_stock` | NUMERIC(19,6) | Ngưỡng tồn kho an toàn tối thiểu của mặt hàng. Khi `stock <= min_stock` (và `min_stock > 0`), hệ thống kích hoạt cảnh báo tồn thấp (`lowStock = true`). |
 | `image_url` | TEXT | Đường dẫn URL hình ảnh mặt hàng. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**Chỉ mục & Nâng cấp Schema (`InventoryLotSchemaUpgrade`):**
+**Chỉ mục & Nâng cấp Schema (`InventoryLotSchemaUpgrade` & `PurchasingDebtSchemaUpgrade`):**
 - Khi khởi động, `InventoryLotSchemaUpgrade` tự động gỡ bỏ ràng buộc cũ `uq_inventory_warehouse_product` và sử dụng chỉ mục `idx_inventory_warehouse_product (warehouse_id, product_id)`, cho phép một sản phẩm tồn tại ở nhiều kho khác nhau cũng như lưu nhiều lô nhập có đơn giá khác nhau trong cùng một kho.
+- `PurchasingDebtSchemaUpgrade` bổ sung các cột `lot_number`, `expiry_date`, `min_stock` phục vụ theo dõi hạn sử dụng theo lô và cảnh báo tồn tối thiểu.
 
 **Quy tắc nghiệp vụ & Tương tác:**
-1. Khi xác nhận nhập kho hóa đơn mua hàng (`POST /api/purchases/{id}/import-stock` hoặc tạo đơn với `stock_status = 'Đã nhập kho'`), hệ thống ghi nhận tồn kho vào kho đích của từng dòng hàng (`purchase_invoice_items.warehouse_id` hoặc kho mặc định của `product_categories`), bảo toàn đơn giá riêng của đợt nhập thông qua `purchase_invoice_item_id`.
+1. Khi xác nhận nhập kho hóa đơn mua hàng (`POST /api/purchases/{id}/import-stock` hoặc tạo đơn với `stock_status = 'Đã nhập kho'`), hệ thống ghi nhận tồn kho vào kho đích của từng dòng hàng (`purchase_invoice_items.warehouse_id` hoặc kho mặc định của `product_categories`), tự động truyền `lot_number`, `expiry_date` và bảo toàn đơn giá riêng của đợt nhập thông qua `purchase_invoice_item_id`.
 2. Khi hủy đơn nhập hàng (`POST /api/purchases/{id}/cancel`), lượng tồn kho tương ứng sẽ tự động được khấu trừ hoàn lại để bảo đảm số liệu sổ sách.
-3. Trên giao diện Kho, các dòng tồn kho cùng sản phẩm trong kho được gom nhóm tổng tồn và hỗ trợ xem chi tiết lịch sử các đợt nhập hàng.
+3. Trên giao diện Kho, các dòng tồn kho cùng sản phẩm trong kho được gom nhóm tổng tồn, hỗ trợ xem chi tiết lịch sử các đợt nhập hàng, lọc nhanh **Tồn kho thấp** / **Sắp hết hạn** / **Hết hạn** (`expiryStatus`: `EXPIRED`, `NEAR_EXPIRY`, `NORMAL`, `NONE`).
 
 **API:**
-- `GET /api/inventory-items?warehouseId={id}`: Danh sách mặt hàng thuộc một kho lưu trữ (hoặc tất cả kho).
+- `GET /api/inventory-items?warehouseId={id}`: Danh sách mặt hàng thuộc một kho lưu trữ (hoặc tất cả kho), kèm cờ cảnh báo `lowStock`, `expiryStatus`, `daysUntilExpiry`.
+- `GET /api/inventory-items/alerts?warehouseId={id}&expiryDays=30`: Tổng hợp cảnh báo hàng tồn thấp, cận hạn sử dụng và đã hết hạn (`lowStockCount`, `nearExpiryCount`, `expiredCount`, `items`).
 - `GET /api/inventory-items/{id}`: Chi tiết một mặt hàng tồn kho.
 - `GET /api/inventory-items/{id}/receipts`: Lịch sử các đợt nhập hàng của mặt hàng tồn kho (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `PATCH /api/inventory-items/{id}/min-stock` (`{minStock}`): Thiết lập ngưỡng tồn kho an toàn tối thiểu (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/inventory-items`: Thêm mặt hàng mới vào kho (`ROLE_FARM_OWNER`).
-- `PUT /api/inventory-items/{id}`: Điều chỉnh đơn giá, đơn vị tính hoặc nhãn hiệu (`ROLE_FARM_OWNER`).
+- `PUT /api/inventory-items/{id}`: Điều chỉnh đơn giá, đơn vị tính, nhãn hiệu, số lô, hạn sử dụng hoặc ngưỡng tồn tối thiểu (`ROLE_FARM_OWNER`).
 - `DELETE /api/inventory-items/{id}`: Xóa mặt hàng chưa phát sinh giao dịch (`ROLE_FARM_OWNER`).
 
 ### 4.2 Bảng `internal_stock_categories` & `transfer_categories` — Danh mục phiếu xuất nhập nội bộ
@@ -525,15 +537,38 @@ Entity: `PurchaseInvoiceItem`. Danh sách từng mặt hàng cụ thể trong đ
 | `unit_price` | BIGINT | NOT NULL, DEFAULT 0. Đơn giá nhập trước VAT (VNĐ). |
 | `vat_rate` | DOUBLE PRECISION | DEFAULT 0.0. Thuế suất VAT (0%, 5%, 8%, 10%). |
 | `amount` | BIGINT | NOT NULL, DEFAULT 0. Thành tiền mặt hàng = `round(quantity * unit_price * (1 + vat_rate / 100))`. |
+| `lot_number` | VARCHAR(100) | Số lô hàng hóa nhập (tự động truyền sang `inventory_items.lot_number` khi nhập kho). |
+| `expiry_date` | DATE | Hạn sử dụng của lô hàng hóa nhập (tự động truyền sang `inventory_items.expiry_date` khi nhập kho). |
 
 **API Quản lý Nhập hàng:**
 - `GET /api/purchases?search=...&paymentStatus=...`: Tìm kiếm, lọc hóa đơn nhập hàng.
-- `GET /api/purchases/{id}`: Xem chi tiết hóa đơn kèm danh sách mặt hàng và thẻ tags.
-- `POST /api/purchases`: Tạo mới hóa đơn. Tự động tăng tồn kho nếu chọn `stock_status = 'Đã nhập kho'` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `GET /api/purchases/{id}`: Xem chi tiết hóa đơn kèm danh sách mặt hàng, số lô/HSD, ảnh hóa đơn (`attachmentUrl`) và thẻ tags.
+- `POST /api/purchases`: Tạo mới hóa đơn. Tự động tăng tồn kho nếu chọn `stock_status = 'Đã nhập kho'` và ghi nhận giao dịch vào `purchase_payments` nếu `paid_amount > 0` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/purchases/{id}/import-stock`: Xác nhận nhập kho cho các đơn tạo trước ở trạng thái `'Chưa nhập kho'` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`, `ROLE_FARM_WORKER`).
-- `POST /api/purchases/{id}/pay`: Ghi nhận thanh toán bổ sung cho hóa đơn trả sau (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `POST /api/purchases/{id}/pay`: Ghi nhận thanh toán bổ sung cho hóa đơn trả sau (`{amount, note, cashFundId?}`), đồng thời lưu `purchase_payments` và tự động trừ số dư / tạo phiếu chi `cash_transactions` nếu truyền `cashFundId` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/purchases/{id}/cancel` (hoặc `DELETE /{id}`): Hủy đơn nhập hàng, tự động hoàn trả tồn kho nếu đã nhập trước đó (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/purchases/ocr`: Bóc tách thông minh chứng từ hóa đơn từ file ảnh chụp hoặc camera stream (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+
+### 5.4 Bảng `purchase_payments` — Lịch sử thanh toán & Theo dõi Công nợ
+
+Entity: `PurchasePayment` (khởi tạo và backfill tự động qua `PurchasingDebtSchemaUpgrade`). Ghi nhận từng đợt thanh toán thực tế cho hóa đơn nhập hàng để dựng sổ chi tiết công nợ nhà cung cấp.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `invoice_id` | BIGINT | NOT NULL. Mã ID hóa đơn nhập (`purchase_invoices.id`). Index `idx_purchase_payments_invoice`. |
+| `supplier_id` | BIGINT | NOT NULL. Mã ID nhà cung cấp (`suppliers.id`). Index `idx_purchase_payments_supplier`. |
+| `amount` | BIGINT | NOT NULL. Số tiền thanh toán thực tế trong đợt này (VNĐ). |
+| `payment_date` | DATE | NOT NULL. Ngày ghi nhận giao dịch thanh toán (theo `Asia/Bangkok`). |
+| `payment_method` | VARCHAR(50) | Hình thức thanh toán (VD: `Tiền mặt`, `Chuyển khoản`). |
+| `cash_fund_id` | BIGINT | Nullable. ID nguồn quỹ chi tiền (`cash_funds.id`) nếu chọn hạch toán trực tiếp qua Sổ quỹ. |
+| `note` | VARCHAR(500) | Diễn giải đợt thanh toán. |
+| `created_by` | VARCHAR(150) | Tài khoản thực hiện ghi nhận giao dịch. |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP. Thời điểm tạo bản ghi. |
+
+**API Tổng hợp & Chi tiết Công nợ (`DebtController`):**
+- `GET /api/debts/summary` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`): Tổng hợp công nợ toàn trang trại gồm công nợ phải trả nhà cung cấp (`totalSupplierPayable`, `supplierPayables`), công nợ phải thu khách hàng (`totalCustomerReceivable`, `customerReceivables`) và vị thế công nợ ròng (`netDebtPosition`).
+- `GET /api/debts/suppliers/{id}` & `GET /api/suppliers/{id}/debt-history` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`): Sổ chi tiết công nợ theo thời gian của một nhà cung cấp gồm dư nợ đầu kỳ (`OPENING_DEBT`), phát sinh mua (`PURCHASE_INVOICE`), các lần trả tiền (`PAYMENT`) và số dư lũy kế (`runningBalance`).
 
 ---
 
@@ -906,3 +941,68 @@ Hệ thống hỗ trợ linh hoạt 2 chế độ lưu trữ qua biến môi tr�
 3. Phiếu cân xuất bán (`WeightSlipStorage`, độc lập với `STORAGE_PROVIDER`):
    - Lưu file gốc (`JPG`/`PNG`/`PDF`) vào `SALES_WEIGHT_SLIPS_DIRECTORY` (mặc định `frontendFarmShift/public/weigh-slips/<UUID>.<ext>`, trong Docker Compose ánh xạ `/shared/frontend-public/weigh-slips`).
    - Cơ sở dữ liệu lưu đường dẫn `/weigh-slips/<UUID>.<ext>` trong `sales_orders.weight_slip_url`.
+
+---
+
+## PHẦN 9: SỔ QUỸ, NGUỒN TIỀN & CHUYỂN QUỸ NỘI BỘ
+
+Được khởi tạo tự động và bảo toàn dữ liệu mẫu qua `CashbookSchemaUpgrade`, phục vụ hạch toán thu/chi trang trại, quản lý tài khoản ngân hàng/quỹ tiền mặt và đối soát thanh toán hóa đơn nhập hàng.
+
+### 9.1 Bảng `cash_funds` — Nguồn quỹ / Tài khoản tiền
+
+Entity: `CashFund`. Quản lý danh sách quỹ tiền mặt và tài khoản ngân hàng của trang trại tại **Sổ quỹ → Nguồn tiền**.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `name` | VARCHAR(150) | NOT NULL, UNIQUE. Tên quỹ / tài khoản hiển thị (VD: `Tài khoản MB Bank (TK Chính)`, `Tiền mặt tại quỹ trại`). |
+| `account_no` | VARCHAR(80) | Số tài khoản ngân hàng (hoặc `—` nếu là quỹ tiền mặt). |
+| `bank` | VARCHAR(150) | NOT NULL. Tên ngân hàng hoặc đơn vị giữ quỹ. |
+| `fund_type` | VARCHAR(30) | NOT NULL, DEFAULT `'BANK'`. Phân loại: `BANK` (Ngân hàng) hoặc `CASH` (Tiền mặt). |
+| `balance` | BIGINT | NOT NULL, DEFAULT 0. Số dư khả dụng hiện tại (VNĐ), tự động biến động nguyên tử khi lập/sửa/xóa phiếu thu chi hoặc chuyển quỹ. |
+| `note` | VARCHAR(500) | Ghi chú mục đích sử dụng quỹ. |
+| `active` | BOOLEAN | NOT NULL, DEFAULT TRUE. Trạng thái kích hoạt nguồn quỹ. |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+
+### 9.2 Bảng `cash_transactions` — Phiếu Thu / Phiếu Chi Sổ quỹ
+
+Entity: `CashTransaction`. Quản lý từng chứng từ thu tiền, chi tiền (bao gồm cả phiếu chi tự động khi thanh toán hóa đơn NCC có chọn `cashFundId`).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã phiếu tự sinh dạng `PT000001` (Thu) hoặc `PC000001` (Chi). |
+| `tx_date` | DATE | NOT NULL. Ngày ghi nhận phiếu thu/chi. |
+| `type` | VARCHAR(10) | NOT NULL. Loại phiếu: `Thu` hoặc `Chi`. |
+| `category` | VARCHAR(150) | NOT NULL. Hạng mục thu chi (VD: `Đơn bán gà`, `Thanh toán công nợ NCC`, `Tiền lương công nhân`, `Tiền điện & nước trang trại`). |
+| `amount` | BIGINT | NOT NULL. Giá trị giao dịch (VNĐ, `> 0`). |
+| `contact` | VARCHAR(100) | Nhóm đối tượng giao dịch (`Khách hàng`, `Nhà cung cấp`, `Nhân sự`, `Đối tượng khác`). |
+| `person_name` | VARCHAR(200) | NOT NULL. Tên người nộp / người nhận tiền. |
+| `fund_id` | BIGINT | NOT NULL, FOREIGN KEY → `cash_funds.id`. Nguồn quỹ ghi nhận biến động tiền. |
+| `note` | VARCHAR(1000) | Diễn giải chi tiết chứng từ. |
+| `creator` | VARCHAR(150) | Tài khoản người lập phiếu. |
+| `reference_invoice_code` | VARCHAR(50) | Mã chứng từ liên kết (VD: mã hóa đơn `NH000003` khi thanh toán nợ nhà cung cấp). |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+
+### 9.3 Bảng `cash_fund_transfers` — Chứng từ Chuyển quỹ Nội bộ
+
+Entity: `CashFundTransfer`. Quản lý giao dịch rút tiền mặt từ ngân hàng hoặc nộp tiền mặt vào tài khoản ngân hàng mà không làm thay đổi tổng quỹ toàn trang trại (ngoài phí chuyển nếu có).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã chuyển quỹ tự sinh `CQ000001`, `CQ000002`... |
+| `transfer_date` | DATE | NOT NULL. Ngày chuyển quỹ. |
+| `from_fund_id` | BIGINT | NOT NULL, FOREIGN KEY → `cash_funds.id`. Quỹ nguồn bị trừ tiền (`amount + fee`). |
+| `to_fund_id` | BIGINT | NOT NULL, FOREIGN KEY → `cash_funds.id`. Quỹ đích được cộng tiền (`amount`). |
+| `amount` | BIGINT | NOT NULL. Số tiền chuyển (VNĐ). |
+| `fee` | BIGINT | NOT NULL, DEFAULT 0. Phí chuyển khoản phát sinh (VNĐ). |
+| `note` | VARCHAR(500) | Diễn giải giao dịch chuyển quỹ. |
+| `creator` | VARCHAR(150) | Tài khoản thực hiện. |
+| `created_at` | TIMESTAMP | Thời điểm ghi nhận. |
+
+**Quy tắc & API Quản lý Sổ quỹ (`CashbookController`, yêu cầu `ROLE_FARM_OWNER` hoặc `ROLE_ACCOUNTANT`):**
+- `GET /api/cashbook/summary?type=&fundId=&from=&to=&search=`: Trả về tổng thu, tổng chi, tổng số dư toàn quỹ, danh sách nguồn quỹ, danh sách phiếu thu/chi đã lọc và lịch sử chuyển quỹ.
+- `GET /api/cashbook/funds`, `POST /api/cashbook/funds`, `PUT /api/cashbook/funds/{id}`, `DELETE /api/cashbook/funds/{id}`: Quản lý nguồn tiền (không xóa được quỹ đã phát sinh phiếu hoặc chuyển quỹ → 409 `CASH_FUND_IN_USE`).
+- `POST /api/cashbook/transactions`, `PUT /api/cashbook/transactions/{id}`, `DELETE /api/cashbook/transactions/{id}`: Lập, sửa, xóa phiếu thu/chi; khi sửa hoặc xóa, hệ thống tự động hoàn tác biến động số dư cũ trên `oldFund` rồi áp dụng biến động mới lên `targetFund` trong cùng transaction.
+- `POST /api/cashbook/transfers`: Chuyển quỹ nội bộ (kiểm tra quỹ nguồn khác quỹ đích và đủ số dư `amount + fee`).

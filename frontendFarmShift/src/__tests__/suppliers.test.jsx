@@ -3,12 +3,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { SuppliersView } from '../features/farmshift/SuppliersView';
 import * as service from '../services/supplierService';
+import * as debtService from '../services/debtService';
 import { listProductTypes } from '../services/productTypeService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: mocks.role } }) }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
 vi.mock('../services/supplierService', () => ({ listSuppliers: vi.fn(), createSupplier: vi.fn(), updateSupplier: vi.fn(), deleteSupplier: vi.fn() }));
+vi.mock('../services/debtService', () => ({ getSupplierDebtHistory: vi.fn() }));
 vi.mock('../services/productTypeService', () => ({ listProductTypes: vi.fn() }));
 const originalShow = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
 const originalClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close');
@@ -27,6 +29,7 @@ describe('Supplier CRUD', () => {
     items = [{ id: 1, code: 'NCC_HIDDEN', name: 'Công ty A', representative: 'Nguyễn Văn A', phone: '0912345678', productTypeId: 10, productTypeName: 'Thuốc thú y', createdAt: '2026-10-18T12:00:01' }];
     service.listSuppliers.mockImplementation(async () => [...items]);
     listProductTypes.mockResolvedValue([{ id: 10, name: 'Thuốc thú y' }]);
+    debtService.getSupplierDebtHistory.mockResolvedValue({ supplierId: 1, totalPurchased: 10000000, totalPaid: 4000000, currentDebt: 6000000, ledger: [] });
     service.createSupplier.mockImplementation(async data => { const supplier = { ...items[0], ...data, id: 2 }; items.push(supplier); return supplier; });
     service.updateSupplier.mockImplementation(async (id, data) => { items = items.map(item => item.id === id ? { ...item, ...data } : item); });
     service.deleteSupplier.mockImplementation(async id => { items = items.filter(item => item.id !== id); });
@@ -79,5 +82,37 @@ describe('Supplier CRUD', () => {
     expect(screen.queryByRole('button', { name: 'Thêm nhà cung cấp' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sửa Công ty A' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xem Công ty A' })).toBeInTheDocument();
+  });
+
+  it('allows accountants to create and edit suppliers while hiding delete, and renders supplier debt history in view modal (FIN-10, FIN-11, FIN-12, FIN-18)', async () => {
+    mocks.role = 'ROLE_ACCOUNTANT';
+    debtService.getSupplierDebtHistory.mockResolvedValueOnce({
+      supplierId: 1,
+      email: 'ncca@farm.vn',
+      taxCode: '0300112233',
+      address: 'Hà Nội',
+      paymentPolicy: 'Gối đầu 30 ngày',
+      totalPurchased: 25000000,
+      totalPaid: 10000000,
+      currentDebt: 15000000,
+      ledger: [
+        { entryType: 'PURCHASE_INVOICE', date: '2026-10-10', referenceCode: 'NH000101', description: 'Mua cám đợt 1', debitAmount: 25000000, creditAmount: 0, runningBalance: 25000000 },
+        { entryType: 'PAYMENT', date: '2026-10-12', referenceCode: 'TT-NH000101', description: 'Trả tiền đợt 1', debitAmount: 0, creditAmount: 10000000, runningBalance: 15000000 }
+      ]
+    });
+
+    render(<SuppliersView />);
+    await screen.findByText('Công ty A');
+    expect(screen.getByRole('button', { name: 'Thêm nhà cung cấp' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sửa Công ty A' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xóa Công ty A' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xem Công ty A' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('NH000101')).toBeInTheDocument();
+    expect(within(dialog).getByText('ncca@farm.vn')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('25.000.000 đ').length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText('10.000.000 đ').length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText('15.000.000 đ').length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -3,11 +3,13 @@ import { Plus, Search, Eye, Pencil, Trash2, X, Truck, AlertCircle } from 'lucide
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../services/supplierService';
+import { getSupplierDebtHistory } from '../../services/debtService';
 import { listProductTypes } from '../../services/productTypeService';
 import styles from './WarehouseCategoriesView.module.css';
 import { validateContactPhone } from '../../utils/contactPhone';
 
 const date = value => value ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
+const money = value => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 const message = error => error.response?.data?.message || 'Không thể kết nối máy chủ. Vui lòng thử lại.';
 
 /** Form thêm / sửa / xem / xóa nhà cung cấp; onSaved(message, savedSupplier) — savedSupplier khi thêm hoặc sửa. */
@@ -25,6 +27,8 @@ export function SupplierDialog({ mode, supplier, onClose, onSaved }) {
   const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [debtHistory, setDebtHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const readOnly = mode === 'view', deleting = mode === 'delete';
   const title = { create: 'Thêm nhà cung cấp', edit: 'Chỉnh sửa nhà cung cấp', view: 'Chi tiết nhà cung cấp', delete: 'Xóa nhà cung cấp' }[mode];
   useEffect(() => {
@@ -33,6 +37,16 @@ export function SupplierDialog({ mode, supplier, onClose, onSaved }) {
     element.showModal(); document.body.style.overflow = 'hidden';
     return () => { element.close(); document.body.style.overflow = overflow; };
   }, []);
+  useEffect(() => {
+    if (!readOnly || !supplier?.id) return;
+    let cancelled = false;
+    setHistoryLoading(true);
+    getSupplierDebtHistory(supplier.id)
+      .then(data => { if (!cancelled && data && typeof data === 'object' && 'supplierId' in data) setDebtHistory(data); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [readOnly, supplier?.id]);
   useEffect(() => {
     if (readOnly || deleting) return;
     let cancelled = false;
@@ -58,10 +72,12 @@ export function SupplierDialog({ mode, supplier, onClose, onSaved }) {
       onSaved(deleting ? 'Đã xóa nhà cung cấp.' : 'Đã lưu nhà cung cấp thành công.', saved);
     } catch (error) { setError(message(error)); setSaving(false); }
   };
+  const detail = debtHistory || supplier || {};
+  const ledgerRows = Array.isArray(debtHistory?.ledger) ? debtHistory.ledger : [];
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="supplier-title"
     onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
     onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-    <section className={styles.modal}>
+    <section className={`${styles.modal} ${readOnly ? styles.modalWide : ''}`}>
       <header className={styles.modalHeader}><h2 id="supplier-title">{title}</h2><button type="button" className={styles.iconButton} onClick={onClose} disabled={saving} aria-label="Đóng"><X size={20} /></button></header>
       <form onSubmit={submit}>
         <div className={styles.modalBody}>
@@ -85,7 +101,62 @@ export function SupplierDialog({ mode, supplier, onClose, onSaved }) {
               {groupError && <p role="alert" className={styles.error}>{groupError}<button type="button" onClick={() => setRevision(value => value + 1)}>Thử lại</button></p>}
               {!loading && !groupError && !groups.length && <p className={styles.error}>Chưa có nhóm. Vui lòng thêm dữ liệu trong tab Loại hàng hóa trước.</p>}
             </>}
-            {readOnly && <><label htmlFor="supplier-date">Ngày tạo</label><input id="supplier-date" className="farmshift-form-control" value={date(supplier.createdAt)} readOnly /></>}
+            {readOnly && <>
+              <label htmlFor="supplier-date">Ngày tạo</label>
+              <input id="supplier-date" className="farmshift-form-control" value={date(supplier.createdAt)} readOnly />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '10px', marginBottom: '16px', padding: '12px', borderRadius: '10px', background: '#f6f9f8', border: '1px solid #e2eae7', fontSize: '13.5px' }}>
+                <div><span style={{ color: '#607781' }}>Email:</span> <strong>{detail.email || '—'}</strong></div>
+                <div><span style={{ color: '#607781' }}>Mã số thuế:</span> <strong>{detail.taxCode || '—'}</strong></div>
+                <div><span style={{ color: '#607781' }}>Địa chỉ:</span> <strong>{detail.address || '—'}</strong></div>
+                <div><span style={{ color: '#607781' }}>Thanh toán:</span> <strong>{detail.paymentPolicy || 'Trả theo đơn'}</strong></div>
+                <div><span style={{ color: '#607781' }}>Ngân hàng:</span> <strong>{detail.bankName ? `${detail.bankName}${detail.bankAccount ? ` (${detail.bankAccount})` : ''}` : '—'}</strong></div>
+                <div><span style={{ color: '#607781' }}>Ghi chú:</span> <strong>{detail.note || '—'}</strong></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px', marginBottom: '16px' }}>
+                <div style={{ padding: '10px 12px', borderRadius: '10px', background: '#f6f9f8', border: '1px solid #e2eae7' }}>
+                  <div style={{ fontSize: '12px', color: '#607781' }}>Tổng nhập lũy kế</div>
+                  <strong style={{ fontSize: '15px', color: '#182b31' }}>{money(debtHistory?.totalPurchased ?? supplier.totalPurchased)}</strong>
+                </div>
+                <div style={{ padding: '10px 12px', borderRadius: '10px', background: '#eef9f4', border: '1px solid #ccebd9' }}>
+                  <div style={{ fontSize: '12px', color: '#0b7a5c' }}>Đã thanh toán</div>
+                  <strong style={{ fontSize: '15px', color: '#0b7a5c' }}>{money(debtHistory?.totalPaid)}</strong>
+                </div>
+                <div style={{ padding: '10px 12px', borderRadius: '10px', background: '#fff5f5', border: '1px solid #f5cccc' }}>
+                  <div style={{ fontSize: '12px', color: '#c63030' }}>Công nợ hiện tại</div>
+                  <strong style={{ fontSize: '15px', color: '#c63030' }}>{money(debtHistory?.currentDebt ?? supplier.debt)}</strong>
+                </div>
+              </div>
+              <div style={{ border: '1px solid #e2eae7', borderRadius: '10px', overflow: 'hidden' }}>
+                <div style={{ padding: '10px 12px', background: '#f6f9f8', fontWeight: 600, fontSize: '13.5px', color: '#182b31', borderBottom: '1px solid #e2eae7' }}>
+                  Lịch sử hóa đơn & thanh toán công nợ
+                </div>
+                {historyLoading ? (
+                  <p style={{ padding: '14px', fontSize: '13.5px', color: '#607781' }}>Đang tải lịch sử giao dịch...</p>
+                ) : !ledgerRows.length ? (
+                  <p style={{ padding: '14px', fontSize: '13.5px', color: '#607781' }}>Chưa có giao dịch mua hàng hoặc thanh toán nào.</p>
+                ) : (
+                  <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+                    <table className="farmshift-table" style={{ fontSize: '13px', margin: 0 }}>
+                      <thead>
+                        <tr><th>Ngày</th><th>Chứng từ</th><th>Diễn giải</th><th>Phát sinh</th><th>Thanh toán</th><th>Dư nợ</th></tr>
+                      </thead>
+                      <tbody>
+                        {ledgerRows.map((entry, idx) => (
+                          <tr key={`${entry.referenceCode}-${idx}`}>
+                            <td>{date(entry.date)}</td>
+                            <td><strong>{entry.referenceCode || '—'}</strong></td>
+                            <td>{entry.description}</td>
+                            <td>{entry.debitAmount > 0 ? money(entry.debitAmount) : '—'}</td>
+                            <td style={{ color: '#0b7a5c' }}>{entry.creditAmount > 0 ? money(entry.creditAmount) : '—'}</td>
+                            <td><strong>{money(entry.runningBalance)}</strong></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>}
           </>}
         </div>
         <footer className={styles.footer}>
@@ -100,7 +171,8 @@ export function SupplierDialog({ mode, supplier, onClose, onSaved }) {
 export const SuppliersView = () => {
   const { user } = useAuth();
   const { showToast } = useNotification();
-  const canEdit = user?.role === 'ROLE_FARM_OWNER';
+  const canEdit = ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'].includes(user?.role);
+  const canDelete = user?.role === 'ROLE_FARM_OWNER';
   const [suppliers, setSuppliers] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [query, setQuery] = useState(''), [modal, setModal] = useState(null), [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -127,7 +199,7 @@ export const SuppliersView = () => {
       <thead><tr><th>Đơn vị cung cấp</th><th>Người đại diện</th><th>Số điện thoại</th><th>Nhóm nhà cung cấp</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
       <tbody>{loading ? <tr><td colSpan={6} className={styles.empty} role="status">Đang tải nhà cung cấp...</td></tr> : !filtered.length ? <tr><td colSpan={6} className={styles.empty}>{query ? 'Không tìm thấy nhà cung cấp phù hợp.' : 'Chưa có nhà cung cấp. Thêm đối tác đầu tiên để bắt đầu.'}</td></tr> : filtered.map(supplier => <tr key={supplier.id}>
         <td><strong>{supplier.name}</strong></td><td>{supplier.representative}</td><td>{supplier.phone}</td><td>{supplier.productTypeName}</td><td className={styles.date}>{date(supplier.createdAt)}</td>
-        <td><div className={styles.actions}><button type="button" className={styles.iconButton} aria-label={`Xem ${supplier.name}`} title="Xem chi tiết" onClick={() => setModal({ mode: 'view', supplier })}><Eye size={16} /></button>{canEdit && <><button type="button" className={styles.iconButton} aria-label={`Sửa ${supplier.name}`} title="Chỉnh sửa" onClick={() => setModal({ mode: 'edit', supplier })}><Pencil size={16} /></button><button type="button" className={`${styles.iconButton} ${styles.danger}`} aria-label={`Xóa ${supplier.name}`} title="Xóa" onClick={() => setModal({ mode: 'delete', supplier })}><Trash2 size={16} /></button></>}</div></td>
+        <td><div className={styles.actions}><button type="button" className={styles.iconButton} aria-label={`Xem ${supplier.name}`} title="Xem chi tiết" onClick={() => setModal({ mode: 'view', supplier })}><Eye size={16} /></button>{canEdit && <button type="button" className={styles.iconButton} aria-label={`Sửa ${supplier.name}`} title="Chỉnh sửa" onClick={() => setModal({ mode: 'edit', supplier })}><Pencil size={16} /></button>}{canDelete && <button type="button" className={`${styles.iconButton} ${styles.danger}`} aria-label={`Xóa ${supplier.name}`} title="Xóa" onClick={() => setModal({ mode: 'delete', supplier })}><Trash2 size={16} /></button>}</div></td>
       </tr>)}</tbody>
     </table></div>}
     {modal && <SupplierDialog key={`${modal.mode}-${modal.supplier?.id || 'new'}`} {...modal} onClose={() => setModal(null)} onSaved={text => { setModal(null); showToast(text, 'success'); setRevision(value => value + 1); }} />}

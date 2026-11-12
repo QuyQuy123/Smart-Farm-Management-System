@@ -6,3 +6,9 @@ export const listAllInventoryItems = async () => (await api.get('/inventory-item
 export const createInventoryItem = async data => (await api.post('/inventory-items', data)).data.data;
 export const updateInventoryItem = async (id, data) => (await api.put(`/inventory-items/${id}`, data)).data.data;
 export const deleteInventoryItem = async id => api.delete(`/inventory-items/${id}`);
+export const getInventoryAlerts = async (warehouseId = null, expiryDays = 30) => {
+  const params = { expiryDays };
+  if (warehouseId) params.warehouseId = warehouseId;
+  return (await api.get('/inventory-items/alerts', { params })).data.data;
+};
+export const updateInventoryMinStock = async (id, minStock) => (await api.patch(`/inventory-items/${id}/min-stock`, { minStock })).data.data;

@@ -36,4 +36,10 @@ public interface PurchaseInvoiceRepository extends JpaRepository<PurchaseInvoice
 
     @Query("SELECT COALESCE(SUM(p.totalAmount - p.paidAmount), 0) FROM PurchaseInvoice p WHERE p.supplier.id = :supplierId AND p.stockStatus <> 'Đã hủy'")
     Long calculateCurrentDebtBySupplier(@Param("supplierId") Long supplierId);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"supplier"})
+    List<PurchaseInvoice> findBySupplier_IdOrderByInvoiceDateDescIdDesc(Long supplierId);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"supplier"})
+    List<PurchaseInvoice> findByStockStatusNot(String stockStatus);
 }
