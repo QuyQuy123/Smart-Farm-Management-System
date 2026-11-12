@@ -746,9 +746,6 @@ export const CashbookView = () => {
       {/* ── Tab 1: Sổ quỹ thu chi ────────────────────────── */}
       {activeTab === 'ledger' && (
         <>
-          <div className={styles.advisoryNote} style={{ marginBottom: '12px' }}>
-            <strong>Đồng bộ tự động:</strong> Toàn bộ phiếu thu / chi được tự động ghi nhận từ <strong>Quản lý bán hàng</strong>, <strong>Hóa đơn nhập hàng</strong>, <strong>Chi phí lứa</strong> và <strong>Tiền công nhân viên</strong> vào Quỹ trang trại.
-          </div>
           <div className={`farmshift-toolbar ${styles.toolbar}`}>
             <div className="farmshift-search-box">
               <Search size={16} color="var(--color-muted)" />
@@ -933,10 +930,6 @@ export const CashbookView = () => {
       {/* ── Tab 4: PHÂN BỔ CHI PHÍ LỨA ───────────────────── */}
       {activeTab === 'costs' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className={styles.advisoryNote}>
-            <strong>Quy tắc hạch toán:</strong> Gắn khoản chi thực tế với từng chuồng và lứa nuôi để tính giá thành sản xuất trên mỗi kg thành phẩm.
-          </div>
-
           <div className="farmshift-card" style={{ margin: 0 }}>
             <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <h3 className="farmshift-card-title">

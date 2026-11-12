@@ -98,12 +98,3 @@
   padding: 4px 7px !important;
 }
 
-.advisoryNote {
-  padding: 13px 16px;
-  border-radius: var(--rounded-md);
-  background-color: var(--color-surface-soft);
-  border: 1px solid var(--color-hairline);
-  font-size: 14px;
-  color: var(--color-body);
-}
-

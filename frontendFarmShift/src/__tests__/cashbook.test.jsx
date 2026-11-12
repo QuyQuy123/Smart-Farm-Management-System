@@ -170,7 +170,8 @@ describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categ
     ));
     expect(await screen.findByText('Nguyễn Văn Hùng')).toBeInTheDocument();
     expect(screen.getByText('PT000002')).toBeInTheDocument();
-    expect(screen.getByText(/Đồng bộ tự động:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Lọc loại phiếu').value).toBe('Thu');
+    expect(screen.queryByText(/Đồng bộ tự động:/i)).not.toBeInTheDocument();
   });
 });
 
