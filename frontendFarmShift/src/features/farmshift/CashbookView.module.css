@@ -101,7 +101,85 @@
 }
 
 .iconBtn {
-  padding: 4px 7px !important;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid #e2eae7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #607781;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.iconBtn:hover {
+  background: #e8f6f1;
+  color: #008577;
+  border-color: #bddfd2;
+}
+
+.iconBtn:focus-visible {
+  outline: 2px solid #008577;
+  outline-offset: 2px;
+}
+
+.iconBtnDanger {
+  color: #607781;
+}
+
+.iconBtnDanger:hover {
+  background: #e8f6f1;
+  color: #008577;
+  border-color: #bddfd2;
+}
+
+.compactActionBtn {
+  min-height: 32px !important;
+  padding: 5px 10px !important;
+  font-size: 12.5px !important;
+  border-radius: 8px !important;
+}
+
+.modalCloseBtn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: #f1f5f4;
+  color: #647570;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.modalCloseBtn:hover {
+  background: #e0f2ec;
+  color: #007968;
+}
+
+.modalCloseBtn:focus-visible {
+  outline: 2px solid #008577;
+  outline-offset: 2px;
+}
+
+.mintBadge {
+  background-color: #e8f6f1;
+  color: #007968;
+  border: 1px solid #bfe3d7;
+}
+
+.sageBadge {
+  background-color: #f3f7f6;
+  color: #3f5550;
+  border: 1px solid #d5e2de;
 }
 
 .pagerBar {
@@ -179,13 +257,13 @@
 }
 
 .detailHeroIncome {
-  background: #effaf4;
-  border-color: #bfe8d1;
+  background: #effaf5;
+  border-color: #bfe3d7;
 }
 
 .detailHeroExpense {
-  background: #fff4f2;
-  border-color: #f6cdc6;
+  background: #f5f9f8;
+  border-color: #d3e4df;
 }
 
 .detailHeroLabel {
@@ -296,13 +374,13 @@
 }
 
 .txFundStripIncome {
-  background: #f2fbf6;
-  border-color: #c5e8d5;
+  background: #effaf5;
+  border-color: #bfe3d7;
 }
 
 .txFundStripExpense {
-  background: #fff6f5;
-  border-color: #f3d2cc;
+  background: #f5f9f8;
+  border-color: #d3e4df;
 }
 
 .txFundName {

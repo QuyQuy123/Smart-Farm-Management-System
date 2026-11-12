@@ -96,11 +96,11 @@ export const renderNotificationContent = (barn, value, isSuccess = false, isRead
   return (
     <>
       {barnTrimmed ? (
-        <strong style={{ color: isRead ? '#64748b' : isSuccess ? '#15803d' : 'inherit' }}>
+        <strong style={{ color: isRead ? '#607781' : isSuccess ? '#00796b' : '#181d26', fontWeight: 600 }}>
           {barnTrimmed}:{' '}
         </strong>
       ) : null}
-      <span style={{ color: isRead ? '#64748b' : 'inherit' }}>
+      <span style={{ color: isRead ? '#607781' : 'inherit' }}>
         {valTrimmed}
       </span>
     </>
@@ -230,8 +230,11 @@ export const NotificationProvider = ({ children }) => {
   };
 
   const markAsRead = (id) => {
+    const isCurrentlyUnread = alerts.some(al => al.id === id && !al.read);
     setAlerts(prev => prev.map(al => al.id === id ? { ...al, read: true } : al));
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    if (isCurrentlyUnread) {
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
   };
 
   const clearAllAlerts = () => {
@@ -286,7 +289,7 @@ export const NotificationProvider = ({ children }) => {
       type: toastLevel === 'Thành công' ? 'Thao tác thành công' : toastLevel,
       value: text,
       level: toastLevel,
-      status: toastLevel === 'Thành công' ? 'Đã hoàn tất & đồng bộ dữ liệu' : 'Hệ thống đã ghi nhận',
+      status: '',
       isSystem: true,
       read: false
     };

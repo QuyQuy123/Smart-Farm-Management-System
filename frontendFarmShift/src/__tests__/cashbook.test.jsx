@@ -26,13 +26,10 @@ vi.mock('../services/cashbookService', () => ({
   createPayroll: vi.fn(),
   updatePayroll: vi.fn(),
   payPayroll: vi.fn(),
-  deletePayroll: vi.fn(),
-  createCashCategory: vi.fn(),
-  updateCashCategory: vi.fn(),
-  deleteCashCategory: vi.fn()
+  deletePayroll: vi.fn()
 }));
 
-describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categories', () => {
+describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets & Payroll', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.confirm = vi.fn(() => true);
@@ -78,7 +75,6 @@ describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categ
     cashbookService.deleteCashTransaction.mockResolvedValue(undefined);
     cashbookService.createFarmAsset.mockResolvedValue({ id: 31, code: 'TS0002' });
     cashbookService.payPayroll.mockResolvedValue({ id: 20, code: 'CC0002', status: 'Đã thanh toán' });
-    cashbookService.createCashCategory.mockResolvedValue({ id: 3, name: 'Chi phí bảo trì' });
   });
 
   it('keeps synced vouchers read-only while allowing manual capital deposit/withdrawal vouchers without internal transfers', async () => {
@@ -87,8 +83,9 @@ describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categ
     expect(screen.getByText('PC000005')).toBeInTheDocument();
     expect(screen.getByText('PT000001')).toBeInTheDocument();
 
-    // No internal fund transfer control in single-fund mode, while direct receipt/payment actions exist
+    // No internal fund transfer control or obsolete categories management tab in single-fund mode
     expect(screen.queryByRole('button', { name: /Chuyển quỹ nội bộ/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Loại phiếu thu \/ chi/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Lập phiếu thu/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Lập phiếu chi/i })).toBeInTheDocument();
 
@@ -147,7 +144,7 @@ describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categ
     })));
   });
 
-  it('adds a fixed asset in Tài sản & Khấu hao, disburses payroll automatically from Quỹ trang trại, and adds a cash category', async () => {
+  it('adds a fixed asset in Tài sản & Khấu hao and disburses payroll automatically from Quỹ trang trại', async () => {
     render(<MemoryRouter><CashbookView /></MemoryRouter>);
     await screen.findByText('PT000002');
 
@@ -178,23 +175,10 @@ describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categ
       amount: 3050000,
       cashFundId: 1
     })));
-
-    // Categories tab
-    fireEvent.click(screen.getByRole('button', { name: /Loại phiếu thu \/ chi/i }));
-    await screen.findByText('Đơn bán gà');
-    fireEvent.click(screen.getByRole('button', { name: /Thêm loại phiếu/i }));
-    fireEvent.change(screen.getByLabelText(/Tên loại giao dịch/i), { target: { value: 'Chi phí bảo trì' } });
-    fireEvent.change(screen.getByLabelText(/Nhóm chi phí/i), { target: { value: 'Chi phí vận hành' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu loại phiếu' }));
-
-    await waitFor(() => expect(cashbookService.createCashCategory).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'Chi phí bảo trì',
-      costGroup: 'Chi phí vận hành'
-    })));
   });
 
-  it('falls back to ledger tab on deprecated ?tab=transfers and honors ?type=Thu query filter', async () => {
-    render(
+  it('falls back to ledger tab on deprecated ?tab=transfers or ?tab=categories and honors ?type=Thu query filter', async () => {
+    const { unmount } = render(
       <MemoryRouter initialEntries={['/cashbook?tab=transfers&type=Thu']}>
         <CashbookView />
       </MemoryRouter>
@@ -207,6 +191,19 @@ describe('CashbookView - Single-Fund Auto-Synced Ledger, Assets, Payroll & Categ
     expect(screen.getByText('PT000002')).toBeInTheDocument();
     expect(screen.getByLabelText('Lọc loại phiếu').value).toBe('Thu');
     expect(screen.queryByText(/Đồng bộ tự động:/i)).not.toBeInTheDocument();
+
+    unmount();
+    render(
+      <MemoryRouter initialEntries={['/cashbook?tab=categories']}>
+        <CashbookView />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(cashbookService.getCashbookSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'ALL' })
+    ));
+    expect(await screen.findByText('Nguyễn Văn Hùng')).toBeInTheDocument();
+    expect(screen.getByText('PT000002')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sổ quỹ thu chi/i })).toHaveClass('active');
   });
 
   it('paginates long ledger lists cleanly when transactions exceed page size', async () => {

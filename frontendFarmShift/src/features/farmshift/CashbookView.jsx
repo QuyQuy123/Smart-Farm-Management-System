@@ -27,10 +27,7 @@ import {
   createPayroll,
   updatePayroll,
   payPayroll,
-  deletePayroll,
-  createCashCategory,
-  updateCashCategory,
-  deleteCashCategory
+  deletePayroll
 } from '../../services/cashbookService';
 import styles from './CashbookView.module.css';
 
@@ -83,7 +80,7 @@ export const CashbookView = () => {
   const user = auth?.user;
   const canWrite = !user || ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'].includes(user?.role);
 
-  const VALID_TABS = new Set(['ledger', 'funds', 'costs', 'assets', 'payroll', 'categories']);
+  const VALID_TABS = new Set(['ledger', 'funds', 'costs', 'assets', 'payroll']);
   const resolveTabFromLocation = (loc) => {
     if (loc.pathname.includes('/payroll')) return 'payroll';
     if (loc.pathname.includes('/assets')) return 'assets';
@@ -199,10 +196,6 @@ export const CashbookView = () => {
     paymentDate: new Date().toISOString().split('T')[0],
     note: ''
   });
-
-  // Category Modal
-  const [categoryModal, setCategoryModal] = useState(null);
-  const [categoryForm, setCategoryForm] = useState({ name: '', type: 'Chi', costGroup: 'Chi phí vận hành', note: '' });
 
   const reloadSummary = useCallback(() => {
     setRevision(r => r + 1);
@@ -794,58 +787,6 @@ export const CashbookView = () => {
     }
   };
 
-  // ── Categories CRUD ────────────────────────────────────────────────────────────────────
-
-  const openCategoryModal = (mode, cat = null) => {
-    if (mode === 'edit' && cat) {
-      setCategoryForm({ name: cat.name || '', type: cat.type || 'Chi', costGroup: cat.group || 'Chi phí vận hành', note: cat.note || '' });
-      setCategoryModal({ mode: 'edit', item: cat });
-    } else {
-      setCategoryForm({ name: '', type: 'Chi', costGroup: 'Chi phí vận hành', note: '' });
-      setCategoryModal({ mode: 'create', item: null });
-    }
-  };
-
-  const handleSaveCategory = async (e) => {
-    e.preventDefault();
-    if (apiMode) {
-      try {
-        const payload = {
-          name: categoryForm.name.trim(),
-          type: categoryForm.type,
-          costGroup: categoryForm.costGroup.trim(),
-          note: categoryForm.note.trim()
-        };
-        if (categoryModal.mode === 'edit') {
-          await updateCashCategory(categoryModal.item.id, payload);
-          showToast('Đã cập nhật loại phiếu thu / chi.', 'success');
-        } else {
-          await createCashCategory(payload);
-          showToast('Đã thêm loại phiếu thu / chi.', 'success');
-        }
-        setCategoryModal(null);
-        reloadSummary();
-      } catch (err) {
-        showToast(err.response?.data?.message || 'Không thể lưu loại phiếu.', 'error');
-      }
-      return;
-    }
-    setCategoryModal(null);
-  };
-
-  const handleDeleteCategory = async (cat) => {
-    if (!window.confirm(`Xóa loại phiếu "${cat.name}"?`)) return;
-    if (apiMode) {
-      try {
-        await deleteCashCategory(cat.id);
-        showToast('Đã xóa loại phiếu thu / chi.', 'success');
-        reloadSummary();
-      } catch (err) {
-        showToast(err.response?.data?.message || 'Không thể xóa loại phiếu đang sử dụng.', 'error');
-      }
-    }
-  };
-
   const handleExportExcel = () => {
     if (!transactions.length) {
       showToast('Chưa có giao dịch sổ quỹ để xuất.', 'warning');
@@ -1067,15 +1008,14 @@ export const CashbookView = () => {
             <>
               <button
                 type="button"
-                className="farmshift-btn farmshift-btn-secondary"
-                style={{ color: 'var(--color-signature-coral)', borderColor: 'var(--color-hairline)' }}
+                className="farmshift-btn farmshift-btn-mint"
                 onClick={() => openCreateTxModal('Chi')}
               >
                 <Plus size={15} /> Lập phiếu chi
               </button>
               <button
                 type="button"
-                className="farmshift-btn farmshift-btn-primary"
+                className="farmshift-btn farmshift-btn-mint"
                 onClick={() => openCreateTxModal('Thu')}
               >
                 <Plus size={15} /> Lập phiếu thu
@@ -1087,23 +1027,23 @@ export const CashbookView = () => {
     >
       {/* ── Summary Stats ─────────────────────────────────── */}
       <div className={styles.statsGrid}>
-        <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG THU VÀO</div>
-          <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-success)', marginTop: '6px' }}>
+        <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+          <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG THU VÀO</div>
+          <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
             +{Number(totalRevenue).toLocaleString('vi-VN')} đ
           </div>
         </div>
 
-        <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG CHI RA</div>
-          <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '6px' }}>
+        <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+          <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG CHI RA</div>
+          <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
             -{Number(totalExpense).toLocaleString('vi-VN')} đ
           </div>
         </div>
 
-        <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-          <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỒN QUỸ TRANG TRẠI</div>
-          <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
+        <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+          <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỒN QUỸ TRANG TRẠI</div>
+          <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
             {Number(totalFundsBalance).toLocaleString('vi-VN')} đ
           </div>
         </div>
@@ -1128,9 +1068,6 @@ export const CashbookView = () => {
         <button className={`farmshift-tab-btn ${styles.tabBtnCompact} ${activeTab === 'payroll' ? 'active' : ''}`} onClick={() => setActiveTab('payroll')}>
           <Users size={14} />
           Tiền công nhân viên ({payrolls.length})
-        </button>
-        <button className={`farmshift-tab-btn ${styles.tabBtnCompact} ${activeTab === 'categories' ? 'active' : ''}`} onClick={() => setActiveTab('categories')}>
-          Loại phiếu thu / chi ({txCategories.length})
         </button>
       </div>
 
@@ -1197,7 +1134,7 @@ export const CashbookView = () => {
                         <td className={styles.codeCell}>{t.code}</td>
                         <td className={styles.dateCell}>{t.date}</td>
                         <td>
-                          <span className={`farmshift-badge ${t.type === 'Thu' ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}>
+                          <span className={`farmshift-badge ${t.type === 'Thu' ? styles.mintBadge : styles.sageBadge}`}>
                             {t.type === 'Thu' ? '↑ Thu' : '↓ Chi'} — {t.category}
                           </span>
                         </td>
@@ -1227,7 +1164,7 @@ export const CashbookView = () => {
                           )}
                         </td>
                         <td className={styles.amountCell}>
-                          <span style={{ color: t.type === 'Thu' ? 'var(--color-success)' : 'var(--color-signature-coral)' }}>
+                          <span style={{ color: t.type === 'Thu' ? '#007968' : 'var(--color-ink)' }}>
                             {t.type === 'Thu' ? '+' : '-'}{Number(t.amount || 0).toLocaleString('vi-VN')} đ
                           </span>
                         </td>
@@ -1245,33 +1182,32 @@ export const CashbookView = () => {
                           <div className={styles.actionsGroup}>
                             <button
                               type="button"
-                              className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`}
+                              className={styles.iconBtn}
                               title="Xem chi tiết phiếu"
                               aria-label={`Xem phiếu ${t.code}`}
                               onClick={() => setViewTx(t)}
                             >
-                              <Eye size={14} />
+                              <Eye size={15} />
                             </button>
                             {canWrite && !t.referenceInvoiceCode && (
                               <>
                                 <button
                                   type="button"
-                                  className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`}
+                                  className={styles.iconBtn}
                                   title="Sửa phiếu"
                                   aria-label={`Sửa phiếu ${t.code}`}
                                   onClick={() => openEditTxModal(t)}
                                 >
-                                  <Pencil size={14} />
+                                  <Pencil size={15} />
                                 </button>
                                 <button
                                   type="button"
-                                  className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`}
-                                  style={{ color: 'var(--color-danger)' }}
+                                  className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
                                   title="Xóa phiếu"
                                   aria-label={`Xóa phiếu ${t.code}`}
                                   onClick={() => handleDeleteTx(t)}
                                 >
-                                  <Trash2 size={14} />
+                                  <Trash2 size={15} />
                                 </button>
                               </>
                             )}
@@ -1324,7 +1260,7 @@ export const CashbookView = () => {
                     <td style={{ fontFamily: 'monospace' }}>{f.accountNo || '—'}</td>
                     <td>{f.bank}</td>
                     <td>
-                      <strong style={{ fontSize: '15px', color: 'var(--color-primary)' }}>
+                      <strong style={{ fontSize: '15px', color: '#007968' }}>
                         {Number(f.balance || 0).toLocaleString('vi-VN')} đ
                       </strong>
                     </td>
@@ -1334,23 +1270,22 @@ export const CashbookView = () => {
                         <div className={styles.actionsGroup}>
                           <button
                             type="button"
-                            className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`}
+                            className={styles.iconBtn}
                             title="Sửa nguồn quỹ"
                             aria-label={`Sửa nguồn quỹ ${f.name}`}
                             onClick={() => openEditFundModal(f)}
                           >
-                            <Pencil size={14} />
+                            <Pencil size={15} />
                           </button>
                           {funds.length > 1 && (
                             <button
                               type="button"
-                              className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`}
-                              style={{ color: 'var(--color-danger)' }}
+                              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
                               title="Xóa nguồn quỹ"
                               aria-label={`Xóa nguồn quỹ ${f.name}`}
                               onClick={() => handleDeleteFund(f)}
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={15} />
                             </button>
                           )}
                         </div>
@@ -1370,7 +1305,7 @@ export const CashbookView = () => {
           <div className="farmshift-card" style={{ margin: 0 }}>
             <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <h3 className="farmshift-card-title">
-                <Calculator size={18} color="var(--color-primary)" />
+                <Calculator size={18} color="#008577" />
                 Bảng phân bổ chi phí về lứa nuôi
               </h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1406,18 +1341,18 @@ export const CashbookView = () => {
                       <td><strong style={{ color: 'var(--color-ink)' }}>{c.house}</strong></td>
                       <td><span className="farmshift-badge farmshift-badge-neutral">{c.cycle}</span></td>
                       <td>{c.type}</td>
-                      <td><strong style={{ color: 'var(--color-signature-coral)' }}>{Number(c.amount || 0).toLocaleString('vi-VN')} đ</strong></td>
+                      <td><strong style={{ color: 'var(--color-ink)' }}>{Number(c.amount || 0).toLocaleString('vi-VN')} đ</strong></td>
                       <td><span style={{ fontFamily: 'monospace' }}>{c.source || '—'}</span></td>
                       <td>{c.date}</td>
                       <td style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>{c.notes || '—'}</td>
                       {canWrite && (
                         <td style={{ textAlign: 'center' }}>
                           <div className={styles.actionsGroup}>
-                            <button type="button" className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`} aria-label={`Sửa phân bổ ${c.code || c.id}`} onClick={() => openCostModal('edit', c)}>
-                              <Pencil size={14} />
+                            <button type="button" className={styles.iconBtn} aria-label={`Sửa phân bổ ${c.code || c.id}`} onClick={() => openCostModal('edit', c)}>
+                              <Pencil size={15} />
                             </button>
-                            <button type="button" className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`} style={{ color: 'var(--color-danger)' }} aria-label={`Xóa phân bổ ${c.code || c.id}`} onClick={() => handleDeleteCost(c)}>
-                              <Trash2 size={14} />
+                            <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} aria-label={`Xóa phân bổ ${c.code || c.id}`} onClick={() => handleDeleteCost(c)}>
+                              <Trash2 size={15} />
                             </button>
                           </div>
                         </td>
@@ -1436,21 +1371,21 @@ export const CashbookView = () => {
       {activeTab === 'assets' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className={styles.statsGrid}>
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG NGUYÊN GIÁ TÀI SẢN</div>
-              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG NGUYÊN GIÁ TÀI SẢN</div>
+              <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
                 {assets.reduce((s, a) => s + Number(a.cost || 0), 0).toLocaleString('vi-VN')} đ
               </div>
             </div>
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TRÍCH KHẤU HAO / THÁNG</div>
-              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '6px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TRÍCH KHẤU HAO / THÁNG</div>
+              <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
                 {Math.round(assets.reduce((s, a) => s + Number(a.monthlyDep || 0), 0)).toLocaleString('vi-VN')} đ
               </div>
             </div>
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>SỐ LƯỢNG TÀI SẢN CỐ ĐỊNH</div>
-              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>SỐ LƯỢNG TÀI SẢN CỐ ĐỊNH</div>
+              <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
                 {assets.length} thiết bị
               </div>
             </div>
@@ -1459,7 +1394,7 @@ export const CashbookView = () => {
           <div className="farmshift-card" style={{ margin: 0 }}>
             <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 className="farmshift-card-title">
-                <Building size={18} color="var(--color-primary)" />
+                <Building size={18} color="#008577" />
                 Danh mục tài sản cố định & bảng trích khấu hao
               </h3>
               {canWrite && (
@@ -1489,17 +1424,17 @@ export const CashbookView = () => {
                       <td><strong style={{ color: 'var(--color-ink)' }}>{a.name}</strong></td>
                       <td><strong>{Number(a.cost || 0).toLocaleString('vi-VN')} đ</strong></td>
                       <td>{a.months} tháng</td>
-                      <td><strong style={{ color: 'var(--color-primary)' }}>{Math.round(Number(a.monthlyDep || 0)).toLocaleString('vi-VN')} đ</strong></td>
+                      <td><strong style={{ color: '#008577' }}>{Math.round(Number(a.monthlyDep || 0)).toLocaleString('vi-VN')} đ</strong></td>
                       <td>{a.house}</td>
-                      <td><span className="farmshift-badge farmshift-badge-success">{a.status}</span></td>
+                      <td><span className={`farmshift-badge ${a.status === 'Đang trích khấu hao' ? styles.mintBadge : styles.sageBadge}`}>{a.status}</span></td>
                       {canWrite && (
                         <td style={{ textAlign: 'center' }}>
                           <div className={styles.actionsGroup}>
-                            <button type="button" className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`} aria-label={`Sửa tài sản ${a.code || a.id}`} onClick={() => openAssetModal('edit', a)}>
-                              <Pencil size={14} />
+                            <button type="button" className={styles.iconBtn} aria-label={`Sửa tài sản ${a.code || a.id}`} onClick={() => openAssetModal('edit', a)}>
+                              <Pencil size={15} />
                             </button>
-                            <button type="button" className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`} style={{ color: 'var(--color-danger)' }} aria-label={`Xóa tài sản ${a.code || a.id}`} onClick={() => handleDeleteAsset(a)}>
-                              <Trash2 size={14} />
+                            <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} aria-label={`Xóa tài sản ${a.code || a.id}`} onClick={() => handleDeleteAsset(a)}>
+                              <Trash2 size={15} />
                             </button>
                           </div>
                         </td>
@@ -1517,21 +1452,21 @@ export const CashbookView = () => {
       {activeTab === 'payroll' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className={styles.statsGrid}>
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG TIỀN CÔNG</div>
-              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-ink)', marginTop: '6px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>TỔNG TIỀN CÔNG</div>
+              <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
                 {payrolls.reduce((s, p) => s + Number(p.total || 0), 0).toLocaleString('vi-VN')} đ
               </div>
             </div>
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐÃ THANH TOÁN</div>
-              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-success)', marginTop: '6px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>ĐÃ THANH TOÁN</div>
+              <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
                 {payrolls.reduce((s, p) => s + Number(p.paid || 0), 0).toLocaleString('vi-VN')} đ
               </div>
             </div>
-            <div className="farmshift-card" style={{ margin: 0, padding: '20px' }}>
-              <div style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 500 }}>CÒN PHẢI TRẢ</div>
-              <div style={{ fontSize: '26px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '6px' }}>
+            <div className="farmshift-card" style={{ margin: 0, padding: '16px 20px' }}>
+              <div style={{ fontSize: '12.5px', color: 'var(--color-muted)', fontWeight: 500 }}>CÒN PHẢI TRẢ</div>
+              <div style={{ fontSize: '22px', fontWeight: 600, color: '#58a99a', marginTop: '6px' }}>
                 {payrolls.reduce((s, p) => s + Number(p.remain || 0), 0).toLocaleString('vi-VN')} đ
               </div>
             </div>
@@ -1540,7 +1475,7 @@ export const CashbookView = () => {
           <div className="farmshift-card" style={{ margin: 0 }}>
             <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 className="farmshift-card-title">
-                <Users size={18} color="var(--color-primary)" />
+                <Users size={18} color="#008577" />
                 Bảng chấm công & thanh toán tiền công nhân viên
               </h3>
               {canWrite && (
@@ -1575,19 +1510,19 @@ export const CashbookView = () => {
                       <td><strong>{p.days}</strong> ngày</td>
                       <td>{Number(p.rate || 0).toLocaleString('vi-VN')} đ</td>
                       <td>
-                        <span style={{ color: 'var(--color-success)' }}>+{Number(p.bonus || 0).toLocaleString('vi-VN')}</span>
+                        <span style={{ color: '#007968' }}>+{Number(p.bonus || 0).toLocaleString('vi-VN')}</span>
                         {' / '}
                         <span style={{ color: 'var(--color-muted)' }}>-{Number(p.advance || 0).toLocaleString('vi-VN')}</span>
                       </td>
                       <td><strong>{Number(p.total || 0).toLocaleString('vi-VN')} đ</strong></td>
-                      <td><strong style={{ color: 'var(--color-success)' }}>{Number(p.paid || 0).toLocaleString('vi-VN')} đ</strong></td>
+                      <td><strong style={{ color: '#007968' }}>{Number(p.paid || 0).toLocaleString('vi-VN')} đ</strong></td>
                       <td>
-                        <strong style={{ color: Number(p.remain || 0) > 0 ? 'var(--color-signature-coral)' : 'var(--color-muted)' }}>
+                        <strong style={{ color: Number(p.remain || 0) > 0 ? 'var(--color-ink)' : 'var(--color-muted)' }}>
                           {Number(p.remain || 0).toLocaleString('vi-VN')} đ
                         </strong>
                       </td>
                       <td>
-                        <span className={`farmshift-badge ${Number(p.remain || 0) === 0 ? 'farmshift-badge-success' : 'farmshift-badge-warning'}`}>
+                        <span className={`farmshift-badge ${Number(p.remain || 0) === 0 ? styles.mintBadge : styles.sageBadge}`}>
                           {p.status}
                         </span>
                       </td>
@@ -1596,8 +1531,7 @@ export const CashbookView = () => {
                           {Number(p.remain || 0) > 0 && canWrite && (
                             <button
                               type="button"
-                              className="farmshift-btn farmshift-btn-primary"
-                              style={{ fontSize: '12.5px', padding: '4px 8px' }}
+                              className={`farmshift-btn farmshift-btn-mint ${styles.compactActionBtn}`}
                               aria-label={`Thanh toán lương ${p.code || p.id}`}
                               onClick={() => openPayPayrollModal(p)}
                             >
@@ -1606,12 +1540,12 @@ export const CashbookView = () => {
                           )}
                           {canWrite && (
                             <>
-                              <button type="button" className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`} aria-label={`Sửa bảng lương ${p.code || p.id}`} onClick={() => openPayrollModal('edit', p)}>
-                                <Pencil size={14} />
+                              <button type="button" className={styles.iconBtn} aria-label={`Sửa bảng lương ${p.code || p.id}`} onClick={() => openPayrollModal('edit', p)}>
+                                <Pencil size={15} />
                               </button>
                               {Number(p.paid || 0) === 0 && (
-                                <button type="button" className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`} style={{ color: 'var(--color-danger)' }} aria-label={`Xóa bảng lương ${p.code || p.id}`} onClick={() => handleDeletePayroll(p)}>
-                                  <Trash2 size={14} />
+                                <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} aria-label={`Xóa bảng lương ${p.code || p.id}`} onClick={() => handleDeletePayroll(p)}>
+                                  <Trash2 size={15} />
                                 </button>
                               )}
                             </>
@@ -1624,59 +1558,6 @@ export const CashbookView = () => {
               </table>
             </div>
             {renderPager(payrollPaging, setPayrollPage, setPayrollPageSize, 'bảng lương', [10, 15, 30, 50])}
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 7: Loại phiếu thu / chi ──────────────────── */}
-      {activeTab === 'categories' && (
-        <div className="farmshift-card">
-          <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 className="farmshift-card-title">Danh mục các khoản thu chi chăn nuôi</h3>
-            {canWrite && (
-              <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => openCategoryModal('create')}>
-                <Plus size={15} /> Thêm loại phiếu
-              </button>
-            )}
-          </div>
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Tên loại giao dịch</th>
-                  <th>Phân loại</th>
-                  <th>Nhóm chi phí</th>
-                  <th>Diễn giải</th>
-                  {canWrite && <th style={{ textAlign: 'center' }}>Thao tác</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {txCategories.map(cat => (
-                  <tr key={cat.id}>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>{cat.name}</strong></td>
-                    <td>
-                      <span className={`farmshift-badge ${cat.type === 'Thu' ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}>
-                        {cat.type}
-                      </span>
-                    </td>
-                    <td>{cat.group}</td>
-                    <td style={{ color: 'var(--color-muted)' }}>{cat.note || '—'}</td>
-                    {canWrite && (
-                      <td style={{ textAlign: 'center' }}>
-                        <div className={styles.actionsGroup}>
-                          <button type="button" className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`} aria-label={`Sửa loại phiếu ${cat.name}`} onClick={() => openCategoryModal('edit', cat)}>
-                            <Pencil size={14} />
-                          </button>
-                          <button type="button" className={`farmshift-btn farmshift-btn-secondary ${styles.iconBtn}`} style={{ color: 'var(--color-danger)' }} aria-label={`Xóa loại phiếu ${cat.name}`} onClick={() => handleDeleteCategory(cat)}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
@@ -1694,7 +1575,7 @@ export const CashbookView = () => {
               <div className="farmshift-modal-header" style={{ alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span className={`farmshift-badge ${isIncome ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}>
+                    <span className={`farmshift-badge ${isIncome ? styles.mintBadge : styles.sageBadge}`}>
                       {isIncome ? '↑ Phiếu thu' : '↓ Phiếu chi'}
                     </span>
                     <h3 className={`farmshift-modal-title ${styles.codeCell}`} style={{ margin: 0 }}>{viewTx.code}</h3>
@@ -1703,7 +1584,7 @@ export const CashbookView = () => {
                     Chi tiết hạch toán sổ quỹ · {viewOrigin.moduleName}
                   </div>
                 </div>
-                <button type="button" aria-label="Đóng chi tiết phiếu" onClick={() => setViewTx(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)', fontSize: '16px', padding: '2px 4px' }}>✕</button>
+                <button type="button" className={styles.modalCloseBtn} aria-label="Đóng chi tiết phiếu" onClick={() => setViewTx(null)}>✕</button>
               </div>
 
               <div className="farmshift-modal-body" style={{ display: 'grid', gap: '14px' }}>
@@ -1712,7 +1593,7 @@ export const CashbookView = () => {
                     <div className={styles.detailHeroLabel}>{viewTx.category}</div>
                     <div
                       className={styles.detailHeroAmount}
-                      style={{ color: isIncome ? 'var(--color-success)' : 'var(--color-signature-coral)' }}
+                      style={{ color: isIncome ? '#007968' : 'var(--color-ink)' }}
                     >
                       {isIncome ? '+' : '-'}{Number(viewTx.amount || 0).toLocaleString('vi-VN')} đ
                     </div>
@@ -1807,7 +1688,7 @@ export const CashbookView = () => {
                     <Pencil size={14} /> Chỉnh sửa
                   </button>
                 )}
-                <button type="button" className="farmshift-btn farmshift-btn-primary" onClick={() => setViewTx(null)}>Đóng</button>
+                <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setViewTx(null)}>Đóng</button>
               </div>
             </div>
           </div>
@@ -1842,7 +1723,7 @@ export const CashbookView = () => {
               <div className="farmshift-modal-header" style={{ alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span className={`farmshift-badge ${isIncomeModal ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}>
+                    <span className={`farmshift-badge ${isIncomeModal ? styles.mintBadge : styles.sageBadge}`}>
                       {isIncomeModal ? '↑ Phiếu thu' : '↓ Phiếu chi'}
                     </span>
                     <h3 className="farmshift-modal-title" style={{ margin: 0 }}>
@@ -1859,9 +1740,9 @@ export const CashbookView = () => {
                 </div>
                 <button
                   type="button"
+                  className={styles.modalCloseBtn}
                   aria-label="Đóng biểu mẫu phiếu"
                   onClick={() => !txSaving && setTxModalMode(null)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)', fontSize: '16px', padding: '2px 4px' }}
                 >
                   ✕
                 </button>
@@ -1881,8 +1762,8 @@ export const CashbookView = () => {
                         className={styles.txFundProjected}
                         style={{
                           color: projectedBalance < 0
-                            ? 'var(--color-danger)'
-                            : isIncomeModal ? 'var(--color-success)' : 'var(--color-signature-coral)'
+                            ? 'var(--color-ink)'
+                            : '#007968'
                         }}
                       >
                         {enteredAmt > 0
@@ -1967,7 +1848,7 @@ export const CashbookView = () => {
                       {enteredAmt > 0 && (
                         <span
                           className={styles.txFormattedAmt}
-                          style={{ color: isIncomeModal ? 'var(--color-success)' : 'var(--color-signature-coral)' }}
+                          style={{ color: isIncomeModal ? '#007968' : 'var(--color-ink)' }}
                         >
                           {isIncomeModal ? '+' : '−'}{enteredAmt.toLocaleString('vi-VN')} đ
                         </span>
@@ -2046,7 +1927,7 @@ export const CashbookView = () => {
                   <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={txSaving} onClick={() => setTxModalMode(null)}>
                     Hủy
                   </button>
-                  <button type="submit" className="farmshift-btn farmshift-btn-primary" disabled={txSaving}>
+                  <button type="submit" className="farmshift-btn farmshift-btn-mint" disabled={txSaving}>
                     {txSaving ? 'Đang lưu...' : txModalMode === 'edit' ? 'Lưu cập nhật' : `Lưu phiếu ${modalType.toLowerCase()}`}
                   </button>
                 </div>
@@ -2062,7 +1943,7 @@ export const CashbookView = () => {
           <div className="farmshift-modal" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">{fundModal.mode === 'edit' ? 'Cập nhật nguồn quỹ' : 'Thêm nguồn quỹ mới'}</h3>
-              <button type="button" onClick={() => !fundSaving && setFundModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)' }}>✕</button>
+              <button type="button" className={styles.modalCloseBtn} aria-label="Đóng nguồn quỹ" onClick={() => !fundSaving && setFundModal(null)}>✕</button>
             </div>
             <form onSubmit={handleSaveFund}>
               <div className="farmshift-modal-body">
@@ -2115,7 +1996,7 @@ export const CashbookView = () => {
           <div className="farmshift-modal" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">{costModal.mode === 'edit' ? 'Cập nhật phân bổ chi phí' : 'Thêm phân bổ chi phí lứa'}</h3>
-              <button type="button" onClick={() => setCostModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+              <button type="button" className={styles.modalCloseBtn} aria-label="Đóng phân bổ chi phí" onClick={() => setCostModal(null)}>✕</button>
             </div>
             <form onSubmit={handleSaveCost}>
               <div className="farmshift-modal-body">
@@ -2195,7 +2076,7 @@ export const CashbookView = () => {
           <div className="farmshift-modal" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">{assetModal.mode === 'edit' ? 'Cập nhật tài sản cố định' : 'Thêm tài sản cố định'}</h3>
-              <button type="button" onClick={() => setAssetModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+              <button type="button" className={styles.modalCloseBtn} aria-label="Đóng tài sản cố định" onClick={() => setAssetModal(null)}>✕</button>
             </div>
             <form onSubmit={handleSaveAsset}>
               <div className="farmshift-modal-body">
@@ -2247,7 +2128,7 @@ export const CashbookView = () => {
           <div className="farmshift-modal" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">{payrollModal.mode === 'edit' ? 'Cập nhật bảng lương' : 'Lập bảng chấm công & tiền lương'}</h3>
-              <button type="button" onClick={() => setPayrollModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+              <button type="button" className={styles.modalCloseBtn} aria-label="Đóng bảng lương" onClick={() => setPayrollModal(null)}>✕</button>
             </div>
             <form onSubmit={handleSavePayroll}>
               <div className="farmshift-modal-body">
@@ -2316,7 +2197,7 @@ export const CashbookView = () => {
           <div className="farmshift-modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
             <div className="farmshift-modal-header">
               <h3 className="farmshift-modal-title">Chi trả lương · {payModal.employee}</h3>
-              <button type="button" onClick={() => setPayModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+              <button type="button" className={styles.modalCloseBtn} aria-label="Đóng chi trả lương" onClick={() => setPayModal(null)}>✕</button>
             </div>
             <form onSubmit={handleConfirmPayPayroll}>
               <div className="farmshift-modal-body">
@@ -2351,48 +2232,7 @@ export const CashbookView = () => {
               </div>
               <div className="farmshift-modal-footer">
                 <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setPayModal(null)}>Hủy</button>
-                <button type="submit" className="farmshift-btn farmshift-btn-primary">Xác nhận chi lương</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal: Thêm / Sửa Loại phiếu thu / chi ───────── */}
-      {categoryModal && (
-        <div className="farmshift-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setCategoryModal(null); }}>
-          <div className="farmshift-modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="farmshift-modal-header">
-              <h3 className="farmshift-modal-title">{categoryModal.mode === 'edit' ? 'Cập nhật loại phiếu' : 'Thêm loại phiếu thu / chi'}</h3>
-              <button type="button" onClick={() => setCategoryModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-            </div>
-            <form onSubmit={handleSaveCategory}>
-              <div className="farmshift-modal-body">
-                <div className="farmshift-form-group">
-                  <label htmlFor="cat-name" className="farmshift-form-label">Tên loại giao dịch *</label>
-                  <input id="cat-name" type="text" required className="farmshift-form-control" value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div className="farmshift-form-group">
-                    <label htmlFor="cat-type" className="farmshift-form-label">Phân loại *</label>
-                    <select id="cat-type" className="farmshift-form-control" value={categoryForm.type} onChange={(e) => setCategoryForm({ ...categoryForm, type: e.target.value })}>
-                      <option value="Thu">Thu</option>
-                      <option value="Chi">Chi</option>
-                    </select>
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label htmlFor="cat-group" className="farmshift-form-label">Nhóm chi phí *</label>
-                    <input id="cat-group" type="text" required className="farmshift-form-control" value={categoryForm.costGroup} onChange={(e) => setCategoryForm({ ...categoryForm, costGroup: e.target.value })} />
-                  </div>
-                </div>
-                <div className="farmshift-form-group">
-                  <label htmlFor="cat-note" className="farmshift-form-label">Diễn giải</label>
-                  <textarea id="cat-note" rows="2" className="farmshift-form-control" value={categoryForm.note} onChange={(e) => setCategoryForm({ ...categoryForm, note: e.target.value })} />
-                </div>
-              </div>
-              <div className="farmshift-modal-footer">
-                <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setCategoryModal(null)}>Hủy</button>
-                <button type="submit" className="farmshift-btn farmshift-btn-mint">Lưu loại phiếu</button>
+                <button type="submit" className="farmshift-btn farmshift-btn-mint">Xác nhận chi lương</button>
               </div>
             </form>
           </div>
