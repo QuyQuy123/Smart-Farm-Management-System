@@ -32,8 +32,6 @@ public class Barn {
     /** Diện tích chuồng (m²), dùng để tính mật độ nuôi. */
     @Column(name = "area_m2", precision = 10, scale = 2)
     private BigDecimal areaM2;
-    @Column(name = "target_weight", precision = 5, scale = 2)
-    private BigDecimal targetWeight;
     @Column(length = 1000)
     private String description;
     /** Null preserves legacy direct assignments; false explicitly inherits, true uses the barn's own list (even empty). */

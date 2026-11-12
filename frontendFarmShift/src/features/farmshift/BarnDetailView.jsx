@@ -472,15 +472,20 @@ export const BarnDetailView = () => {
   };
 
   // Chỉ số chính luôn hiện; các chỉ số phụ nằm sau nút "Xem thêm chỉ số" cho gọn.
-  const weightProgress = metrics && metrics.avgWeightKg != null && barn.targetWeight
-    ? Math.min(100, Math.round((Number(metrics.avgWeightKg) / Number(barn.targetWeight)) * 100)) : null;
+  // Mục tiêu cân nặng lấy từ chương trình nuôi của lứa (không đặt theo chuồng).
+  const targetProgram = (detail?.programs || []).find(program => program.targetWeightMax != null || program.targetWeightMin != null);
+  const targetKg = targetProgram ? Number(targetProgram.targetWeightMax ?? targetProgram.targetWeightMin) : null;
+  const targetText = targetProgram && [targetProgram.targetWeightMin, targetProgram.targetWeightMax]
+    .filter(value => value != null).map(value => num(value, 2)).join('–');
+  const weightProgress = metrics && metrics.avgWeightKg != null && targetKg
+    ? Math.min(100, Math.round((Number(metrics.avgWeightKg) / targetKg) * 100)) : null;
   const mainKpis = metrics && [
     { icon: CalendarDays, label: 'Ngày tuổi', value: metrics.ageDays != null ? num(metrics.ageDays) : '—', unit: 'ngày',
       hint: `Ngày nuôi thứ ${num(metrics.dayOfCycle)}` },
     { icon: Users, label: 'Đang nuôi', value: num(metrics.currentQuantity), unit: 'con',
       hint: `Hao hụt ${num(metrics.deaths)} con${metrics.lossRate != null ? ` (${num(metrics.lossRate, 2)}%)` : ''}` },
     { icon: Scale, label: 'Cân nặng TB', value: metrics.avgWeightKg != null ? num(metrics.avgWeightKg, 3) : '—', unit: 'kg',
-      hint: barn.targetWeight != null ? `Mục tiêu ${num(barn.targetWeight, 2)} kg` : 'Chưa đặt mục tiêu', progress: weightProgress },
+      hint: targetText ? `Mục tiêu ${targetText} kg` : 'Chương trình nuôi chưa đặt mục tiêu', progress: weightProgress },
     { icon: Wheat, label: 'Hệ số FCR', value: metrics.fcr != null ? num(metrics.fcr, 2) : '—', unit: '',
       hint: `Đã ăn ${num(metrics.feedKg, 1)} kg cám` },
   ];
