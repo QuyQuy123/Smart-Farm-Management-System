@@ -22,7 +22,7 @@ import {
   INTERNAL_STOCK_STATUS
 } from '../../services/internalStockService';
 import { listWarehouseCategories } from '../../services/warehouseCategoryService';
-import { listInventoryItems, listAllInventoryItems } from '../../services/inventoryItemService';
+import { listInventoryItems } from '../../services/inventoryItemService';
 import { PrintableInternalVoucher } from './PrintableInternalVoucher';
 import styles from './InternalStockView.module.css';
 import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
@@ -78,7 +78,7 @@ export const InternalStockView = () => {
 
   // Tab 1: Create Voucher Form State
   const [voucherForm, setVoucherForm] = useState({
-    movementType: 'EXPORT', // 'IMPORT' | 'EXPORT' | 'TRANSFER'
+    movementType: 'EXPORT', // 'EXPORT' | 'TRANSFER'
     categoryId: '',
     sourceWarehouseId: '',
     targetWarehouseId: '',
@@ -124,14 +124,11 @@ export const InternalStockView = () => {
     loadWarehouses();
   }, []);
 
-  // Load available inventory items when sourceWarehouseId or movementType changes
+  // Load available inventory items when sourceWarehouseId changes
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        if (voucherForm.movementType === 'IMPORT') {
-          const items = await listAllInventoryItems();
-          setAvailableItems(items || []);
-        } else if (voucherForm.sourceWarehouseId) {
+        if (voucherForm.sourceWarehouseId) {
           const items = await listInventoryItems(voucherForm.sourceWarehouseId);
           setAvailableItems(items || []);
         } else {
@@ -142,7 +139,7 @@ export const InternalStockView = () => {
       }
     };
     fetchItems();
-  }, [voucherForm.sourceWarehouseId, voucherForm.movementType]);
+  }, [voucherForm.sourceWarehouseId]);
 
   const loadVouchers = async () => {
     setVouchersLoading(true);
@@ -181,7 +178,7 @@ export const InternalStockView = () => {
       ...prev,
       movementType: type,
       categoryId: matchingCats[0]?.id || '',
-      sourceWarehouseId: type === 'IMPORT' ? '' : prev.sourceWarehouseId,
+      sourceWarehouseId: prev.sourceWarehouseId,
       targetWarehouseId: type === 'EXPORT' ? '' : prev.targetWarehouseId,
       items: [
         {
@@ -516,8 +513,6 @@ export const InternalStockView = () => {
                   <label htmlFor="voucher-category">
                     {voucherForm.movementType === 'EXPORT'
                       ? 'Lý do xuất kho'
-                      : voucherForm.movementType === 'IMPORT'
-                      ? 'Lý do nhập kho'
                       : 'Lý do chuyển kho'} <span className={styles.required}>*</span>
                   </label>
                   <select
@@ -529,8 +524,6 @@ export const InternalStockView = () => {
                     <option value="">
                       {voucherForm.movementType === 'EXPORT'
                         ? '-- Chọn lý do xuất kho --'
-                        : voucherForm.movementType === 'IMPORT'
-                        ? '-- Chọn lý do nhập kho --'
                         : '-- Chọn lý do chuyển kho --'}
                     </option>
                     {filteredCategoriesForCreate.map(c => (
@@ -542,27 +535,25 @@ export const InternalStockView = () => {
                 </div>
 
                 {/* Kho xuất (Bắt buộc với EXPORT & TRANSFER) */}
-                {(voucherForm.movementType === 'EXPORT' || voucherForm.movementType === 'TRANSFER') && (
-                  <div className={styles.formGroup}>
-                    <label htmlFor="voucher-source-warehouse">
-                      Kho xuất <span className={styles.required}>*</span>
-                    </label>
-                    <select
-                      id="voucher-source-warehouse"
-                      required
-                      value={voucherForm.sourceWarehouseId}
-                      onChange={e => setVoucherForm({ ...voucherForm, sourceWarehouseId: e.target.value })}
-                    >
-                      <option value="">-- Chọn kho xuất --</option>
-                      {warehouses.map(w => (
-                        <option key={w.id} value={w.id}>{w.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div className={styles.formGroup}>
+                  <label htmlFor="voucher-source-warehouse">
+                    Kho xuất <span className={styles.required}>*</span>
+                  </label>
+                  <select
+                    id="voucher-source-warehouse"
+                    required
+                    value={voucherForm.sourceWarehouseId}
+                    onChange={e => setVoucherForm({ ...voucherForm, sourceWarehouseId: e.target.value })}
+                  >
+                    <option value="">-- Chọn kho xuất --</option>
+                    {warehouses.map(w => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-                {/* Kho nhập (Bắt buộc với IMPORT & TRANSFER) */}
-                {(voucherForm.movementType === 'IMPORT' || voucherForm.movementType === 'TRANSFER') && (
+                {/* Kho nhập (Bắt buộc với TRANSFER) */}
+                {voucherForm.movementType === 'TRANSFER' && (
                   <div className={styles.formGroup}>
                     <label htmlFor="voucher-target-warehouse">
                       Kho nhập <span className={styles.required}>*</span>
@@ -812,7 +803,6 @@ export const InternalStockView = () => {
                   aria-label="Lọc theo loại phiếu"
                 >
                   <option value="ALL">Tất cả loại phiếu</option>
-                  <option value="IMPORT">Nhập kho</option>
                   <option value="EXPORT">Xuất kho</option>
                   <option value="TRANSFER">Chuyển kho</option>
                 </select>
@@ -1421,8 +1411,6 @@ function CategoryFormModal({ modal, onClose, onSaved }) {
 
   const namePlaceholder = type === 'EXPORT'
     ? 'Ví dụ: Xuất hao hụt kiểm kê, Xuất tiêm phòng dịch...'
-    : type === 'IMPORT'
-    ? 'Ví dụ: Nhập thừa sau kiểm kê, Nhập hoàn lại từ chuồng...'
     : 'Ví dụ: Chuyển sang kho đệm chuồng, Điều chuyển phân trại...';
 
   const handleSubmit = async (e) => {
@@ -1470,8 +1458,8 @@ function CategoryFormModal({ modal, onClose, onSaved }) {
             {isDelete
               ? 'Xác nhận xóa lý do'
               : isEdit
-              ? 'Chỉnh sửa lý do xuất/nhập'
-              : 'Thêm lý do xuất/nhập mới'}
+              ? 'Chỉnh sửa lý do xuất/chuyển kho'
+              : 'Thêm lý do xuất/chuyển kho mới'}
           </h2>
           <button
             type="button"
@@ -1510,14 +1498,13 @@ function CategoryFormModal({ modal, onClose, onSaved }) {
                     disabled={isEdit || saving}
                   >
                     <option value="EXPORT">Xuất kho (Hàng xuất khỏi kho)</option>
-                    <option value="IMPORT">Nhập kho (Hàng nhập thêm vào kho)</option>
                     <option value="TRANSFER">Chuyển kho (Luân chuyển nội bộ)</option>
                   </select>
                 </div>
 
                 <div className={styles.formGroup}>
                   <label htmlFor="cat-name">
-                    Tên lý do xuất/nhập <span className={styles.required}>*</span>
+                    Tên lý do xuất/chuyển kho <span className={styles.required}>*</span>
                   </label>
                   <input
                     id="cat-name"

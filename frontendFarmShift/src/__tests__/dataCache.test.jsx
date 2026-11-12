@@ -122,13 +122,13 @@ describe('DataCache Core Engine & Invalidation Matrix', () => {
       cache.set('/purchases', [{ id: 1 }]);
       cache.set('/inventory-items', [{ id: 2 }]);
       cache.set('/suppliers', [{ id: 3 }]);
-      cache.set('/cashbook', [{ id: 4 }]);
+      cache.set('/reports', [{ id: 4 }]);
       cache.set('/farm', { name: 'Trại Miền Bình' });
 
       expect(cache.peek('/purchases')).not.toBeNull();
       expect(cache.peek('/inventory-items')).not.toBeNull();
       expect(cache.peek('/suppliers')).not.toBeNull();
-      expect(cache.peek('/cashbook')).not.toBeNull();
+      expect(cache.peek('/reports')).not.toBeNull();
       expect(cache.peek('/farm')).not.toBeNull();
 
       // Trigger POST /api/purchases mutation
@@ -138,7 +138,7 @@ describe('DataCache Core Engine & Invalidation Matrix', () => {
       expect(cache.peek('/purchases')).toBeNull();
       expect(cache.peek('/inventory-items')).toBeNull();
       expect(cache.peek('/suppliers')).toBeNull();
-      expect(cache.peek('/cashbook')).toBeNull();
+      expect(cache.peek('/reports')).toBeNull();
 
       // Unrelated endpoint should remain intact
       expect(cache.peek('/farm')).not.toBeNull();

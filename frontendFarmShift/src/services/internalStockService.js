@@ -2,7 +2,6 @@
 import { api } from '../utils/api';
 
 export const INTERNAL_STOCK_TYPES = {
-  IMPORT: 'Nhập kho',
   EXPORT: 'Xuất kho',
   TRANSFER: 'Chuyển kho',
 };

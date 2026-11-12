@@ -99,3 +99,21 @@
 .supplierModal :global(.farmshift-form-group) { min-width: 0; }
 @media (max-width: 640px) { .supplierFormGrid { grid-template-columns: minmax(0, 1fr); gap: 0; } }
 .purchaseInvoiceBody { background: #f4f6f5; }
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-hairline);
+  background: var(--color-surface-soft);
+  color: var(--color-muted);
+  font-size: 13.5px;
+}
+.paginationControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

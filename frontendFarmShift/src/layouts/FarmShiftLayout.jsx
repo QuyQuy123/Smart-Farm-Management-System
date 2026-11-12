@@ -1,12 +1,12 @@
 // src/layouts/FarmShiftLayout.jsx
 // FarmShift Shell Layout aligned with DESIGN.md
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, Fragment } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
     Menu, Maximize, Minimize, Bell, User, LogOut,
     LayoutDashboard, Warehouse, ClipboardList, Package,
-    ArrowLeftRight, FileText, ShoppingCart, DollarSign,
-    Users, BarChart3, Layers, Settings, Sliders,
+    ArrowLeftRight, FileText, ShoppingCart,
+    Users, BarChart3, Layers, Settings, Sliders, Radio,
     Utensils, HeartPulse, Thermometer, CheckSquare, X,
     CheckCircle, AlertTriangle, AlertCircle, ListChecks
 } from 'lucide-react';
@@ -18,6 +18,15 @@ import { getFarmInfo, saveFarmInfo } from '../data/farmshiftMockData';
 import { getFarm } from '../services/farmService';
 import farmLogo from '../assets/logo_Farm.png';
 import '../theme/farmshift.css';
+import styles from './FarmShiftLayout.module.css';
+
+const BOILERPLATE_NOTIFICATION_STATUSES = new Set([
+    'Đã hoàn tất & đồng bộ dữ liệu',
+    'Hệ thống đã ghi nhận',
+]);
+
+// Pages mount their own layout; retain the menu position between those mounts.
+let sidebarScrollTop = 0;
 
 // Floating Real-time Toast Component with Bottom Progress Bar Animation
 const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
@@ -25,26 +34,23 @@ const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
     const isError = activeToast.level === 'Lỗi';
     const isWarning = activeToast.level === 'Cảnh báo';
 
-    const borderColor = isError ? '#f43f5e' : isWarning ? '#f59e0b' : '#10b981';
+    const borderColor = isError ? '#f43f5e' : isWarning ? '#e59f3c' : '#bfe3db';
     const iconBg = isError
-        ? 'linear-gradient(135deg, #ef4444, #991b1b)'
+        ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
         : isWarning
         ? 'linear-gradient(135deg, #f59e0b, #b45309)'
-        : isSuccess
-        ? 'linear-gradient(135deg, #10b981, #047857)'
-        : 'linear-gradient(135deg, #019788 0%, #004d40 100%)';
+        : 'linear-gradient(135deg, #019788 0%, #00695c 100%)';
 
     const progressBg = isError
         ? 'linear-gradient(90deg, #ef4444, #f43f5e)'
         : isWarning
         ? 'linear-gradient(90deg, #f59e0b, #d97706)'
-        : isSuccess
-        ? 'linear-gradient(90deg, #10b981, #059669)'
-        : 'linear-gradient(90deg, #019788, #004d40)';
+        : 'linear-gradient(90deg, #58a99a, #019788)';
 
     // Loại bỏ badge lặp từ "Thành công" khi type đã là "Thao tác thành công"
     const showBadge = !isSuccess && activeToast.level && activeToast.level !== activeToast.type;
     const formattedTime = formatNotificationTime(activeToast.createdAt, activeToast.time);
+    const showStatus = activeToast.status && !activeToast.isSystem && !BOILERPLATE_NOTIFICATION_STATUSES.has(activeToast.status);
 
     return (
         <div
@@ -63,8 +69,8 @@ const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
                 <div className="farmshift-toast-header">
                     {showBadge && (
                         <span className="farmshift-toast-badge" style={{
-                            backgroundColor: isError ? '#ffe4e6' : isWarning ? '#fef3c7' : '#e0f2f1',
-                            color: isError ? '#be123c' : isWarning ? '#b45309' : '#004d40'
+                            backgroundColor: isError ? '#ffe4e6' : isWarning ? '#fef3c7' : '#e6f5f3',
+                            color: isError ? '#be123c' : isWarning ? '#b45309' : '#00796b'
                         }}>
                             {activeToast.level}
                         </span>
@@ -75,7 +81,7 @@ const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
                 <div className="farmshift-toast-text">
                     {renderNotificationContent(activeToast.barn, activeToast.value, isSuccess)}
                 </div>
-                {activeToast.status && !activeToast.isSystem && (
+                {showStatus && (
                     <div className="farmshift-toast-status">{activeToast.status}</div>
                 )}
             </div>
@@ -102,12 +108,46 @@ export const FarmShiftLayout = ({
     breadcrumbTitle = pageTitle,
     breadcrumbs = [],
     showShortcuts = false,
+    environmentHref = '/journal?tab=env',
     actions = null,
 }) => {
     const { user, logout } = useAuth();
     const { alerts, unreadCount, markAsRead, markAllAsRead, clearAllAlerts, activeToast, setActiveToast } = useNotification();
     const navigate = useNavigate();
     const location = useLocation();
+    const sidebarRef = useRef(null);
+
+    useLayoutEffect(() => {
+        sidebarRef.current.scrollTop = sidebarScrollTop;
+    }, []);
+
+    useEffect(() => {
+        const sidebar = sidebarRef.current;
+        const activeItem = sidebar.querySelector('.farmshift-menu-item.active');
+        if (!activeItem || window.innerWidth <= 768) return;
+
+        const bounds = sidebar.getBoundingClientRect();
+        const itemBounds = activeItem.getBoundingClientRect();
+        const rowHeight = activeItem.closest('li').getBoundingClientRect().height;
+        if (!rowHeight) return;
+
+        // Keep three rows of context toward either edge of the visible menu.
+        const targetTop = bounds.top + rowHeight * 3;
+        const targetBottom = bounds.bottom - rowHeight * 3;
+        let offset = 0;
+        if (itemBounds.top < targetTop) offset = itemBounds.top - targetTop;
+        else if (itemBounds.bottom > targetBottom) offset = itemBounds.bottom - targetBottom;
+        else return;
+        const top = Math.max(0, Math.min(
+            sidebar.scrollHeight - sidebar.clientHeight,
+            sidebar.scrollTop + offset,
+        ));
+        if (top === sidebar.scrollTop) return;
+        sidebar.scrollTo({
+            top,
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        });
+    }, [location.key]);
 
     // Sidebar state persisted across route changes
     const [collapsed, setCollapsed] = useState(() => {
@@ -253,8 +293,8 @@ export const FarmShiftLayout = ({
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'] },
         { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
-        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users, roles: ['ROLE_FARM_OWNER'] },
+        { id: 'iot', label: 'Thiết bị IoT', path: '/iot', icon: Radio, roles: ['ROLE_FARM_OWNER'] },
         { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
     ];
 
@@ -310,10 +350,12 @@ export const FarmShiftLayout = ({
                     </button>
 
                     {/* Notifications Dropdown */}
-                    <div ref={notifRef} style={{ position: 'relative' }}>
+                    <div ref={notifRef} className={styles.notifWrapper}>
                         <button
+                            type="button"
                             className="farmshift-header-icon-btn"
                             title="Thông báo hệ thống"
+                            aria-expanded={notifOpen}
                             onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }}
                         >
                             <Bell size={19} />
@@ -323,73 +365,68 @@ export const FarmShiftLayout = ({
                         </button>
 
                         {notifOpen && (
-                            <div
-                                className="farmshift-notif-dropdown"
-                                style={{
-                                    position: 'absolute',
-                                    right: 0,
-                                    top: '125%',
-                                    width: '350px',
-                                    backgroundColor: 'var(--color-canvas)',
-                                    borderRadius: 'var(--rounded-lg)',
-                                    boxShadow: '0 14px 34px rgba(0,0,0,0.16)',
-                                    border: '1px solid var(--color-hairline)',
-                                    padding: '16px',
-                                    zIndex: 1200
-                                }}
-                            >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-hairline)', paddingBottom: '10px', marginBottom: '10px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Thông báo & Cảnh báo</strong>
+                            <div className={`farmshift-notif-dropdown ${styles.notifDropdown}`}>
+                                <div className={styles.notifHeader}>
+                                    <div className={styles.notifTitleGroup}>
+                                        <strong className={styles.notifTitle}>Thông báo & Cảnh báo</strong>
                                         {unreadCount > 0 ? (
-                                            <span style={{ fontSize: '12.5px', background: 'var(--color-signature-coral)', color: '#fff', borderRadius: '10px', padding: '1px 6px', fontWeight: 600 }}>
+                                            <span className={`${styles.notifCountPill} ${styles.notifCountUnread}`}>
                                                 {unreadCount} mới
                                             </span>
                                         ) : alerts.length > 0 ? (
-                                            <span style={{ fontSize: '12.5px', background: 'var(--color-surface-soft)', color: 'var(--color-muted)', borderRadius: '10px', padding: '1px 6px', fontWeight: 500 }}>
+                                            <span className={`${styles.notifCountPill} ${styles.notifCountRead}`}>
                                                 0 mới
                                             </span>
                                         ) : null}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div className={styles.notifHeaderActions}>
                                         {unreadCount > 0 ? (
-                                            <span
-                                                style={{ fontSize: '13.5px', color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
+                                            <button
+                                                type="button"
+                                                className={styles.notifActionBtn}
                                                 onClick={markAllAsRead}
                                                 title="Đánh dấu tất cả đã đọc"
                                             >
                                                 Đã đọc
-                                            </span>
+                                            </button>
                                         ) : alerts.length > 0 ? (
                                             <span
-                                                style={{ fontSize: '13.5px', color: 'var(--color-muted)', fontWeight: 400 }}
+                                                className={styles.notifActionMuted}
                                                 title="Đã đọc tất cả thông báo"
                                             >
                                                 Đã đọc tất cả
                                             </span>
                                         ) : null}
                                         {alerts.length > 0 && (
-                                            <span
-                                                style={{ fontSize: '13.5px', color: 'var(--color-muted)', cursor: 'pointer', fontWeight: 500 }}
-                                                onClick={clearAllAlerts}
-                                                title="Xóa toàn bộ lịch sử thông báo"
-                                            >
-                                                Xóa tất cả
-                                            </span>
+                                            <>
+                                                <span className={styles.notifActionDivider} aria-hidden="true" />
+                                                <button
+                                                    type="button"
+                                                    className={styles.notifActionClear}
+                                                    onClick={clearAllAlerts}
+                                                    title="Xóa toàn bộ lịch sử thông báo"
+                                                >
+                                                    Xóa tất cả
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '340px', overflowY: 'auto' }}>
+                                <div className={styles.notifList}>
                                     {alerts.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--color-muted)', fontSize: '14.5px' }}>
-                                            Chưa có thông báo nào
+                                        <div className={styles.notifEmpty}>
+                                            <div className={styles.notifEmptyIcon}>
+                                                <Bell size={18} />
+                                            </div>
+                                            <span>Chưa có thông báo nào</span>
                                         </div>
                                     ) : (
                                         alerts.map(al => {
                                             const isSuccess = al.level === 'Thành công' || al.type?.includes('Thành công');
-                                            const isWarning = al.level === 'Cảnh báo';
+                                            const isWarning = al.level === 'Cảnh báo' || al.level === 'Lỗi';
                                             const isRead = !!al.read;
                                             const formattedTime = formatNotificationTime(al.createdAt, al.time);
+                                            const showDetailStatus = al.status && !BOILERPLATE_NOTIFICATION_STATUSES.has(al.status);
 
                                             return (
                                                 <div
@@ -399,63 +436,58 @@ export const FarmShiftLayout = ({
                                                             markAsRead(al.id);
                                                         }
                                                     }}
-                                                    style={{
-                                                        padding: '10px 12px',
-                                                        borderRadius: 'var(--rounded-md)',
-                                                        backgroundColor: isRead
-                                                            ? '#f8fafc'
-                                                            : isSuccess
-                                                            ? '#f0fdf4'
-                                                            : 'var(--color-surface-soft)',
-                                                        fontSize: '14.5px',
-                                                        border: isRead
-                                                            ? '1px solid #e2e8f0'
-                                                            : isSuccess
-                                                            ? '1px solid #bbf7d0'
-                                                            : '1px solid var(--color-hairline)',
-                                                        display: 'flex',
-                                                        flexDirection: 'column',
-                                                        gap: '4px',
-                                                        cursor: !isRead ? 'pointer' : 'default',
-                                                        opacity: isRead ? 0.72 : 1,
-                                                        transition: 'all 0.25s ease'
-                                                    }}
+                                                    className={[
+                                                        styles.notifCard,
+                                                        isRead ? styles.notifCardRead : styles.notifCardUnread,
+                                                        !isRead && isWarning ? styles.notifCardWarning : '',
+                                                    ].filter(Boolean).join(' ')}
                                                     title={!isRead ? 'Nhấp để đánh dấu đã đọc' : undefined}
                                                 >
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
-                                                        <span style={{
-                                                            color: isRead
-                                                                ? '#64748b'
-                                                                : isSuccess
-                                                                ? '#16a34a'
-                                                                : isWarning
-                                                                ? 'var(--color-signature-coral)'
-                                                                : '#d97706',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '5px'
-                                                        }}>
-                                                            {isSuccess ? (
-                                                                <CheckCircle size={13} color={isRead ? '#94a3b8' : '#16a34a'} />
-                                                            ) : isWarning ? (
-                                                                <AlertTriangle size={13} color={isRead ? '#94a3b8' : 'var(--color-signature-coral)'} />
-                                                            ) : (
-                                                                <AlertCircle size={13} color={isRead ? '#94a3b8' : '#d97706'} />
-                                                            )}
-                                                            {al.type}
-                                                        </span>
-                                                        <span style={{ fontSize: '12.5px', color: isRead ? '#94a3b8' : 'var(--color-muted)', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                                            {formattedTime}
-                                                        </span>
+                                                    <div
+                                                        className={[
+                                                            styles.notifIconWrap,
+                                                            isRead ? styles.notifIconRead : isWarning ? styles.notifIconWarn : styles.notifIconMint,
+                                                        ].join(' ')}
+                                                    >
+                                                        {isSuccess ? (
+                                                            <CheckCircle size={15} />
+                                                        ) : isWarning ? (
+                                                            <AlertTriangle size={15} />
+                                                        ) : (
+                                                            <AlertCircle size={15} />
+                                                        )}
                                                     </div>
-                                                    <div style={{ color: isRead ? '#64748b' : 'var(--color-ink)', lineHeight: 1.4 }}>
-                                                        {renderNotificationContent(al.barn, al.value, isSuccess, isRead)}
-                                                    </div>
-                                                    {al.status && (
-                                                        <div style={{ fontSize: '13px', color: isRead ? '#94a3b8' : isSuccess ? '#16a34a' : 'var(--color-muted)' }}>
-                                                            {al.status}
+                                                    <div className={styles.notifContent}>
+                                                        <div className={styles.notifMetaRow}>
+                                                            <span className={styles.notifTypeRow}>
+                                                                {!isRead && (
+                                                                    <span
+                                                                        className={`${styles.notifUnreadDot} ${isWarning ? styles.notifUnreadDotWarn : ''}`}
+                                                                        aria-hidden="true"
+                                                                    />
+                                                                )}
+                                                                <span
+                                                                    className={[
+                                                                        styles.notifTypeText,
+                                                                        isRead ? styles.notifTypeRead : isWarning ? styles.notifTypeWarn : '',
+                                                                    ].filter(Boolean).join(' ')}
+                                                                >
+                                                                    {al.type}
+                                                                </span>
+                                                            </span>
+                                                            <span className={styles.notifTime}>
+                                                                {formattedTime}
+                                                            </span>
                                                         </div>
-                                                    )}
+                                                        <div className={`${styles.notifMessage} ${isRead ? styles.notifMessageRead : ''}`}>
+                                                            {renderNotificationContent(al.barn, al.value, isSuccess, isRead)}
+                                                        </div>
+                                                        {showDetailStatus && (
+                                                            <div className={`${styles.notifStatusNote} ${isRead ? styles.notifStatusNoteRead : ''}`}>
+                                                                {al.status}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })
@@ -565,6 +597,8 @@ export const FarmShiftLayout = ({
 
             {/* ── Secondary Sidebar ─────────────────────────────── */}
             <aside
+                ref={sidebarRef}
+                onScroll={event => { sidebarScrollTop = event.currentTarget.scrollTop; }}
                 className={`farmshift-sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
             >
                 <div className="farmshift-sidebar-header">
@@ -706,7 +740,7 @@ export const FarmShiftLayout = ({
                             </div>
                         </Link>
 
-                        <Link to="/journal?tab=env" className="farmshift-shortcut-card">
+                        <Link to={environmentHref} className="farmshift-shortcut-card">
                             <div className="farmshift-shortcut-icon env">
                                 <Thermometer size={20} />
                             </div>

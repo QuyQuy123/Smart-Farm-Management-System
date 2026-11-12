@@ -118,4 +118,45 @@ describe('Notification Dropdown Interactions', () => {
     const unreadItemsAfter = screen.queryAllByTitle('Nhấp để đánh dấu đã đọc');
     expect(unreadItemsAfter.length).toBe(countBefore - 1);
   });
+
+  it('clears all notifications and hides redundant boilerplate status text', () => {
+    localStorage.setItem('farmshift_alerts', JSON.stringify([
+      {
+        id: 'legacy-toast-1',
+        time: '00:18',
+        createdAt: Date.now(),
+        barn: 'Hệ thống FarmShift',
+        type: 'Thao tác thành công',
+        value: 'Đã ghi nhận thanh toán thành công.',
+        level: 'Thành công',
+        status: 'Đã hoàn tất & đồng bộ dữ liệu',
+        read: false
+      },
+      {
+        id: 'iot-1',
+        time: '00:15',
+        createdAt: Date.now() - 60000,
+        barn: 'Nhà A1',
+        type: 'Nhiệt độ cao',
+        value: '29.2°C (Ngưỡng: 29.0°C)',
+        level: 'Cảnh báo',
+        status: 'Hệ thống quạt hút đang tăng tốc',
+        read: false
+      }
+    ]));
+    localStorage.setItem('farmshift_unread_alerts', '2');
+
+    renderLayout();
+
+    const bellBtn = screen.getByTitle('Thông báo hệ thống');
+    fireEvent.click(bellBtn);
+
+    expect(screen.getByText('2 mới')).toBeInTheDocument();
+    expect(screen.getByText('Đã ghi nhận thanh toán thành công.')).toBeInTheDocument();
+    expect(screen.queryByText('Đã hoàn tất & đồng bộ dữ liệu')).not.toBeInTheDocument();
+    expect(screen.getByText('Hệ thống quạt hút đang tăng tốc')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Xóa tất cả'));
+    expect(screen.getByText('Chưa có thông báo nào')).toBeInTheDocument();
+  });
 });

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, ChevronRight, Circle, Clock, MapPinned, Pencil, Plus, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, MapPinned, Pencil, Plus, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import { deleteWorkTask, getWorkBoard, setBarnWorkers, createWorkTask, updateWorkTask } from '../../services/workAssignmentService';
 import { FormDialog } from './CycleDialogs';
 import { Dialog } from './FarmAreaDialogs';
-import { apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
+import { addDaysIso, apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import styles from './WorkAssignmentView.module.css';
 
 /** Việc chăm sóc hay giao, để chủ trại bấm chọn nhanh khi giao việc. */
@@ -87,7 +87,7 @@ function BarnWorkersDialog({ barn, workers, onClose, onSaved }) {
  * Ngày do màn Việc hôm nay chọn. Công nhân chỉ thấy phiếu việc và việc được giao của chuồng mình phụ trách.
  */
 /** onSummary({ done, total }): trang Việc hôm nay hiện số việc giao đã xong trên thanh công cụ thay cho dòng tổng kết ở đây. */
-export function WorkAssignmentPanel({ date, onSummary }) {
+export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
   const { showToast } = useNotification();
   const today = todayIso();
   const [revision, setRevision] = useState(0);
@@ -102,12 +102,13 @@ export function WorkAssignmentPanel({ date, onSummary }) {
     let cancelled = false;
     getWorkBoard(date)
       .then(board => { if (!cancelled) setState({ key: requestKey, board, error: '' }); })
-      .catch(error => { if (!cancelled) setState({ key: requestKey, board: null, error: apiErrorMessage(error) }); });
+      .catch(error => { if (!cancelled) setState(current => ({ ...current, key: requestKey, error: apiErrorMessage(error) })); });
     return () => { cancelled = true; };
   }, [date, requestKey]);
 
   const loading = state.key !== requestKey;
   const board = state.board;
+  const displayedDate = board?.date || date;
   const done = message => { setModal(null); showToast(message, 'success'); setRevision(value => value + 1); };
   const ofWorker = barn => !workerFilter || barn.workers.some(worker => worker.id === workerFilter)
     || barn.tasks.some(task => task.assignee.id === workerFilter);
@@ -180,8 +181,10 @@ export function WorkAssignmentPanel({ date, onSummary }) {
       {unassigned > 0 && <span className={styles.alert}>{unassigned} chuồng đang nuôi chưa có người phụ trách</span>}
     </div>}
 
-    {loading ? <p className={styles.state} role="status">Đang tải phân công...</p>
-      : state.error ? <div className={styles.state} role="alert"><p>{state.error}</p>
+    {board && state.error && <div role="alert"><p>{state.error}</p>
+      <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>}
+    {loading && !board ? <p className={styles.state} role="status">Đang tải phân công...</p>
+      : state.error && !board ? <div className={styles.state} role="alert"><p>{state.error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
         : <div className={styles.layout}>
           {/* Lọc theo công nhân: chỉ ở sơ đồ khu; khi đã mở một khu / chuồng thì không cần nữa. */}
@@ -272,7 +275,7 @@ export function WorkAssignmentPanel({ date, onSummary }) {
               <div className={styles.assignees}>
                 <div className={styles.assigneeHead}>
                   <span className={styles.label}>Phụ trách</span>
-                  <button type="button" className={styles.ghost} onClick={() => setModal({ kind: 'workers', barn })} aria-label={`Phân công ${barn.barnName}`}>
+                  <button type="button" className={styles.ghost} disabled={loading || Boolean(state.error)} onClick={() => setModal({ kind: 'workers', barn })} aria-label={`Phân công ${barn.barnName}`}>
                     <UserCog size={16} />Phân công</button>
                 </div>
                 <div className={styles.assigneeList}>
@@ -282,14 +285,20 @@ export function WorkAssignmentPanel({ date, onSummary }) {
               </div>
               <p className={styles.bookStat}>
                 <strong>{barn.tasks.filter(task => task.done).length}/{barn.tasks.length}</strong> việc đã xong
-                <span>Ngày {formatDay(date)}</span>
+                <span>Ngày {formatDay(displayedDate)}</span>
               </p>
+              {focusBarn && onDateChange && <button type="button" className={`${styles.pageTurn} ${styles.pagePrevious}`}
+                aria-label="Lật sổ về ngày trước" title={formatDay(addDaysIso(date, -1))}
+                onClick={() => onDateChange(addDaysIso(date, -1))}>
+                <ChevronLeft size={22} />
+              </button>}
               </div>
               <div className={`${styles.page} ${styles.pageRight}`}>
+              {loading && <span className={styles.pageLoading} role="status">Đang lật trang...</span>}
 
               <div className={styles.taskHead}>
-                <span className={styles.label}>Việc giao ngày {formatDay(date)}</span>
-                <button type="button" className={`farmshift-btn ${styles.primary}`} onClick={() => openTask(barn)} aria-label={`Giao việc ${barn.barnName}`}>
+                <span className={styles.label}>Việc giao ngày {formatDay(displayedDate)}</span>
+                <button type="button" className={`farmshift-btn ${styles.primary}`} disabled={loading || Boolean(state.error)} onClick={() => openTask(barn)} aria-label={`Giao việc ${barn.barnName}`}>
                   <Plus size={16} />Giao việc</button>
               </div>
               {barn.tasks.length === 0 ? <p className={styles.noTask}>Chưa giao việc nào cho ngày này.</p>
@@ -305,10 +314,15 @@ export function WorkAssignmentPanel({ date, onSummary }) {
                     {task.note && <small className={styles.note}>{task.note}</small>}
                   </div>
                   <div className={styles.taskActions}>
-                    <button type="button" className={styles.icon} aria-label={`Sửa việc ${task.title}`} onClick={() => openTask(barn, task)}><Pencil size={15} /></button>
-                    <button type="button" className={`${styles.icon} ${styles.danger}`} aria-label={`Xóa việc ${task.title}`} onClick={() => removeTask(task)}><Trash2 size={15} /></button>
+                    <button type="button" className={styles.icon} disabled={loading || Boolean(state.error)} aria-label={`Sửa việc ${task.title}`} onClick={() => openTask(barn, task)}><Pencil size={15} /></button>
+                    <button type="button" className={`${styles.icon} ${styles.danger}`} disabled={loading || Boolean(state.error)} aria-label={`Xóa việc ${task.title}`} onClick={() => removeTask(task)}><Trash2 size={15} /></button>
                   </div>
                 </li>)}</ul>}
+              {focusBarn && onDateChange && <button type="button" className={`${styles.pageTurn} ${styles.pageNext}`}
+                aria-label="Lật sổ sang ngày sau" title={formatDay(addDaysIso(date, 1))}
+                onClick={() => onDateChange(addDaysIso(date, 1))}>
+                <ChevronRight size={22} />
+              </button>}
               </div>
             </section>)}
           </div>

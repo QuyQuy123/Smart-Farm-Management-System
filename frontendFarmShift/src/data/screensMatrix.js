@@ -268,96 +268,24 @@ export const FARMSHIFT_SCREENS = [
     notes: 'Danh bạ đối tác mua gà thương phẩm, đầu mối tiêu thụ'
   },
 
-  // ── Nhóm 8: Sổ quỹ & Tài chính (Cashbook) ─────────────────
-  {
-    id: 'cashbook',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
-    title: 'Sổ quỹ thu chi',
-    roles: ['owner', 'accountant'],
-    route: '/cashbook',
-    notes: 'Nhật ký dòng tiền mặt và tiền gửi ngân hàng theo ngày'
-  },
-  {
-    id: 'expense-types',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
-    title: 'Loại phiếu chi',
-    roles: ['owner', 'accountant'],
-    route: '/cashbook',
-    notes: 'Danh mục khoản chi: tiền điện, trấu, cám, vắc-xin, nhân công'
-  },
-  {
-    id: 'income-types',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
-    title: 'Loại phiếu thu',
-    roles: ['owner', 'accountant'],
-    route: '/cashbook',
-    notes: 'Danh mục khoản thu: bán gà thịt, bán phân chuồng, bán bao tải'
-  },
-  {
-    id: 'fund-transfers',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
-    title: 'Chuyển quỹ nội bộ',
-    roles: ['owner', 'accountant'],
-    route: '/cashbook',
-    notes: 'Điều chuyển tiền giữa quỹ tiền mặt và tài khoản ngân hàng'
-  },
-  {
-    id: 'funds',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
-    title: 'Nguồn quỹ',
-    roles: ['owner', 'accountant'],
-    route: '/cashbook',
-    notes: 'Két tiền mặt, tài khoản Vietcombank, Techcombank'
-  },
+  // ── Nhóm 8: Công nợ (Debt & Payables) ──────────────────────
   {
     id: 'receivables',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
+    group: 'Bán hàng',
+    groupId: 'sales',
     title: 'Công nợ khách hàng',
     roles: ['owner', 'accountant'],
-    route: '/cashbook',
+    route: '/sales',
     notes: 'Theo dõi tiền thương lái còn nợ chưa thanh toán hết'
   },
   {
     id: 'payables',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
+    group: 'Nhập hàng',
+    groupId: 'purchases',
     title: 'Công nợ nhà cung cấp',
     roles: ['owner', 'accountant'],
-    route: '/cashbook',
+    route: '/purchases',
     notes: 'Theo dõi tiền nợ công ty cám, thuốc thú y'
-  },
-  {
-    id: 'costs',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
-    title: 'Phân bổ chi phí lứa nuôi',
-    roles: ['owner', 'accountant'],
-    route: '/cashbook',
-    notes: 'Hạch toán chi phí điện, trấu, khấu hao chuồng theo từng lứa'
-  },
-  {
-    id: 'assets',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
-    title: 'Tài sản & Khấu hao',
-    roles: ['owner', 'accountant'],
-    route: '/cashbook',
-    notes: 'Quản lý máy phát điện, quạt thông gió, khung chuồng trại'
-  },
-  {
-    id: 'payroll',
-    group: 'Sổ quỹ',
-    groupId: 'cash',
-    title: 'Tiền công nhân viên',
-    roles: ['owner', 'accountant'],
-    route: '/cashbook',
-    notes: 'Bảng tính lương tháng, phụ cấp độc hại, ứng lương công nhân'
   },
 
   // ── Nhóm 9: IoT & Thiết bị (Energy & Smart Farm) ───────────
@@ -522,7 +450,7 @@ export const FARMSHIFT_SCREENS = [
     id: 'report-finance',
     group: 'Báo cáo',
     groupId: 'reports',
-    title: 'Báo cáo Sổ quỹ & Lợi nhuận P&L',
+    title: 'Báo cáo Chi phí & Lợi nhuận P&L',
     roles: ['owner', 'accountant'],
     route: '/reports',
     notes: 'Lợi nhuận ròng, biên lợi nhuận trên mỗi kg gà xuất chuồng'

@@ -47,7 +47,7 @@ export function AreaDialog({ area, onClose, onSaved }) {
     environmentMetrics: area?.environmentMetrics || ['HUMIDITY', 'TEMPERATURE'],
     animalMetrics: area?.animalMetrics || ['WEIGHT', 'LOSS'],
     description: area?.description || '',
-    warehouseId: !hasDedicatedWarehouses && area?.warehouses?.[0]?.id ? String(area.warehouses[0].id) : '',
+    warehouseIds: hasDedicatedWarehouses ? area.warehouses.map(warehouse => String(warehouse.id)) : [],
   }));
   const [availableWarehouses, setAvailableWarehouses] = useState([]);
   const [errors, setErrors] = useState({});
@@ -74,7 +74,7 @@ export function AreaDialog({ area, onClose, onSaved }) {
       ...form,
       name,
       description: form.description.trim(),
-      warehouseId: form.warehouseId ? Number(form.warehouseId) : null,
+      warehouseIds: form.warehouseIds.map(Number),
     };
     try {
       if (editing) await updateFarmArea(area.id, payload);
@@ -98,22 +98,26 @@ export function AreaDialog({ area, onClose, onSaved }) {
           aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'farm-area-name-error' : undefined} autoFocus />
         <FieldError id="farm-area-name-error" message={errors.name} />
 
-        <label htmlFor="farm-area-warehouse">Kho hàng sử dụng</label>
-        <select id="farm-area-warehouse" className="farmshift-form-control"
-          value={form.warehouseId}
-          onChange={event => set('warehouseId', event.target.value)}
-          disabled={saving}
-          aria-label="Kho hàng sử dụng">
-          <option value="">(Mặc định) Tự động tạo kho mới theo khu nuôi</option>
-          {availableWarehouses.map(wh => (
-            <option key={wh.id} value={wh.id}>
-              {wh.name} {wh.areaName ? `(Khu ${wh.areaName})` : ''}
-            </option>
-          ))}
-        </select>
+        <label>Kho hàng sử dụng</label>
+        <div className={styles.warehousePicker} role="group" aria-label="Kho hàng sử dụng">
+          <label className={styles.warehouseOption}>
+            <input type="checkbox" checked={form.warehouseIds.length === 0}
+              onChange={() => set('warehouseIds', [])} disabled={saving} />
+            <span><strong>(Mặc định)</strong><small>Tự động tạo kho mới theo khu nuôi</small></span>
+          </label>
+          {availableWarehouses.map(wh => {
+            const selected = form.warehouseIds.includes(String(wh.id));
+            return <label key={wh.id} className={styles.warehouseOption}>
+              <input type="checkbox" checked={selected}
+                onChange={() => set('warehouseIds', selected ? form.warehouseIds.filter(id => id !== String(wh.id)) : [...form.warehouseIds, String(wh.id)])}
+                disabled={saving} />
+              <span><strong>{wh.name}</strong></span>
+            </label>;
+          })}
+        </div>
         <small className={styles.fieldHint}>
-          {form.warehouseId
-            ? 'Khu nuôi này sẽ dùng chung kho với kho đã chọn.'
+          {form.warehouseIds.length
+            ? `Đã chọn ${form.warehouseIds.length} kho. Khu nuôi này sẽ dùng chung các kho đã chọn.`
             : 'Mặc định tự động tạo kho cám và kho thuốc riêng cho khu nuôi này.'}
         </small>
 
@@ -195,7 +199,7 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     onChange: event => set(key, event.target.value), 'aria-invalid': Boolean(errors[key]), 'aria-describedby': errors[key] ? `barn-${key}-error` : undefined,
   });
 
-  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} onClose={onClose} wide>
+  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} onClose={onClose} wide className={styles.barnModal}>
     <form onSubmit={submit} noValidate>
       <div className={styles.modalBody}>
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}

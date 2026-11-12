@@ -35,6 +35,7 @@ class FarmAreaIntegrationTest {
     @Autowired ObjectMapper mapper;
     @Autowired FarmAreaRepository areaRepository;
     @Autowired BarnRepository barnRepository;
+    @Autowired WarehouseCategoryRepository warehouseRepository;
 
     @BeforeEach
     void reset() {
@@ -105,6 +106,22 @@ class FarmAreaIntegrationTest {
         org.junit.jupiter.api.Assertions.assertTrue(warehousesOfArea("Khu Gà Đồi").isEmpty());
         var body = mapper.readTree(mvc.perform(get("/api/warehouse-categories")).andReturn().getResponse().getContentAsString());
         for (var warehouse : body.path("data")) org.junit.jupiter.api.Assertions.assertFalse(warehouse.path("name").asText().contains("Gà Đồi"));
+    }
+
+    @Test
+    void linksMultipleSelectedWarehousesToAnArea() throws Exception {
+        long firstWarehouse = create("/api/warehouse-categories", Map.of("name", "Kho dùng chung 1", "description", ""));
+        long secondWarehouse = create("/api/warehouse-categories", Map.of("name", "Kho dùng chung 2", "description", ""));
+        Map<String, Object> request = area("Khu dùng nhiều kho");
+        request.put("warehouseIds", List.of(firstWarehouse, secondWarehouse));
+
+        var result = mvc.perform(post(AREAS).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.warehouses.length()").value(2))
+                .andReturn();
+        long areaId = mapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        org.junit.jupiter.api.Assertions.assertEquals(List.of(firstWarehouse, secondWarehouse),
+                warehouseRepository.findAllByArea_Id(areaId).stream().map(wh -> wh.getId()).sorted().toList());
     }
 
     @Test

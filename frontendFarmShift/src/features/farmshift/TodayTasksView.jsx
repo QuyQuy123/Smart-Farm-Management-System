@@ -122,7 +122,7 @@ export const TodayTasksView = () => {
 
     {mealSchedule && <MealScheduleDialog onClose={() => setMealSchedule(false)}
       onSaved={() => { setMealSchedule(false); setRevision(value => value + 1); }} />}
-    {assigning ? <WorkAssignmentPanel date={date} onSummary={setAssignSummary} /> : loading ? <p className={styles.state} role="status">Đang tải phiếu việc...</p>
+    {assigning ? <WorkAssignmentPanel date={date} onDateChange={setDate} onSummary={setAssignSummary} /> : loading ? <p className={styles.state} role="status">Đang tải phiếu việc...</p>
       : state.error ? <div className={styles.state} role="alert"><p>{state.error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
         : opened ? <div className={styles.detail}>

@@ -6,7 +6,7 @@ import {
   Home, Warehouse, Repeat, Utensils, ClipboardCheck,
   HeartPulse, Thermometer, Box, Scale, Award,
   Truck, ShoppingCart, ArrowLeftRight, CheckCircle2,
-  DollarSign, ArrowDownRight, ArrowUpRight, ArrowRight,
+  ArrowRight,
   Info, Sparkles, Layers, ShieldCheck, Zap
 } from 'lucide-react';
 
@@ -68,18 +68,6 @@ export const FarmSystemMap = ({ onSelectNode }) => {
         { id: 'harvest', title: 'Thu hoạch vật nuôi', desc: 'Cân gà xuất chuồng theo biểu', count: '2 phiếu cân', route: '/sales?tab=harvest', icon: <CheckCircle2 size={16} /> },
         { id: 'sales', title: 'Bán hàng từ kho', desc: 'Bán gà thịt cho thương lái', count: '2 đơn bán', route: '/sales', icon: <ShoppingCart size={16} /> }
       ]
-    },
-    {
-      id: 'money',
-      title: 'DÒNG TIỀN & SỔ QUỸ',
-      icon: <DollarSign size={18} color="var(--color-primary)" />,
-      description: 'Quản lý quỹ tiền mặt, ngân hàng, phiếu thu, phiếu chi, chuyển quỹ và tài sản',
-      nodes: [
-        { id: 'funds', title: 'Nguồn quỹ', desc: 'MB Bank, Tiền mặt, VCB', count: '282.1M đ', route: '/cashbook?tab=funds', icon: <DollarSign size={16} /> },
-        { id: 'payments', title: 'Phiếu chi', desc: 'Chi tiền cám, điện nước, nhân công', count: 'PC000036', route: '/cashbook?type=Chi', icon: <ArrowUpRight size={16} /> },
-        { id: 'receipts', title: 'Phiếu thu', desc: 'Thu tiền bán gà, thu nợ', count: 'PT000022', route: '/cashbook?type=Thu', icon: <ArrowDownRight size={16} /> },
-        { id: 'fund-transfers', title: 'Chuyển quỹ nội bộ', desc: 'Rút tiền mặt, nộp tài khoản', count: '2 lệnh chuyển', route: '/cashbook?tab=transfers', icon: <ArrowLeftRight size={16} /> }
-      ]
     }
   ];
 
@@ -106,7 +94,7 @@ export const FarmSystemMap = ({ onSelectNode }) => {
             Sơ đồ Hệ thống Quản lý Chăn nuôi Trang trại Miền Bính
           </h2>
           <p style={{ margin: 0, color: 'var(--color-body)', fontSize: '15px', maxWidth: '720px' }}>
-            Tổng quan luồng dữ liệu 5 phân hệ cốt lõi: từ hạ tầng nuôi, nhật ký hàng ngày, quản lý kho hàng, hóa đơn chứng từ đến dòng tiền sổ quỹ. Bấm vào bất kỳ thẻ nào để mở trực tiếp màn hình nghiệp vụ tương ứng.
+            Tổng quan luồng dữ liệu 4 phân hệ cốt lõi: từ hạ tầng nuôi, nhật ký hàng ngày, quản lý kho hàng đến hóa đơn chứng từ nhập xuất. Bấm vào bất kỳ thẻ nào để mở trực tiếp màn hình nghiệp vụ tương ứng.
           </p>
         </div>
 
@@ -126,7 +114,7 @@ export const FarmSystemMap = ({ onSelectNode }) => {
         </div>
       </div>
 
-      {/* 5 Architectural Bands */}
+      {/* 4 Architectural Bands */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
         {bands.map((band, bandIdx) => (
           <div

@@ -23,12 +23,12 @@ const PurchasesView = lazy(() => import('../features/farmshift/PurchasesView').t
 const SalesView = lazy(() => import('../features/farmshift/SalesView').then(m => ({ default: m.SalesView })));
 const TransfersView = lazy(() => import('../features/farmshift/InternalStockView').then(m => ({ default: m.InternalStockView })));
 const InternalStockView = TransfersView;
-const CashbookView = lazy(() => import('../features/farmshift/CashbookView').then(m => ({ default: m.CashbookView })));
 const ReportsView = lazy(() => import('../features/farmshift/ReportsView').then(m => ({ default: m.ReportsView })));
 const CatalogSettingsView = lazy(() => import('../features/farmshift/CatalogSettingsView').then(m => ({ default: m.CatalogSettingsView })));
 const BreedingSettingsView = lazy(() => import('../features/farmshift/BreedingSettingsView').then(m => ({ default: m.BreedingSettingsView })));
 const GeneralSettingsView = lazy(() => import('../features/farmshift/GeneralSettingsView').then(m => ({ default: m.GeneralSettingsView })));
 const AccountView = lazy(() => import('../features/farmshift/AccountView').then(m => ({ default: m.AccountView })));
+const IotView = lazy(() => import('../features/farmshift/IotView').then(m => ({ default: m.IotView })));
 
 /* ── Role Constants ─────────────────────────────────────────── */
 const OWNER_ONLY = ['ROLE_FARM_OWNER'];
@@ -93,8 +93,6 @@ export const AppRouter = () => {
         <Route path="/internal-stock" element={<ProtectedRoute allowedRoles={ALL_ROLES}><InternalStockView /></ProtectedRoute>} />
         <Route path="/purchases" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><PurchasesView /></ProtectedRoute>} />
         <Route path="/sales" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><SalesView /></ProtectedRoute>} />
-        <Route path="/cashbook" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><CashbookView /></ProtectedRoute>} />
-        <Route path="/finance" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><CashbookView /></ProtectedRoute>} />
         <Route path="/account" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><AccountView /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><ReportsView /></ProtectedRoute>} />
 
@@ -107,8 +105,6 @@ export const AppRouter = () => {
         <Route path="/system-map" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
         <Route path="/energy" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
         <Route path="/cycles" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
-        <Route path="/payroll" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />
-        <Route path="/assets" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />
         <Route path="/growth-targets" element={<ProtectedRoute><BreedingSettingsView /></ProtectedRoute>} />
         <Route path="/screens" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />
@@ -117,7 +113,7 @@ export const AppRouter = () => {
         <Route path="/worker-dashboard" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
         <Route path="/batches" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
         <Route path="/tasks" element={<ProtectedRoute><JournalView /></ProtectedRoute>} />
-        <Route path="/iot" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
+        <Route path="/iot" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><IotView /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><AccountView /></ProtectedRoute>} />
 
         {/* Catch-all */}

@@ -4,8 +4,8 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
-- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), sử dụng cú pháp `ON CONFLICT DO NOTHING`, `ON CONFLICT DO UPDATE` và `WHERE NOT EXISTS` để đảm bảo tính lũy kế (idempotent), an toàn tuyệt đối khi thực thi nhiều lần (kể cả trước và sau khi các runner nâng cấp schema khởi chạy).
-- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp với các `ApplicationRunner` nâng cấp và khởi tạo dữ liệu tự động khi khởi động (`FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`).
+- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), đồng bộ cột/bảng nâng cấp (`ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`) và tự động làm sạch toàn bộ bảng dữ liệu (`TRUNCATE ... RESTART IDENTITY CASCADE`) trước khi nạp lại đầy đủ bộ dữ liệu giả lập xuyên suốt từ `01/01/2026` đến `13/11/2026` (an toàn tuyệt đối khi thực thi lại nhiều lần trên cả DB trống lẫn DB đang có dữ liệu cũ).
+- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp với các `ApplicationRunner` nâng cấp và khởi tạo dữ liệu tự động khi khởi động (`FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`).
 
 ---
 
@@ -59,6 +59,8 @@ erDiagram
     flocks ||--o{ purchase_invoices : "chick_invoice"
     suppliers }o--o{ purchase_tags : "tagged_via_supplier_tags"
     purchase_invoices ||--o{ purchase_invoice_items : "contains"
+    purchase_invoices ||--o{ purchase_payments : "records_payments"
+    suppliers ||--o{ purchase_payments : "receives_payments"
     purchase_invoices }o--o{ purchase_tags : "tagged_via_invoice_tags"
     product_categories ||--o{ purchase_invoice_items : "references"
     warehouse_categories ||--o{ purchase_invoice_items : "destination_warehouse"
@@ -162,7 +164,7 @@ Entity: `Farm`. Lưu trữ hồ sơ định danh cơ sở chăn nuôi tại **Th
 | `created_at` | TIMESTAMP | Thời điểm khởi tạo. |
 | `updated_at` | TIMESTAMP | Thời điểm cập nhật lần cuối. |
 
-**API:** `GET /api/farm` (tất cả tài khoản), `PUT /api/farm` (chỉ dành cho `ROLE_FARM_OWNER`).
+**API:** `GET /api/farm` (tất cả tài khoản), `PUT /api/farm` (cập nhật thông tin cơ sở, chỉ `ROLE_FARM_OWNER`), `PUT /api/farm/meal-schedule` (lưu `firstMealTime`, chỉ `ROLE_FARM_OWNER`).
 
 ---
 
@@ -187,7 +189,7 @@ Entity: `CustomerContact`. Phục vụ quản lý đối tác thương mại t�
 | `created_at` | TIMESTAMP | Thời điểm thêm vào danh bạ. |
 | `updated_at` | TIMESTAMP | Thời điểm chỉnh sửa. |
 
-**API:** `GET /api/customer-contacts?page=0&q=...` (phân trang 10 dòng/trang), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`), cùng với `/api/sales/customers` phục vụ tra cứu và thanh toán công nợ khách hàng.
+**API:** `GET /api/customer-contacts?page=0&q=...` (phân trang 10 dòng/trang), `GET /api/customer-contacts/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`), cùng với `GET /api/sales/customers` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`) phục vụ tra cứu và đối soát công nợ khách hàng tại Xuất bán.
 
 ### 3.2 Bảng `product_types` — Loại hàng hóa
 
@@ -203,7 +205,7 @@ Entity: `ProductType`. Phục vụ nhóm phân loại tại **Thiết lập danh
 | `quantity` | INTEGER | NOT NULL, DEFAULT 0. Số lượng mặt hàng thuộc nhóm. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**API:** `GET /api/product-types`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/product-types`, `GET /api/product-types/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
 
 ### 3.3 Bảng `suppliers` — Nhà cung cấp
 
@@ -233,7 +235,7 @@ Entity: `Supplier`. Quản lý đối tác cung ứng tại **Thiết lập danh
 - `totalPurchased`: Tổng lũy kế giá trị các đơn nhập hàng từ nhà cung cấp này (loại trừ các đơn `Đã hủy`).
 - `debt`: Tổng dư nợ hiện tại = `openingDebt` + (tổng `totalAmount` - tổng `paidAmount` của các đơn chưa trả hết).
 
-**API:** `GET /api/suppliers`, `GET /api/suppliers/{id}` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/suppliers`, `GET /api/suppliers/{id}` (mọi tài khoản đã login), `GET /api/suppliers/{id}/debt-history` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`), `POST`, `PUT /{id}` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`), `DELETE /{id}` (`ROLE_FARM_OWNER`).
 **Quy tắc:** Không xóa được nhà cung cấp đã cung cấp con giống cho đàn (`flocks.supplier_id`) → 409 `SUPPLIER_HAS_FLOCKS`. Hộp thoại **Nhập đàn** có nút (+) thêm nhanh nhà cung cấp bằng chính `POST /api/suppliers`.
 
 ### 3.4 Bảng `warehouse_categories` & `farm_area_warehouses` — Danh mục kho và Liên kết kho theo khu nuôi
@@ -266,7 +268,7 @@ Entity: `WarehouseCategory`. Quản lý phân loại kho lưu trữ tại **Thi�
   - Bảng `warehouse_workers` (`warehouse_id`, `account_id`, UNIQUE `uk_warehouse_workers`) được duy trì để tương thích dữ liệu, nhưng công nhân được phân công vào Khu nuôi (`farm_area_workers`) hoặc Chuồng nuôi (`barn_workers`) sẽ **tự động liên kết tới Kho của Khu đó** để xuất cám/thuốc trong **Việc hôm nay** & **Ghi nhật ký** mà không cần bước gán thủ công theo kho tại `/general-settings`.
 
 **Ràng buộc toàn vẹn:** Không thể xóa danh mục kho khi đang có hàng hóa thuộc danh mục (`product_categories`), tồn kho (`inventory_items`) hoặc chứng từ xuất nhập nội bộ tham chiếu tới.
-**API:** `GET /api/warehouse-categories`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`); `GET /api/warehouse-responsibilities` (hiển thị danh sách công nhân kế thừa tự động theo khu/chuồng).
+**API:** `GET /api/warehouse-categories`, `GET /api/warehouse-categories/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`); `GET /api/warehouse-responsibilities` và `PUT /api/warehouse-categories/{id}/workers` (`ROLE_FARM_OWNER`, hiển thị và đồng bộ công nhân kế thừa tự động theo khu/chuồng).
 
 ### 3.5 Bảng `measurement_units` — Đơn vị tính
 
@@ -284,7 +286,7 @@ Entity: `MeasurementUnit`. Quản lý quy chuẩn đơn vị tại **Thiết l�
 | `content_unit` | VARCHAR(10) | Đơn vị của quy cách: `KG`, `G`, `L`, `ML`, `DOSE` (liều). Dùng để đổi định mức chương trình nuôi sang số bao / lọ / chai cần trừ kho. Không đổi được khi còn hàng hóa tồn kho dùng đơn vị này. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**API:** `GET /api/measurement-units`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/measurement-units`, `GET /api/measurement-units/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
 
 ### 3.6 Bảng `brands` — Nhãn hiệu
 
@@ -300,7 +302,7 @@ Entity: `Brand`. Quản lý thương hiệu đối tác tại **Thiết lập da
 | `note` | VARCHAR(1000) | Ghi chú về nhà sản xuất. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**API:** `GET /api/brands`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/brands`, `GET /api/brands/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
 
 ### 3.7 Bảng `specifications` — Đơn vị quy cách
 
@@ -316,7 +318,7 @@ Entity: `Specification`. Quản lý quy cách đóng gói tại **Thiết lập 
 | `note` | VARCHAR(1000) | Ghi chú quy cách. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**API:** `GET /api/specifications`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/specifications`, `GET /api/specifications/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
 
 ### 3.8 Bảng `product_categories` — Tên hàng hóa
 
@@ -334,7 +336,7 @@ Entity: `ProductCategory`. Quản lý danh mục hàng hóa tại **Thiết lậ
 | `warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id` (`fk_product_category_warehouse`). Kho lưu trữ mặc định. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**API:** `GET /api/product-categories`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/product-categories`, `GET /api/product-categories/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
 
 ---
 
@@ -355,23 +357,28 @@ Entity: `InventoryItem`. Quản lý tồn kho thực tế, đơn giá theo từn
 | `unit_id` | BIGINT | FOREIGN KEY → `measurement_units.id` (`fk_inventory_unit`). Đơn vị tính định lượng. |
 | `price` | NUMERIC(19,2) | NOT NULL. Đơn giá vốn hoặc giá niêm yết của lô mặt hàng (VNĐ). |
 | `stock` | NUMERIC(19,6) | NOT NULL, DEFAULT 0.000000. Số lượng tồn kho thực tế hiện có của lô hàng (nâng cấp độ chính xác 6 chữ số thập phân bởi `DailyStockAllocationSchemaUpgrade`). |
+| `lot_number` | VARCHAR(100) | Mã số lô sản xuất / nhập kho (nâng cấp bởi `PurchasingDebtSchemaUpgrade`, tự động truyền từ `purchase_invoice_items.lot_number` khi nhập kho). |
+| `expiry_date` | DATE | Hạn sử dụng của lô hàng hóa (phục vụ cảnh báo hết hạn / cận hạn trong 30 ngày). |
+| `min_stock` | NUMERIC(19,6) | Ngưỡng tồn kho an toàn tối thiểu của mặt hàng. Khi `stock <= min_stock` (và `min_stock > 0`), hệ thống kích hoạt cảnh báo tồn thấp (`lowStock = true`). |
 | `image_url` | TEXT | Đường dẫn URL hình ảnh mặt hàng. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**Chỉ mục & Nâng cấp Schema (`InventoryLotSchemaUpgrade`):**
+**Chỉ mục & Nâng cấp Schema (`InventoryLotSchemaUpgrade` & `PurchasingDebtSchemaUpgrade`):**
 - Khi khởi động, `InventoryLotSchemaUpgrade` tự động gỡ bỏ ràng buộc cũ `uq_inventory_warehouse_product` và sử dụng chỉ mục `idx_inventory_warehouse_product (warehouse_id, product_id)`, cho phép một sản phẩm tồn tại ở nhiều kho khác nhau cũng như lưu nhiều lô nhập có đơn giá khác nhau trong cùng một kho.
+- `PurchasingDebtSchemaUpgrade` bổ sung các cột `lot_number`, `expiry_date`, `min_stock` phục vụ theo dõi hạn sử dụng theo lô và cảnh báo tồn tối thiểu.
 
 **Quy tắc nghiệp vụ & Tương tác:**
-1. Khi xác nhận nhập kho hóa đơn mua hàng (`POST /api/purchases/{id}/import-stock` hoặc tạo đơn với `stock_status = 'Đã nhập kho'`), hệ thống ghi nhận tồn kho vào kho đích của từng dòng hàng (`purchase_invoice_items.warehouse_id` hoặc kho mặc định của `product_categories`), bảo toàn đơn giá riêng của đợt nhập thông qua `purchase_invoice_item_id`.
+1. Khi xác nhận nhập kho hóa đơn mua hàng (`POST /api/purchases/{id}/import-stock` hoặc tạo đơn với `stock_status = 'Đã nhập kho'`), hệ thống ghi nhận tồn kho vào kho đích của từng dòng hàng (`purchase_invoice_items.warehouse_id` hoặc kho mặc định của `product_categories`), tự động truyền `lot_number`, `expiry_date` và bảo toàn đơn giá riêng của đợt nhập thông qua `purchase_invoice_item_id`.
 2. Khi hủy đơn nhập hàng (`POST /api/purchases/{id}/cancel`), lượng tồn kho tương ứng sẽ tự động được khấu trừ hoàn lại để bảo đảm số liệu sổ sách.
-3. Trên giao diện Kho, các dòng tồn kho cùng sản phẩm trong kho được gom nhóm tổng tồn và hỗ trợ xem chi tiết lịch sử các đợt nhập hàng.
+3. Trên giao diện Kho, các dòng tồn kho cùng sản phẩm trong kho được gom nhóm tổng tồn, hỗ trợ xem chi tiết lịch sử các đợt nhập hàng, lọc nhanh **Tồn kho thấp** / **Sắp hết hạn** / **Hết hạn** (`expiryStatus`: `EXPIRED`, `NEAR_EXPIRY`, `NORMAL`, `NONE`).
 
 **API:**
-- `GET /api/inventory-items?warehouseId={id}`: Danh sách mặt hàng thuộc một kho lưu trữ (hoặc tất cả kho).
-- `GET /api/inventory-items/{id}`: Chi tiết một mặt hàng tồn kho.
-- `GET /api/inventory-items/{id}/receipts`: Lịch sử các đợt nhập hàng của mặt hàng tồn kho (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `GET /api/inventory-items?warehouseId={id}&includeReceipts=false`: Danh sách mặt hàng thuộc một kho lưu trữ (hoặc tất cả kho), kèm cờ cảnh báo `lowStock`, `expiryStatus`, `daysUntilExpiry`. Khi `includeReceipts=true`, response đính kèm lịch sử các lô/đợt nhập hàng; các trường giá vốn (`price`) tự động ẩn (`NULL`) đối với `ROLE_FARM_WORKER`.
+- `GET /api/inventory-items/alerts?warehouseId={id}&expiryDays=30`: Tổng hợp cảnh báo hàng tồn thấp, cận hạn sử dụng và đã hết hạn (`lowStockCount`, `nearExpiryCount`, `expiredCount`, `items`).
+- `GET /api/inventory-items/{id}`: Chi tiết một mặt hàng tồn kho (ẩn giá vốn với `ROLE_FARM_WORKER`).
+- `PATCH /api/inventory-items/{id}/min-stock` (`{minStock}`): Thiết lập ngưỡng tồn kho an toàn tối thiểu (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 - `POST /api/inventory-items`: Thêm mặt hàng mới vào kho (`ROLE_FARM_OWNER`).
-- `PUT /api/inventory-items/{id}`: Điều chỉnh đơn giá, đơn vị tính hoặc nhãn hiệu (`ROLE_FARM_OWNER`).
+- `PUT /api/inventory-items/{id}`: Điều chỉnh đơn giá, đơn vị tính, nhãn hiệu, số lô, hạn sử dụng hoặc ngưỡng tồn tối thiểu (`ROLE_FARM_OWNER`).
 - `DELETE /api/inventory-items/{id}`: Xóa mặt hàng chưa phát sinh giao dịch (`ROLE_FARM_OWNER`).
 
 ### 4.2 Bảng `internal_stock_categories` & `transfer_categories` — Danh mục phiếu xuất nhập nội bộ
@@ -382,11 +389,11 @@ Entity: `InternalStockCategory` (và `TransferCategory`). Quản lý phân loạ
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
-| `movement_type` | VARCHAR(20) | NOT NULL. `IMPORT` (Nhập kho), `EXPORT` (Xuất kho), `TRANSFER` (Chuyển kho). |
-| `name` | VARCHAR(150) | NOT NULL. Tên danh mục hiển thị (VD: `Nhập đầu kì`, `Xuất hủy`, `Chuyển kho nội bộ`). |
+| `movement_type` | VARCHAR(20) | NOT NULL. Chỉ hỗ trợ `EXPORT` (Xuất kho) và `TRANSFER` (Chuyển kho nội bộ). |
+| `name` | VARCHAR(150) | NOT NULL. Tên danh mục hiển thị (VD: `Xuất hủy`, `Chuyển kho nội bộ`). |
 | `name_key` | VARCHAR(150) | NOT NULL, UNIQUE (`uq_internal_stock_category_name_key`). Tên chuẩn hóa NFC chữ thường chống trùng lặp. |
 | `description` | VARCHAR(1000) | Mô tả công dụng và bối cảnh lập phiếu của danh mục. |
-| `is_system` | BOOLEAN | NOT NULL, DEFAULT FALSE. Cờ bảo vệ 3 danh mục gốc của hệ thống không bị xóa. |
+| `is_system` | BOOLEAN | NOT NULL, DEFAULT FALSE. Cờ bảo vệ 2 danh mục gốc của hệ thống (`Xuất hủy`, `Chuyển kho nội bộ`) không bị xóa. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **Bảng `transfer_categories`:**
@@ -394,30 +401,32 @@ Entity: `InternalStockCategory` (và `TransferCategory`). Quản lý phân loạ
 | :--- | :--- | :--- |
 | `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
 | `code` | VARCHAR(40) | NOT NULL, UNIQUE. Mã danh mục sinh tự động `DM` + UUID. |
-| `slip_type` | VARCHAR(150) | NOT NULL. Loại phiếu (`IMPORT`, `EXPORT`, `TRANSFER` hoặc văn bản tự do sau `TransferCategorySchemaUpgrade`). |
+| `slip_type` | VARCHAR(150) | NOT NULL. Loại phiếu (`EXPORT`, `TRANSFER` hoặc văn bản tự do sau `TransferCategorySchemaUpgrade`). |
 | `name` | VARCHAR(150) | NOT NULL. Tên danh mục. |
 | `name_key` | VARCHAR(150) | NOT NULL. UNIQUE cùng `slip_type` qua `uq_transfer_category_type_name`. |
 | `description` | VARCHAR(1000) | Mô tả chi tiết. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **Thuộc tính tính toán trả về qua API:**
-- `voucherCount` (`Số phiếu`): Số lượng phiếu xuất nhập đang hiệu lực (khác `CANCELLED`) thuộc danh mục này.
-- **Dữ liệu khởi tạo tự động (`InternalStockSeedRunner`):** Tự động seed 3 danh mục hệ thống (`IMPORT`: `Nhập đầu kì`, `EXPORT`: `Xuất hủy`, `TRANSFER`: `Chuyển kho nội bộ`) và 5 danh mục nghiệp vụ (`Nhập thừa sau kiểm kê`, `Nhập hoàn lại từ chuồng`, `Xuất hao hụt kiểm kê`, `Xuất vật tư tiêu hao`, `Chuyển sang kho đệm chuồng`).
+- `voucherCount` (`Số phiếu`): Số lượng phiếu xuất/chuyển đang hiệu lực (khác `CANCELLED`) thuộc danh mục này.
+- **Dữ liệu khởi tạo tự động (`InternalStockSeedRunner`):** Khi khởi động tự động dọn bỏ các danh mục `IMPORT` cũ chưa phát sinh phiếu và seed 2 danh mục hệ thống (`EXPORT`: `Xuất hủy`, `TRANSFER`: `Chuyển kho nội bộ`) cùng 3 danh mục nghiệp vụ (`Xuất hao hụt kiểm kê`, `Xuất vật tư tiêu hao`, `Chuyển sang kho đệm chuồng`) — tổng 5 danh mục mặc định.
 
-**API:** `GET /api/internal-stock/categories` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Không thể xóa danh mục hệ thống hoặc danh mục đã phát sinh phiếu (`CATEGORY_IN_USE`).
+**API:**
+- `internal_stock_categories`: `GET /api/internal-stock/categories`, `GET /api/internal-stock/categories/{id}` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Chỉ chấp nhận `movementType` thuộc `{EXPORT, TRANSFER}`. Không thể xóa danh mục hệ thống hoặc danh mục đã phát sinh phiếu (`CATEGORY_IN_USE`).
+- `transfer_categories`: `GET /api/transfer-categories`, `GET /api/transfer-categories/{id}` (mọi tài khoản đã login), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
 
-### 4.3 Bảng `internal_stock_vouchers` — Chứng từ xuất nhập nội bộ
+### 4.3 Bảng `internal_stock_vouchers` — Chứng từ xuất & chuyển kho nội bộ
 
-Entity: `InternalStockVoucher`. Quản lý chứng từ điều chuyển, xuất hủy hoặc nhập đầu kỳ không phát sinh công nợ nhà cung cấp hay doanh thu bán hàng.
+Entity: `InternalStockVoucher`. Quản lý chứng từ xuất tiêu hao/xuất hủy hoặc chuyển kho nội bộ không phát sinh công nợ nhà cung cấp hay doanh thu bán hàng.
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
 | `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã chứng từ tự sinh: `XNB000001`, `XNB000002`... |
-| `movement_type` | VARCHAR(20) | NOT NULL. `IMPORT` (Nhập kho), `EXPORT` (Xuất kho), `TRANSFER` (Chuyển kho). |
+| `movement_type` | VARCHAR(20) | NOT NULL. Chỉ hỗ trợ `EXPORT` (Xuất kho) và `TRANSFER` (Chuyển kho nội bộ). |
 | `category_id` | BIGINT | NOT NULL, FOREIGN KEY → `internal_stock_categories.id`. |
-| `source_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `EXPORT` và `TRANSFER`; NULL với `IMPORT`. |
-| `target_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `IMPORT` và `TRANSFER`; NULL với `EXPORT`. |
+| `source_warehouse_id` | BIGINT | NOT NULL, FOREIGN KEY → `warehouse_categories.id`. Kho xuất (bắt buộc với cả `EXPORT` và `TRANSFER`). |
+| `target_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `TRANSFER`; NULL với `EXPORT`. |
 | `cycle_id` | BIGINT | FOREIGN KEY → `farming_cycles.id` (nullable). Lứa nuôi nhận chi phí khi xuất hủy thuốc/vật tư. |
 | `expense_id` | BIGINT | FOREIGN KEY → `cycle_expenses.id` (nullable). Khoản chi phát sinh tự động nếu xuất hủy gắn với lứa. |
 | `movement_date` | DATE | NOT NULL. Ngày thực hiện chứng từ (ghi nhận theo `Asia/Bangkok`). |
@@ -438,7 +447,7 @@ Entity: `InternalStockVoucherItem`. Danh sách các dòng hàng hóa trong chứ
 | `voucher_id` | BIGINT | NOT NULL, FOREIGN KEY → `internal_stock_vouchers.id` ON DELETE CASCADE. |
 | `product_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_categories.id`. |
 | `source_inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Mặt hàng kho nguồn (gắn khi `EXPORT`, `TRANSFER`). |
-| `target_inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Mặt hàng kho đích (gắn khi `IMPORT`, `TRANSFER`). |
+| `target_inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Mặt hàng kho đích (gắn khi `TRANSFER`). |
 | `quantity` | NUMERIC(19,3) | NOT NULL. Số lượng luân chuyển (phải > 0). |
 | `unit_id` | BIGINT | FOREIGN KEY → `measurement_units.id`. Đơn vị tính định lượng. |
 | `unit_price` | NUMERIC(19,2) | NOT NULL, DEFAULT 0.00. Đơn giá mặt hàng tại thời điểm lập phiếu. |
@@ -453,7 +462,8 @@ Entity: `InternalStockVoucherItem`. Danh sách các dòng hàng hóa trong chứ
 **API:**
 - `GET /api/internal-stock/vouchers`: Danh sách phiếu phân trang có bộ lọc (`movementType`, `categoryId`, `warehouseId`, `status`, ngày tháng, từ khóa).
 - `GET /api/internal-stock/vouchers/{id}`: Chi tiết phiếu và danh sách hàng hóa.
-- `POST /api/internal-stock/vouchers`: Lập phiếu xuất/nhập/chuyển kho (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `POST /api/internal-stock/vouchers`: Lập phiếu xuất kho hoặc chuyển kho nội bộ (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Chỉ chấp nhận `movementType` thuộc `{EXPORT, TRANSFER}`.
+- `POST /api/internal-stock/vouchers/{id}/cancel`: Hủy phiếu xuất/chuyển kho nội bộ (`CANCELLED`) và tự động hoàn trả tồn kho / xóa chi phí lứa liên quan (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 
 ### 4.5 Bảng `internal_stock_voucher_numbers` — Bộ đếm mã chứng từ xuất nhập nội bộ
 
@@ -480,7 +490,7 @@ Entity: `PurchaseTag`. Phục vụ gắn nhãn phân loại, đánh dấu nguồ
 | `description` | VARCHAR(500) | Mô tả mục đích sử dụng của thẻ. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**API:** `GET /api/purchase-tags`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/purchase-tags`, `GET /api/purchase-tags/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
 
 ### 5.2 Bảng `purchase_invoices` — Hóa đơn nhập hàng
 
@@ -525,15 +535,38 @@ Entity: `PurchaseInvoiceItem`. Danh sách từng mặt hàng cụ thể trong đ
 | `unit_price` | BIGINT | NOT NULL, DEFAULT 0. Đơn giá nhập trước VAT (VNĐ). |
 | `vat_rate` | DOUBLE PRECISION | DEFAULT 0.0. Thuế suất VAT (0%, 5%, 8%, 10%). |
 | `amount` | BIGINT | NOT NULL, DEFAULT 0. Thành tiền mặt hàng = `round(quantity * unit_price * (1 + vat_rate / 100))`. |
+| `lot_number` | VARCHAR(100) | Số lô hàng hóa nhập (tự động truyền sang `inventory_items.lot_number` khi nhập kho). |
+| `expiry_date` | DATE | Hạn sử dụng của lô hàng hóa nhập (tự động truyền sang `inventory_items.expiry_date` khi nhập kho). |
 
-**API Quản lý Nhập hàng:**
+**API Quản lý Nhập hàng (toàn bộ yêu cầu `ROLE_FARM_OWNER` hoặc `ROLE_ACCOUNTANT`):**
 - `GET /api/purchases?search=...&paymentStatus=...`: Tìm kiếm, lọc hóa đơn nhập hàng.
-- `GET /api/purchases/{id}`: Xem chi tiết hóa đơn kèm danh sách mặt hàng và thẻ tags.
-- `POST /api/purchases`: Tạo mới hóa đơn. Tự động tăng tồn kho nếu chọn `stock_status = 'Đã nhập kho'` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
-- `POST /api/purchases/{id}/import-stock`: Xác nhận nhập kho cho các đơn tạo trước ở trạng thái `'Chưa nhập kho'` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`, `ROLE_FARM_WORKER`).
-- `POST /api/purchases/{id}/pay`: Ghi nhận thanh toán bổ sung cho hóa đơn trả sau (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
-- `POST /api/purchases/{id}/cancel` (hoặc `DELETE /{id}`): Hủy đơn nhập hàng, tự động hoàn trả tồn kho nếu đã nhập trước đó (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
-- `POST /api/purchases/ocr`: Bóc tách thông minh chứng từ hóa đơn từ file ảnh chụp hoặc camera stream (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
+- `GET /api/purchases/{id}`: Xem chi tiết hóa đơn kèm danh sách mặt hàng, số lô/HSD, ảnh hóa đơn (`attachmentUrl`) và thẻ tags.
+- `POST /api/purchases`: Tạo mới hóa đơn. Tự động tăng tồn kho nếu chọn `stock_status = 'Đã nhập kho'` và ghi nhận giao dịch vào `purchase_payments` nếu `paid_amount > 0`.
+- `PUT /api/purchases/{id}`: Chỉnh sửa hóa đơn chưa thanh toán, chưa nhập kho và không gắn đàn con giống.
+- `POST /api/purchases/{id}/import-stock`: Xác nhận nhập kho cho các đơn tạo trước ở trạng thái `'Chưa nhập kho'`.
+- `POST /api/purchases/{id}/pay`: Ghi nhận thanh toán bổ sung cho hóa đơn trả sau (`{amount, note, paymentMethod?, paymentDate?}`), đồng thời lưu `purchase_payments` để cập nhật công nợ nhà cung cấp.
+- `POST /api/purchases/{id}/cancel` và `DELETE /api/purchases/{id}`: Hủy / xóa đơn nhập hàng, tự động hoàn trả tồn kho nếu đã nhập trước đó (không áp dụng cho đơn con giống `PURCHASE_FLOCK_LINKED`).
+- `POST /api/purchases/ocr`: Bóc tách thông minh chứng từ hóa đơn từ file ảnh chụp hoặc PDF.
+
+### 5.4 Bảng `purchase_payments` — Lịch sử thanh toán & Theo dõi Công nợ
+
+Entity: `PurchasePayment` (khởi tạo và backfill tự động qua `PurchasingDebtSchemaUpgrade`). Ghi nhận từng đợt thanh toán thực tế cho hóa đơn nhập hàng để dựng sổ chi tiết công nợ nhà cung cấp.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `invoice_id` | BIGINT | NOT NULL. Mã ID hóa đơn nhập (`purchase_invoices.id`). Index `idx_purchase_payments_invoice`. |
+| `supplier_id` | BIGINT | NOT NULL. Mã ID nhà cung cấp (`suppliers.id`). Index `idx_purchase_payments_supplier`. |
+| `amount` | BIGINT | NOT NULL. Số tiền thanh toán thực tế trong đợt này (VNĐ). |
+| `payment_date` | DATE | NOT NULL. Ngày ghi nhận giao dịch thanh toán (theo `Asia/Bangkok`). |
+| `payment_method` | VARCHAR(50) | Hình thức thanh toán (VD: `Tiền mặt`, `Chuyển khoản`). |
+| `note` | VARCHAR(500) | Diễn giải đợt thanh toán. |
+| `created_by` | VARCHAR(150) | Tài khoản thực hiện ghi nhận giao dịch. |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP. Thời điểm tạo bản ghi. |
+
+**API Tổng hợp & Chi tiết Công nợ (`DebtController`):**
+- `GET /api/debts/summary` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`): Tổng hợp công nợ toàn trang trại gồm công nợ phải trả nhà cung cấp (`totalSupplierPayable`, `supplierPayables`), công nợ phải thu khách hàng (`totalCustomerReceivable`, `customerReceivables`) và vị thế công nợ ròng (`netDebtPosition`).
+- `GET /api/debts/suppliers/{id}` & `GET /api/suppliers/{id}/debt-history` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`): Sổ chi tiết công nợ theo thời gian của một nhà cung cấp gồm dư nợ đầu kỳ (`OPENING_DEBT`), phát sinh mua (`PURCHASE_INVOICE`), các lần trả tiền (`PAYMENT`) và số dư lũy kế (`runningBalance`).
 
 ---
 
@@ -558,7 +591,7 @@ Entity: `FarmArea`. Quản lý các phân khu nuôi tại **Khu nuôi** (`/areas
 - `farm_area_workers` (`area_id`, `account_id`, UNIQUE `uk_farm_area_workers`): Danh sách công nhân phụ trách mặc định của khu nuôi.
 
 **Quy tắc:** Không thể xóa khu nuôi khi đang có chuồng nuôi trực thuộc (409 `FARM_AREA_HAS_BARNS`).
-**API:** `GET /api/farm-areas` (hoặc `/api/areas`), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`). Response trả kèm danh sách `warehouses` (`id`, `name`, `kind`).
+**API:** `GET /api/farm-areas` / `GET /api/farm-areas/{id}` (hoặc `/api/areas`, `/api/areas/{id}`; công nhân chỉ xem khu mình phụ trách), `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`). Response trả kèm danh sách `warehouses` (`id`, `name`, `kind`).
 
 ### 6.2 Bảng `barns` — Chuồng nuôi
 
@@ -580,6 +613,7 @@ Entity: `Barn`. Quản lý chuồng trại cụ thể trong từng phân khu.
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
 **Quy tắc:** Khi tạo chuồng gợi ý mật độ 8 con/m²; không chuyển khu khi chuồng đang có lứa nuôi; không xóa chuồng khi đang có vật nuôi hoặc có lịch sử lứa nuôi.
+**API:** `GET /api/barns?areaId=...`, `GET /api/barns/{id}` (công nhân chỉ thấy chuồng được phân công), `POST /api/barns`, `PUT /api/barns/{id}`, `DELETE /api/barns/{id}` (`ROLE_FARM_OWNER`).
 
 ### 6.3 Bảng `farming_cycles` — Lứa nuôi
 
@@ -604,6 +638,7 @@ Entity: `FarmingCycle`. Quản lý từng chu kỳ sản xuất khép kín từ 
 **Quy tắc:**
 - Mỗi chuồng chỉ có duy nhất 1 lứa ở trạng thái `ACTIVE` tại một thời điểm. Chỉ được kết thúc lứa khi tồn đàn đã về 0.
 - **Tách/chuyển đàn (`FlockService.transfer`, `CycleService.openForTransfer` & `carryWithFlock`)**: Có thể chuyển một phần hoặc toàn bộ đàn sang chuồng đang nuôi hoặc **chuồng trống** (hệ thống tự mở lứa mới từ ngày chuyển — không được trước `end_date` của lứa trước ở chuồng đích — giữ nguyên `hatch_date`, chương trình nuôi, cân mẫu gần nhất, cộng dồn `carried_days` và phân bổ `carried_feed_kg`, `carried_feed_cost`, `carried_gain_kg`, `cycle_carried_expenses` tỷ lệ thuận theo số con chuyển).
+**API lứa & nhật ký (`CycleController`):** `GET /api/barns/{barnId}/cycles`, `POST /api/barns/{barnId}/cycles` (`ROLE_FARM_OWNER`), `GET /api/cycles/{id}`, `POST /api/cycles/{id}/close` (`ROLE_FARM_OWNER`), `POST /api/cycles/{id}/flocks` (`ROLE_FARM_OWNER`), `PUT /api/cycles/{id}/program` (`ROLE_FARM_OWNER`), `POST / DELETE /api/cycles/{id}/feed-records`, `POST / DELETE /api/cycles/{id}/weight-samples`, `POST / DELETE /api/cycles/{id}/expenses` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`). Công nhân bị chặn truy cập các chuồng không được phân công (`BARN_NOT_ASSIGNED`) và luôn bị ẩn giá vốn/doanh thu/chi phí.
 
 ### 6.4 Bảng `flocks` — Đàn vật nuôi
 
@@ -632,6 +667,7 @@ Entity: `Flock`. Quản lý từng lô giống nhập hoặc chuyển vào trong
 
 **Quy tắc cửa sổ nhập đàn:** Các đàn nhập của cùng một lứa cách nhau không quá 3 ngày (`FLOCK_IMPORT_WINDOW`).
 **Nhập đàn mua ngoài:** `POST /api/cycles/{id}/flocks` nhận thêm `supplierId` và `paymentStatus` (`Trả sau` | `Thanh toán hoàn tất`); có nhà cung cấp và giá > 0 thì tự tạo hóa đơn nhập con giống (xem 5.2). API đàn trả thêm `supplierId`, `supplierName` (mọi vai trò) và `purchaseInvoiceId`, `purchaseInvoiceCode` (chỉ chủ trại / kế toán).
+**API biến động đàn (`FlockController`):** `POST /api/flocks/{id}/transfer` (`ROLE_FARM_OWNER`), `PUT /api/flocks/{id}/program` (`ROLE_FARM_OWNER`), `POST /api/flocks/{id}/losses` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER` phụ trách chuồng), `POST /api/flocks/{id}/harvests` (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`).
 
 ### 6.5 Bảng `flock_movements` — Biến động đàn
 
@@ -743,6 +779,8 @@ Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm só
 | `note` | VARCHAR(1000) | Hướng dẫn thực hiện chi tiết cho công nhân. |
 | `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`, có thể NULL. Hàng hóa kho dùng cho bước cám / thuốc / vắc-xin để trừ kho và tính chi phí khi xác nhận phiếu việc. Hàng hóa phải có quy cách đơn vị cùng loại đại lượng với định mức (cám → khối lượng; thuốc, vắc-xin → tử số của đơn vị liều: `g/...`, `ml/...`, `liều/...`). Thuốc gắn hàng hóa phải ghi rõ liều theo `kg cám`, `lít nước` hoặc `con`. |
 
+**API:** `GET /api/farming-programs`, `GET /api/farming-programs/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+
 ### 6.10 Bảng `daily_task_logs` & `daily_stock_allocations` — Phiếu việc hằng ngày đã xác nhận và phân bổ lô kho
 
 Entity: `DailyTaskLog` & `DailyStockAllocation`. Màn **Việc hôm nay** (`/today-tasks`), **Ghi nhật ký** (`/journal`) và khối **Việc hôm nay** trong trang chuồng.
@@ -848,7 +886,7 @@ Entity: `SalesOrder`. Quản lý chứng từ xuất bán gà thương phẩm, t
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | VARCHAR(255) | PRIMARY KEY. Định danh đơn hàng (UUID). |
-| `code` | VARCHAR(255) | NOT NULL, UNIQUE. Mã chứng từ bán hàng tự sinh dạng `BH000001` (nâng cấp từ mã `BH<32-hex>` cũ qua `SalesInvoiceCodeMigration`). |
+| `code` | VARCHAR(255) | NOT NULL, UNIQUE. Mã chứng từ bán hàng tự sinh dạng `BH00001` (nâng cấp từ mã `BH<32-hex>` cũ qua `SalesInvoiceCodeMigration`). |
 | `date` | DATE | Ngày xuất bán trên chứng từ. |
 | `customer` | VARCHAR(255) | Tên khách hàng / thương lái thu mua. |
 | `phone` | VARCHAR(255) | Số điện thoại người mua. |
@@ -859,7 +897,7 @@ Entity: `SalesOrder`. Quản lý chứng từ xuất bán gà thương phẩm, t
 | `unit_price` | NUMERIC(19,2) | Đơn giá bán (VNĐ/kg). |
 | `total_amount` | NUMERIC(19,2) | Tổng thành tiền của đơn hàng = `total_weight * unit_price` (VNĐ). |
 | `paid_amount` | NUMERIC(19,2) | Số tiền khách đã thanh toán (VNĐ). |
-| `status` | VARCHAR(255) | Trạng thái thanh toán: `Đã thanh toán`, `Chưa thanh toán`, `Thanh toán 1 phần`. |
+| `status` | VARCHAR(255) | Trạng thái thanh toán (mã enum lưu DB): `PAID` (Đã thanh toán), `DEBT` (Chưa thanh toán / Trả sau), `PARTIAL` (Thanh toán một phần). |
 | `weight_slip_url` | VARCHAR(500) | Đường dẫn tệp ảnh phiếu cân đính kèm (`/weigh-slips/<UUID>.<ext>`). |
 | `note` | TEXT | Ghi chú chi tiết của đơn xuất bán. |
 | `customer_id` | BIGINT | FOREIGN KEY → `customer_contacts.id`. Liên kết khách hàng trong danh bạ để đồng bộ công nợ và xuất hóa đơn. |
@@ -869,11 +907,11 @@ Entity: `SalesOrder`. Quản lý chứng từ xuất bán gà thương phẩm, t
 
 ### 7.2 Bảng `sales_invoice_numbers` — Bộ đếm mã hóa đơn bán hàng
 
-Entity: `SalesInvoiceNumber`. Quản lý chuỗi số tự tăng để cấp phát mã đơn bán hàng `BH000001`, `BH000002`...
+Entity: `SalesInvoiceNumber`. Quản lý chuỗi số tự tăng để cấp phát mã đơn bán hàng `BH00001`, `BH00002`...
 
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
-| `id` | BIGSERIAL | PRIMARY KEY, tự tăng (`GenerationType.IDENTITY`). Dùng làm số thứ tự sinh mã `BH%06d`. |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng (`GenerationType.IDENTITY`). Dùng làm số thứ tự sinh mã `BH%05d`. |
 
 **Quy tắc nghiệp vụ & Tương tác Xuất bán:**
 1. **Tự động trừ đàn & cộng doanh thu lứa nuôi (`applyHarvest` / `revertPreviousHarvest`)**:
@@ -906,3 +944,50 @@ Hệ thống hỗ trợ linh hoạt 2 chế độ lưu trữ qua biến môi tr�
 3. Phiếu cân xuất bán (`WeightSlipStorage`, độc lập với `STORAGE_PROVIDER`):
    - Lưu file gốc (`JPG`/`PNG`/`PDF`) vào `SALES_WEIGHT_SLIPS_DIRECTORY` (mặc định `frontendFarmShift/public/weigh-slips/<UUID>.<ext>`, trong Docker Compose ánh xạ `/shared/frontend-public/weigh-slips`).
    - Cơ sở dữ liệu lưu đường dẫn `/weigh-slips/<UUID>.<ext>` trong `sales_orders.weight_slip_url`.
+
+---
+
+## PHẦN 9: BÁO CÁO & THỐNG KÊ TOÀN DIỆN (`ReportController` / `ReportService`)
+
+Phân hệ **Báo cáo & Thống kê** (`/reports`, giao diện `ReportsView`) tổng hợp dữ liệu trực tiếp 100% từ PostgreSQL thông qua kiến trúc truy vấn **@EntityGraph chống N+1** (`ReportService`, giao dịch `@Transactional(readOnly = true)`), phục vụ 8 tab báo cáo cho `ROLE_FARM_OWNER` và `ROLE_ACCOUNTANT`.
+
+### 9.1 Endpoint & Quy tắc Tổng hợp (`GET /api/reports/summary`)
+
+| Tham số / Khối dữ liệu | Bảng nguồn chính | Quy tắc nghiệp vụ & Anti-N+1 |
+| :--- | :--- | :--- |
+| Query `?from=YYYY-MM-DD&to=YYYY-MM-DD` | Toàn hệ thống | Tùy chọn lọc khoảng ngày; nếu bỏ trống sẽ tổng hợp toàn bộ lịch sử trang trại. |
+| `farmSummary` (Tổng quan trang trại) | `farming_cycles`, `flocks`, `flock_movements`, `cycle_expenses`, `cycle_carried_expenses` | Tổng nhập, xuất bán, sản lượng kg, chết/loại, tỷ lệ hao hụt/sống sót, tổng chi phí lứa, doanh thu & lợi nhuận gộp từng lứa/chuồng (lọc theo khoảng giao `[startDate, endDate]`). |
+| `salesReport` (Báo cáo bán hàng) | `sales_orders` | Đếm đơn, tổng doanh thu, tiền đã thu, công nợ còn lại, tổng sản lượng kg/con, đơn giá bình quân gia quyền theo kg. |
+| `purchasesReport` (Báo cáo nhập hàng) | `purchase_invoices` (fetch kèm `supplier`, `items`, `warehouse`, `flock.barn`) | Tự động loại trừ các hóa đơn `stock_status = 'Đã hủy'` khỏi tổng giá trị nhập/đã trả/công nợ nhưng vẫn đếm riêng `cancelledCount`. |
+| `inventoryReport` (Tồn kho & Cảnh báo) | `inventory_items` (fetch kèm `warehouse`, `product`, `unit`) | Ảnh chụp tồn kho hiện hành (`stock`, `unitPrice`, `totalValue`), cảnh báo sắp hết (`lowStock`) và hạn dùng (`EXPIRED` / `NEAR_EXPIRY`). |
+| `harvestReport` (Xuất bán / Thu hoạch) | `flock_movements` (`HARVEST`), `farming_cycles`, `flocks` | Số đợt xuất chuồng, tổng con, tổng kg, trọng lượng TB/con, đơn giá bán TB/kg và doanh thu theo từng lứa/chuồng. |
+| `growthReport` (Tăng trưởng & FCR) | `farming_cycles`, `feed_records`, `weight_samples`, `flocks`, `flock_movements` | Tính tuổi nuôi, trọng lượng TB so với chuẩn chương trình nuôi, lượng cám ăn/con, tăng trọng, chỉ số **FCR** (`feedKg / gainKg`), **ADG** (`g/ngày`) và tỷ lệ sống. |
+| `internalStockReport` (Xuất nhập nội bộ) | `internal_stock_vouchers`, `internal_stock_voucher_items` | Thống kê số lượng và giá trị chứng từ `EXPORT` / `TRANSFER` phát sinh trong kỳ kèm chi tiết kho nguồn/đích. |
+| `activityReport` (Nhật ký hoạt động) | `daily_task_logs`, `sales_orders`, `purchase_invoices`, `internal_stock_vouchers`, `flock_movements` | Hợp nhất dòng thời gian hoạt động đa phân hệ (`Xác nhận việc`, `Bán hàng`, `Nhập hàng`, `Kho nội bộ`, `Đàn gia cầm`) sắp xếp mới nhất trước. |
+
+**Phân quyền (`@PreAuthorize`):** Toàn bộ endpoint `/api/reports/**` yêu cầu `ROLE_FARM_OWNER` hoặc `ROLE_ACCOUNTANT` (`403 Forbidden` đối với `ROLE_FARM_WORKER`). Giao diện hỗ trợ chọn nhanh mốc thời gian (Tháng này, Tháng trước, Quý/Năm, Toàn bộ), lọc/tìm kiếm trực tiếp trên bảng, phân trang chuẩn và xuất file **CSV UTF-8 BOM** từng tab.
+
+---
+
+## PHẦN 10: THIẾT BỊ IoT & GIÁM SÁT MÔI TRƯỜNG (`/iot`)
+
+Phân hệ **Thiết bị IoT** (`IotView.jsx`, `IotEnvironment.jsx`, `esp32MqttService.js`) vận hành theo mô hình **không lưu bảng riêng trong PostgreSQL** nhằm tách biệt dữ liệu điều khiển thời gian thực khỏi sổ sách nghiệp vụ:
+- **Danh sách Khu nuôi & Chuồng giám sát:** Tải trực tiếp từ API `GET /api/farm-areas` và `GET /api/barns` (tôn trọng phạm vi chuồng được phân công nếu là `ROLE_FARM_WORKER`).
+- **Kết nối MQTT ESP32 (WebSocket):** Giao tiếp qua `wss://broker.emqx.io:8084/mqtt` với tiền tố topic `quyquy/iotproject/esp32` (`relay{1..4}/control`, `relay{1..4}/status`, `config/sensor{1..3}/name`, `config/relay{1..4}/name`), không phát lại lệnh cũ khi reconnect (`queueQoSZero: false`, `retain: false`).
+- **Biểu đồ & Điều khiển xem thử (Preview):** Các thiết bị mô phỏng theo chuồng (Quạt thông gió tốc độ 1–3, Đèn chiếu sáng, Nước/phun sương) và biểu đồ nhiệt độ minh họa 24 giờ / 7 ngày chạy hoàn toàn ở state trình duyệt khi chưa gắn phần cứng thực tế.
+
+---
+
+## PHẦN 11: CÁC API HỆ THỐNG KHÁC & GHI CHÚ KIẾN TRÚC HIỆN HÀNH
+
+| Phân hệ / Controller | Endpoint chính | Quyền hạn & Ghi chú dữ liệu |
+| :--- | :--- | :--- |
+| **Bảng tin (`DashboardController`)** | `GET /api/dashboard` | Mọi vai trò đã đăng nhập; chủ trại & kế toán thấy tài chính toàn trại, công nhân chỉ thấy chuồng mình phụ trách và ẩn tiền. |
+| **Nhân sự & Tài khoản (`EmployeeController`)** | `GET /api/employees`, `GET /api/employees/summary`, `GET /{id}`, `POST`, `PUT /{id}` | Chỉ `ROLE_FARM_OWNER`. Đồng bộ 2 bảng `accounts` và `customers`. |
+| **Hồ sơ cá nhân (`UserController`)** | `GET/PUT /api/user/profile`, `PUT /api/user/password`, `POST /api/user/avatar`, `GET /api/user/all` (`ROLE_FARM_OWNER`) | Nếu đổi email trong `PUT /profile`, server phát hành JWT token mới để phiên làm việc không bị gián đoạn. |
+| **Tải tệp media (`FileUploadController`)** | `POST /api/files/upload?folder=...` | Hỗ trợ tải ảnh đại diện, sản phẩm, ảnh hao hụt hoặc chứng từ lên Local hoặc Cloudflare R2. |
+| **Trợ lý AI & Giọng nói (`AiAssistantController`)** | `POST /api/ai/transcribe`, `POST /api/ai/assistant`, `GET/POST /api/ai/assistant/stream` (SSE) | Áp dụng giới hạn tốc độ (`AiRateLimiter`: 20 STT/phút, 30 Chat/phút) và kiểm soát quyền theo RBAC vai trò người dùng. |
+| **Giám sát dịch vụ (`HealthController`)** | `GET /api/health`, `GET /health` | Công khai (`permitAll`), phục vụ kiểm tra trạng thái sống của backend. |
+
+> [!NOTE]
+> **Ghi chú loại bỏ phân hệ Sổ quỹ (`Cashbook`):** Kể từ bản hợp nhất `develop` hiện hành, toàn bộ phân hệ **Sổ quỹ** đã được gỡ bỏ hoàn toàn khỏi cơ sở dữ liệu, backend (`Cashbook` entities/controllers/services), frontend và dữ liệu mẫu [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt). Dòng tiền nhập – xuất – công nợ được quản lý tập trung qua `purchase_invoices`, `purchase_payments`, `sales_orders`, `customer_contacts`, `suppliers` và `cycle_expenses`.
