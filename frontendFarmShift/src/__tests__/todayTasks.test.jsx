@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { TodayTasksView } from '../features/farmshift/TodayTasksView';
 import * as service from '../services/dailyPlanService';
 import * as workService from '../services/workAssignmentService';
+import { addDaysIso } from '../features/farmshift/farmAreaOptions';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_WORKER', email: 'worker@farm.test', showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
@@ -37,6 +38,33 @@ const mine = { id: 1, actualQuantity: 100, stockQuantity: 4, unitPrice: null, co
 const someoneElse = { ...mine, id: 2, doneBy: 'other@farm.test' };
 
 const renderView = () => render(<MemoryRouter><TodayTasksView /></MemoryRouter>);
+
+it('turns book days in sync with the date picker and shows tasks throughout their assigned range', async () => {
+  mocks.role = 'ROLE_FARM_OWNER';
+  const end = addDaysIso(today, 2);
+  const worker = { id: 5, fullName: 'Công nhân A' };
+  workService.getWorkBoard.mockImplementation(async date => ({
+    date, workers: [], barns: [{ barnId: 1, barnName: 'A1', areaId: 1, areaName: 'Khu A',
+      workers: [worker], activeCycleId: 11, headcount: 100,
+      tasks: date >= today && date <= end ? [{ id: 31, title: 'Thay trấu', startDate: today, endDate: end, assignee: worker }] : [],
+    }],
+  }));
+  render(<MemoryRouter initialEntries={['/?view=assign']}><TodayTasksView /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Mở chuồng A1' }));
+  expect(screen.getByText('Thay trấu')).toBeInTheDocument();
+  for (let offset = 1; offset <= 3; offset++) {
+    fireEvent.click(screen.getByRole('button', { name: 'Lật sổ sang ngày sau' }));
+    const date = addDaysIso(today, offset);
+    expect(screen.getByLabelText('Ngày làm việc')).toHaveValue(date);
+    await waitFor(() => expect(workService.getWorkBoard).toHaveBeenLastCalledWith(date));
+    if (offset <= 2) expect(await screen.findByText('Thay trấu')).toBeInTheDocument();
+    else expect(await screen.findByText('Chưa giao việc nào cho ngày này.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Khu A › A1' })).toBeInTheDocument();
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Lật sổ về ngày trước' }));
+  expect(await screen.findByText('Thay trấu')).toBeInTheDocument();
+  expect(screen.getByLabelText('Ngày làm việc')).toHaveValue(end);
+});
 const openBarn = async name => {
   fireEvent.click(await screen.findByRole('button', { name: `Mở việc chuồng ${name}` }));
   return screen.findByRole('region', { name: `Phiếu việc ${name}` });

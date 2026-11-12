@@ -1,8 +1,10 @@
 package com.farmshift.backendFarmShift.config;
 
 import com.farmshift.backendFarmShift.security.CustomUserDetailsService;
+import com.farmshift.backendFarmShift.security.HttpRateLimitFilter;
 import com.farmshift.backendFarmShift.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 import java.util.List;
 
@@ -42,7 +45,15 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final HttpRateLimitFilter httpRateLimitFilter;
     private final CustomUserDetailsService userDetailsService;
+
+    @Bean
+    public FilterRegistrationBean<HttpRateLimitFilter> httpRateLimitFilterRegistration(HttpRateLimitFilter filter) {
+        FilterRegistrationBean<HttpRateLimitFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -68,6 +79,9 @@ public class SecurityConfig {
                         // All other endpoints require an authenticated JWT
                         .anyRequest().authenticated()
                 )
+
+                // Protect endpoints early against request/auth floods while preserving CORS headers
+                .addFilterAfter(httpRateLimitFilter, CorsFilter.class)
 
                 // Plug in our JWT filter before Spring's UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

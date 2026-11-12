@@ -10,7 +10,6 @@ import com.farmshift.backendFarmShift.repository.CycleExpenseRepository;
 import com.farmshift.backendFarmShift.repository.DailyTaskLogRepository;
 import com.farmshift.backendFarmShift.repository.FeedRecordRepository;
 import com.farmshift.backendFarmShift.repository.WeightSampleRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +18,6 @@ import static com.farmshift.backendFarmShift.service.CycleService.clean;
 
 /** Nhật ký hằng ngày của lứa: cám, cân mẫu, khoản chi bổ sung. Chỉ ghi được khi lứa đang nuôi. */
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class CycleRecordService {
     private final CycleService cycleService;
@@ -27,6 +25,16 @@ public class CycleRecordService {
     private final WeightSampleRepository weightRepository;
     private final CycleExpenseRepository expenseRepository;
     private final DailyTaskLogRepository taskLogRepository;
+
+    public CycleRecordService(CycleService cycleService, FeedRecordRepository feedRepository,
+                              WeightSampleRepository weightRepository, CycleExpenseRepository expenseRepository,
+                              DailyTaskLogRepository taskLogRepository) {
+        this.cycleService = cycleService;
+        this.feedRepository = feedRepository;
+        this.weightRepository = weightRepository;
+        this.expenseRepository = expenseRepository;
+        this.taskLogRepository = taskLogRepository;
+    }
 
     /** Dữ liệu sinh ra khi xác nhận phiếu việc phải hoàn tác ở phiếu việc để tồn kho được hoàn lại cùng lúc. */
     private static ConflictException fromDailyPlan(String label) {
@@ -84,13 +92,15 @@ public class CycleRecordService {
         expense.setAmount(request.amount());
         expense.setNote(clean(request.note()));
         expense.setCreatedBy(user);
-        return expenseRepository.save(expense).getId();
+        CycleExpense saved = expenseRepository.saveAndFlush(expense);
+        return saved.getId();
     }
 
     public void deleteExpense(Long cycleId, Long id) {
         cycleService.requireActive(cycleId);
         if (taskLogRepository.existsByExpenseId(id)) throw fromDailyPlan("Khoản chi");
-        expenseRepository.delete(expenseRepository.findByIdAndCycleId(id, cycleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khoản chi.")));
+        CycleExpense existing = expenseRepository.findByIdAndCycleId(id, cycleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khoản chi."));
+        expenseRepository.delete(existing);
     }
 }

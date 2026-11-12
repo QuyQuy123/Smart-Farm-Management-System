@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Tier 1: Pure Screen Navigation Command Handler (<5ms execution).
- * Resolves natural language commands like "mở ghi nhật ký", "xem sổ quỹ", "qua kho hàng".
+ * Resolves natural language commands like "mở ghi nhật ký", "xem báo cáo", "qua kho hàng".
  */
 @Slf4j
 @Component

@@ -101,7 +101,51 @@ class InventoryItemIntegrationTest {
     void workerCanReadButCannotWrite() throws Exception {
         mvc.perform(get(API).param("warehouseId", warehouseId.toString())).andExpect(status().isOk());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of()))).andExpect(status().isForbidden());
+        mvc.perform(patch(API + "/1/min-stock").contentType(MediaType.APPLICATION_JSON).content("{\"minStock\":10}")).andExpect(status().isForbidden());
         mvc.perform(delete(API + "/1")).andExpect(status().isForbidden());
+    }
+    @Test @WithMockUser(authorities={"ROLE_FARM_OWNER", "ROLE_ACCOUNTANT"})
+    void persistsLotExpiryMinStockAndComputesLowStockAndExpiryAlerts() throws Exception {
+        java.time.LocalDate nearDate = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Bangkok")).plusDays(10);
+        java.time.LocalDate expiredDate = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Bangkok")).minusDays(2);
+        var created = mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of(
+                "name", "Vắc-xin kiểm thử",
+                "lotNumber", "LOT-VX-01",
+                "expiryDate", nearDate.toString(),
+                "minStock", 20
+        ))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.lotNumber").value("LOT-VX-01"))
+            .andExpect(jsonPath("$.data.expiryDate").value(nearDate.toString()))
+            .andExpect(jsonPath("$.data.minStock").value(20))
+            .andExpect(jsonPath("$.data.lowStock").value(true))
+            .andExpect(jsonPath("$.data.expiryStatus").value("NEAR_EXPIRY"))
+            .andReturn();
+        long vxId = mapper.readTree(created.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        // Raise stock above minStock via repository and update minStock via PATCH (INV-06)
+        var vx = inventory.findById(vxId).orElseThrow();
+        vx.setStock(new BigDecimal("25"));
+        inventory.saveAndFlush(vx);
+
+        mvc.perform(patch(API + "/" + vxId + "/min-stock").contentType(MediaType.APPLICATION_JSON).content("{\"minStock\":30}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.minStock").value(30))
+            .andExpect(jsonPath("$.data.lowStock").value(true));
+
+        // Add expired item in same warehouse
+        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of(
+                "name", "Thuốc hết hạn",
+                "lotNumber", "LOT-EXP-99",
+                "expiryDate", expiredDate.toString(),
+                "minStock", 5
+        )))).andExpect(status().isCreated()).andExpect(jsonPath("$.data.expiryStatus").value("EXPIRED"));
+
+        mvc.perform(get(API + "/alerts").param("warehouseId", warehouseId.toString()).param("expiryDays", "30"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.lowStockCount").value(2))
+            .andExpect(jsonPath("$.data.nearExpiryCount").value(1))
+            .andExpect(jsonPath("$.data.expiredCount").value(1));
     }
     @Test void anonymousCannotRead() throws Exception { mvc.perform(get(API).param("warehouseId", warehouseId.toString())).andExpect(status().is4xxClientError()); }
 }

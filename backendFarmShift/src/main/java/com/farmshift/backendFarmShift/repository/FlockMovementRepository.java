@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FlockMovementRepository extends JpaRepository<FlockMovement, Long> {
+    @EntityGraph(attributePaths = {"flock", "flock.cycle"})
+    List<FlockMovement> findAllByOrderByMovementDateAscIdAsc();
+
     @EntityGraph(attributePaths = {"flock", "relatedFlock"})
     List<FlockMovement> findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(Long cycleId);
 

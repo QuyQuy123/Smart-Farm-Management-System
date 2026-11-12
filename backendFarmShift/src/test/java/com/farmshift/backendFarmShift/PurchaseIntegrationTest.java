@@ -540,4 +540,19 @@ class PurchaseIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("OCR_NOT_INVOICE"));
     }
+
+    @Test
+    void testCreatePurchaseInvoiceRejectsUnsafeAttachmentUrlScheme() throws Exception {
+        var items = List.of(
+                new PurchaseInvoiceItemRequest(null, "Cám Higro 01", 5.0, "Bao (25kg)", 345000L, 0.0)
+        );
+        var req = new PurchaseInvoiceRequest(
+                supplierId, null, LocalDate.now(), items, 0L, 0L, 0L,
+                "Trả sau", "Chưa nhập kho", null, null, "javascript:alert(1)", null
+        );
+        mvc.perform(post("/api/purchases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
 }

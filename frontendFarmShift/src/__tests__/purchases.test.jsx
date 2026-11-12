@@ -8,6 +8,7 @@ import * as purchaseService from '../services/purchaseService';
 import * as supplierService from '../services/supplierService';
 import * as productTypeService from '../services/productTypeService';
 import * as productCategoryService from '../services/inventoryItemService';
+import * as debtService from '../services/debtService';
 
 const mockToast = vi.fn();
 const mockUser = { role: 'ROLE_FARM_OWNER', fullName: 'Chủ Trại Test' };
@@ -49,6 +50,11 @@ vi.mock('../services/measurementUnitService', () => ({ listMeasurementUnits: asy
 
 vi.mock('../services/inventoryItemService', () => ({
   listAllInventoryItems: vi.fn()
+}));
+
+vi.mock('../services/debtService', () => ({
+  getDebtSummary: vi.fn(),
+  getSupplierDebtHistory: vi.fn()
 }));
 
 const originalShowModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
@@ -244,6 +250,32 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
 
     productTypeService.listProductTypes.mockResolvedValue([...mockProductTypes]);
     productCategoryService.listAllInventoryItems.mockResolvedValue([...mockProductCategories]);
+    debtService.getDebtSummary.mockResolvedValue({
+      totalSupplierPayable: 48250000,
+      unpaidSupplierCount: 1,
+      totalCustomerReceivable: 15000000,
+      unpaidCustomerCount: 1,
+      netDebtPosition: -33250000,
+      supplierPayables: [
+        { supplierId: 1, supplierName: 'Công ty CP Chăn nuôi C.P. Việt Nam', phone: '0283836789', paymentPolicy: 'Trả sau', totalPurchased: 180750000, totalPaid: 132500000, remainingDebt: 48250000, openInvoiceCount: 1 }
+      ],
+      customerReceivables: [
+        { customerId: 10, customerName: 'Thương lái Minh', phone: '0911222333', totalBought: 60000000, totalPaid: 45000000, remainingDebt: 15000000, openOrderCount: 1 }
+      ]
+    });
+    debtService.getSupplierDebtHistory.mockResolvedValue({
+      supplierId: 1,
+      supplierName: 'Công ty CP Chăn nuôi C.P. Việt Nam',
+      email: 'cp@cp.vn',
+      taxCode: '0300645678',
+      totalPurchased: 180750000,
+      totalPaid: 132500000,
+      currentDebt: 48250000,
+      ledger: [
+        { entryType: 'PURCHASE_INVOICE', date: '2026-10-02', referenceCode: 'NH000003', description: 'Nhập đợt bổ sung cám', debitAmount: 68250000, creditAmount: 0, runningBalance: 68250000 },
+        { entryType: 'PAYMENT', date: '2026-10-05', referenceCode: 'TT-NH000003', description: 'Trả trước đợt 1', debitAmount: 0, creditAmount: 20000000, runningBalance: 48250000 }
+      ]
+    });
   });
 
   afterEach(() => {
@@ -1050,6 +1082,54 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       // PO modal is still open and the supplier select now has the newly created supplier selected
       const supplierSelect = screen.getByLabelText(/Nhà cung cấp \*/i);
       expect(supplierSelect.value).toBe('99');
+    });
+  });
+
+  describe('Tab Công nợ & Chứng từ đính kèm (FIN-10, FIN-14, FIN-17, FIN-18)', () => {
+    it('displays unified debt summary tab and opens supplier ledger modal', async () => {
+      render(
+        <MemoryRouter>
+          <PurchasesView />
+        </MemoryRouter>
+      );
+      await screen.findByText('NH000000');
+
+      const debtTabBtn = screen.getByRole('button', { name: /Công nợ/i });
+      fireEvent.click(debtTabBtn);
+
+      expect(await screen.findByText('TỔNG NỢ PHẢI TRẢ NHÀ CUNG CẤP')).toBeInTheDocument();
+      expect(screen.getByText('TỔNG NỢ PHẢI THU KHÁCH HÀNG')).toBeInTheDocument();
+      expect(screen.getByText('Thương lái Minh')).toBeInTheDocument();
+
+      const viewLedgerBtn = screen.getByRole('button', { name: /Xem sổ nợ/i });
+      fireEvent.click(viewLedgerBtn);
+
+      expect(await screen.findByText('cp@cp.vn')).toBeInTheDocument();
+      expect(screen.getByText('TT-NH000003')).toBeInTheDocument();
+    });
+
+    it('renders lot/expiry info and scanned invoice attachment inside PO detail modal (FIN-14, INV-05)', async () => {
+      const detailedOrder = {
+        ...mockPurchases[0],
+        attachmentUrl: '/img/purchases/scanned-po.png',
+        items: [
+          { name: 'Cám Giai đoạn 1 (Úm)', qty: 200, unit: 'Bao 25kg', price: 320000, amount: 64000000, lotNumber: 'LOT-CP-2026', expiryDate: '2027-02-15' }
+        ]
+      };
+      purchaseService.listPurchases.mockResolvedValueOnce([detailedOrder, ...mockPurchases.slice(1)]);
+      purchaseService.getPurchase.mockResolvedValueOnce(detailedOrder);
+
+      render(
+        <MemoryRouter>
+          <PurchasesView />
+        </MemoryRouter>
+      );
+      await screen.findByText('NH000000');
+      fireEvent.click(screen.getByRole('button', { name: 'Xem hóa đơn NH000000' }));
+
+      expect(await screen.findByText('Thông tin Lô hàng & Hạn sử dụng (INV-05)')).toBeInTheDocument();
+      expect(screen.getByText('LOT-CP-2026')).toBeInTheDocument();
+      expect(screen.getByAltText('Ảnh chứng từ NH000000')).toHaveAttribute('src', '/img/purchases/scanned-po.png');
     });
   });
 });

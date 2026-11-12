@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AreasView } from '../features/farmshift/AreasView';
 import * as service from '../services/farmAreaService';
+import { listWarehouseCategories } from '../services/warehouseCategoryService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
@@ -13,6 +14,7 @@ vi.mock('../services/farmAreaService', () => ({
   listFarmAreas: vi.fn(), getFarmArea: vi.fn(), createFarmArea: vi.fn(), updateFarmArea: vi.fn(), deleteFarmArea: vi.fn(),
   listBarns: vi.fn(), createBarn: vi.fn(), updateBarn: vi.fn(), deleteBarn: vi.fn(),
 }));
+vi.mock('../services/warehouseCategoryService', () => ({ listWarehouseCategories: vi.fn() }));
 
 const originalShow = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
 const originalClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close');
@@ -48,6 +50,10 @@ describe('Farm area management', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.role = 'ROLE_FARM_OWNER';
+    listWarehouseCategories.mockResolvedValue([
+      { id: 31, name: 'Kho Cám A', areaName: 'Khu A' },
+      { id: 32, name: 'Kho Thuốc A', areaName: 'Khu A' },
+    ]);
     areas = [
       area(1, 'Khu Mía Thịt', { barnCount: 2, activeBarnCount: 2, animalCount: 90000, totalCapacity: 100000 }),
       area(2, 'Khu đông tảo'),
@@ -79,7 +85,7 @@ describe('Farm area management', () => {
     expect(service.createFarmArea).not.toHaveBeenCalled();
 
     fireEvent.change(within(dialog).getByLabelText(/Tên khu nuôi/), { target: { value: '  Khu A  ' } });
-    expect(within(dialog).getByLabelText(/Kho hàng sử dụng/)).toHaveValue('');
+    expect(within(dialog).getByRole('checkbox', { name: /Tự động tạo kho mới/ })).toBeChecked();
     expect(within(dialog).queryByLabelText(/Loại vật nuôi/)).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/Số bữa ăn/)).not.toBeInTheDocument();
     // Tracked metrics are built in, so the form no longer asks for them and sends the defaults.
@@ -89,9 +95,25 @@ describe('Farm area management', () => {
     await screen.findByRole('link', { name: 'Khu A' });
     expect(service.createFarmArea).toHaveBeenCalledWith({
       name: 'Khu A', environmentMetrics: ['HUMIDITY', 'TEMPERATURE'],
-      animalMetrics: ['WEIGHT', 'LOSS'], description: '', warehouseId: null,
+      animalMetrics: ['WEIGHT', 'LOSS'], description: '', warehouseIds: [],
     });
     expect(mocks.showToast).toHaveBeenCalledWith('Đã thêm khu nuôi Khu A.', 'success');
+  });
+
+  it('selects multiple shared warehouses with checkboxes', async () => {
+    renderAt('/areas');
+    fireEvent.click(await screen.findByRole('button', { name: 'Tạo khu nuôi' }));
+    const dialog = await screen.findByRole('dialog');
+    const group = within(dialog).getByRole('group', { name: 'Kho hàng sử dụng' });
+    fireEvent.change(within(dialog).getByLabelText(/Tên khu nuôi/), { target: { value: 'Khu B' } });
+    const feed = await within(group).findByRole('checkbox', { name: /Kho Cám A/ });
+    const medicine = within(group).getByRole('checkbox', { name: /Kho Thuốc A/ });
+    fireEvent.click(feed);
+    fireEvent.click(medicine);
+    expect(within(dialog).getByText('Đã chọn 2 kho. Khu nuôi này sẽ dùng chung các kho đã chọn.')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
+    await screen.findByRole('link', { name: 'Khu B' });
+    expect(service.createFarmArea).toHaveBeenCalledWith(expect.objectContaining({ warehouseIds: [31, 32] }));
   });
 
   it('displays the area list cleanly without column filter row and without redundant back button', async () => {

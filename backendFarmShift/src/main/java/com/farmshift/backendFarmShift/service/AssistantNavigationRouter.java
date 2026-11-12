@@ -49,8 +49,6 @@ public final class AssistantNavigationRouter {
                     "danh sach nha cung cap", "trang nha cung cap", "nha cung cap", "cong no nha cung cap")),
             new Entry("/sales", "Quản lý bán hàng", List.of(
                     "quan ly ban hang", "trang ban hang", "hoa don ban", "ban hang", "xuat ban", "phieu xuat ban", "doanh thu ban hang")),
-            new Entry("/cashbook", "Sổ quỹ & Dòng tiền", List.of(
-                    "so quy dong tien", "so quy", "quy tien mat", "dong tien", "thu chi", "so thu chi", "quy tien")),
             new Entry("/account", "Tài khoản & Nhân sự", List.of(
                     "tai khoan nhan su", "quan ly nguoi dung", "phan quyen", "tai khoan", "nhan su", "nhan vien", "ho so ca nhan", "ho so")),
             new Entry("/reports", "Báo cáo & Thống kê", List.of(
@@ -135,7 +133,7 @@ public final class AssistantNavigationRouter {
         if (stripped.matches("^(?:man hinh|trang)\\s+.+")) {
             return stripped.replaceFirst("^(?:man hinh|trang)\\s+", "");
         }
-        // Câu chỉ gồm tên màn hình, ví dụ "ghi nhật ký", "sổ quỹ".
+        // Câu chỉ gồm tên màn hình, ví dụ "ghi nhật ký", "kho hàng".
         if (isExactScreenName(stripped)) return stripped;
         return null;
     }

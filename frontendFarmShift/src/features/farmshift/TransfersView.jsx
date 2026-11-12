@@ -215,7 +215,6 @@ export const TransfersView = () => {
                 <option value="ALL">Tất cả loại phiếu</option>
                 <option value="Xuất kho">Xuất kho</option>
                 <option value="Chuyển kho">Chuyển kho</option>
-                <option value="Nhập kho">Nhập kho</option>
               </select>
 
               <select
@@ -307,8 +306,7 @@ export const TransfersView = () => {
                     >
                       <option value="Xuất kho">Xuất kho sử dụng</option>
                       <option value="Chuyển kho">Chuyển kho nội bộ</option>
-                      <option value="Nhập kho">Nhập cân bằng kho</option>
-                      {[...new Set(categories.map(c => TRANSFER_TYPES[c.type] || c.type))].filter(type => !['Nhập kho', 'Xuất kho', 'Chuyển kho'].includes(type)).map(type => <option key={type} value={type}>{type}</option>)}
+                      {[...new Set(categories.map(c => TRANSFER_TYPES[c.type] || c.type))].filter(type => !['Xuất kho', 'Chuyển kho'].includes(type)).map(type => <option key={type} value={type}>{type}</option>)}
                     </select>
                   </div>
                   <div className="farmshift-form-group">

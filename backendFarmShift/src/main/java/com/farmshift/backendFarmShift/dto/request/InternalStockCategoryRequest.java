@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 
 public record InternalStockCategoryRequest(
     @NotBlank(message = "Loại phiếu không được để trống")
-    @Pattern(regexp = "IMPORT|EXPORT|TRANSFER", message = "Loại phiếu phải là IMPORT, EXPORT hoặc TRANSFER")
+    @Pattern(regexp = "EXPORT|TRANSFER", message = "Loại phiếu phải là EXPORT hoặc TRANSFER")
     String movementType,
 
     @NotBlank(message = "Tên danh mục không được để trống")

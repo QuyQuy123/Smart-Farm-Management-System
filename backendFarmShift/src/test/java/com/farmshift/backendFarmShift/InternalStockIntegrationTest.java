@@ -110,75 +110,47 @@ class InternalStockIntegrationTest {
     void defaultSeedCategoriesExistWithVoucherCount() throws Exception {
         mvc.perform(get("/api/internal-stock/categories"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(greaterThanOrEqualTo(3))))
-                .andExpect(jsonPath("$.data[*].name", hasItems("Nhập đầu kì", "Xuất hủy", "Chuyển kho nội bộ")))
+                .andExpect(jsonPath("$.data", hasSize(5)))
+                .andExpect(jsonPath("$.data[*].name", hasItems("Xuất hủy", "Chuyển kho nội bộ", "Xuất hao hụt kiểm kê", "Xuất vật tư tiêu hao", "Chuyển sang kho đệm chuồng")))
+                .andExpect(jsonPath("$.data[*].movementType", everyItem(anyOf(is("EXPORT"), is("TRANSFER")))))
                 .andExpect(jsonPath("$.data[0].voucherCount").value(greaterThanOrEqualTo(0)));
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_FARM_OWNER")
-    void importCreatesAndIncrementsStock() throws Exception {
-        InternalStockCategory importCat = categoryRepository.findByNameKey("nhập đầu kì").orElseThrow();
-
-        InternalStockVoucherRequest req = new InternalStockVoucherRequest(
+    void rejectsImportMovementTypeForCategoriesAndVouchers() throws Exception {
+        InternalStockCategoryRequest catReq = new InternalStockCategoryRequest(
                 "IMPORT",
-                importCat.getId(),
-                null,
-                warehouseFeed.getId(),
-                null,
-                LocalDate.now(),
-                "Nhập 50 bao cám đầu kỳ",
-                null,
-                List.of(new InternalStockVoucherItemRequest(
-                        productHigro.getId(),
-                        null,
-                        new BigDecimal("50.000"),
-                        new BigDecimal("350000"),
-                        "Lô test 1"
-                ))
+                "Nhập đầu kì",
+                "Không còn hỗ trợ nhập kho nội bộ"
         );
-
-        var result = mvc.perform(post("/api/internal-stock/vouchers")
+        mvc.perform(post("/api/internal-stock/categories")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(mapper.writeValueAsString(req)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.code", startsWith("XNB")))
-                .andExpect(jsonPath("$.data.movementType").value("IMPORT"))
-                .andExpect(jsonPath("$.data.totalAmount").value(17500000))
-                .andReturn();
+                        .content(mapper.writeValueAsString(catReq)))
+                .andExpect(status().isBadRequest());
 
-        em.clear();
-        InventoryItem item = inventoryItemRepository
-                .findByWarehouse_IdAndProduct_Id(warehouseFeed.getId(), productHigro.getId())
-                .orElseThrow();
-        assertEquals(0, new BigDecimal("50.000").compareTo(item.getStock()));
-
-        // Nhập thêm 20 bao nữa
-        InternalStockVoucherRequest req2 = new InternalStockVoucherRequest(
+        InternalStockCategory exportCat = categoryRepository.findByNameKey("xuất hủy").orElseThrow();
+        InternalStockVoucherRequest voucherReq = new InternalStockVoucherRequest(
                 "IMPORT",
-                importCat.getId(),
+                exportCat.getId(),
                 null,
                 warehouseFeed.getId(),
                 null,
                 LocalDate.now(),
-                "Nhập thêm",
+                "Thử tạo phiếu IMPORT",
                 null,
                 List.of(new InternalStockVoucherItemRequest(
                         productHigro.getId(),
                         null,
-                        new BigDecimal("20.000"),
-                        new BigDecimal("350000"),
+                        new BigDecimal("10.000"),
+                        new BigDecimal("200000"),
                         null
                 ))
         );
         mvc.perform(post("/api/internal-stock/vouchers")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(mapper.writeValueAsString(req2)))
-                .andExpect(status().isCreated());
-
-        em.clear();
-        item = inventoryItemRepository.findById(item.getId()).orElseThrow();
-        assertEquals(0, new BigDecimal("70.000").compareTo(item.getStock()));
+                        .content(mapper.writeValueAsString(voucherReq)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -297,16 +269,16 @@ class InternalStockIntegrationTest {
     @Test
     @WithMockUser(authorities = "ROLE_FARM_WORKER")
     void workerForbiddenFromCreatingVoucherAndFinanceHiddenInRead() throws Exception {
-        InternalStockCategory importCat = categoryRepository.findByNameKey("nhập đầu kì").orElseThrow();
+        InternalStockCategory exportCat = categoryRepository.findByNameKey("xuất hủy").orElseThrow();
 
         InternalStockVoucherRequest req = new InternalStockVoucherRequest(
-                "IMPORT",
-                importCat.getId(),
-                null,
+                "EXPORT",
+                exportCat.getId(),
                 warehouseFeed.getId(),
                 null,
+                null,
                 LocalDate.now(),
-                "Công nhân thử nhập",
+                "Công nhân thử xuất",
                 null,
                 List.of(new InternalStockVoucherItemRequest(
                         productHigro.getId(),
@@ -332,21 +304,29 @@ class InternalStockIntegrationTest {
     @Test
     @WithMockUser(authorities = "ROLE_FARM_OWNER")
     void voucherCancellationRestoresStock() throws Exception {
-        InternalStockCategory importCat = categoryRepository.findByNameKey("nhập đầu kì").orElseThrow();
+        InternalStockCategory exportCat = categoryRepository.findByNameKey("xuất hủy").orElseThrow();
+
+        InventoryItem stockItem = new InventoryItem();
+        stockItem.setWarehouse(warehouseFeed);
+        stockItem.setProduct(productHigro);
+        stockItem.setStock(new BigDecimal("25.000"));
+        stockItem.setPrice(new BigDecimal("100000"));
+        stockItem = inventoryItemRepository.saveAndFlush(stockItem);
 
         InternalStockVoucherRequest req = new InternalStockVoucherRequest(
-                "IMPORT",
-                importCat.getId(),
-                null,
+                "EXPORT",
+                exportCat.getId(),
                 warehouseFeed.getId(),
                 null,
+                null,
                 LocalDate.now(),
-                "Nhập để hủy test",
+                "Xuất để hủy test",
                 null,
                 List.of(new InternalStockVoucherItemRequest(
                         productHigro.getId(),
+                        stockItem.getId(),
                         null,
-                        new BigDecimal("25.000"),
+                        new BigDecimal("10.000"),
                         new BigDecimal("100000"),
                         null
                 ))
@@ -361,18 +341,17 @@ class InternalStockIntegrationTest {
         long voucherId = mapper.readTree(res.getResponse().getContentAsString()).path("data").path("id").asLong();
 
         em.clear();
-        InventoryItem item = inventoryItemRepository
-                .findByWarehouse_IdAndProduct_Id(warehouseFeed.getId(), productHigro.getId()).orElseThrow();
-        assertEquals(0, new BigDecimal("25.000").compareTo(item.getStock()));
+        InventoryItem item = inventoryItemRepository.findById(stockItem.getId()).orElseThrow();
+        assertEquals(0, new BigDecimal("15.000").compareTo(item.getStock()));
 
-        // Hủy phiếu -> tồn kho giảm về 0
+        // Hủy phiếu -> tồn kho hoàn lại 25
         mvc.perform(post("/api/internal-stock/vouchers/" + voucherId + "/cancel"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"));
 
         em.clear();
-        item = inventoryItemRepository.findById(item.getId()).orElseThrow();
-        assertEquals(0, BigDecimal.ZERO.compareTo(item.getStock()));
+        item = inventoryItemRepository.findById(stockItem.getId()).orElseThrow();
+        assertEquals(0, new BigDecimal("25.000").compareTo(item.getStock()));
     }
 
     @Test

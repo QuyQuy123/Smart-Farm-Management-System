@@ -139,12 +139,15 @@ public class FarmAreaService {
                 selectedWarehouseIds.add(request.warehouseId());
             }
 
-            if (!selectedWarehouseIds.isEmpty()) {
+            if (request.warehouseIds() != null || request.warehouseId() != null) {
                 List<com.farmshift.backendFarmShift.entity.WarehouseCategory> oldLinked = warehouseCategoryRepository.findAllByArea_Id(saved.getId());
                 for (com.farmshift.backendFarmShift.entity.WarehouseCategory old : oldLinked) {
-                    if (!selectedWarehouseIds.contains(old.getId()) && old.getArea() != null && old.getArea().getId().equals(saved.getId())) {
-                        old.setArea(null);
-                        warehouseCategoryRepository.save(old);
+                    if (!selectedWarehouseIds.contains(old.getId())) {
+                        if (old.getArea() != null && old.getArea().getId().equals(saved.getId())) {
+                            old.setArea(null);
+                            warehouseCategoryRepository.save(old);
+                        }
+                        saved.getWarehouses().remove(old);
                     }
                 }
                 List<com.farmshift.backendFarmShift.entity.WarehouseCategory> chosen = warehouseCategoryRepository.findAllById(selectedWarehouseIds);
@@ -154,6 +157,10 @@ public class FarmAreaService {
                 saved.getWarehouses().clear();
                 saved.getWarehouses().addAll(chosen);
                 saved = repository.saveAndFlush(saved);
+                if (selectedWarehouseIds.isEmpty()) {
+                    // An explicit empty list requests the default dedicated feed and medicine warehouses.
+                    areaWarehouses.ensure(saved);
+                }
             } else {
                 // Mặc định: Mỗi khu có kho cám và kho thuốc riêng; đổi tên khu thì đổi tên kho theo.
                 if (created || saved.getWarehouses() == null || saved.getWarehouses().isEmpty()) {

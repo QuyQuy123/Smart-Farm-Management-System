@@ -293,7 +293,6 @@ export const AIChatbot = ({ userRole: propRole }) => {
     if (!raw) return '';
     return raw
       .replace(/\bnhật\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)\b/giu, 'nhật ký')
-      .replace(/\b(?:sổ|số|xổ)\s+(?:quỷ|quĩ|quý|quỹ|qũy|quỳ)\b/giu, 'sổ quỹ')
       .replace(/\b(?:cần\s+mẫu|cân\s+mẩu)\b/giu, 'cân mẫu')
       .replace(/\bhao\s+hục\b/giu, 'hao hụt')
       .replace(/\bthải\s+lọai\b/giu, 'thải loại')
@@ -474,7 +473,7 @@ export const AIChatbot = ({ userRole: propRole }) => {
       case 'LOG_MORTALITY':
         return { route: '/journal?tab=loss', label: 'Xem Hao hụt chuồng' };
       case 'LOG_EXPENSE':
-        return { route: '/cashbook', label: 'Xem Sổ quỹ chi phí' };
+        return { route: '/barns', label: 'Xem Chi phí lứa nuôi' };
       case 'COMPLETE_DAILY_TASKS':
         return { route: '/today-tasks', label: 'Xem Việc hôm nay' };
       case 'IMPORT_PURCHASE_STOCK':

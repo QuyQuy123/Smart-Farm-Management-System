@@ -3,12 +3,14 @@ package com.farmshift.backendFarmShift.repository;
 import com.farmshift.backendFarmShift.entity.InternalStockVoucher;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import java.util.List;
 import java.util.Optional;
 
 public interface InternalStockVoucherRepository extends JpaRepository<InternalStockVoucher, Long>, JpaSpecificationExecutor<InternalStockVoucher> {
     Optional<InternalStockVoucher> findByCode(String code);
     boolean existsByCode(String code);
     long countByCategory_IdAndStatusNot(Long categoryId, String status);
+    boolean existsByCategory_Id(Long categoryId);
     boolean existsBySourceWarehouse_IdOrTargetWarehouse_Id(Long sourceWarehouseId, Long targetWarehouseId);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {
@@ -17,4 +19,11 @@ public interface InternalStockVoucherRepository extends JpaRepository<InternalSt
     })
     @org.springframework.data.jpa.repository.Query("SELECT v FROM InternalStockVoucher v WHERE v.id = :id")
     Optional<InternalStockVoucher> findWithDetailsById(@org.springframework.data.repository.query.Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {
+            "category", "sourceWarehouse", "targetWarehouse", "cycle", "cycle.barn",
+            "items", "items.product", "items.unit"
+    })
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT v FROM InternalStockVoucher v ORDER BY v.movementDate DESC, v.id DESC")
+    List<InternalStockVoucher> findAllWithDetailsForReport();
 }

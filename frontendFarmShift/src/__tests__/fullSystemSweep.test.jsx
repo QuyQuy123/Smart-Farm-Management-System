@@ -14,7 +14,6 @@ import { InventoryView } from '../features/farmshift/InventoryView';
 import { PurchasesView } from '../features/farmshift/PurchasesView';
 import { SalesView } from '../features/farmshift/SalesView';
 import { TransfersView } from '../features/farmshift/TransfersView';
-import { CashbookView } from '../features/farmshift/CashbookView';
 import { ReportsView } from '../features/farmshift/ReportsView';
 import { CatalogSettingsView } from '../features/farmshift/CatalogSettingsView';
 import { BreedingSettingsView } from '../features/farmshift/BreedingSettingsView';
@@ -154,7 +153,6 @@ describe('Full-System Automated Crawler & Smoke Sweep Test', () => {
       { name: 'PurchasesView', component: <PurchasesView /> },
       { name: 'SalesView', component: <SalesView /> },
       { name: 'TransfersView', component: <TransfersView /> },
-      { name: 'CashbookView', component: <CashbookView /> },
       { name: 'ReportsView', component: <ReportsView /> },
       { name: 'CatalogSettingsView', component: <CatalogSettingsView /> },
       { name: 'BreedingSettingsView', component: <BreedingSettingsView /> },
@@ -225,7 +223,6 @@ describe('Full-System Automated Crawler & Smoke Sweep Test', () => {
   // ── 4. Tab Crawler trên các View có Sub-Tabs khác ───────────────────────────
   describe('Phase 4: Generic Sub-Tab Crawler across Complex Views', () => {
     const multiTabViews = [
-      { name: 'CashbookView', component: <CashbookView /> },
       { name: 'CatalogSettingsView', component: <CatalogSettingsView /> },
       { name: 'BreedingSettingsView', component: <BreedingSettingsView /> },
       { name: 'GeneralSettingsView', component: <GeneralSettingsView /> },
@@ -274,7 +271,6 @@ describe('Full-System Automated Crawler & Smoke Sweep Test', () => {
       '/transfers',
       '/purchases',
       '/sales',
-      '/cashbook',
       '/account',
       '/reports',
       '/catalog-settings',

@@ -97,5 +97,20 @@ class SupplierIntegrationTest {
         mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload("A", "0912345678", groupId))).andExpect(status().isForbidden());
         mvc.perform(delete("/api/suppliers/1")).andExpect(status().isForbidden());
     }
+    @Test @WithMockUser(authorities="ROLE_ACCOUNTANT")
+    void accountantCanCreateUpdateAndReadDebtHistoryButCannotDelete() throws Exception {
+        var created = mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload("NCC Kế Toán", "0912345678", groupId)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.name").value("NCC Kế Toán"))
+            .andReturn();
+        long id = mapper.readTree(created.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mvc.perform(put("/api/suppliers/" + id).contentType(MediaType.APPLICATION_JSON).content(payload("NCC Kế Toán Cập Nhật", "0987654321", groupId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.name").value("NCC Kế Toán Cập Nhật"));
+        mvc.perform(get("/api/suppliers/" + id + "/debt-history"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.supplierId").value(id));
+        mvc.perform(delete("/api/suppliers/" + id)).andExpect(status().isForbidden());
+    }
     @Test void anonymousCannotRead() throws Exception { mvc.perform(get("/api/suppliers")).andExpect(status().is4xxClientError()); }
 }

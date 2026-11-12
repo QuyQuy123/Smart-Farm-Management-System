@@ -68,6 +68,7 @@ public class PurchaseInvoice {
     private Flock flock;
 
     @ManyToMany(fetch = FetchType.LAZY)
+    @org.hibernate.annotations.BatchSize(size = 50)
     @JoinTable(
         name = "purchase_invoice_tag_mappings",
         joinColumns = @JoinColumn(name = "invoice_id"),
@@ -76,6 +77,7 @@ public class PurchaseInvoice {
     private Set<PurchaseTag> tags = new HashSet<>();
 
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
+    @org.hibernate.annotations.BatchSize(size = 50)
     private List<PurchaseInvoiceItem> items = new ArrayList<>();
 
     @CreationTimestamp

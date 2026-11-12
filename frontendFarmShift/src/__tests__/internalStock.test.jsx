@@ -44,7 +44,7 @@ vi.mock('../services/internalStockService', () => ({
   getInternalStockVoucher: vi.fn(),
   createInternalStockVoucher: vi.fn(),
   cancelInternalStockVoucher: vi.fn(),
-  INTERNAL_STOCK_TYPES: { IMPORT: 'Nhập kho', EXPORT: 'Xuất kho', TRANSFER: 'Chuyển kho' },
+  INTERNAL_STOCK_TYPES: { EXPORT: 'Xuất kho', TRANSFER: 'Chuyển kho' },
   INTERNAL_STOCK_STATUS: { COMPLETED: 'Đã hoàn thành', CANCELLED: 'Đã hủy' }
 }));
 
@@ -65,7 +65,6 @@ beforeAll(() => {
 describe('InternalStockView workspace', () => {
   const sampleCategories = [
     { id: 1, movementType: 'EXPORT', name: 'Xuất hủy', isSystem: true, voucherCount: 2, createdAt: '2026-10-19T08:00:00' },
-    { id: 2, movementType: 'IMPORT', name: 'Nhập đầu kì', isSystem: true, voucherCount: 0, createdAt: '2026-10-19T08:00:00' },
     { id: 3, movementType: 'TRANSFER', name: 'Chuyển kho nội bộ', isSystem: true, voucherCount: 1, createdAt: '2026-10-19T08:00:00' }
   ];
 
@@ -184,16 +183,22 @@ describe('InternalStockView workspace', () => {
     });
   });
 
-  it('navigates to Tab 3 (Danh mục) and displays categories with system badge', async () => {
+  it('navigates to Tab 3 (Danh mục) and displays only EXPORT and TRANSFER options without IMPORT', async () => {
     render(<InternalStockView />);
+
+    // Filter dropdown in Tab 2 should not contain Nhập kho
+    const filterSelect = screen.getByLabelText(/Lọc theo loại phiếu/i);
+    expect(within(filterSelect).queryByText('Nhập kho')).not.toBeInTheDocument();
+    expect(within(filterSelect).getByText('Xuất kho')).toBeInTheDocument();
+    expect(within(filterSelect).getByText('Chuyển kho')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Danh mục/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Xuất hủy')).toBeInTheDocument();
-      expect(screen.getByText('Nhập đầu kì')).toBeInTheDocument();
       expect(screen.getByText('Chuyển kho nội bộ')).toBeInTheDocument();
     });
+    expect(screen.queryByText('Nhập đầu kì')).not.toBeInTheDocument();
 
     // System badge should be visible for system categories
     const systemBadges = screen.getAllByText('Hệ thống');
@@ -202,6 +207,12 @@ describe('InternalStockView workspace', () => {
     // Delete button for system category should be disabled
     const deleteBtn = screen.getByRole('button', { name: /Xóa Xuất hủy/i });
     expect(deleteBtn).toBeDisabled();
+
+    // Category creation modal should only expose EXPORT and TRANSFER
+    fireEvent.click(screen.getByRole('button', { name: /Thêm lý do mới/i }));
+    const catTypeSelect = screen.getByLabelText(/Áp dụng cho loại phiếu/i);
+    const options = within(catTypeSelect).getAllByRole('option');
+    expect(options.map(o => o.value)).toEqual(['EXPORT', 'TRANSFER']);
   });
 
   it('renders PrintableInternalVoucher with standard A4 header and items', () => {

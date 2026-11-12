@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FlockRepository extends JpaRepository<Flock, Long> {
+    @EntityGraph(attributePaths = {"cycle", "program", "supplier"})
+    List<Flock> findAllByOrderByImportDateAscIdAsc();
+
     List<Flock> findAllByCycleIdOrderByImportDateAscIdAsc(Long cycleId);
     boolean existsByProgramId(Long programId);
     boolean existsBySupplierId(Long supplierId);

@@ -11,7 +11,7 @@ import java.util.List;
 
 public record InternalStockVoucherRequest(
     @NotBlank(message = "Loại phiếu không được để trống")
-    @Pattern(regexp = "IMPORT|EXPORT|TRANSFER", message = "Loại phiếu phải là IMPORT, EXPORT hoặc TRANSFER")
+    @Pattern(regexp = "EXPORT|TRANSFER", message = "Loại phiếu phải là EXPORT hoặc TRANSFER")
     String movementType,
 
     @NotNull(message = "Danh mục phiếu không được để trống")

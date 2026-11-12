@@ -112,6 +112,9 @@ public class InternalStockService {
         }
 
         String type = request.movementType().toUpperCase(Locale.ROOT);
+        if (!"EXPORT".equals(type) && !"TRANSFER".equals(type)) {
+            throw new BadRequestException("Loại phiếu xuất nhập nội bộ chỉ hỗ trợ EXPORT (Xuất kho) hoặc TRANSFER (Chuyển kho).");
+        }
         InternalStockVoucher voucher = new InternalStockVoucher();
         voucher.setCode(codeGenerator.nextCode());
         voucher.setMovementType(type);
@@ -125,25 +128,20 @@ public class InternalStockService {
         WarehouseCategory sourceWarehouse = null;
         WarehouseCategory targetWarehouse = null;
 
-        if ("EXPORT".equals(type) || "TRANSFER".equals(type)) {
-            if (request.sourceWarehouseId() == null) {
-                throw new BadRequestException("Kho xuất không được để trống đối với phiếu xuất kho hoặc chuyển kho.");
-            }
-            sourceWarehouse = warehouseRepository.findById(request.sourceWarehouseId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Kho xuất không tồn tại."));
-            voucher.setSourceWarehouse(sourceWarehouse);
+        if (request.sourceWarehouseId() == null) {
+            throw new BadRequestException("Kho xuất không được để trống đối với phiếu xuất kho hoặc chuyển kho.");
         }
+        sourceWarehouse = warehouseRepository.findById(request.sourceWarehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Kho xuất không tồn tại."));
+        voucher.setSourceWarehouse(sourceWarehouse);
 
-        if ("IMPORT".equals(type) || "TRANSFER".equals(type)) {
+        if ("TRANSFER".equals(type)) {
             if (request.targetWarehouseId() == null) {
-                throw new BadRequestException("Kho nhập không được để trống đối với phiếu nhập kho hoặc chuyển kho.");
+                throw new BadRequestException("Kho nhập không được để trống đối với phiếu chuyển kho.");
             }
             targetWarehouse = warehouseRepository.findById(request.targetWarehouseId())
                     .orElseThrow(() -> new ResourceNotFoundException("Kho nhập không tồn tại."));
             voucher.setTargetWarehouse(targetWarehouse);
-        }
-
-        if ("TRANSFER".equals(type)) {
             if (sourceWarehouse.getId().equals(targetWarehouse.getId())) {
                 throw new BadRequestException("Kho xuất và kho nhập phải khác nhau.");
             }
@@ -182,34 +180,7 @@ public class InternalStockService {
             item.setQuantity(qty);
             item.setNote(itemReq.note() == null ? "" : itemReq.note().strip());
 
-            if ("IMPORT".equals(type)) {
-                // Tăng tồn kho hoặc tạo mới ở kho nhập
-                Optional<InventoryItem> existingOpt = compatibleLot(targetWarehouse.getId(), product.getId(), unitPrice, unit, null);
-                InventoryItem targetItem;
-                if (existingOpt.isPresent()) {
-                    targetItem = existingOpt.get();
-                    inventoryItemRepository.returnStock(targetItem.getId(), qty);
-                    targetItem.setStock((targetItem.getStock() == null ? BigDecimal.ZERO : targetItem.getStock()).add(qty));
-                    if (unitPrice.compareTo(BigDecimal.ZERO) > 0) {
-                        targetItem.setPrice(unitPrice);
-                        inventoryItemRepository.save(targetItem);
-                    }
-                } else {
-                    targetItem = new InventoryItem();
-                    targetItem.setProduct(product);
-                    targetItem.setWarehouse(targetWarehouse);
-                    targetItem.setUnit(unit);
-                    targetItem.setPrice(unitPrice);
-                    targetItem.setStock(qty);
-                    targetItem = inventoryItemRepository.save(targetItem);
-                }
-                item.setTargetInventoryItem(targetItem);
-                item.setUnitPrice(unitPrice);
-                BigDecimal lineAmount = qty.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP);
-                item.setAmount(lineAmount);
-                totalAmount = totalAmount.add(lineAmount);
-
-            } else if ("EXPORT".equals(type)) {
+            if ("EXPORT".equals(type)) {
                 // Trừ tồn kho nguyên tử ở kho xuất
                 InventoryItem sourceItem = sourceLot(itemReq.inventoryItemId(), sourceWarehouse.getId(), product.getId());
 

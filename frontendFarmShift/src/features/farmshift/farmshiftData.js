@@ -148,18 +148,11 @@ reg('ocr-upload', 'Tải chứng từ', 'ocr', 'ocr-upload', OA);
 reg('ocr-review', 'Kiểm tra kết quả OCR', 'ocr', 'ocr-review', OA);
 
 for (const [id, title, kind] of [
-  ['finance', 'Tổng quan tài chính', 'finance'],
-  ['cashbook', 'Sổ quỹ', 'cashbook'],
-  ['receipts', 'Phiếu thu', 'receipts'],
-  ['payments', 'Phiếu chi', 'payments'],
-  ['voucher', 'Chi tiết thu / chi', 'voucher'],
   ['payables', 'Công nợ phải trả', 'payables'],
   ['receivables', 'Công nợ phải thu', 'receivables'],
   ['debt', 'Chi tiết công nợ', 'debt'],
   ['costs', 'Chi phí theo lứa', 'costs']
 ]) reg(id, title, 'finance', kind, OA);
-reg('receipt-form', 'Lập phiếu thu', 'finance', 'form', OA, { form: 'receipt' });
-reg('payment-form', 'Lập phiếu chi', 'finance', 'form', OA, { form: 'payment' });
 reg('cost-form', 'Ghi nhận / phân bổ chi phí', 'finance', 'form', OA, { form: 'cost' });
 
 reg('iot', 'Giám sát môi trường', 'iot', 'iot', 'ow');

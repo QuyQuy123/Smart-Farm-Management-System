@@ -1,0 +1,134 @@
+name: farmshift
+
+services:
+  ai-service:
+    build:
+      context: ./aiServiceFarmShift
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./aiServiceFarmShift/.env
+        required: false
+    environment:
+      PORT: "8000"
+      HOST: "0.0.0.0"
+      DEBUG: "true"
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./aiServiceFarmShift:/app
+      - /app/venv
+      - /app/.venv
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-exclude "venv/*"
+      --reload-exclude ".venv/*"
+      --reload-exclude "__pycache__/*"
+      --reload-exclude "*.pyc"
+      --limit-concurrency 100
+      --timeout-keep-alive 5
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backendFarmShift
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      AI_SERVICE_URL: http://ai-service:8000
+      AI_SERVICE_AUTOSTART_ENABLED: "false"
+      SALES_WEIGHT_SLIPS_DIRECTORY: /shared/frontend-public/weigh-slips
+      STORAGE_LOCAL_DIRECTORY: /shared/frontend-public/img
+      SPRING_DEVTOOLS_RESTART_ENABLED: "true"
+      SPRING_DEVTOOLS_RESTART_TRIGGER_FILE: .reloadtrigger
+      SPRING_DEVTOOLS_RESTART_POLL_INTERVAL: 1s
+      SPRING_DEVTOOLS_RESTART_QUIET_PERIOD: 400ms
+    volumes:
+      - ./backendFarmShift:/app
+      - backend_m2:/root/.m2
+      - backend_target:/app/target
+      - ./frontendFarmShift/public:/shared/frontend-public
+    depends_on:
+      ai-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontendFarmShift
+      dockerfile: Dockerfile.dev
+    expose:
+      - "5173"
+    environment:
+      VITE_PROXY_TARGET: http://backend:8080
+      VITE_USE_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontendFarmShift:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Tùy chọn chạy PostgreSQL cục bộ khi không dùng Render DB trong application-local.properties:
+  # Chạy: docker compose --profile local-db up -d
+  postgres:
+    profiles: ["local-db"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
+      POSTGRES_DB: ${DB_NAME:-farmshift_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - farmshift_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  backend_m2:
+  backend_target:
+  farmshift_pgdata:

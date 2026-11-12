@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface WeightSampleRepository extends JpaRepository<WeightSample, Long> {
+    @EntityGraph(attributePaths = {"cycle"})
+    List<WeightSample> findAllByOrderBySampleDateDescIdDesc();
+
     List<WeightSample> findAllByCycleIdOrderBySampleDateDescIdDesc(Long cycleId);
     Optional<WeightSample> findByIdAndCycleId(Long id, Long cycleId);
 

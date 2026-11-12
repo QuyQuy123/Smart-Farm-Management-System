@@ -7,3 +7,4 @@ export const listSuppliers = async () => {
 export const createSupplier = async data => (await api.post('/suppliers', data)).data.data;
 export const updateSupplier = async (id, data) => (await api.put(`/suppliers/${id}`, data)).data.data;
 export const deleteSupplier = async id => api.delete(`/suppliers/${id}`);
+export const getSupplierDebtHistory = async id => (await api.get(`/suppliers/${id}/debt-history`)).data.data;

@@ -1,0 +1,8 @@
+target/
+.mvn/
+.git/
+.idea/
+.vscode/
+*.log
+src/main/resources/application-local.properties
+

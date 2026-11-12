@@ -36,7 +36,7 @@ const ROLE_DISPLAY = {
   ROLE_ACCOUNTANT: {
     label: 'Kế toán',
     badgeClass: 'farmshift-badge-neutral',
-    barn: 'Sổ quỹ & Kho hàng'
+    barn: 'Hóa đơn & Kho hàng'
   },
   ROLE_FARM_WORKER: {
     label: 'Công nhân trại',

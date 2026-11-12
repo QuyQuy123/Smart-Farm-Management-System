@@ -127,7 +127,6 @@ public final class VietnameseSpeechNormalizer {
 
     private static final Pattern[] HOMOPHONE_PATTERNS = {
             Pattern.compile("(?iu)(?<![\\p{L}])nhật\\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:sổ|số|xổ)\\s+(?:quỷ|quĩ|quý|quỹ|qũy|quỳ)(?![\\p{L}])"),
             Pattern.compile("(?iu)(?<![\\p{L}\\d])(?:hóa|hoá)\\s+đơn"),
             Pattern.compile("(?iu)(?<![\\p{L}\\d.,])((?:\\d+(?:[.,]\\d+)?|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)\\s+)?triệu\\s+rưỡi(?![\\p{L}])"),
             Pattern.compile("(?iu)(?<![\\p{L}])(?:(?:hai|hi|hy|hai\\s+gờ|hi\\s+gờ|hi\\s+gơ|hai\\s+grô|hi\\s+grô)\\s*(?:rô|grô|gờ\\s*rô|gơ\\s*rô|gro)|higro)\\s*(0?[12]|\\d{2})?(?![\\p{L}\\d])"),
@@ -152,31 +151,30 @@ public final class VietnameseSpeechNormalizer {
     static String fixSttHomophones(String text) {
         String out = text;
         out = HOMOPHONE_PATTERNS[0].matcher(out).replaceAll("nhật ký");
-        out = HOMOPHONE_PATTERNS[1].matcher(out).replaceAll("sổ quỹ");
-        out = HOMOPHONE_PATTERNS[2].matcher(out).replaceAll("hóa đơn");
-        out = HOMOPHONE_PATTERNS[3].matcher(out).replaceAll(r -> r.group(1) != null ? r.group(0) : "1 triệu rưỡi");
-        out = HOMOPHONE_PATTERNS[4].matcher(out).replaceAll(r -> {
+        out = HOMOPHONE_PATTERNS[1].matcher(out).replaceAll("hóa đơn");
+        out = HOMOPHONE_PATTERNS[2].matcher(out).replaceAll(r -> r.group(1) != null ? r.group(0) : "1 triệu rưỡi");
+        out = HOMOPHONE_PATTERNS[3].matcher(out).replaceAll(r -> {
             String num = r.group(1);
             if (num == null || num.isEmpty()) return "Higro";
             if ("1".equals(num)) num = "01";
             else if ("2".equals(num)) num = "02";
             return "Higro " + num;
         });
-        out = HOMOPHONE_PATTERNS[5].matcher(out).replaceAll("Dabaco");
-        out = HOMOPHONE_PATTERNS[6].matcher(out).replaceAll("Hanvet");
-        out = HOMOPHONE_PATTERNS[7].matcher(out).replaceAll("Lasota");
-        out = HOMOPHONE_PATTERNS[8].matcher(out).replaceAll("Gumboro");
-        out = HOMOPHONE_PATTERNS[9].matcher(out).replaceAll("Higro 0$1");
-        out = HOMOPHONE_PATTERNS[10].matcher(out).replaceAll("CP 511");
-        out = HOMOPHONE_PATTERNS[11].matcher(out).replaceAll("Cargill");
-        out = HOMOPHONE_PATTERNS[12].matcher(out).replaceAll("Newcastle");
-        out = HOMOPHONE_PATTERNS[13].matcher(out).replaceAll("FCR");
-        out = HOMOPHONE_PATTERNS[14].matcher(out).replaceAll("cân mẫu");
-        out = HOMOPHONE_PATTERNS[15].matcher(out).replaceAll("hao hụt");
-        out = HOMOPHONE_PATTERNS[16].matcher(out).replaceAll("thải loại");
-        out = HOMOPHONE_PATTERNS[17].matcher(out).replaceAll("Khu J Thịt");
-        out = HOMOPHONE_PATTERNS[18].matcher(out).replaceAll("Khu Mía Thịt");
-        out = HOMOPHONE_PATTERNS[19].matcher(out).replaceAll("$1 B");
+        out = HOMOPHONE_PATTERNS[4].matcher(out).replaceAll("Dabaco");
+        out = HOMOPHONE_PATTERNS[5].matcher(out).replaceAll("Hanvet");
+        out = HOMOPHONE_PATTERNS[6].matcher(out).replaceAll("Lasota");
+        out = HOMOPHONE_PATTERNS[7].matcher(out).replaceAll("Gumboro");
+        out = HOMOPHONE_PATTERNS[8].matcher(out).replaceAll("Higro 0$1");
+        out = HOMOPHONE_PATTERNS[9].matcher(out).replaceAll("CP 511");
+        out = HOMOPHONE_PATTERNS[10].matcher(out).replaceAll("Cargill");
+        out = HOMOPHONE_PATTERNS[11].matcher(out).replaceAll("Newcastle");
+        out = HOMOPHONE_PATTERNS[12].matcher(out).replaceAll("FCR");
+        out = HOMOPHONE_PATTERNS[13].matcher(out).replaceAll("cân mẫu");
+        out = HOMOPHONE_PATTERNS[14].matcher(out).replaceAll("hao hụt");
+        out = HOMOPHONE_PATTERNS[15].matcher(out).replaceAll("thải loại");
+        out = HOMOPHONE_PATTERNS[16].matcher(out).replaceAll("Khu J Thịt");
+        out = HOMOPHONE_PATTERNS[17].matcher(out).replaceAll("Khu Mía Thịt");
+        out = HOMOPHONE_PATTERNS[18].matcher(out).replaceAll("$1 B");
         return out;
     }
 
