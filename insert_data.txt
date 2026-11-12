@@ -1,14 +1,10 @@
 -- =====================================================================
 -- Dữ liệu mẫu (Seed Data) chuẩn hóa cho dự án FarmShift
--- Giả lập toàn diện hoạt động trang trại từ 01/01/2026 đến 12/11/2026.
--- Đồng bộ hoàn toàn với database.md và các entity / *SchemaUpgrade hiện hành.
--- Thực thi an toàn cả trên DB trống lẫn DB đang có dữ liệu cũ (tự động
--- reset sạch & khởi tạo lại sequence trước khi nạp dữ liệu đối soát 100%).
+-- Đồng bộ hoàn toàn 100% với database.md, 51 JPA entities và toàn bộ
 -- =====================================================================
-
 -- ---------------------------------------------------------------------
--- 0a. Làm sạch toàn bộ dữ liệu cũ & đặt lại bộ đếm ID trước khi nạp
---     bộ dữ liệu mô phỏng đầy đủ từ 01/01/2026 đến 12/11/2026
+-- 1. Làm sạch toàn bộ dữ liệu cũ & đặt lại bộ đếm ID trước khi nạp
+--    bộ dữ liệu mô phỏng đầy đủ từ 01/01/2026 đến 13/11/2026
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
@@ -40,27 +36,24 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------
--- 1. Vai trò người dùng (Roles)
+-- 2. Vai trò (Roles), Tài khoản (Accounts) & Hồ sơ nhân sự (Customers)
+--    [QUAN TRỌNG] Mật khẩu dùng chung cho tất cả tài khoản test: 123456
 -- ---------------------------------------------------------------------
 INSERT INTO roles (name, description)
-VALUES ('ROLE_FARM_OWNER', 'Chủ trang trại: Quản lý tổng quan, xem báo cáo tài chính/P&L, nhận cảnh báo khẩn cấp'),
-       ('ROLE_ACCOUNTANT', 'Kế toán: Quản lý dữ liệu nhà cung cấp, theo dõi công nợ và thanh toán'),
-       ('ROLE_FARM_WORKER', 'Công nhân trang trại: Nhập liệu nhật ký hằng ngày, xem lịch tiêm vật nuôi, cập nhật trạng thái công việc')
+VALUES ('ROLE_FARM_OWNER', 'Chủ trang trại: Quản lý tổng quan, xem báo cáo tài chính/P&L, thiết lập IoT & hệ thống'),
+       ('ROLE_ACCOUNTANT', 'Kế toán: Quản lý hóa đơn mua bán, công nợ, tồn kho và báo cáo thống kê'),
+       ('ROLE_FARM_WORKER', 'Công nhân trang trại: Nhập liệu nhật ký hằng ngày, xác nhận việc hôm nay theo chuồng phụ trách')
 ON CONFLICT (name) DO NOTHING;
 
--- ---------------------------------------------------------------------
--- 2. Tài khoản (Accounts) & Hồ sơ nhân sự (Customers)
--- [QUAN TRỌNG] Mật khẩu dùng chung cho tất cả tài khoản test: 123456
--- ---------------------------------------------------------------------
 INSERT INTO accounts (email, password, role_id, full_name, is_active, created_at)
 SELECT v.email, v.password_hash, r.id, v.full_name, TRUE, TIMESTAMP '2026-01-01 08:00:00'
 FROM (VALUES
-  ('hiepgacute1989@gmail.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_OWNER', 'Admin'),
-  ('mienbinh@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_OWNER', 'Miền Bính'),
-  ('ketoan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_ACCOUNTANT', 'Trần Kế Toán'),
-  ('congnhan@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_WORKER', 'Nguyễn Văn Ba'),
-  ('hung@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_WORKER', 'Dương Văn Hùng'),
-  ('hang@smartfarm.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_WORKER', 'Nông Thị Hằng')
+  ('hiepgacute1989@gmail.com', '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_OWNER',  'Admin'),
+  ('mienbinh@smartfarm.com',   '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_OWNER',  'Miền Bính'),
+  ('ketoan@smartfarm.com',     '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_ACCOUNTANT',  'Trần Kế Toán'),
+  ('congnhan@smartfarm.com',   '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_WORKER', 'Nguyễn Văn Ba'),
+  ('hung@smartfarm.com',       '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_WORKER', 'Dương Văn Hùng'),
+  ('hang@smartfarm.com',       '$2a$10$iGqUT5trDJ2rticluiGiGOGTZ4v2GQTX.hJ9SV3vU.XM4FG91Aow2', 'ROLE_FARM_WORKER', 'Nông Thị Hằng')
 ) AS v(email, password_hash, role_name, full_name)
 JOIN roles r ON r.name = v.role_name
 ON CONFLICT (email) DO NOTHING;
@@ -68,12 +61,12 @@ ON CONFLICT (email) DO NOTHING;
 INSERT INTO customers (account_id, full_name, phone, citizen_id, address, created_at)
 SELECT a.id, v.full_name, v.phone, v.citizen_id, v.address, TIMESTAMP '2026-01-01 08:00:00'
 FROM (VALUES
-  ('hiepgacute1989@gmail.com', 'Admin', '0989149421', '001000000000', 'Hà Nội'),
-  ('mienbinh@smartfarm.com', 'Miền Bính', '0988111222', '001204000001', 'Tam Đảo, Vĩnh Phúc'),
-  ('ketoan@smartfarm.com', 'Trần Kế Toán', '0977222333', '001204000002', 'Vĩnh Yên, Vĩnh Phúc'),
-  ('congnhan@smartfarm.com', 'Nguyễn Văn Ba', '0966333444', '001204000003', 'Tam Đảo, Vĩnh Phúc'),
-  ('hung@smartfarm.com', 'Dương Văn Hùng', '0966333555', '001204000004', 'Tam Đảo, Vĩnh Phúc'),
-  ('hang@smartfarm.com', 'Nông Thị Hằng', '0966333666', '001304000005', 'Tam Đảo, Vĩnh Phúc')
+  ('hiepgacute1989@gmail.com', 'Admin',          '0989149421', '001000000000', 'Hà Nội'),
+  ('mienbinh@smartfarm.com',   'Miền Bính',      '0988111222', '001204000001', 'Tam Đảo, Vĩnh Phúc'),
+  ('ketoan@smartfarm.com',     'Trần Kế Toán',   '0977222333', '001204000002', 'Vĩnh Yên, Vĩnh Phúc'),
+  ('congnhan@smartfarm.com',   'Nguyễn Văn Ba',  '0966333444', '001204000003', 'Tam Đảo, Vĩnh Phúc'),
+  ('hung@smartfarm.com',       'Dương Văn Hùng', '0966333555', '001204000004', 'Tam Đảo, Vĩnh Phúc'),
+  ('hang@smartfarm.com',       'Nông Thị Hằng',  '0966333666', '001304000005', 'Tam Đảo, Vĩnh Phúc')
 ) AS v(email, full_name, phone, citizen_id, address)
 JOIN accounts a ON a.email = v.email
 ON CONFLICT (account_id) DO NOTHING;
@@ -83,10 +76,11 @@ ON CONFLICT (account_id) DO NOTHING;
 -- ---------------------------------------------------------------------
 INSERT INTO farms (id, name, owner, phone, scale, address, type, first_meal_time, created_at, updated_at)
 VALUES (1, 'Trang trại Gà Thịt FarmShift', 'Nguyễn Văn Chủ Trại', '0989149421', '30,000 con', 'Tam Đảo, Vĩnh Phúc',
-        'Nuôi gà thịt thương phẩm an toàn sinh học', TIME '07:00:00', TIMESTAMP '2026-01-01 07:30:00', TIMESTAMP '2026-11-12 08:00:00')
+        'Nuôi gà thịt thương phẩm an toàn sinh học', TIME '07:00:00', TIMESTAMP '2026-01-01 07:30:00', TIMESTAMP '2026-11-13 08:00:00')
 ON CONFLICT (id) DO UPDATE SET
   first_meal_time = EXCLUDED.first_meal_time,
-  scale = EXCLUDED.scale;
+  scale = EXCLUDED.scale,
+  updated_at = EXCLUDED.updated_at;
 
 SELECT setval(pg_get_serial_sequence('farms', 'id'), COALESCE((SELECT MAX(id) FROM farms), 1));
 
@@ -125,7 +119,7 @@ SELECT k.prefix || regexp_replace(fa.name, '^[Kk]hu\s+', ''),
        TIMESTAMP '2026-01-01 09:00:00'
 FROM farm_areas fa
 CROSS JOIN (VALUES
-  ('Kho cám ', 'FEED', 'Cám và thức ăn chăn nuôi cho '),
+  ('Kho cám ',   'FEED',     'Cám và thức ăn chăn nuôi cho '),
   ('Kho thuốc ', 'MEDICINE', 'Thuốc thú y, vắc-xin và sát trùng cho ')
 ) AS k(prefix, kind, note)
 ON CONFLICT (name_key) DO NOTHING;
@@ -135,67 +129,95 @@ SELECT area_id, id FROM warehouse_categories WHERE area_id IS NOT NULL
 ON CONFLICT (area_id, warehouse_id) DO NOTHING;
 
 -- ---------------------------------------------------------------------
--- 5. Danh mục chuẩn & Đối tác
+-- 5. Danh mục chuẩn & Đối tác (khớp SHA-256 name_key của BrandService & SupplierService)
 -- ---------------------------------------------------------------------
 INSERT INTO measurement_units (code, code_key, name, name_key, description, content_quantity, content_unit, created_at, updated_at)
-VALUES ('BAO25', 'bao25', 'Bao (25kg)', 'bao (25kg)', 'Bao tiêu chuẩn 25kg thức ăn chăn nuôi', 25.000, 'KG', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('KG', 'kg', 'Kg', 'kg', 'Kilogram tiêu chuẩn đo lường', 1.000, 'KG', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('LO1000', 'lo1000', 'Lọ 1000 liều', 'lọ 1000 liều', 'Lọ vắc-xin 1000 liều phòng bệnh', 1000.000, 'DOSE', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('LO20ML', 'lo20ml', 'Lọ 100 liều (20ml)', 'lọ 100 liều (20ml)', 'Lọ vắc-xin nhược độc 100 liều, pha thành 20ml (0,2ml/con)', 20.000, 'ML', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('CHAI500ML', 'chai500ml', 'Chai 500ml', 'chai 500ml', 'Chai vắc-xin vô hoạt 500ml (1.000 liều 0,5ml)', 500.000, 'ML', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('GOI1KG', 'goi1kg', 'Gói 1kg', 'gói 1kg', 'Gói thuốc bột / khoáng chất / hạ sốt 1kg', 1.000, 'KG', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('CHAI1L', 'chai1l', 'Chai 1L', 'chai 1l', 'Chai thuốc thú y dạng lỏng hoặc sát trùng 1 lít', 1.000, 'L', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('CAN5L', 'can5l', 'Can 5L', 'can 5l', 'Can dung dịch sát trùng chuồng trại 5 lít', 5.000, 'L', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('CON', 'con', 'Con', 'con', 'Đơn vị đếm con giống gia cầm', NULL, NULL, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00')
+VALUES ('BAO25',     'bao25',     'Bao (25kg)',         'bao (25kg)',         'Bao tiêu chuẩn 25kg thức ăn chăn nuôi',                     25.000,   'KG',   TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('KG',        'kg',        'Kg',                 'kg',                 'Kilogram tiêu chuẩn đo lường',                              1.000,    'KG',   TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('LO1000',    'lo1000',    'Lọ 1000 liều',       'lọ 1000 liều',       'Lọ vắc-xin 1000 liều phòng bệnh',                          1000.000, 'DOSE', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('LO20ML',    'lo20ml',    'Lọ 100 liều (20ml)', 'lọ 100 liều (20ml)', 'Lọ vắc-xin nhược độc 100 liều, pha thành 20ml (0,2ml/con)', 20.000,   'ML',   TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('CHAI500ML', 'chai500ml', 'Chai 500ml',         'chai 500ml',         'Chai vắc-xin vô hoạt 500ml (1.000 liều 0,5ml)',             500.000,  'ML',   TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('GOI1KG',    'goi1kg',    'Gói 1kg',            'gói 1kg',            'Gói thuốc bột / khoáng chất / hạ sốt 1kg',                  1.000,    'KG',   TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('CHAI1L',    'chai1l',    'Chai 1L',            'chai 1l',            'Chai thuốc thú y dạng lỏng hoặc sát trùng 1 lít',           1.000,    'L',    TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('CAN5L',     'can5l',     'Can 5L',             'can 5l',             'Can dung dịch sát trùng chuồng trại 5 lít',                 5.000,    'L',    TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('CON',       'con',       'Con',                'con',                'Đơn vị đếm con giống gia cầm',                              NULL,     NULL,   TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00')
 ON CONFLICT (code_key) DO NOTHING;
 
 INSERT INTO specifications (name, name_key, unit, items, note, created_at, updated_at)
-VALUES ('Bao 25kg', 'bao 25kg', 'Bao', '25 kg', 'Quy cách đóng bao 25kg tiêu chuẩn nhà máy', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Kg', 'kg', 'Kg', '1 kg', 'Đơn vị kilôgam cân trực tiếp', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Lọ 1000 liều', 'lọ 1000 liều', 'Lọ', '1000 liều', 'Lọ thủy tinh chứa vắc-xin đông khô', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Lọ 100 liều (20ml)', 'lọ 100 liều (20ml)', 'Lọ', '20 ml', 'Lọ vắc-xin tiêm 100 liều', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Chai 500ml', 'chai 500ml', 'Chai', '500 ml', 'Chai vắc-xin nhũ dầu 500ml', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Gói 1kg', 'gói 1kg', 'Gói', '1 kg', 'Gói bạc hút chân không 1kg', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Chai 1L', 'chai 1l', 'Chai', '1 lít', 'Chai nhựa tiêu chuẩn 1 lít', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Can 5 lít', 'can 5 lít', 'Can', '5 lít', 'Can nhựa chứa dung dịch sát trùng', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00')
+VALUES ('Bao 25kg',           'bao 25kg',           'Bao',  '25 kg',     'Quy cách đóng bao 25kg tiêu chuẩn nhà máy', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Kg',                 'kg',                 'Kg',   '1 kg',      'Đơn vị kilôgam cân trực tiếp',              TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Lọ 1000 liều',       'lọ 1000 liều',       'Lọ',   '1000 liều', 'Lọ thủy tinh chứa vắc-xin đông khô',        TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Lọ 100 liều (20ml)', 'lọ 100 liều (20ml)', 'Lọ',   '20 ml',     'Lọ vắc-xin tiêm 100 liều',                  TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Chai 500ml',         'chai 500ml',         'Chai', '500 ml',    'Chai vắc-xin nhũ dầu 500ml',                TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Gói 1kg',            'gói 1kg',            'Gói',  '1 kg',      'Gói bạc hút chân không 1kg',                TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Chai 1L',            'chai 1l',            'Chai', '1 lít',     'Chai nhựa tiêu chuẩn 1 lít',                TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Can 5 lít',          'can 5 lít',          'Can',  '5 lít',     'Can nhựa chứa dung dịch sát trùng',         TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00')
 ON CONFLICT (name_key) DO NOTHING;
 
 INSERT INTO product_types (code, name, name_key, description, quantity, created_at, updated_at)
 VALUES ('LH000001', 'Thức ăn chăn nuôi', 'thức ăn chăn nuôi', 'Cám gà các giai đoạn & nguyên liệu thô', 0, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('LH000002', 'Con giống', 'con giống', 'Gà giống 1 ngày tuổi các dòng Mía, J-Dabaco, Gà ta', 0, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('LH000003', 'Thuốc thú y', 'thuốc thú y', 'Vắc-xin, kháng sinh, men tiêu hóa, vitamin & sát trùng', 0, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('LH000004', 'Thiết bị & Dụng cụ', 'thiết bị & dụng cụ', 'Máng ăn, máng uống, bóng sưởi úm', 0, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00')
+       ('LH000002', 'Con giống',         'con giống',         'Gà giống 1 ngày tuổi các dòng Mía, J-Dabaco, Gà ta', 0, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('LH000003', 'Thuốc thú y',       'thuốc thú y',       'Vắc-xin, kháng sinh, men tiêu hóa, vitamin & sát trùng', 0, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('LH000004', 'Thiết bị & Dụng cụ','thiết bị & dụng cụ','Máng ăn, máng uống, bóng sưởi úm', 0, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00')
 ON CONFLICT (name_key) DO NOTHING;
 
+-- BrandService.nameKey = SHA-256("{len(lower(name))}:{lower(name)}{lower(productType)}")
 INSERT INTO brands (name, name_key, product_type, quantity, note, created_at, updated_at)
-VALUES ('C.P. Việt Nam', 'c.p. việt nam', 'Thức ăn chăn nuôi', 0, 'Tập đoàn C.P. Việt Nam - Cung ứng cám Higro', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('De Heus', 'de heus', 'Thức ăn chăn nuôi', 0, 'De Heus Việt Nam - Thức ăn hỗn hợp gà thịt', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Tập đoàn Dabaco', 'tập đoàn dabaco', 'Con giống', 0, 'Dabaco Việt Nam - Cung ứng giống gà Mía, J-Dabaco', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Hanvet', 'hanvet', 'Thuốc thú y', 0, 'Công ty Cổ phần Dược và Vật tư Thú y Hanvet', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('FAVET', 'favet', 'Thuốc thú y', 0, 'Công ty Hóa chất Favet - Sát trùng chuồng trại BKC', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Navetco', 'navetco', 'Thuốc thú y', 0, 'Công ty Thuốc thú y Trung ương Navetco - Vắc-xin gia cầm', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Medion', 'medion', 'Thuốc thú y', 0, 'Medion (Indonesia) - Vắc-xin Gumboro, Newcastle-IB', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00')
+SELECT v.name,
+       ENCODE(SHA256(CONVERT_TO(
+         CHAR_LENGTH(LOWER(TRIM(v.name)))::text || ':' || LOWER(TRIM(v.name)) || LOWER(TRIM(COALESCE(v.product_type, ''))),
+         'UTF8'
+       )), 'hex'),
+       v.product_type,
+       0,
+       v.note,
+       TIMESTAMP '2026-01-01 08:00:00',
+       TIMESTAMP '2026-01-01 08:00:00'
+FROM (VALUES
+  ('C.P. Việt Nam',   'Thức ăn chăn nuôi', 'Tập đoàn C.P. Việt Nam - Cung ứng cám Higro'),
+  ('De Heus',         'Thức ăn chăn nuôi', 'De Heus Việt Nam - Thức ăn hỗn hợp gà thịt'),
+  ('Tập đoàn Dabaco', 'Con giống',         'Dabaco Việt Nam - Cung ứng giống gà Mía, J-Dabaco'),
+  ('Hanvet',          'Thuốc thú y',       'Công ty Cổ phần Dược và Vật tư Thú y Hanvet'),
+  ('FAVET',           'Thuốc thú y',       'Công ty Hóa chất Favet - Sát trùng chuồng trại BKC'),
+  ('Navetco',         'Thuốc thú y',       'Công ty Thuốc thú y Trung ương Navetco - Vắc-xin gia cầm'),
+  ('Medion',          'Thuốc thú y',       'Medion (Indonesia) - Vắc-xin Gumboro, Newcastle-IB')
+) AS v(name, product_type, note)
 ON CONFLICT (name_key) DO NOTHING;
 
 INSERT INTO purchase_tags (name, name_key, color, description, created_at, updated_at)
-VALUES ('Cám Giai đoạn 1 (Úm)', 'cám giai đoạn 1 (úm)', '#019788', 'Thẻ phân loại cám gà con úm 1–14 ngày', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Cám Giai đoạn 2 (Thịt)', 'cám giai đoạn 2 (thịt)', '#795548', 'Thẻ phân loại cám gà thịt tăng trưởng & vỗ béo', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Vắc-xin phòng định kỳ', 'vắc-xin phòng định kỳ', '#0288d1', 'Thẻ phân loại vắc-xin và thuốc thú y', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Sát trùng & Tiêu độc', 'sát trùng & tiêu độc', '#7b1fa2', 'Hóa chất sát trùng chuồng nuôi và xử lý môi trường', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Con giống Dabaco', 'con giống dabaco', '#aa2d00', 'Thẻ phân loại hóa đơn nhập con giống gà', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Nhập bổ sung Q4', 'nhập bổ sung q4', '#ef6c00', 'Các đợt nhập bổ sung phục vụ lứa cuối năm 2026', TIMESTAMP '2026-10-01 08:00:00', TIMESTAMP '2026-10-01 08:00:00')
+VALUES ('Cám Giai đoạn 1 (Úm)',  'cám giai đoạn 1 (úm)',  '#019788', 'Thẻ phân loại cám gà con úm 1–14 ngày',               TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Cám Giai đoạn 2 (Thịt)','cám giai đoạn 2 (thịt)','#795548', 'Thẻ phân loại cám gà thịt tăng trưởng & vỗ béo',       TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Vắc-xin phòng định kỳ', 'vắc-xin phòng định kỳ', '#0288d1', 'Thẻ phân loại vắc-xin và thuốc thú y',                TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Sát trùng & Tiêu độc',  'sát trùng & tiêu độc',  '#7b1fa2', 'Hóa chất sát trùng chuồng nuôi và xử lý môi trường',  TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Con giống Dabaco',      'con giống dabaco',      '#aa2d00', 'Thẻ phân loại hóa đơn nhập con giống gà',             TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Nhập bổ sung Q4',       'nhập bổ sung q4',       '#ef6c00', 'Các đợt nhập bổ sung phục vụ lứa cuối năm 2026',      TIMESTAMP '2026-10-01 08:00:00', TIMESTAMP '2026-10-01 08:00:00')
 ON CONFLICT (name_key) DO NOTHING;
 
+-- SupplierService.nameKey = SHA-256("{productTypeId}:{lower(name)}")
 INSERT INTO suppliers (code, name, name_key, representative, phone, product_type_id, email, address, tax_code, bank_name, bank_account, payment_policy, opening_debt, note, created_at, updated_at)
-SELECT v.code, v.name, v.name_key, v.representative, v.phone, pt.id, v.email, v.address, v.tax_code, v.bank_name, v.bank_account, v.payment_policy, v.opening_debt, v.note,
-       TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'
+SELECT v.code,
+       v.name,
+       ENCODE(SHA256(CONVERT_TO(pt.id::text || ':' || LOWER(TRIM(v.name)), 'UTF8')), 'hex'),
+       v.representative,
+       v.phone,
+       pt.id,
+       v.email,
+       v.address,
+       v.tax_code,
+       v.bank_name,
+       v.bank_account,
+       v.payment_policy,
+       v.opening_debt,
+       v.note,
+       TIMESTAMP '2026-01-01 08:00:00',
+       TIMESTAMP '2026-01-01 08:00:00'
 FROM (VALUES
-  ('NCC00000000000000000000000000001', 'Công ty CP Chăn nuôi C.P. Việt Nam', 'công ty cp chăn nuôi c.p. việt nam', 'Nguyễn Văn An', '02438220000', 'thức ăn chăn nuôi', 'contact@cp.com.vn', 'KCN Biên Hòa II, Đồng Nai', '0300645678', 'Vietcombank', '0011001234567', 'Trả sau', 0, 'Nhà cung cấp cám Higro chủ lực'),
-  ('NCC00000000000000000000000000002', 'Tập đoàn Dabaco Việt Nam', 'tập đoàn dabaco việt nam', 'Nguyễn Như So', '02223826077', 'con giống', 'info@dabaco.com.vn', 'Số 35 Lý Thái Tổ, Bắc Ninh', '2300123456', 'BIDV', '12010000987654', 'Trả theo đơn', 0, 'Cung cấp con giống gà J-Dabaco, Mía Dabaco, Gà ta'),
-  ('NCC00000000000000000000000000003', 'Công ty Thuốc Thú y Hanvet', 'công ty thuốc thú y hanvet', 'Nguyễn Hữu Vũ', '02438583583', 'thuốc thú y', 'support@hanvet.com.vn', 'KCN Đồng Văn, Hà Nam', '0100234567', 'Agribank', '1500205123456', 'Trả theo đơn', 0, 'Vắc-xin Lasota, Gumboro, kháng sinh, vitamin'),
-  ('NCC00000000000000000000000000004', 'Công ty Hóa chất FAVET', 'công ty hóa chất favet', 'Lê Hùng', '02436811234', 'thuốc thú y', 'favet@favet.vn', 'Thường Tín, Hà Nội', '0100987654', 'Techcombank', '19020011223344', 'Trả theo đơn', 0, 'Thuốc sát trùng chuồng trại BKC & vôi tiêu độc'),
-  ('NCC00000000000000000000000000005', 'Công ty TNHH De Heus Việt Nam', 'công ty tnhh de heus việt nam', 'Phạm Quốc Bảo', '02743756888', 'thức ăn chăn nuôi', 'sales@deheus.com.vn', 'KCN Bình Xuyên, Vĩnh Phúc', '3700789456', 'MB Bank', '06801122334455', 'Gối đầu 30 ngày', 0, 'Cám De Heus 2012 bổ sung giai đoạn thịt')
-) AS v(code, name, name_key, representative, phone, pt_key, email, address, tax_code, bank_name, bank_account, payment_policy, opening_debt, note)
+  ('NCC00000000000000000000000000001', 'Công ty CP Chăn nuôi C.P. Việt Nam', 'Nguyễn Văn An',  '02438220000', 'thức ăn chăn nuôi', 'contact@cp.com.vn',     'KCN Biên Hòa II, Đồng Nai',    '0300645678', 'Vietcombank', '0011001234567',  'Trả sau',        0, 'Nhà cung cấp cám Higro chủ lực'),
+  ('NCC00000000000000000000000000002', 'Tập đoàn Dabaco Việt Nam',           'Nguyễn Như So',  '02223826077', 'con giống',         'info@dabaco.com.vn',    'Số 35 Lý Thái Tổ, Bắc Ninh',    '2300123456', 'BIDV',        '12010000987654', 'Trả theo đơn',   0, 'Cung cấp con giống gà J-Dabaco, Mía Dabaco, Gà ta'),
+  ('NCC00000000000000000000000000003', 'Công ty Thuốc Thú y Hanvet',         'Nguyễn Hữu Vũ',  '02438583583', 'thuốc thú y',       'support@hanvet.com.vn', 'KCN Đồng Văn, Hà Nam',          '0100234567', 'Agribank',    '1500205123456',  'Trả theo đơn',   0, 'Vắc-xin Lasota, Gumboro, kháng sinh, vitamin'),
+  ('NCC00000000000000000000000000004', 'Công ty Hóa chất FAVET',             'Lê Hùng',        '02436811234', 'thuốc thú y',       'favet@favet.vn',        'Thường Tín, Hà Nội',            '0100987654', 'Techcombank', '19020011223344', 'Trả theo đơn',   0, 'Thuốc sát trùng chuồng trại BKC & vôi tiêu độc'),
+  ('NCC00000000000000000000000000005', 'Công ty TNHH De Heus Việt Nam',      'Phạm Quốc Bảo',  '02743756888', 'thức ăn chăn nuôi', 'sales@deheus.com.vn',   'KCN Bình Xuyên, Vĩnh Phúc',     '3700789456', 'MB Bank',     '06801122334455', 'Gối đầu 30 ngày',0, 'Cám De Heus 2012 bổ sung giai đoạn thịt')
+) AS v(code, name, representative, phone, pt_key, email, address, tax_code, bank_name, bank_account, payment_policy, opening_debt, note)
 JOIN product_types pt ON pt.name_key = v.pt_key
 ON CONFLICT (code) DO NOTHING;
 
@@ -214,28 +236,41 @@ ON CONFLICT DO NOTHING;
 INSERT INTO product_categories (name, name_key, warehouse_id, brand, specification, product_type, created_at, updated_at)
 SELECT v.name, LOWER(v.name), w.id, v.brand, v.spec, v.ptype, TIMESTAMP '2026-01-01 09:00:00', TIMESTAMP '2026-01-01 09:00:00'
 FROM (VALUES
-  ('Cám Gà úm Higro 01', 'kho cám mía thịt', 'C.P. Việt Nam', 'Bao 25kg', 'Thức ăn chăn nuôi'),
-  ('Cám Gà thịt Higro 02', 'kho cám mía thịt', 'C.P. Việt Nam', 'Bao 25kg', 'Thức ăn chăn nuôi'),
-  ('Cám Gà vỗ béo Higro 03', 'kho cám mía thịt', 'C.P. Việt Nam', 'Bao 25kg', 'Thức ăn chăn nuôi'),
-  ('Cám gà thịt De Heus 2012', 'kho cám mía thịt', 'De Heus', 'Bao 25kg', 'Thức ăn chăn nuôi'),
-  ('Ngô hạt nghiền', 'kho cám mía thịt', 'C.P. Việt Nam', 'Kg', 'Thức ăn chăn nuôi'),
-  ('Vắc-xin Newcastle Lasota', 'kho thuốc mía thịt', 'Hanvet', 'Lọ 1000 liều', 'Thuốc thú y'),
-  ('Vắc-xin Marek (HVT)', 'kho thuốc mía thịt', 'Navetco', 'Lọ 1000 liều', 'Thuốc thú y'),
-  ('Vắc-xin Gumboro (Medivac Gumboro A)', 'kho thuốc mía thịt', 'Medion', 'Lọ 1000 liều', 'Thuốc thú y'),
-  ('Vắc-xin Đậu gà', 'kho thuốc mía thịt', 'Navetco', 'Lọ 1000 liều', 'Thuốc thú y'),
-  ('Vắc-xin cúm gia cầm H5N1 (Navet-Vifluvac)', 'kho thuốc mía thịt', 'Navetco', 'Chai 500ml', 'Thuốc thú y'),
-  ('Vắc-xin Newcastle hệ I (M)', 'kho thuốc mía thịt', 'Navetco', 'Lọ 100 liều (20ml)', 'Thuốc thú y'),
-  ('Kháng sinh Doxycycline 50%', 'kho thuốc mía thịt', 'Hanvet', 'Gói 1kg', 'Thuốc thú y'),
-  ('Hạ sốt Paracetamol C', 'kho thuốc mía thịt', 'Hanvet', 'Gói 1kg', 'Thuốc thú y'),
-  ('Men tiêu hóa Bio-Zyme', 'kho thuốc mía thịt', 'Hanvet', 'Gói 1kg', 'Thuốc thú y'),
-  ('Vitamin C + điện giải (Han-Electrolyte)', 'kho thuốc mía thịt', 'Hanvet', 'Gói 1kg', 'Thuốc thú y'),
-  ('Amoxicillin 10% (Hanmoxy)', 'kho thuốc mía thịt', 'Hanvet', 'Gói 1kg', 'Thuốc thú y'),
-  ('Toltrazuril 2.5% (Han-Coc)', 'kho thuốc mía thịt', 'Hanvet', 'Chai 1L', 'Thuốc thú y')
+  ('Cám Gà úm Higro 01',                        'kho cám mía thịt',   'C.P. Việt Nam', 'Bao 25kg',           'Thức ăn chăn nuôi'),
+  ('Cám Gà thịt Higro 02',                      'kho cám mía thịt',   'C.P. Việt Nam', 'Bao 25kg',           'Thức ăn chăn nuôi'),
+  ('Cám Gà vỗ béo Higro 03',                    'kho cám mía thịt',   'C.P. Việt Nam', 'Bao 25kg',           'Thức ăn chăn nuôi'),
+  ('Cám gà thịt De Heus 2012',                  'kho cám mía thịt',   'De Heus',       'Bao 25kg',           'Thức ăn chăn nuôi'),
+  ('Ngô hạt nghiền',                            'kho cám mía thịt',   'C.P. Việt Nam', 'Kg',                 'Thức ăn chăn nuôi'),
+  ('Vắc-xin Newcastle Lasota',                  'kho thuốc mía thịt', 'Hanvet',        'Lọ 1000 liều',       'Thuốc thú y'),
+  ('Vắc-xin Marek (HVT)',                       'kho thuốc mía thịt', 'Navetco',       'Lọ 1000 liều',       'Thuốc thú y'),
+  ('Vắc-xin Gumboro (Medivac Gumboro A)',       'kho thuốc mía thịt', 'Medion',        'Lọ 1000 liều',       'Thuốc thú y'),
+  ('Vắc-xin Đậu gà',                            'kho thuốc mía thịt', 'Navetco',       'Lọ 1000 liều',       'Thuốc thú y'),
+  ('Vắc-xin cúm gia cầm H5N1 (Navet-Vifluvac)', 'kho thuốc mía thịt', 'Navetco',       'Chai 500ml',         'Thuốc thú y'),
+  ('Vắc-xin Newcastle hệ I (M)',                'kho thuốc mía thịt', 'Navetco',       'Lọ 100 liều (20ml)', 'Thuốc thú y'),
+  ('Kháng sinh Doxycycline 50%',                'kho thuốc mía thịt', 'Hanvet',        'Gói 1kg',            'Thuốc thú y'),
+  ('Hạ sốt Paracetamol C',                      'kho thuốc mía thịt', 'Hanvet',        'Gói 1kg',            'Thuốc thú y'),
+  ('Men tiêu hóa Bio-Zyme',                     'kho thuốc mía thịt', 'Hanvet',        'Gói 1kg',            'Thuốc thú y'),
+  ('Vitamin C + điện giải (Han-Electrolyte)',   'kho thuốc mía thịt', 'Hanvet',        'Gói 1kg',            'Thuốc thú y'),
+  ('Amoxicillin 10% (Hanmoxy)',                 'kho thuốc mía thịt', 'Hanvet',        'Gói 1kg',            'Thuốc thú y'),
+  ('Toltrazuril 2.5% (Han-Coc)',                'kho thuốc mía thịt', 'Hanvet',        'Chai 1L',            'Thuốc thú y')
 ) AS v(name, wh_key, brand, spec, ptype)
 JOIN warehouse_categories w ON w.name_key = v.wh_key
 ON CONFLICT (name_key) DO NOTHING;
 
--- Tạo lô tồn kho thực tế hiện tại (12/11/2026) cho 3 khu đang nuôi chính
+-- Đồng bộ số lượng sản phẩm trên ProductTypes và Brands
+UPDATE product_types pt
+SET quantity = COALESCE((
+  SELECT COUNT(*) FROM product_categories pc WHERE LOWER(COALESCE(pc.product_type, '')) = pt.name_key
+), 0);
+
+UPDATE brands b
+SET quantity = COALESCE((
+  SELECT COUNT(*) FROM product_categories pc
+  WHERE LOWER(COALESCE(pc.brand, '')) = LOWER(b.name)
+    AND LOWER(COALESCE(pc.product_type, '')) = LOWER(COALESCE(b.product_type, ''))
+), 0);
+
+-- Tạo lô tồn kho thực tế hiện tại (13/11/2026) cho 3 khu đang nuôi chính
 INSERT INTO inventory_items (code, warehouse_id, product_id, brand_id, unit_id, price, stock, min_stock, lot_number, expiry_date, created_at, updated_at)
 SELECT 'SP' || UPPER(SUBSTR(MD5(w.name_key || ':' || pc.name_key), 1, 12)),
        w.id,
@@ -245,7 +280,7 @@ SELECT 'SP' || UPPER(SUBSTR(MD5(w.name_key || ':' || pc.name_key), 1, 12)),
        cat.price,
        CASE area_cfg.area_key
          WHEN 'khu mía thịt' THEN cat.stock_mia
-         WHEN 'khu j thịt' THEN cat.stock_j
+         WHEN 'khu j thịt'   THEN cat.stock_j
          ELSE cat.stock_dt
        END,
        cat.min_stock,
@@ -259,25 +294,25 @@ SELECT 'SP' || UPPER(SUBSTR(MD5(w.name_key || ':' || pc.name_key), 1, 12)),
          ELSE DATE '2027-02-20'
        END,
        TIMESTAMP '2026-01-03 08:30:00',
-       TIMESTAMP '2026-11-12 08:00:00'
+       TIMESTAMP '2026-11-13 08:00:00'
 FROM (VALUES
-  ('cám gà úm higro 01', 'FEED', 'bao25', 345000, 120.000, 180.000, 140.000, 40.000),
-  ('cám gà thịt higro 02', 'FEED', 'bao25', 335000, 260.000, 75.000, 120.000, 50.000),
-  ('cám gà vỗ béo higro 03', 'FEED', 'bao25', 325000, 420.000, 310.000, 110.000, 50.000),
-  ('cám gà thịt de heus 2012', 'FEED', 'bao25', 342000, 180.000, 160.000, 80.000, 40.000),
-  ('ngô hạt nghiền', 'FEED', 'kg', 7800, 3500.000, 2800.000, 1500.000, 500.000),
-  ('vắc-xin newcastle lasota', 'MEDICINE', 'lo1000', 42000, 24.000, 30.000, 22.000, 10.000),
-  ('vắc-xin marek (hvt)', 'MEDICINE', 'lo1000', 185000, 18.000, 16.000, 14.000, 8.000),
-  ('vắc-xin gumboro (medivac gumboro a)', 'MEDICINE', 'lo1000', 78000, 28.000, 24.000, 20.000, 10.000),
-  ('vắc-xin đậu gà', 'MEDICINE', 'lo1000', 62000, 22.000, 18.000, 16.000, 8.000),
-  ('vắc-xin cúm gia cầm h5n1 (navet-vifluvac)', 'MEDICINE', 'chai500ml', 260000, 25.000, 20.000, 15.000, 8.000),
-  ('vắc-xin newcastle hệ i (m)', 'MEDICINE', 'lo20ml', 32000, 95.000, 80.000, 60.000, 20.000),
-  ('kháng sinh doxycycline 50%', 'MEDICINE', 'goi1kg', 450000, 14.000, 12.000, 10.000, 5.000),
-  ('hạ sốt paracetamol c', 'MEDICINE', 'goi1kg', 85000, 22.000, 18.000, 8.000, 15.000),
-  ('men tiêu hóa bio-zyme', 'MEDICINE', 'goi1kg', 120000, 42.000, 36.000, 24.000, 12.000),
-  ('vitamin c + điện giải (han-electrolyte)', 'MEDICINE', 'goi1kg', 95000, 55.000, 45.000, 30.000, 15.000),
-  ('amoxicillin 10% (hanmoxy)', 'MEDICINE', 'goi1kg', 165000, 35.000, 28.000, 20.000, 10.000),
-  ('toltrazuril 2.5% (han-coc)', 'MEDICINE', 'chai1l', 680000, 22.000, 18.000, 16.000, 8.000)
+  ('cám gà úm higro 01',                        'FEED',     'bao25',     345000,  120.000,  180.000,  140.000,  40.000),
+  ('cám gà thịt higro 02',                      'FEED',     'bao25',     335000,  260.000,   75.000,  120.000,  50.000),
+  ('cám gà vỗ béo higro 03',                    'FEED',     'bao25',     325000,  420.000,  310.000,  110.000,  50.000),
+  ('cám gà thịt de heus 2012',                  'FEED',     'bao25',     342000,  180.000,  160.000,   80.000,  40.000),
+  ('ngô hạt nghiền',                            'FEED',     'kg',          7800, 3500.000, 2800.000, 1500.000, 500.000),
+  ('vắc-xin newcastle lasota',                  'MEDICINE', 'lo1000',     42000,   24.000,   30.000,   22.000,  10.000),
+  ('vắc-xin marek (hvt)',                       'MEDICINE', 'lo1000',    185000,   18.000,   16.000,   14.000,   8.000),
+  ('vắc-xin gumboro (medivac gumboro a)',       'MEDICINE', 'lo1000',     78000,   28.000,   24.000,   20.000,  10.000),
+  ('vắc-xin đậu gà',                            'MEDICINE', 'lo1000',     62000,   22.000,   18.000,   16.000,   8.000),
+  ('vắc-xin cúm gia cầm h5n1 (navet-vifluvac)', 'MEDICINE', 'chai500ml', 260000,   25.000,   20.000,   15.000,   8.000),
+  ('vắc-xin newcastle hệ i (m)',                'MEDICINE', 'lo20ml',     32000,   95.000,   80.000,   60.000,  20.000),
+  ('kháng sinh doxycycline 50%',                'MEDICINE', 'goi1kg',    450000,   14.000,   12.000,   10.000,   5.000),
+  ('hạ sốt paracetamol c',                      'MEDICINE', 'goi1kg',     85000,   22.000,   18.000,    8.000,  15.000),
+  ('men tiêu hóa bio-zyme',                     'MEDICINE', 'goi1kg',    120000,   42.000,   36.000,   24.000,  12.000),
+  ('vitamin c + điện giải (han-electrolyte)',   'MEDICINE', 'goi1kg',     95000,   55.000,   45.000,   30.000,  15.000),
+  ('amoxicillin 10% (hanmoxy)',                 'MEDICINE', 'goi1kg',    165000,   35.000,   28.000,   20.000,  10.000),
+  ('toltrazuril 2.5% (han-coc)',                'MEDICINE', 'chai1l',    680000,   22.000,   18.000,   16.000,   8.000)
 ) AS cat(product_key, kind, unit_key, price, stock_mia, stock_j, stock_dt, min_stock)
 CROSS JOIN (VALUES ('khu mía thịt'), ('khu j thịt'), ('khu đông tảo')) AS area_cfg(area_key)
 JOIN farm_areas fa ON fa.name_key = area_cfg.area_key
@@ -291,10 +326,10 @@ ON CONFLICT (code) DO NOTHING;
 INSERT INTO inventory_items (code, warehouse_id, product_id, brand_id, unit_id, price, stock, min_stock, lot_number, expiry_date, created_at, updated_at)
 SELECT 'SP' || UPPER(SUBSTR(MD5(w.name_key || ':' || pc.name_key), 1, 12)),
        w.id, pc.id, b.id, u.id, v.price, v.stock, v.min_stock, v.lot_no, DATE '2027-03-15',
-       TIMESTAMP '2026-06-15 10:00:00', TIMESTAMP '2026-11-10 09:00:00'
+       TIMESTAMP '2026-06-15 10:00:00', TIMESTAMP '2026-11-13 08:00:00'
 FROM (VALUES
-  ('cám gà thịt higro 02', 'FEED', 'bao25', 335000, 40.000, 20.000, 'LOT-2026-KHUA-01'),
-  ('men tiêu hóa bio-zyme', 'MEDICINE', 'goi1kg', 120000, 10.000, 5.000, 'LOT-2026-KHUA-02')
+  ('cám gà thịt higro 02',  'FEED',     'bao25',  335000, 40.000, 20.000, 'LOT-2026-KHUA-01'),
+  ('men tiêu hóa bio-zyme', 'MEDICINE', 'goi1kg', 120000, 10.000,  5.000, 'LOT-2026-KHUA-02')
 ) AS v(product_key, kind, unit_key, price, stock, min_stock, lot_no)
 JOIN farm_areas fa ON fa.name_key = 'khu a'
 JOIN warehouse_categories w ON w.area_id = fa.id AND w.kind = v.kind
@@ -307,82 +342,82 @@ ON CONFLICT (code) DO NOTHING;
 -- 7. Chương trình nuôi theo giống (Farming Programs & Steps)
 -- ---------------------------------------------------------------------
 INSERT INTO farming_programs (name, name_key, breed, duration_days, target_weight_min, target_weight_max, description, created_at, updated_at)
-VALUES ('Gà ta thả vườn', 'gà ta thả vườn', 'Gà ta', 105, 1.80, 2.50, 'Gà Đông Tảo / Gà ta thả vườn, xuất chuồng 105 ngày đạt 1,8–2,5 kg/con', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-       ('Gà Mía thương phẩm', 'gà mía thương phẩm', 'Gà Mía', 90, 2.10, 2.50, 'Gà Mía Dabaco nuôi bán chăn thả 90 ngày', TIMESTAMP '2026-01-01 08:10:00', TIMESTAMP '2026-01-01 08:10:00'),
-       ('Gà J-Dabaco thương phẩm', 'gà j-dabaco thương phẩm', 'Gà J-Dabaco', 75, 2.25, 2.60, 'Gà J-Dabaco lông màu nuôi chuồng kín 75 ngày', TIMESTAMP '2026-01-01 08:20:00', TIMESTAMP '2026-01-01 08:20:00')
+VALUES ('Gà ta thả vườn',         'gà ta thả vườn',         'Gà ta',       105, 1.80, 2.50, 'Gà Đông Tảo / Gà ta thả vườn, xuất chuồng 105 ngày đạt 1,8–2,5 kg/con', TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+       ('Gà Mía thương phẩm',     'gà mía thương phẩm',     'Gà Mía',       90, 2.10, 2.50, 'Gà Mía Dabaco nuôi bán chăn thả 90 ngày',                               TIMESTAMP '2026-01-01 08:10:00', TIMESTAMP '2026-01-01 08:10:00'),
+       ('Gà J-Dabaco thương phẩm','gà j-dabaco thương phẩm','Gà J-Dabaco',  75, 2.25, 2.60, 'Gà J-Dabaco lông màu nuôi chuồng kín 75 ngày',                          TIMESTAMP '2026-01-01 08:20:00', TIMESTAMP '2026-01-01 08:20:00')
 ON CONFLICT (name_key) DO NOTHING;
 
 INSERT INTO farming_program_steps (program_id, category, name, day_from, day_to, quantity, unit, meals_per_day, method, temp_min, temp_max, note)
 SELECT p.id, v.category, v.name, v.day_from, v.day_to, v.quantity, v.unit, v.meals, v.method, v.temp_min, v.temp_max, v.note
 FROM (VALUES
   -- Gà ta thả vườn (105 ngày)
-  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 1, 7, 14.0, 'g/con/ngày', 4, NULL, NULL, NULL, 'Rải cám mỏng trên khay, ăn tự do'),
-  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 8, 14, 24.0, 'g/con/ngày', 4, NULL, NULL, NULL, ''),
-  ('gà ta thả vườn', 'FEED', 'Cám gà con 511 (Higro 01)', 15, 21, 34.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
-  ('gà ta thả vườn', 'FEED', 'Cám gà choai (Higro 02)', 22, 35, 50.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
-  ('gà ta thả vườn', 'FEED', 'Cám gà choai (Higro 02)', 36, 56, 68.0, 'g/con/ngày', 3, NULL, NULL, NULL, 'Bắt đầu thả vườn ban ngày'),
-  ('gà ta thả vườn', 'FEED', 'Cám gà lớn (Higro 03) + ngô', 57, 84, 85.0, 'g/con/ngày', 2, NULL, NULL, NULL, ''),
-  ('gà ta thả vườn', 'FEED', 'Cám gà lớn (Higro 03) + ngô', 85, 105, 98.0, 'g/con/ngày', 2, NULL, NULL, NULL, 'Vỗ béo trước xuất chuồng'),
-  ('gà ta thả vườn', 'VACCINE', 'Marek', 1, 1, 1, 'liều/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cổ'),
-  ('gà ta thả vườn', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 3, 3, 1, 'liều/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
-  ('gà ta thả vườn', 'VACCINE', 'Gumboro lần 1', 7, 7, 1, 'liều/con', NULL, 'MOUTH', NULL, NULL, ''),
-  ('gà ta thả vườn', 'VACCINE', 'Đậu gà', 8, 8, 1, 'liều/con', NULL, 'WING_WEB', NULL, NULL, 'Chủng màng cánh bằng kim chủng'),
-  ('gà ta thả vườn', 'VACCINE', 'Gumboro lần 2', 14, 14, 1, 'liều/con', NULL, 'DRINKING_WATER', NULL, NULL, 'Cho uống hết trong 2 giờ'),
-  ('gà ta thả vườn', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'liều/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
-  ('gà ta thả vườn', 'VACCINE', 'Cúm gia cầm H5N1', 35, 35, 0.5, 'ml/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cổ'),
-  ('gà ta thả vườn', 'VACCINE', 'Newcastle hệ I (M)', 42, 42, 0.2, 'ml/con', NULL, 'INJECTION', NULL, NULL, 'Tiêm dưới da cánh'),
-  ('gà ta thả vườn', 'MEDICINE', 'Vitamin C + điện giải', 1, 7, 2, 'g/lít nước', NULL, 'MIX_WATER', NULL, NULL, 'Chống stress úm'),
-  ('gà ta thả vườn', 'MEDICINE', 'Amoxicillin phòng úm', 1, 3, 1, 'g/lít nước', NULL, 'MIX_WATER', NULL, NULL, ''),
-  ('gà ta thả vườn', 'MEDICINE', 'Toltrazuril phòng cầu trùng', 15, 17, 1, 'ml/lít nước', NULL, 'MIX_WATER', NULL, NULL, ''),
-  ('gà ta thả vườn', 'MEDICINE', 'Men tiêu hóa', 30, 34, 2, 'g/kg cám', NULL, 'MIX_FEED', NULL, NULL, 'Trộn đều với cám trước khi cho ăn'),
-  ('gà ta thả vườn', 'MEDICINE', 'Toltrazuril phòng cầu trùng lần 2', 45, 47, 1, 'ml/lít nước', NULL, 'MIX_WATER', NULL, NULL, 'Ngừng thuốc 14 ngày trước xuất bán'),
-  ('gà ta thả vườn', 'TEMPERATURE', 'Úm 3 ngày đầu', 1, 3, NULL, NULL, NULL, NULL, 32, 34, ''),
-  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 1', 4, 7, NULL, NULL, NULL, NULL, 30, 32, ''),
-  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 2', 8, 14, NULL, NULL, NULL, NULL, 28, 30, ''),
-  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 3', 15, 21, NULL, NULL, NULL, NULL, 26, 28, 'Giảm dần đèn sưởi'),
-  ('gà ta thả vườn', 'TEMPERATURE', 'Gà lớn', 22, 105, NULL, NULL, NULL, NULL, 22, 30, 'Mở bạt thông thoáng'),
+  ('gà ta thả vườn', 'FEED',        'Cám gà con 511 (Higro 01)',       1,   7,  14.0, 'g/con/ngày',   4, NULL,             NULL, NULL, 'Rải cám mỏng trên khay, ăn tự do'),
+  ('gà ta thả vườn', 'FEED',        'Cám gà con 511 (Higro 01)',       8,  14,  24.0, 'g/con/ngày',   4, NULL,             NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED',        'Cám gà con 511 (Higro 01)',      15,  21,  34.0, 'g/con/ngày',   3, NULL,             NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED',        'Cám gà choai (Higro 02)',        22,  35,  50.0, 'g/con/ngày',   3, NULL,             NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED',        'Cám gà choai (Higro 02)',        36,  56,  68.0, 'g/con/ngày',   3, NULL,             NULL, NULL, 'Bắt đầu thả vườn ban ngày'),
+  ('gà ta thả vườn', 'FEED',        'Cám gà lớn (Higro 03) + ngô',    57,  84,  85.0, 'g/con/ngày',   2, NULL,             NULL, NULL, ''),
+  ('gà ta thả vườn', 'FEED',        'Cám gà lớn (Higro 03) + ngô',    85, 105,  98.0, 'g/con/ngày',   2, NULL,             NULL, NULL, 'Vỗ béo trước xuất chuồng'),
+  ('gà ta thả vườn', 'VACCINE',     'Marek',                           1,   1,   1.0, 'liều/con',   NULL, 'INJECTION',      NULL, NULL, 'Tiêm dưới da cổ'),
+  ('gà ta thả vườn', 'VACCINE',     'Newcastle + IB lần 1 (Lasota)',   3,   3,   1.0, 'liều/con',   NULL, 'EYE_NOSE',       NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE',     'Gumboro lần 1',                   7,   7,   1.0, 'liều/con',   NULL, 'MOUTH',          NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE',     'Đậu gà',                          8,   8,   1.0, 'liều/con',   NULL, 'WING_WEB',       NULL, NULL, 'Chủng màng cánh bằng kim chủng'),
+  ('gà ta thả vườn', 'VACCINE',     'Gumboro lần 2',                  14,  14,   1.0, 'liều/con',   NULL, 'DRINKING_WATER', NULL, NULL, 'Cho uống hết trong 2 giờ'),
+  ('gà ta thả vườn', 'VACCINE',     'Newcastle + IB lần 2 (Lasota)',  21,  21,   1.0, 'liều/con',   NULL, 'EYE_NOSE',       NULL, NULL, ''),
+  ('gà ta thả vườn', 'VACCINE',     'Cúm gia cầm H5N1',               35,  35,   0.5, 'ml/con',     NULL, 'INJECTION',      NULL, NULL, 'Tiêm dưới da cổ'),
+  ('gà ta thả vườn', 'VACCINE',     'Newcastle hệ I (M)',             42,  42,   0.2, 'ml/con',     NULL, 'INJECTION',      NULL, NULL, 'Tiêm dưới da cánh'),
+  ('gà ta thả vườn', 'MEDICINE',    'Vitamin C + điện giải',           1,   7,   2.0, 'g/lít nước', NULL, 'MIX_WATER',      NULL, NULL, 'Chống stress úm'),
+  ('gà ta thả vườn', 'MEDICINE',    'Amoxicillin phòng úm',            1,   3,   1.0, 'g/lít nước', NULL, 'MIX_WATER',      NULL, NULL, ''),
+  ('gà ta thả vườn', 'MEDICINE',    'Toltrazuril phòng cầu trùng',    15,  17,   1.0, 'ml/lít nước',NULL, 'MIX_WATER',      NULL, NULL, ''),
+  ('gà ta thả vườn', 'MEDICINE',    'Men tiêu hóa',                   30,  34,   2.0, 'g/kg cám',   NULL, 'MIX_FEED',       NULL, NULL, 'Trộn đều với cám trước khi cho ăn'),
+  ('gà ta thả vườn', 'MEDICINE',    'Toltrazuril phòng cầu trùng lần 2',45,47,   1.0, 'ml/lít nước',NULL, 'MIX_WATER',      NULL, NULL, 'Ngừng thuốc 14 ngày trước xuất bán'),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm 3 ngày đầu',                   1,   3,  NULL, NULL,         NULL, NULL,             32.0, 34.0, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 1',                       4,   7,  NULL, NULL,         NULL, NULL,             30.0, 32.0, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 2',                       8,  14,  NULL, NULL,         NULL, NULL,             28.0, 30.0, ''),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Úm tuần 3',                      15,  21,  NULL, NULL,         NULL, NULL,             26.0, 28.0, 'Giảm dần đèn sưởi'),
+  ('gà ta thả vườn', 'TEMPERATURE', 'Gà lớn',                         22, 105,  NULL, NULL,         NULL, NULL,             22.0, 30.0, 'Mở bạt thông thoáng'),
 
   -- Gà Mía thương phẩm (90 ngày)
-  ('gà mía thương phẩm', 'FEED', 'Higro 01', 1, 14, 22.0, 'g/con/ngày', 4, NULL, NULL, NULL, ''),
-  ('gà mía thương phẩm', 'FEED', 'Higro 02', 15, 35, 58.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
-  ('gà mía thương phẩm', 'FEED', 'Higro 02', 36, 60, 82.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
-  ('gà mía thương phẩm', 'FEED', 'Higro 03', 61, 90, 105.0, 'g/con/ngày', 2, NULL, NULL, NULL, ''),
-  ('gà mía thương phẩm', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 5, 5, 1, 'liều/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
-  ('gà mía thương phẩm', 'VACCINE', 'Gumboro lần 1', 10, 10, 1, 'liều/con', NULL, 'MOUTH', NULL, NULL, ''),
-  ('gà mía thương phẩm', 'VACCINE', 'Gumboro lần 2', 17, 17, 1, 'liều/con', NULL, 'DRINKING_WATER', NULL, NULL, ''),
-  ('gà mía thương phẩm', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'liều/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
-  ('gà mía thương phẩm', 'MEDICINE', 'Men tiêu hóa', 15, 19, 2, 'g/kg cám', NULL, 'MIX_FEED', NULL, NULL, ''),
-  ('gà mía thương phẩm', 'TEMPERATURE', 'Úm', 1, 14, NULL, NULL, NULL, NULL, 29, 33, ''),
-  ('gà mía thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 90, NULL, NULL, NULL, NULL, 24, 30, ''),
+  ('gà mía thương phẩm', 'FEED',        'Higro 01',                       1, 14,  22.0, 'g/con/ngày', 4, NULL,             NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED',        'Higro 02',                      15, 35,  58.0, 'g/con/ngày', 3, NULL,             NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED',        'Higro 02',                      36, 60,  82.0, 'g/con/ngày', 3, NULL,             NULL, NULL, ''),
+  ('gà mía thương phẩm', 'FEED',        'Higro 03',                      61, 90, 105.0, 'g/con/ngày', 2, NULL,             NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE',     'Newcastle + IB lần 1 (Lasota)',  5,  5,   1.0, 'liều/con', NULL, 'EYE_NOSE',       NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE',     'Gumboro lần 1',                 10, 10,   1.0, 'liều/con', NULL, 'MOUTH',          NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE',     'Gumboro lần 2',                 17, 17,   1.0, 'liều/con', NULL, 'DRINKING_WATER', NULL, NULL, ''),
+  ('gà mía thương phẩm', 'VACCINE',     'Newcastle + IB lần 2 (Lasota)', 21, 21,   1.0, 'liều/con', NULL, 'EYE_NOSE',       NULL, NULL, ''),
+  ('gà mía thương phẩm', 'MEDICINE',    'Men tiêu hóa',                  15, 19,   2.0, 'g/kg cám', NULL, 'MIX_FEED',       NULL, NULL, ''),
+  ('gà mía thương phẩm', 'TEMPERATURE', 'Úm',                             1, 14,  NULL, NULL,       NULL, NULL,             29.0, 33.0, ''),
+  ('gà mía thương phẩm', 'TEMPERATURE', 'Gà lớn',                        15, 90,  NULL, NULL,       NULL, NULL,             24.0, 30.0, ''),
 
   -- Gà J-Dabaco thương phẩm (75 ngày)
-  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 01', 1, 14, 24.0, 'g/con/ngày', 4, NULL, NULL, NULL, ''),
-  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 02', 15, 42, 72.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
-  ('gà j-dabaco thương phẩm', 'FEED', 'Higro 03', 43, 75, 112.0, 'g/con/ngày', 3, NULL, NULL, NULL, ''),
-  ('gà j-dabaco thương phẩm', 'VACCINE', 'Newcastle + IB lần 1 (Lasota)', 5, 5, 1, 'liều/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
-  ('gà j-dabaco thương phẩm', 'VACCINE', 'Gumboro lần 1', 10, 10, 1, 'liều/con', NULL, 'MOUTH', NULL, NULL, ''),
-  ('gà j-dabaco thương phẩm', 'VACCINE', 'Newcastle + IB lần 2 (Lasota)', 21, 21, 1, 'liều/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
-  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Úm', 1, 14, NULL, NULL, NULL, NULL, 29, 33, ''),
-  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Gà lớn', 15, 75, NULL, NULL, NULL, NULL, 22, 28, '')
+  ('gà j-dabaco thương phẩm', 'FEED',        'Higro 01',                       1, 14,  24.0, 'g/con/ngày', 4, NULL,       NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'FEED',        'Higro 02',                      15, 42,  72.0, 'g/con/ngày', 3, NULL,       NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'FEED',        'Higro 03',                      43, 75, 112.0, 'g/con/ngày', 3, NULL,       NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE',     'Newcastle + IB lần 1 (Lasota)',  5,  5,   1.0, 'liều/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE',     'Gumboro lần 1',                 10, 10,   1.0, 'liều/con', NULL, 'MOUTH',    NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'VACCINE',     'Newcastle + IB lần 2 (Lasota)', 21, 21,   1.0, 'liều/con', NULL, 'EYE_NOSE', NULL, NULL, ''),
+  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Úm',                             1, 14,  NULL, NULL,       NULL, NULL,       29.0, 33.0, ''),
+  ('gà j-dabaco thương phẩm', 'TEMPERATURE', 'Gà lớn',                        15, 75,  NULL, NULL,       NULL, NULL,       22.0, 28.0, '')
 ) AS v(program_key, category, name, day_from, day_to, quantity, unit, meals, method, temp_min, temp_max, note)
 JOIN farming_programs p ON p.name_key = v.program_key;
 
 UPDATE farming_program_steps s
 SET inventory_item_id = picked.item_id
 FROM (VALUES
-  ('FEED', '%higro 01%', 'cám gà úm higro 01'),
-  ('FEED', '%higro 02%', 'cám gà thịt higro 02'),
-  ('FEED', '%higro 03%', 'cám gà vỗ béo higro 03'),
-  ('VACCINE', '%lasota%', 'vắc-xin newcastle lasota'),
-  ('VACCINE', '%marek%', 'vắc-xin marek (hvt)'),
-  ('VACCINE', '%gumboro%', 'vắc-xin gumboro (medivac gumboro a)'),
-  ('VACCINE', '%đậu gà%', 'vắc-xin đậu gà'),
-  ('VACCINE', '%h5n1%', 'vắc-xin cúm gia cầm h5n1 (navet-vifluvac)'),
-  ('VACCINE', '%hệ i%', 'vắc-xin newcastle hệ i (m)'),
-  ('MEDICINE', 'men tiêu hóa%', 'men tiêu hóa bio-zyme'),
-  ('MEDICINE', 'vitamin c%', 'vitamin c + điện giải (han-electrolyte)'),
-  ('MEDICINE', 'amoxicillin%', 'amoxicillin 10% (hanmoxy)'),
-  ('MEDICINE', 'toltrazuril%', 'toltrazuril 2.5% (han-coc)')
+  ('FEED',     '%higro 01%',     'cám gà úm higro 01'),
+  ('FEED',     '%higro 02%',     'cám gà thịt higro 02'),
+  ('FEED',     '%higro 03%',     'cám gà vỗ béo higro 03'),
+  ('VACCINE',  '%lasota%',       'vắc-xin newcastle lasota'),
+  ('VACCINE',  '%marek%',        'vắc-xin marek (hvt)'),
+  ('VACCINE',  '%gumboro%',      'vắc-xin gumboro (medivac gumboro a)'),
+  ('VACCINE',  '%đậu gà%',       'vắc-xin đậu gà'),
+  ('VACCINE',  '%h5n1%',         'vắc-xin cúm gia cầm h5n1 (navet-vifluvac)'),
+  ('VACCINE',  '%hệ i%',         'vắc-xin newcastle hệ i (m)'),
+  ('MEDICINE', 'men tiêu hóa%',  'men tiêu hóa bio-zyme'),
+  ('MEDICINE', 'vitamin c%',     'vitamin c + điện giải (han-electrolyte)'),
+  ('MEDICINE', 'amoxicillin%',   'amoxicillin 10% (hanmoxy)'),
+  ('MEDICINE', 'toltrazuril%',   'toltrazuril 2.5% (han-coc)')
 ) AS v(category, step_pattern, product_key)
 JOIN LATERAL (
   SELECT ii.id AS item_id
@@ -397,26 +432,26 @@ WHERE s.category = v.category
   AND s.inventory_item_id IS NULL;
 
 -- ---------------------------------------------------------------------
--- 8. Chuồng (Barns), Lứa nuôi (Cycles: 20 lứa từ T1–T11/2026) & Đàn (23 đàn)
+-- 8. Chuồng (Barns), Lứa nuôi (Cycles: 20 lứa T1–T11/2026) & Đàn (23 đàn)
 -- ---------------------------------------------------------------------
 INSERT INTO barns (area_id, name, name_key, status, capacity, current_quantity, area_m2, target_weight, description, workers_override, created_at, updated_at)
 SELECT a.id, v.name, v.name_key, 'ACTIVE', v.capacity, 0, v.area_m2, v.target_weight, v.descr, FALSE,
-       TIMESTAMP '2026-01-01 09:00:00', TIMESTAMP '2026-11-12 08:00:00'
+       TIMESTAMP '2026-01-01 09:00:00', TIMESTAMP '2026-11-13 08:00:00'
 FROM (VALUES
   ('khu mía thịt', 'Nhà A1', 'nhà a1', 5000, 625.00, 2.35, 'Chuồng nuôi gà Mía bán chăn thả số 1'),
   ('khu mía thịt', 'Nhà A2', 'nhà a2', 5000, 625.00, 2.35, 'Chuồng nuôi gà Mía bán chăn thả số 2'),
   ('khu mía thịt', 'Nhà A3', 'nhà a3', 4000, 500.00, 2.40, 'Chuồng nuôi gà Mía chọn lọc trống/mái'),
-  ('khu j thịt', 'Nhà B1', 'nhà b1', 6000, 750.00, 2.45, 'Chuồng kín giàn mát Cooling Pad số 1'),
-  ('khu j thịt', 'Nhà B2', 'nhà b2', 6000, 750.00, 2.45, 'Chuồng kín giàn mát Cooling Pad số 2'),
+  ('khu j thịt',   'Nhà B1', 'nhà b1', 6000, 750.00, 2.45, 'Chuồng kín giàn mát Cooling Pad số 1'),
+  ('khu j thịt',   'Nhà B2', 'nhà b2', 6000, 750.00, 2.45, 'Chuồng kín giàn mát Cooling Pad số 2'),
   ('khu đông tảo', 'Nhà C1', 'nhà c1', 2500, 320.00, 2.50, 'Chuồng nuôi gà ta thả vườn đặc sản'),
-  ('khu a', 'Nhà A4', 'nhà a4', 3000, 380.00, 2.35, 'Chuồng dự phòng (đang nghỉ sát trùng sau lứa 1)')
+  ('khu a',        'Nhà A4', 'nhà a4', 3000, 380.00, 2.35, 'Chuồng dự phòng (đang nghỉ sát trùng sau lứa 1)')
 ) AS v(area_key, name, name_key, capacity, area_m2, target_weight, descr)
 JOIN farm_areas a ON a.name_key = v.area_key;
 
 INSERT INTO farming_cycles (barn_id, cycle_number, start_date, hatch_date, end_date, status, note,
                             carried_feed_kg, carried_feed_cost, carried_gain_kg, carried_days, created_at, updated_at)
 SELECT b.id, v.cyc_no, v.start_date, v.start_date, v.end_date, v.status, v.note,
-       0, 0, 0, 0, v.start_date::timestamp + TIME '07:00:00', COALESCE(v.end_date::timestamp, TIMESTAMP '2026-11-12 08:00:00')
+       0, 0, 0, 0, v.start_date::timestamp + TIME '07:00:00', COALESCE(v.end_date::timestamp, TIMESTAMP '2026-11-13 08:00:00')
 FROM (VALUES
   -- Nhà A1 (Mía 90d)
   ('nhà a1', 1, DATE '2026-01-05', DATE '2026-04-08', 'CLOSED', 'Lứa 1 Q1/2026 — Xuất bán sạch chuồng đạt tỷ lệ sống 97,0%'),
@@ -429,11 +464,11 @@ FROM (VALUES
   -- Nhà A3 (Mía chọn trống/mái)
   ('nhà a3', 1, DATE '2026-02-15', DATE '2026-05-20', 'CLOSED', 'Lứa 1 Q1-Q2/2026 — Nuôi tách trống mái'),
   ('nhà a3', 2, DATE '2026-06-05', DATE '2026-09-05', 'CLOSED', 'Lứa 2 Q3/2026 — Xuất hết chuồng đầu tháng 9'),
-  ('nhà a3', 3, DATE '2026-10-01', NULL,              'ACTIVE', 'Lứa 3/2026 — Gà choai 43 ngày tuổi phát triển đồng đều'),
-  -- Nhà B1 (J-Dabaco 75d)
+  ('nhà a3', 3, DATE '2026-10-01', NULL,              'ACTIVE', 'Lứa 3/2026 — Gà choai 44 ngày tuổi phát triển đồng đều'),
+  -- Nhà B1 (J-Dabaco 75d: bắt đầu 31/08 -> ngày 13/11 đúng 75 ngày tuổi)
   ('nhà b1', 1, DATE '2026-01-08', DATE '2026-03-25', 'CLOSED', 'Lứa 1 Q1/2026 — Xuất chuồng sớm nhất năm 2026'),
   ('nhà b1', 2, DATE '2026-04-12', DATE '2026-06-28', 'CLOSED', 'Lứa 2 Q2/2026 — FCR đạt 2,40'),
-  ('nhà b1', 3, DATE '2026-08-30', NULL,              'ACTIVE', 'Lứa 3/2026 — Đủ 75 ngày tuổi, đang xuất tỉa thu hoạch'),
+  ('nhà b1', 3, DATE '2026-08-31', NULL,              'ACTIVE', 'Lứa 3/2026 — Đủ 75 ngày tuổi, đang xuất tỉa thu hoạch'),
   -- Nhà B2 (J-Dabaco 75d)
   ('nhà b2', 1, DATE '2026-01-25', DATE '2026-04-12', 'CLOSED', 'Lứa 1 Q1/2026 — Xuất bán sạch cho đại lý Miền Bắc'),
   ('nhà b2', 2, DATE '2026-04-28', DATE '2026-07-15', 'CLOSED', 'Lứa 2 Q2/2026 — Đạt 2,45 kg/con'),
@@ -455,29 +490,29 @@ SELECT c.id, v.fname, v.gender, 'PURCHASE', s.name, s.id, NULL, p.id,
        CASE WHEN c.status = 'CLOSED' THEN 'ARCHIVED' ELSE 'ACTIVE' END,
        v.note, c.start_date::timestamp + TIME '08:00:00', c.updated_at
 FROM (VALUES
-  ('nhà a1', 1, 'MÍA-DABACO XÔ',   'MIXED',  4000, 11000, 'gà mía thương phẩm',     'Đàn nhập tháng 1/2026'),
-  ('nhà a1', 2, 'MÍA-DABACO XÔ',   'MIXED',  4500, 11000, 'gà mía thương phẩm',     'Đàn nhập tháng 4/2026'),
-  ('nhà a1', 3, 'MÍA-DABACO XÔ',   'MIXED',  5000, 11200, 'gà mía thương phẩm',     'Đàn Mía lứa 3 đang nuôi'),
-  ('nhà a2', 1, 'MÍA-DABACO XÔ',   'MIXED',  4000, 11000, 'gà mía thương phẩm',     'Đàn nhập tháng 1/2026'),
-  ('nhà a2', 2, 'MÍA-DABACO XÔ',   'MIXED',  4500, 11000, 'gà mía thương phẩm',     'Đàn nhập tháng 5/2026'),
-  ('nhà a2', 3, 'MÍA-DABACO XÔ',   'MIXED',  4800, 11200, 'gà mía thương phẩm',     'Đàn Mía lứa 3 đang nuôi'),
-  ('nhà a3', 1, 'MÍA-DABACO TRỐNG','MALE',   2500, 11000, 'gà mía thương phẩm',     'Chọn trống lứa 1'),
-  ('nhà a3', 1, 'MÍA-DABACO MÁI',  'FEMALE', 1500, 11500, 'gà mía thương phẩm',     'Chọn mái lứa 1'),
-  ('nhà a3', 2, 'MÍA-DABACO TRỐNG','MALE',   2500, 11000, 'gà mía thương phẩm',     'Chọn trống lứa 2'),
-  ('nhà a3', 2, 'MÍA-DABACO MÁI',  'FEMALE', 1500, 11500, 'gà mía thương phẩm',     'Chọn mái lứa 2'),
-  ('nhà a3', 3, 'MÍA-DABACO TRỐNG','MALE',   2500, 11200, 'gà mía thương phẩm',     'Chọn trống lứa 3'),
-  ('nhà a3', 3, 'MÍA-DABACO MÁI',  'FEMALE', 1500, 11600, 'gà mía thương phẩm',     'Chọn mái lứa 3'),
-  ('nhà b1', 1, 'J-DABACO XÔ',     'MIXED',  5000, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 1'),
-  ('nhà b1', 2, 'J-DABACO XÔ',     'MIXED',  5500, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 2'),
-  ('nhà b1', 3, 'J-DABACO XÔ',     'MIXED',  5500, 10800, 'gà j-dabaco thương phẩm','Đàn J lứa 3 đang xuất bán'),
-  ('nhà b2', 1, 'J-DABACO XÔ',     'MIXED',  5000, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 1'),
-  ('nhà b2', 2, 'J-DABACO XÔ',     'MIXED',  5500, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 2'),
-  ('nhà b2', 3, 'J-DABACO XÔ',     'MIXED',  5500, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 3'),
-  ('nhà b2', 4, 'J-DABACO XÔ',     'MIXED',  5800, 10800, 'gà j-dabaco thương phẩm','Đàn J lứa 4 vừa hết úm'),
-  ('nhà c1', 1, 'ĐÔNG TẢO XÔ',     'MIXED',  1800, 15000, 'gà ta thả vườn',         'Gà ta thả vườn lứa 1'),
-  ('nhà c1', 2, 'ĐÔNG TẢO XÔ',     'MIXED',  2000, 15500, 'gà ta thả vườn',         'Gà ta thả vườn lứa 2'),
-  ('nhà c1', 3, 'ĐÔNG TẢO XÔ',     'MIXED',  2000, 16000, 'gà ta thả vườn',         'Gà ta thả vườn lứa 3 đang úm'),
-  ('nhà a4', 1, 'MÍA-DABACO XÔ',   'MIXED',  2500, 11000, 'gà mía thương phẩm',     'Đàn dự phòng Q1')
+  ('nhà a1', 1, 'MÍA-DABACO XÔ',    'MIXED',  4000, 11000, 'gà mía thương phẩm',     'Đàn nhập tháng 1/2026'),
+  ('nhà a1', 2, 'MÍA-DABACO XÔ',    'MIXED',  4500, 11000, 'gà mía thương phẩm',     'Đàn nhập tháng 4/2026'),
+  ('nhà a1', 3, 'MÍA-DABACO XÔ',    'MIXED',  5000, 11200, 'gà mía thương phẩm',     'Đàn Mía lứa 3 đang nuôi'),
+  ('nhà a2', 1, 'MÍA-DABACO XÔ',    'MIXED',  4000, 11000, 'gà mía thương phẩm',     'Đàn nhập tháng 1/2026'),
+  ('nhà a2', 2, 'MÍA-DABACO XÔ',    'MIXED',  4500, 11000, 'gà mía thương phẩm',     'Đàn nhập tháng 5/2026'),
+  ('nhà a2', 3, 'MÍA-DABACO XÔ',    'MIXED',  4800, 11200, 'gà mía thương phẩm',     'Đàn Mía lứa 3 đang nuôi'),
+  ('nhà a3', 1, 'MÍA-DABACO TRỐNG', 'MALE',   2500, 11000, 'gà mía thương phẩm',     'Chọn trống lứa 1'),
+  ('nhà a3', 1, 'MÍA-DABACO MÁI',   'FEMALE', 1500, 11500, 'gà mía thương phẩm',     'Chọn mái lứa 1'),
+  ('nhà a3', 2, 'MÍA-DABACO TRỐNG', 'MALE',   2500, 11000, 'gà mía thương phẩm',     'Chọn trống lứa 2'),
+  ('nhà a3', 2, 'MÍA-DABACO MÁI',   'FEMALE', 1500, 11500, 'gà mía thương phẩm',     'Chọn mái lứa 2'),
+  ('nhà a3', 3, 'MÍA-DABACO TRỐNG', 'MALE',   2500, 11200, 'gà mía thương phẩm',     'Chọn trống lứa 3'),
+  ('nhà a3', 3, 'MÍA-DABACO MÁI',   'FEMALE', 1500, 11600, 'gà mía thương phẩm',     'Chọn mái lứa 3'),
+  ('nhà b1', 1, 'J-DABACO XÔ',      'MIXED',  5000, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 1'),
+  ('nhà b1', 2, 'J-DABACO XÔ',      'MIXED',  5500, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 2'),
+  ('nhà b1', 3, 'J-DABACO XÔ',      'MIXED',  5500, 10800, 'gà j-dabaco thương phẩm','Đàn J lứa 3 đang xuất bán'),
+  ('nhà b2', 1, 'J-DABACO XÔ',      'MIXED',  5000, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 1'),
+  ('nhà b2', 2, 'J-DABACO XÔ',      'MIXED',  5500, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 2'),
+  ('nhà b2', 3, 'J-DABACO XÔ',      'MIXED',  5500, 10500, 'gà j-dabaco thương phẩm','Đàn J lứa 3'),
+  ('nhà b2', 4, 'J-DABACO XÔ',      'MIXED',  5800, 10800, 'gà j-dabaco thương phẩm','Đàn J lứa 4 vừa hết úm'),
+  ('nhà c1', 1, 'ĐÔNG TẢO XÔ',      'MIXED',  1800, 15000, 'gà ta thả vườn',         'Gà ta thả vườn lứa 1'),
+  ('nhà c1', 2, 'ĐÔNG TẢO XÔ',      'MIXED',  2000, 15500, 'gà ta thả vườn',         'Gà ta thả vườn lứa 2'),
+  ('nhà c1', 3, 'ĐÔNG TẢO XÔ',      'MIXED',  2000, 16000, 'gà ta thả vườn',         'Gà ta thả vườn lứa 3 đang úm'),
+  ('nhà a4', 1, 'MÍA-DABACO XÔ',    'MIXED',  2500, 11000, 'gà mía thương phẩm',     'Đàn dự phòng Q1')
 ) AS v(barn_key, cyc_no, fname, gender, qty, price, prog_key, note)
 JOIN barns b ON b.name_key = v.barn_key
 JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = v.cyc_no
@@ -496,26 +531,26 @@ SELECT f.id, m.m_type, (c.start_date + m.day_offset), m.qty, ROUND((m.qty * m.av
        (c.start_date + m.day_offset)::timestamp + TIME '17:00:00'
 FROM (VALUES
   -- Nhà A1
-  ('nhà a1', 1, 'MÍA-DABACO XÔ', 'DEATH', 6,  55, 0.12, 'Hao hụt giai đoạn úm tuần 1'),
-  ('nhà a1', 1, 'MÍA-DABACO XÔ', 'DEATH', 35, 40, 0.85, 'Hao hụt giai đoạn choai'),
-  ('nhà a1', 1, 'MÍA-DABACO XÔ', 'CULL',  55, 25, 1.35, 'Loại thải gà còi chậm lớn'),
-  ('nhà a1', 2, 'MÍA-DABACO XÔ', 'DEATH', 7,  60, 0.14, 'Hao hụt giai đoạn úm tuần 1'),
-  ('nhà a1', 2, 'MÍA-DABACO XÔ', 'DEATH', 40, 45, 0.95, 'Hao hụt nắng nóng đầu hè'),
-  ('nhà a1', 2, 'MÍA-DABACO XÔ', 'CULL',  60, 30, 1.45, 'Loại thải gà yếu chân'),
-  ('nhà a1', 3, 'MÍA-DABACO XÔ', 'DEATH', 6,  52, 0.13, 'Hao hụt giai đoạn úm'),
-  ('nhà a1', 3, 'MÍA-DABACO XÔ', 'DEATH', 38, 33, 0.90, 'Hao hụt giữa lứa'),
-  ('nhà a1', 3, 'MÍA-DABACO XÔ', 'CULL',  62, 30, 1.50, 'Loại thải trước xuất bán'),
+  ('nhà a1', 1, 'MÍA-DABACO XÔ',    'DEATH',  6, 55, 0.12, 'Hao hụt giai đoạn úm tuần 1'),
+  ('nhà a1', 1, 'MÍA-DABACO XÔ',    'DEATH', 35, 40, 0.85, 'Hao hụt giai đoạn choai'),
+  ('nhà a1', 1, 'MÍA-DABACO XÔ',    'CULL',  55, 25, 1.35, 'Loại thải gà còi chậm lớn'),
+  ('nhà a1', 2, 'MÍA-DABACO XÔ',    'DEATH',  7, 60, 0.14, 'Hao hụt giai đoạn úm tuần 1'),
+  ('nhà a1', 2, 'MÍA-DABACO XÔ',    'DEATH', 40, 45, 0.95, 'Hao hụt nắng nóng đầu hè'),
+  ('nhà a1', 2, 'MÍA-DABACO XÔ',    'CULL',  60, 30, 1.45, 'Loại thải gà yếu chân'),
+  ('nhà a1', 3, 'MÍA-DABACO XÔ',    'DEATH',  6, 52, 0.13, 'Hao hụt giai đoạn úm'),
+  ('nhà a1', 3, 'MÍA-DABACO XÔ',    'DEATH', 38, 33, 0.90, 'Hao hụt giữa lứa'),
+  ('nhà a1', 3, 'MÍA-DABACO XÔ',    'CULL',  62, 30, 1.50, 'Loại thải trước xuất bán'),
   -- Nhà A2
-  ('nhà a2', 1, 'MÍA-DABACO XÔ', 'DEATH', 6,  50, 0.12, 'Hao hụt úm'),
-  ('nhà a2', 1, 'MÍA-DABACO XÔ', 'DEATH', 40, 38, 0.92, 'Hao hụt giữa lứa'),
-  ('nhà a2', 1, 'MÍA-DABACO XÔ', 'CULL',  60, 22, 1.40, 'Loại thải gà còi'),
-  ('nhà a2', 2, 'MÍA-DABACO XÔ', 'DEATH', 7,  55, 0.14, 'Hao hụt úm'),
-  ('nhà a2', 2, 'MÍA-DABACO XÔ', 'DEATH', 42, 37, 0.95, 'Hao hụt giữa lứa'),
-  ('nhà a2', 2, 'MÍA-DABACO XÔ', 'CULL',  58, 28, 1.40, 'Loại thải'),
-  ('nhà a2', 3, 'MÍA-DABACO XÔ', 'DEATH', 7,  40, 0.15, 'Hao hụt giai đoạn úm'),
-  ('nhà a2', 3, 'MÍA-DABACO XÔ', 'DEATH', 35, 20, 0.85, 'Hao hụt đầu tháng 10'),
-  ('nhà a2', 3, 'MÍA-DABACO XÔ', 'CULL',  50, 18, 1.35, 'Loại thải định kỳ'),
-  ('nhà a2', 3, 'MÍA-DABACO XÔ', 'DEATH', 68,  2, 1.62, 'Chết rải rác hôm nay 12/11'),
+  ('nhà a2', 1, 'MÍA-DABACO XÔ',    'DEATH',  6, 50, 0.12, 'Hao hụt úm'),
+  ('nhà a2', 1, 'MÍA-DABACO XÔ',    'DEATH', 40, 38, 0.92, 'Hao hụt giữa lứa'),
+  ('nhà a2', 1, 'MÍA-DABACO XÔ',    'CULL',  60, 22, 1.40, 'Loại thải gà còi'),
+  ('nhà a2', 2, 'MÍA-DABACO XÔ',    'DEATH',  7, 55, 0.14, 'Hao hụt úm'),
+  ('nhà a2', 2, 'MÍA-DABACO XÔ',    'DEATH', 42, 37, 0.95, 'Hao hụt giữa lứa'),
+  ('nhà a2', 2, 'MÍA-DABACO XÔ',    'CULL',  58, 28, 1.40, 'Loại thải'),
+  ('nhà a2', 3, 'MÍA-DABACO XÔ',    'DEATH',  7, 40, 0.15, 'Hao hụt giai đoạn úm'),
+  ('nhà a2', 3, 'MÍA-DABACO XÔ',    'DEATH', 35, 20, 0.85, 'Hao hụt đầu tháng 10'),
+  ('nhà a2', 3, 'MÍA-DABACO XÔ',    'CULL',  50, 18, 1.35, 'Loại thải định kỳ'),
+  ('nhà a2', 3, 'MÍA-DABACO XÔ',    'DEATH', 69,  2, 1.65, 'Chết rải rác hôm nay 13/11'),
   -- Nhà A3 (trống + mái)
   ('nhà a3', 1, 'MÍA-DABACO TRỐNG', 'DEATH', 10, 45, 0.18, 'Hao hụt úm'),
   ('nhà a3', 1, 'MÍA-DABACO TRỐNG', 'CULL',  50, 12, 1.30, 'Loại thải'),
@@ -530,38 +565,38 @@ FROM (VALUES
   ('nhà a3', 3, 'MÍA-DABACO MÁI',   'DEATH', 10, 13, 0.18, 'Hao hụt úm'),
   ('nhà a3', 3, 'MÍA-DABACO MÁI',   'CULL',  35,  4, 0.78, 'Loại thải'),
   -- Nhà B1
-  ('nhà b1', 1, 'J-DABACO XÔ', 'DEATH', 8,  60, 0.18, 'Hao hụt úm'),
-  ('nhà b1', 1, 'J-DABACO XÔ', 'DEATH', 35, 35, 1.05, 'Hao hụt tăng trưởng'),
-  ('nhà b1', 1, 'J-DABACO XÔ', 'CULL',  50, 25, 1.55, 'Loại thải trước bán'),
-  ('nhà b1', 2, 'J-DABACO XÔ', 'DEATH', 8,  68, 0.18, 'Hao hụt úm'),
-  ('nhà b1', 2, 'J-DABACO XÔ', 'DEATH', 36, 42, 1.10, 'Hao hụt giữa lứa'),
-  ('nhà b1', 2, 'J-DABACO XÔ', 'CULL',  52, 30, 1.60, 'Loại thải'),
-  ('nhà b1', 3, 'J-DABACO XÔ', 'DEATH', 8,  55, 0.18, 'Hao hụt úm'),
-  ('nhà b1', 3, 'J-DABACO XÔ', 'DEATH', 40, 32, 1.20, 'Hao hụt giai đoạn vỗ béo'),
-  ('nhà b1', 3, 'J-DABACO XÔ', 'CULL',  55, 20, 1.75, 'Loại thải chọn đàn'),
-  ('nhà b1', 3, 'J-DABACO XÔ', 'DEATH', 74,  3, 2.41, 'Hao hụt ngày xuất chuồng 12/11'),
+  ('nhà b1', 1, 'J-DABACO XÔ',      'DEATH',  8, 60, 0.18, 'Hao hụt úm'),
+  ('nhà b1', 1, 'J-DABACO XÔ',      'DEATH', 35, 35, 1.05, 'Hao hụt tăng trưởng'),
+  ('nhà b1', 1, 'J-DABACO XÔ',      'CULL',  50, 25, 1.55, 'Loại thải trước bán'),
+  ('nhà b1', 2, 'J-DABACO XÔ',      'DEATH',  8, 68, 0.18, 'Hao hụt úm'),
+  ('nhà b1', 2, 'J-DABACO XÔ',      'DEATH', 36, 42, 1.10, 'Hao hụt giữa lứa'),
+  ('nhà b1', 2, 'J-DABACO XÔ',      'CULL',  52, 30, 1.60, 'Loại thải'),
+  ('nhà b1', 3, 'J-DABACO XÔ',      'DEATH',  8, 55, 0.18, 'Hao hụt úm'),
+  ('nhà b1', 3, 'J-DABACO XÔ',      'DEATH', 40, 32, 1.20, 'Hao hụt giai đoạn vỗ béo'),
+  ('nhà b1', 3, 'J-DABACO XÔ',      'CULL',  55, 20, 1.75, 'Loại thải chọn đàn'),
+  ('nhà b1', 3, 'J-DABACO XÔ',      'DEATH', 74,  3, 2.41, 'Hao hụt ngày xuất chuồng 13/11'),
   -- Nhà B2
-  ('nhà b2', 1, 'J-DABACO XÔ', 'DEATH', 7,  55, 0.16, 'Hao hụt úm'),
-  ('nhà b2', 1, 'J-DABACO XÔ', 'DEATH', 38, 35, 1.10, 'Hao hụt'),
-  ('nhà b2', 1, 'J-DABACO XÔ', 'CULL',  50, 20, 1.60, 'Loại thải'),
-  ('nhà b2', 2, 'J-DABACO XÔ', 'DEATH', 7,  60, 0.16, 'Hao hụt úm'),
-  ('nhà b2', 2, 'J-DABACO XÔ', 'DEATH', 38, 42, 1.15, 'Hao hụt'),
-  ('nhà b2', 2, 'J-DABACO XÔ', 'CULL',  50, 28, 1.60, 'Loại thải'),
-  ('nhà b2', 3, 'J-DABACO XÔ', 'DEATH', 7,  58, 0.16, 'Hao hụt úm'),
-  ('nhà b2', 3, 'J-DABACO XÔ', 'DEATH', 36, 38, 1.15, 'Hao hụt'),
-  ('nhà b2', 3, 'J-DABACO XÔ', 'CULL',  50, 24, 1.60, 'Loại thải'),
-  ('nhà b2', 4, 'J-DABACO XÔ', 'DEATH', 6,  28, 0.14, 'Hao hụt tuần úm đầu'),
-  ('nhà b2', 4, 'J-DABACO XÔ', 'CULL',  12,  7, 0.30, 'Loại thải gà nhỏ khi chuyển cám'),
+  ('nhà b2', 1, 'J-DABACO XÔ',      'DEATH',  7, 55, 0.16, 'Hao hụt úm'),
+  ('nhà b2', 1, 'J-DABACO XÔ',      'DEATH', 38, 35, 1.10, 'Hao hụt'),
+  ('nhà b2', 1, 'J-DABACO XÔ',      'CULL',  50, 20, 1.60, 'Loại thải'),
+  ('nhà b2', 2, 'J-DABACO XÔ',      'DEATH',  7, 60, 0.16, 'Hao hụt úm'),
+  ('nhà b2', 2, 'J-DABACO XÔ',      'DEATH', 38, 42, 1.15, 'Hao hụt'),
+  ('nhà b2', 2, 'J-DABACO XÔ',      'CULL',  50, 28, 1.60, 'Loại thải'),
+  ('nhà b2', 3, 'J-DABACO XÔ',      'DEATH',  7, 58, 0.16, 'Hao hụt úm'),
+  ('nhà b2', 3, 'J-DABACO XÔ',      'DEATH', 36, 38, 1.15, 'Hao hụt'),
+  ('nhà b2', 3, 'J-DABACO XÔ',      'CULL',  50, 24, 1.60, 'Loại thải'),
+  ('nhà b2', 4, 'J-DABACO XÔ',      'DEATH',  6, 28, 0.14, 'Hao hụt tuần úm đầu'),
+  ('nhà b2', 4, 'J-DABACO XÔ',      'CULL',  12,  7, 0.30, 'Loại thải gà nhỏ khi chuyển cám'),
   -- Nhà C1
-  ('nhà c1', 1, 'ĐÔNG TẢO XÔ', 'DEATH', 10, 45, 0.22, 'Hao hụt úm'),
-  ('nhà c1', 1, 'ĐÔNG TẢO XÔ', 'CULL',  60, 15, 1.45, 'Loại thải'),
-  ('nhà c1', 2, 'ĐÔNG TẢO XÔ', 'DEATH', 10, 48, 0.22, 'Hao hụt úm'),
-  ('nhà c1', 2, 'ĐÔNG TẢO XÔ', 'CULL',  60, 17, 1.50, 'Loại thải'),
-  ('nhà c1', 3, 'ĐÔNG TẢO XÔ', 'DEATH', 4,  12, 0.10, 'Hao hụt úm 5 ngày đầu'),
-  ('nhà c1', 3, 'ĐÔNG TẢO XÔ', 'CULL',  6,   3, 0.15, 'Loại thải gà dị tật chân'),
+  ('nhà c1', 1, 'ĐÔNG TẢO XÔ',      'DEATH', 10, 45, 0.22, 'Hao hụt úm'),
+  ('nhà c1', 1, 'ĐÔNG TẢO XÔ',      'CULL',  60, 15, 1.45, 'Loại thải'),
+  ('nhà c1', 2, 'ĐÔNG TẢO XÔ',      'DEATH', 10, 48, 0.22, 'Hao hụt úm'),
+  ('nhà c1', 2, 'ĐÔNG TẢO XÔ',      'CULL',  60, 17, 1.50, 'Loại thải'),
+  ('nhà c1', 3, 'ĐÔNG TẢO XÔ',      'DEATH',  4, 12, 0.10, 'Hao hụt úm 5 ngày đầu'),
+  ('nhà c1', 3, 'ĐÔNG TẢO XÔ',      'CULL',   6,  3, 0.15, 'Loại thải gà dị tật chân'),
   -- Nhà A4
-  ('nhà a4', 1, 'MÍA-DABACO XÔ', 'DEATH', 8,  55, 0.15, 'Hao hụt úm'),
-  ('nhà a4', 1, 'MÍA-DABACO XÔ', 'CULL',  55, 15, 1.35, 'Loại thải')
+  ('nhà a4', 1, 'MÍA-DABACO XÔ',    'DEATH',  8, 55, 0.15, 'Hao hụt úm'),
+  ('nhà a4', 1, 'MÍA-DABACO XÔ',    'CULL',  55, 15, 1.35, 'Loại thải')
 ) AS m(barn_key, cyc_no, fname, m_type, day_offset, qty, avg_w, note)
 JOIN barns b ON b.name_key = m.barn_key
 JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = m.cyc_no
@@ -577,27 +612,27 @@ SELECT v.code, s.id, v.invoice_date, 0, 0, v.total_amount, v.paid_amount, v.paym
        CASE WHEN v.stock_status = 'Đã nhập kho' THEN v.invoice_date ELSE NULL END,
        v.ref_code, v.note, v.invoice_date::timestamp + TIME '09:00:00', v.invoice_date::timestamp + TIME '09:00:00'
 FROM (VALUES
-  ('NH000001', 'NCC00000000000000000000000000001', DATE '2026-01-03', 390750000, 390750000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-260103', 'Nhập cám Higro 01 & Higro 02 phục vụ xuất chuồng Q1 Khu Mía & J'),
-  ('NH000002', 'NCC00000000000000000000000000003', DATE '2026-01-04',  21330000,  21330000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-HAN-260104', 'Nhập vắc-xin Marek, Lasota, Gumboro & men tiêu hóa Q1'),
-  ('NH000003', 'NCC00000000000000000000000000004', DATE '2026-01-06',   8160000,   8160000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-FAV-260106', 'Thuốc sát trùng & trị cầu trùng đầu năm 2026'),
-  ('NH000004', 'NCC00000000000000000000000000001', DATE '2026-02-12', 491750000, 491750000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-260212', 'Nhập cám Higro 02 & Higro 03 tháng 2/2026'),
-  ('NH000005', 'NCC00000000000000000000000000005', DATE '2026-02-25', 140100000, 140100000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-DH-260225', 'Nhập cám De Heus 2012 & ngô hạt nghiền tháng 2/2026'),
-  ('NH000006', 'NCC00000000000000000000000000003', DATE '2026-03-10',  23590000,  23590000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-HAN-260310', 'Nhập bổ sung vắc-xin H5N1 & kháng sinh phòng bệnh'),
-  ('NH000007', 'NCC00000000000000000000000000001', DATE '2026-04-06', 440500000, 440500000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-260406', 'Nhập cám Higro 01 & Higro 02 lứa 2 tháng 4/2026'),
-  ('NH000008', 'NCC00000000000000000000000000001', DATE '2026-05-08', 523750000, 523750000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-260508', 'Nhập cám thịt Higro 02 & Higro 03 tháng 5/2026'),
-  ('NH000009', 'NCC00000000000000000000000000003', DATE '2026-05-15',  28300000,  28300000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-HAN-260515', 'Nhập thuốc thú y, điện giải chống nóng mùa hè'),
-  ('NH000010', 'NCC00000000000000000000000000001', DATE '2026-06-12', 461000000, 461000000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-260612', 'Nhập cám Higro 02 & Higro 03 tháng 6/2026'),
-  ('NH000011', 'NCC00000000000000000000000000005', DATE '2026-07-05', 148230000, 148230000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-DH-260705', 'Nhập cám De Heus 2012 & ngô nghiền tháng 7/2026'),
-  ('NH000012', 'NCC00000000000000000000000000001', DATE '2026-07-28', 465250000, 465250000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-260728', 'Nhập cám phục vụ lứa 3 Nhà B2 & gối đầu Q3'),
-  ('NH000013', 'NCC00000000000000000000000000003', DATE '2026-08-14',  26890000,  26890000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-HAN-260814', 'Nhập vắc-xin & thuốc úm đợt nhập đàn Q3-Q4'),
-  ('NH000014', 'NCC00000000000000000000000000005', DATE '2026-08-20',  68400000,         0, 'Đã hủy',             'Đã hủy',      'HD-DH-260820', 'Đơn hủy do thay đổi lịch giao hàng của nhà xe'),
-  ('NH000015', 'NCC00000000000000000000000000001', DATE '2026-08-26', 440500000, 440500000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-260826', 'Nhập cám Higro 01 & Higro 02 cho Nhà A1, A2, B1'),
-  ('NH000016', 'NCC00000000000000000000000000001', DATE '2026-09-18', 523750000, 523750000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-260918', 'Nhập cám Higro 02 & Higro 03 tháng 9/2026'),
-  ('NH000017', 'NCC00000000000000000000000000003', DATE '2026-09-25',  24950000,  24950000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-HAN-260925', 'Nhập vắc-xin Newcastle, Gumboro, H5N1 & kháng sinh'),
-  ('NH000018', 'NCC00000000000000000000000000001', DATE '2026-10-08', 494000000, 494000000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-CP-261008', 'Nhập cám Higro 01, 02, 03 đầu tháng 10/2026'),
-  ('NH000019', 'NCC00000000000000000000000000005', DATE '2026-10-25', 199260000, 120000000, 'Thanh toán một phần', 'Đã nhập kho', 'HD-DH-261025', 'Nhập cám De Heus 2012 & ngô nghiền Q4 (đã trả 2 đợt 120tr)'),
-  ('NH000020', 'NCC00000000000000000000000000003', DATE '2026-10-29',  18956000,  18956000, 'Thanh toán hoàn tất', 'Đã nhập kho', 'HD-HAN-261029', 'Thuốc úm, men tiêu hóa & sát trùng lứa Nhà B2, C1'),
-  ('NH000021', 'NCC00000000000000000000000000001', DATE '2026-11-04', 134000000,         0, 'Trả sau',             'Đã nhập kho', 'HD-CP-261104', 'Nhập bổ sung 400 bao cám Higro 02 gối đầu cuối lứa'),
+  ('NH000001', 'NCC00000000000000000000000000001', DATE '2026-01-03', 390750000, 390750000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-260103',  'Nhập cám Higro 01 & Higro 02 phục vụ xuất chuồng Q1 Khu Mía & J'),
+  ('NH000002', 'NCC00000000000000000000000000003', DATE '2026-01-04',  21330000,  21330000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-HAN-260104', 'Nhập vắc-xin Marek, Lasota, Gumboro & men tiêu hóa Q1'),
+  ('NH000003', 'NCC00000000000000000000000000004', DATE '2026-01-06',   8160000,   8160000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-FAV-260106', 'Thuốc sát trùng & trị cầu trùng đầu năm 2026'),
+  ('NH000004', 'NCC00000000000000000000000000001', DATE '2026-02-12', 491750000, 491750000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-260212',  'Nhập cám Higro 02 & Higro 03 tháng 2/2026'),
+  ('NH000005', 'NCC00000000000000000000000000005', DATE '2026-02-25', 140100000, 140100000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-DH-260225',  'Nhập cám De Heus 2012 & ngô hạt nghiền tháng 2/2026'),
+  ('NH000006', 'NCC00000000000000000000000000003', DATE '2026-03-10',  23590000,  23590000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-HAN-260310', 'Nhập bổ sung vắc-xin H5N1 & kháng sinh phòng bệnh'),
+  ('NH000007', 'NCC00000000000000000000000000001', DATE '2026-04-06', 440500000, 440500000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-260406',  'Nhập cám Higro 01 & Higro 02 lứa 2 tháng 4/2026'),
+  ('NH000008', 'NCC00000000000000000000000000001', DATE '2026-05-08', 523750000, 523750000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-260508',  'Nhập cám thịt Higro 02 & Higro 03 tháng 5/2026'),
+  ('NH000009', 'NCC00000000000000000000000000003', DATE '2026-05-15',  28300000,  28300000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-HAN-260515', 'Nhập thuốc thú y, điện giải chống nóng mùa hè'),
+  ('NH000010', 'NCC00000000000000000000000000001', DATE '2026-06-12', 461000000, 461000000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-260612',  'Nhập cám Higro 02 & Higro 03 tháng 6/2026'),
+  ('NH000011', 'NCC00000000000000000000000000005', DATE '2026-07-05', 148230000, 148230000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-DH-260705',  'Nhập cám De Heus 2012 & ngô nghiền tháng 7/2026'),
+  ('NH000012', 'NCC00000000000000000000000000001', DATE '2026-07-28', 465250000, 465250000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-260728',  'Nhập cám phục vụ lứa 3 Nhà B2 & gối đầu Q3'),
+  ('NH000013', 'NCC00000000000000000000000000003', DATE '2026-08-14',  26890000,  26890000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-HAN-260814', 'Nhập vắc-xin & thuốc úm đợt nhập đàn Q3-Q4'),
+  ('NH000014', 'NCC00000000000000000000000000005', DATE '2026-08-20',  68400000,         0, 'Đã hủy',              'Đã hủy',        'HD-DH-260820',  'Đơn hủy do thay đổi lịch giao hàng của nhà xe'),
+  ('NH000015', 'NCC00000000000000000000000000001', DATE '2026-08-26', 440500000, 440500000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-260826',  'Nhập cám Higro 01 & Higro 02 cho Nhà A1, A2, B1'),
+  ('NH000016', 'NCC00000000000000000000000000001', DATE '2026-09-18', 523750000, 523750000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-260918',  'Nhập cám Higro 02 & Higro 03 tháng 9/2026'),
+  ('NH000017', 'NCC00000000000000000000000000003', DATE '2026-09-25',  24950000,  24950000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-HAN-260925', 'Nhập vắc-xin Newcastle, Gumboro, H5N1 & kháng sinh'),
+  ('NH000018', 'NCC00000000000000000000000000001', DATE '2026-10-08', 494000000, 494000000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-CP-261008',  'Nhập cám Higro 01, 02, 03 đầu tháng 10/2026'),
+  ('NH000019', 'NCC00000000000000000000000000005', DATE '2026-10-25', 199260000, 120000000, 'Thanh toán một phần', 'Đã nhập kho',   'HD-DH-261025',  'Nhập cám De Heus 2012 & ngô nghiền Q4 (đã trả 2 đợt 120tr)'),
+  ('NH000020', 'NCC00000000000000000000000000003', DATE '2026-10-29',  18956000,  18956000, 'Thanh toán hoàn tất', 'Đã nhập kho',   'HD-HAN-261029', 'Thuốc úm, men tiêu hóa & sát trùng lứa Nhà B2, C1'),
+  ('NH000021', 'NCC00000000000000000000000000001', DATE '2026-11-04', 134000000,         0, 'Trả sau',             'Đã nhập kho',   'HD-CP-261104',  'Nhập bổ sung 400 bao cám Higro 02 gối đầu cuối lứa'),
   ('NH000022', 'NCC00000000000000000000000000003', DATE '2026-11-11',  12750000,         0, 'Trả sau',             'Chưa nhập kho', 'HD-HAN-261111', 'Đặt bổ sung thuốc hạ sốt & vitamin C cho Khu Đông Tảo (chờ nhận kho)')
 ) AS v(code, s_code, invoice_date, total_amount, paid_amount, payment_status, stock_status, ref_code, note)
 JOIN suppliers s ON s.code = v.s_code;
@@ -605,56 +640,56 @@ JOIN suppliers s ON s.code = v.s_code;
 INSERT INTO purchase_invoice_items (invoice_id, product_category_id, warehouse_id, product_name, quantity, unit, unit_price, vat_rate, amount, lot_number, expiry_date)
 SELECT p.id, pc.id, w.id, v.product_name, v.qty, v.unit, v.unit_price, 0, v.amount, v.lot_no, v.exp_date
 FROM (VALUES
-  ('NH000001', 'Cám Gà úm Higro 01',   'kho cám mía thịt', 550.0, 'Bao (25kg)', 345000, 189750000, 'LOT-CP-2601A', DATE '2026-07-03'),
-  ('NH000001', 'Cám Gà thịt Higro 02', 'kho cám j thịt',   600.0, 'Bao (25kg)', 335000, 201000000, 'LOT-CP-2601B', DATE '2026-07-03'),
-  ('NH000002', 'Vắc-xin Newcastle Lasota', 'kho thuốc mía thịt', 80.0, 'Lọ 1000 liều', 42000, 3360000, 'LOT-HAN-2601A', DATE '2026-10-04'),
-  ('NH000002', 'Vắc-xin Gumboro (Medivac Gumboro A)', 'kho thuốc j thịt', 100.0, 'Lọ 1000 liều', 78000, 7800000, 'LOT-MED-2601B', DATE '2026-12-04'),
-  ('NH000002', 'Men tiêu hóa Bio-Zyme', 'kho thuốc mía thịt', 50.0, 'Gói 1kg', 120000, 6000000, 'LOT-HAN-2601C', DATE '2027-01-04'),
-  ('NH000002', 'Vitamin C + điện giải (Han-Electrolyte)', 'kho thuốc đông tảo', 40.0, 'Gói 1kg', 95000, 3800000, 'LOT-HAN-2601D', DATE '2027-01-04'),
-  ('NH000002', 'Vắc-xin Marek (HVT)', 'kho thuốc đông tảo', 2.0, 'Lọ 1000 liều', 185000, 370000, 'LOT-NAV-2601E', DATE '2026-11-30'),
-  ('NH000003', 'Toltrazuril 2.5% (Han-Coc)', 'kho thuốc mía thịt', 12.0, 'Chai 1L', 680000, 8160000, 'LOT-FAV-2601A', DATE '2027-01-06'),
-  ('NH000004', 'Cám Gà thịt Higro 02', 'kho cám mía thịt', 750.0, 'Bao (25kg)', 335000, 251250000, 'LOT-CP-2602A', DATE '2026-08-12'),
-  ('NH000004', 'Cám Gà vỗ béo Higro 03', 'kho cám j thịt', 740.0, 'Bao (25kg)', 325000, 240500000, 'LOT-CP-2602B', DATE '2026-08-12'),
-  ('NH000005', 'Cám gà thịt De Heus 2012', 'kho cám mía thịt', 250.0, 'Bao (25kg)', 342000, 85500000, 'LOT-DH-2602A', DATE '2026-08-25'),
-  ('NH000005', 'Ngô hạt nghiền', 'kho cám đông tảo', 7000.0, 'Kg', 7800, 54600000, 'LOT-DH-2602B', DATE '2026-08-25'),
-  ('NH000006', 'Vắc-xin cúm gia cầm H5N1 (Navet-Vifluvac)', 'kho thuốc mía thịt', 50.0, 'Chai 500ml', 260000, 13000000, 'LOT-NAV-2603A', DATE '2027-03-10'),
-  ('NH000006', 'Kháng sinh Doxycycline 50%', 'kho thuốc j thịt', 14.0, 'Gói 1kg', 450000, 6300000, 'LOT-HAN-2603B', DATE '2027-03-10'),
-  ('NH000006', 'Amoxicillin 10% (Hanmoxy)', 'kho thuốc đông tảo', 26.0, 'Gói 1kg', 165000, 4290000, 'LOT-HAN-2603C', DATE '2027-03-10'),
-  ('NH000007', 'Cám Gà úm Higro 01', 'kho cám j thịt', 500.0, 'Bao (25kg)', 345000, 172500000, 'LOT-CP-2604A', DATE '2026-10-06'),
-  ('NH000007', 'Cám Gà thịt Higro 02', 'kho cám mía thịt', 800.0, 'Bao (25kg)', 335000, 268000000, 'LOT-CP-2604B', DATE '2026-10-06'),
-  ('NH000008', 'Cám Gà thịt Higro 02', 'kho cám mía thịt', 700.0, 'Bao (25kg)', 335000, 234500000, 'LOT-CP-2605A', DATE '2026-11-08'),
-  ('NH000008', 'Cám Gà vỗ béo Higro 03', 'kho cám j thịt', 890.0, 'Bao (25kg)', 325000, 289250000, 'LOT-CP-2605B', DATE '2026-11-08'),
-  ('NH000009', 'Vitamin C + điện giải (Han-Electrolyte)', 'kho thuốc mía thịt', 120.0, 'Gói 1kg', 95000, 11400000, 'LOT-HAN-2605A', DATE '2027-05-15'),
-  ('NH000009', 'Hạ sốt Paracetamol C', 'kho thuốc j thịt', 100.0, 'Gói 1kg', 85000, 8500000, 'LOT-HAN-2605B', DATE '2027-05-15'),
-  ('NH000009', 'Men tiêu hóa Bio-Zyme', 'kho thuốc đông tảo', 70.0, 'Gói 1kg', 120000, 8400000, 'LOT-HAN-2605C', DATE '2027-05-15'),
-  ('NH000010', 'Cám Gà thịt Higro 02', 'kho cám đông tảo', 600.0, 'Bao (25kg)', 335000, 201000000, 'LOT-CP-2606A', DATE '2026-12-12'),
-  ('NH000010', 'Cám Gà vỗ béo Higro 03', 'kho cám mía thịt', 800.0, 'Bao (25kg)', 325000, 260000000, 'LOT-CP-2606B', DATE '2026-12-12'),
-  ('NH000011', 'Cám gà thịt De Heus 2012', 'kho cám j thịt', 300.0, 'Bao (25kg)', 342000, 102600000, 'LOT-DH-2607A', DATE '2027-01-05'),
-  ('NH000011', 'Ngô hạt nghiền', 'kho cám mía thịt', 5850.0, 'Kg', 7800, 45630000, 'LOT-DH-2607B', DATE '2027-01-05'),
-  ('NH000012', 'Cám Gà thịt Higro 02', 'kho cám j thịt', 700.0, 'Bao (25kg)', 335000, 234500000, 'LOT-CP-2607A', DATE '2027-01-28'),
-  ('NH000012', 'Cám Gà vỗ béo Higro 03', 'kho cám j thịt', 710.0, 'Bao (25kg)', 325000, 230750000, 'LOT-CP-2607B', DATE '2027-01-28'),
-  ('NH000013', 'Vắc-xin Newcastle Lasota', 'kho thuốc mía thịt', 120.0, 'Lọ 1000 liều', 42000, 5040000, 'LOT-HAN-2605-EX', DATE '2026-11-28'),
-  ('NH000013', 'Toltrazuril 2.5% (Han-Coc)', 'kho thuốc j thịt', 20.0, 'Chai 1L', 680000, 13600000, 'LOT-HAN-2608B', DATE '2027-06-30'),
-  ('NH000013', 'Amoxicillin 10% (Hanmoxy)', 'kho thuốc mía thịt', 50.0, 'Gói 1kg', 165000, 8250000, 'LOT-HAN-2608C', DATE '2027-06-30'),
-  ('NH000014', 'Cám gà thịt De Heus 2012', 'kho cám mía thịt', 200.0, 'Bao (25kg)', 342000, 68400000, 'LOT-DH-CANCEL', DATE '2027-02-20'),
-  ('NH000015', 'Cám Gà úm Higro 01', 'kho cám mía thịt', 500.0, 'Bao (25kg)', 345000, 172500000, 'LOT-CP-2608A', DATE '2027-02-26'),
-  ('NH000015', 'Cám Gà thịt Higro 02', 'kho cám j thịt', 800.0, 'Bao (25kg)', 335000, 268000000, 'LOT-CP-2608B', DATE '2027-02-26'),
-  ('NH000016', 'Cám Gà thịt Higro 02', 'kho cám mía thịt', 700.0, 'Bao (25kg)', 335000, 234500000, 'LOT-CP-2609A', DATE '2027-03-18'),
-  ('NH000016', 'Cám Gà vỗ béo Higro 03', 'kho cám mía thịt', 890.0, 'Bao (25kg)', 325000, 289250000, 'LOT-CP-2609B', DATE '2027-03-18'),
-  ('NH000017', 'Vắc-xin Gumboro (Medivac Gumboro A)', 'kho thuốc mía thịt', 120.0, 'Lọ 1000 liều', 78000, 9360000, 'LOT-MED-2609A', DATE '2027-06-30'),
-  ('NH000017', 'Vắc-xin cúm gia cầm H5N1 (Navet-Vifluvac)', 'kho thuốc j thịt', 34.0, 'Chai 500ml', 260000, 8840000, 'LOT-NAV-2609B', DATE '2027-06-30'),
-  ('NH000017', 'Kháng sinh Doxycycline 50%', 'kho thuốc đông tảo', 15.0, 'Gói 1kg', 450000, 6750000, 'LOT-HAN-2609C', DATE '2027-06-30'),
-  ('NH000018', 'Cám Gà úm Higro 01', 'kho cám j thịt', 400.0, 'Bao (25kg)', 345000, 138000000, 'LOT-CP-2610A', DATE '2027-02-20'),
-  ('NH000018', 'Cám Gà thịt Higro 02', 'kho cám mía thịt', 500.0, 'Bao (25kg)', 335000, 167500000, 'LOT-CP-2610B', DATE '2027-02-20'),
-  ('NH000018', 'Cám Gà vỗ béo Higro 03', 'kho cám j thịt', 580.0, 'Bao (25kg)', 325000, 188500000, 'LOT-CP-2610C', DATE '2027-02-20'),
-  ('NH000019', 'Cám gà thịt De Heus 2012', 'kho cám mía thịt', 350.0, 'Bao (25kg)', 342000, 119700000, 'LOT-DH-2610A', DATE '2027-02-20'),
-  ('NH000019', 'Ngô hạt nghiền', 'kho cám mía thịt', 10200.0, 'Kg', 7800, 79560000, 'LOT-DH-2610B', DATE '2027-02-20'),
-  ('NH000020', 'Vitamin C + điện giải (Han-Electrolyte)', 'kho thuốc đông tảo', 60.0, 'Gói 1kg', 95000, 5700000, 'LOT-HAN-2610A', DATE '2027-06-30'),
-  ('NH000020', 'Men tiêu hóa Bio-Zyme', 'kho thuốc j thịt', 60.0, 'Gói 1kg', 120000, 7200000, 'LOT-HAN-2610B', DATE '2027-06-30'),
-  ('NH000020', 'Vắc-xin Marek (HVT)', 'kho thuốc đông tảo', 20.0, 'Lọ 1000 liều', 185000, 3700000, 'LOT-NAV-2610C', DATE '2027-06-30'),
-  ('NH000020', 'Vắc-xin Đậu gà', 'kho thuốc đông tảo', 38.0, 'Lọ 1000 liều', 62000, 2356000, 'LOT-NAV-2610D', DATE '2027-06-30'),
-  ('NH000021', 'Cám Gà thịt Higro 02', 'kho cám j thịt', 400.0, 'Bao (25kg)', 335000, 134000000, 'LOT-CP-2611A', DATE '2027-02-20'),
-  ('NH000022', 'Hạ sốt Paracetamol C', 'kho thuốc đông tảo', 150.0, 'Gói 1kg', 85000, 12750000, 'LOT-HAN-2611P', DATE '2027-08-30')
+  ('NH000001', 'Cám Gà úm Higro 01',                        'kho cám mía thịt',   550.0,   'Bao (25kg)',   345000, 189750000, 'LOT-CP-2601A',    DATE '2026-07-03'),
+  ('NH000001', 'Cám Gà thịt Higro 02',                      'kho cám j thịt',     600.0,   'Bao (25kg)',   335000, 201000000, 'LOT-CP-2601B',    DATE '2026-07-03'),
+  ('NH000002', 'Vắc-xin Newcastle Lasota',                  'kho thuốc mía thịt',  80.0,   'Lọ 1000 liều',  42000,   3360000, 'LOT-HAN-2601A',   DATE '2026-10-04'),
+  ('NH000002', 'Vắc-xin Gumboro (Medivac Gumboro A)',       'kho thuốc j thịt',   100.0,   'Lọ 1000 liều',  78000,   7800000, 'LOT-MED-2601B',   DATE '2026-12-04'),
+  ('NH000002', 'Men tiêu hóa Bio-Zyme',                     'kho thuốc mía thịt',  50.0,   'Gói 1kg',      120000,   6000000, 'LOT-HAN-2601C',   DATE '2027-01-04'),
+  ('NH000002', 'Vitamin C + điện giải (Han-Electrolyte)',   'kho thuốc đông tảo',  40.0,   'Gói 1kg',       95000,   3800000, 'LOT-HAN-2601D',   DATE '2027-01-04'),
+  ('NH000002', 'Vắc-xin Marek (HVT)',                       'kho thuốc đông tảo',   2.0,   'Lọ 1000 liều', 185000,    370000, 'LOT-NAV-2601E',   DATE '2026-11-30'),
+  ('NH000003', 'Toltrazuril 2.5% (Han-Coc)',                'kho thuốc mía thịt',  12.0,   'Chai 1L',      680000,   8160000, 'LOT-FAV-2601A',   DATE '2027-01-06'),
+  ('NH000004', 'Cám Gà thịt Higro 02',                      'kho cám mía thịt',   750.0,   'Bao (25kg)',   335000, 251250000, 'LOT-CP-2602A',    DATE '2026-08-12'),
+  ('NH000004', 'Cám Gà vỗ béo Higro 03',                    'kho cám j thịt',     740.0,   'Bao (25kg)',   325000, 240500000, 'LOT-CP-2602B',    DATE '2026-08-12'),
+  ('NH000005', 'Cám gà thịt De Heus 2012',                  'kho cám mía thịt',   250.0,   'Bao (25kg)',   342000,  85500000, 'LOT-DH-2602A',    DATE '2026-08-25'),
+  ('NH000005', 'Ngô hạt nghiền',                            'kho cám đông tảo',  7000.0,   'Kg',             7800,  54600000, 'LOT-DH-2602B',    DATE '2026-08-25'),
+  ('NH000006', 'Vắc-xin cúm gia cầm H5N1 (Navet-Vifluvac)', 'kho thuốc mía thịt',  50.0,   'Chai 500ml',   260000,  13000000, 'LOT-NAV-2603A',   DATE '2027-03-10'),
+  ('NH000006', 'Kháng sinh Doxycycline 50%',                'kho thuốc j thịt',    14.0,   'Gói 1kg',      450000,   6300000, 'LOT-HAN-2603B',   DATE '2027-03-10'),
+  ('NH000006', 'Amoxicillin 10% (Hanmoxy)',                 'kho thuốc đông tảo',  26.0,   'Gói 1kg',      165000,   4290000, 'LOT-HAN-2603C',   DATE '2027-03-10'),
+  ('NH000007', 'Cám Gà úm Higro 01',                        'kho cám j thịt',     500.0,   'Bao (25kg)',   345000, 172500000, 'LOT-CP-2604A',    DATE '2026-10-06'),
+  ('NH000007', 'Cám Gà thịt Higro 02',                      'kho cám mía thịt',   800.0,   'Bao (25kg)',   335000, 268000000, 'LOT-CP-2604B',    DATE '2026-10-06'),
+  ('NH000008', 'Cám Gà thịt Higro 02',                      'kho cám mía thịt',   700.0,   'Bao (25kg)',   335000, 234500000, 'LOT-CP-2605A',    DATE '2026-11-08'),
+  ('NH000008', 'Cám Gà vỗ béo Higro 03',                    'kho cám j thịt',     890.0,   'Bao (25kg)',   325000, 289250000, 'LOT-CP-2605B',    DATE '2026-11-08'),
+  ('NH000009', 'Vitamin C + điện giải (Han-Electrolyte)',   'kho thuốc mía thịt', 120.0,   'Gói 1kg',       95000,  11400000, 'LOT-HAN-2605A',   DATE '2027-05-15'),
+  ('NH000009', 'Hạ sốt Paracetamol C',                      'kho thuốc j thịt',   100.0,   'Gói 1kg',       85000,   8500000, 'LOT-HAN-2605B',   DATE '2027-05-15'),
+  ('NH000009', 'Men tiêu hóa Bio-Zyme',                     'kho thuốc đông tảo',  70.0,   'Gói 1kg',      120000,   8400000, 'LOT-HAN-2605C',   DATE '2027-05-15'),
+  ('NH000010', 'Cám Gà thịt Higro 02',                      'kho cám đông tảo',   600.0,   'Bao (25kg)',   335000, 201000000, 'LOT-CP-2606A',    DATE '2026-12-12'),
+  ('NH000010', 'Cám Gà vỗ béo Higro 03',                    'kho cám mía thịt',   800.0,   'Bao (25kg)',   325000, 260000000, 'LOT-CP-2606B',    DATE '2026-12-12'),
+  ('NH000011', 'Cám gà thịt De Heus 2012',                  'kho cám j thịt',     300.0,   'Bao (25kg)',   342000, 102600000, 'LOT-DH-2607A',    DATE '2027-01-05'),
+  ('NH000011', 'Ngô hạt nghiền',                            'kho cám mía thịt',  5850.0,   'Kg',             7800,  45630000, 'LOT-DH-2607B',    DATE '2027-01-05'),
+  ('NH000012', 'Cám Gà thịt Higro 02',                      'kho cám j thịt',     700.0,   'Bao (25kg)',   335000, 234500000, 'LOT-CP-2607A',    DATE '2027-01-28'),
+  ('NH000012', 'Cám Gà vỗ béo Higro 03',                    'kho cám j thịt',     710.0,   'Bao (25kg)',   325000, 230750000, 'LOT-CP-2607B',    DATE '2027-01-28'),
+  ('NH000013', 'Vắc-xin Newcastle Lasota',                  'kho thuốc mía thịt', 120.0,   'Lọ 1000 liều',  42000,   5040000, 'LOT-HAN-2605-EX', DATE '2026-11-28'),
+  ('NH000013', 'Toltrazuril 2.5% (Han-Coc)',                'kho thuốc j thịt',    20.0,   'Chai 1L',      680000,  13600000, 'LOT-HAN-2608B',   DATE '2027-06-30'),
+  ('NH000013', 'Amoxicillin 10% (Hanmoxy)',                 'kho thuốc mía thịt',  50.0,   'Gói 1kg',      165000,   8250000, 'LOT-HAN-2608C',   DATE '2027-06-30'),
+  ('NH000014', 'Cám gà thịt De Heus 2012',                  'kho cám mía thịt',   200.0,   'Bao (25kg)',   342000,  68400000, 'LOT-DH-CANCEL',   DATE '2027-02-20'),
+  ('NH000015', 'Cám Gà úm Higro 01',                        'kho cám mía thịt',   500.0,   'Bao (25kg)',   345000, 172500000, 'LOT-CP-2608A',    DATE '2027-02-26'),
+  ('NH000015', 'Cám Gà thịt Higro 02',                      'kho cám j thịt',     800.0,   'Bao (25kg)',   335000, 268000000, 'LOT-CP-2608B',    DATE '2027-02-26'),
+  ('NH000016', 'Cám Gà thịt Higro 02',                      'kho cám mía thịt',   700.0,   'Bao (25kg)',   335000, 234500000, 'LOT-CP-2609A',    DATE '2027-03-18'),
+  ('NH000016', 'Cám Gà vỗ béo Higro 03',                    'kho cám mía thịt',   890.0,   'Bao (25kg)',   325000, 289250000, 'LOT-CP-2609B',    DATE '2027-03-18'),
+  ('NH000017', 'Vắc-xin Gumboro (Medivac Gumboro A)',       'kho thuốc mía thịt', 120.0,   'Lọ 1000 liều',  78000,   9360000, 'LOT-MED-2609A',   DATE '2027-06-30'),
+  ('NH000017', 'Vắc-xin cúm gia cầm H5N1 (Navet-Vifluvac)', 'kho thuốc j thịt',    34.0,   'Chai 500ml',   260000,   8840000, 'LOT-NAV-2609B',   DATE '2027-06-30'),
+  ('NH000017', 'Kháng sinh Doxycycline 50%',                'kho thuốc đông tảo',  15.0,   'Gói 1kg',      450000,   6750000, 'LOT-HAN-2609C',   DATE '2027-06-30'),
+  ('NH000018', 'Cám Gà úm Higro 01',                        'kho cám j thịt',     400.0,   'Bao (25kg)',   345000, 138000000, 'LOT-CP-2610A',    DATE '2027-02-20'),
+  ('NH000018', 'Cám Gà thịt Higro 02',                      'kho cám mía thịt',   500.0,   'Bao (25kg)',   335000, 167500000, 'LOT-CP-2610B',    DATE '2027-02-20'),
+  ('NH000018', 'Cám Gà vỗ béo Higro 03',                    'kho cám j thịt',     580.0,   'Bao (25kg)',   325000, 188500000, 'LOT-CP-2610C',    DATE '2027-02-20'),
+  ('NH000019', 'Cám gà thịt De Heus 2012',                  'kho cám mía thịt',   350.0,   'Bao (25kg)',   342000, 119700000, 'LOT-DH-2610A',    DATE '2027-02-20'),
+  ('NH000019', 'Ngô hạt nghiền',                            'kho cám mía thịt', 10200.0,   'Kg',             7800,  79560000, 'LOT-DH-2610B',    DATE '2027-02-20'),
+  ('NH000020', 'Vitamin C + điện giải (Han-Electrolyte)',   'kho thuốc đông tảo',  60.0,   'Gói 1kg',       95000,   5700000, 'LOT-HAN-2610A',   DATE '2027-06-30'),
+  ('NH000020', 'Men tiêu hóa Bio-Zyme',                     'kho thuốc j thịt',    60.0,   'Gói 1kg',      120000,   7200000, 'LOT-HAN-2610B',   DATE '2027-06-30'),
+  ('NH000020', 'Vắc-xin Marek (HVT)',                       'kho thuốc đông tảo',  20.0,   'Lọ 1000 liều', 185000,   3700000, 'LOT-NAV-2610C',   DATE '2027-06-30'),
+  ('NH000020', 'Vắc-xin Đậu gà',                            'kho thuốc đông tảo',  38.0,   'Lọ 1000 liều',  62000,   2356000, 'LOT-NAV-2610D',   DATE '2027-06-30'),
+  ('NH000021', 'Cám Gà thịt Higro 02',                      'kho cám j thịt',     400.0,   'Bao (25kg)',   335000, 134000000, 'LOT-CP-2611A',    DATE '2027-02-20'),
+  ('NH000022', 'Hạ sốt Paracetamol C',                      'kho thuốc đông tảo', 150.0,   'Gói 1kg',       85000,  12750000, 'LOT-HAN-2611P',   DATE '2027-08-30')
 ) AS v(po_code, product_name, wh_key, qty, unit, unit_price, amount, lot_no, exp_date)
 JOIN purchase_invoices p ON p.code = v.po_code
 LEFT JOIN product_categories pc ON pc.name_key = LOWER(v.product_name)
@@ -765,7 +800,8 @@ FROM purchase_invoices pi
 WHERE pi.code = 'NH000019';
 
 -- ---------------------------------------------------------------------
--- 9b. Đơn xuất bán gia cầm (BH00001..BH00019) & Đối soát biến động HARVEST
+-- 10. Đơn xuất bán gia cầm (BH00001..BH00019) & Đối soát biến động HARVEST
+--     (status chuẩn SalesOrder: PAID | PARTIAL | DEBT)
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
@@ -873,16 +909,16 @@ SET current_quantity = COALESCE((
 UPDATE customer_contacts cc
 SET total_bought = COALESCE((SELECT SUM(so.total_amount) FROM sales_orders so WHERE so.customer_id = cc.id), 0),
     debt         = COALESCE((SELECT SUM(so.total_amount - so.paid_amount) FROM sales_orders so WHERE so.customer_id = cc.id), 0),
-    updated_at   = TIMESTAMP '2026-11-12 08:00:00';
+    updated_at   = TIMESTAMP '2026-11-13 08:00:00';
 
 -- ---------------------------------------------------------------------
--- 10. Nhật ký lứa nuôi: Cám (Feed Records), Cân mẫu (Weight Samples), Chi phí lứa
---     Bao phủ tất cả 20 lứa từ 05/01/2026 đến 12/11/2026
+-- 11. Nhật ký lứa nuôi: Cám (Feed Records), Cân mẫu (Weight Samples), Chi phí lứa
+--     Bao phủ tất cả 20 lứa từ 05/01/2026 đến 13/11/2026
 -- ---------------------------------------------------------------------
--- A. Nhật ký cám cho tất cả các lứa (đến 05/11/2026 cho lứa ACTIVE; 06–12/11 sinh từ DailyTaskLog)
+-- A. Nhật ký cám cho tất cả các lứa (đến 06/11/2026 cho lứa ACTIVE; 07–13/11 sinh từ DailyTaskLog)
 INSERT INTO feed_records (cycle_id, record_date, feed_name, quantity_kg, unit_price, note, created_by, created_at)
 SELECT c.id,
-       LEAST(c.start_date + (phase.day_to - 1), COALESCE(c.end_date, DATE '2026-11-05')),
+       LEAST(c.start_date + (phase.day_to - 1), COALESCE(c.end_date, DATE '2026-11-06')),
        CASE
          WHEN phase.day_to <= 14 THEN 'Cám Gà úm Higro 01'
          WHEN phase.day_to <= 48 THEN 'Cám Gà thịt Higro 02'
@@ -890,7 +926,7 @@ SELECT c.id,
        END,
        ROUND(
          (fl.total_birds * phase.daily_gram / 1000.0)
-         * ((LEAST(c.start_date + (phase.day_to - 1), COALESCE(c.end_date, DATE '2026-11-05'))
+         * ((LEAST(c.start_date + (phase.day_to - 1), COALESCE(c.end_date, DATE '2026-11-06'))
              - (c.start_date + (phase.day_from - 1))) + 1),
          1
        ),
@@ -901,7 +937,7 @@ SELECT c.id,
        END,
        'Tổng hợp cho ăn ngày tuổi ' || phase.day_from || '–' || phase.day_to,
        'admin',
-       (LEAST(c.start_date + (phase.day_to - 1), COALESCE(c.end_date, DATE '2026-11-05')))::timestamp + TIME '18:00:00'
+       (LEAST(c.start_date + (phase.day_to - 1), COALESCE(c.end_date, DATE '2026-11-06')))::timestamp + TIME '18:00:00'
 FROM farming_cycles c
 JOIN LATERAL (SELECT COALESCE(SUM(f.import_quantity), 0) AS total_birds FROM flocks f WHERE f.cycle_id = c.id) fl ON TRUE
 JOIN (VALUES
@@ -912,17 +948,17 @@ JOIN (VALUES
   (71,  88, 110.0),
   (89, 105,  98.0)
 ) AS phase(day_from, day_to, daily_gram) ON TRUE
-WHERE c.start_date + (phase.day_from - 1) <= COALESCE(c.end_date, DATE '2026-11-05');
+WHERE c.start_date + (phase.day_from - 1) <= COALESCE(c.end_date, DATE '2026-11-06');
 
 -- B. Cân mẫu vật nuôi định kỳ (chuẩn theo đường cong tăng trưởng từng giống)
 INSERT INTO weight_samples (cycle_id, sample_date, avg_weight_kg, sample_size, note, created_by, created_at)
 SELECT c.id,
-       LEAST(c.start_date + w.day_offset, COALESCE(c.end_date, DATE '2026-11-11')),
+       LEAST(c.start_date + w.day_offset, COALESCE(c.end_date, DATE '2026-11-12')),
        w.avg_w,
        50,
        'Cân mẫu định kỳ ngày tuổi ' || w.day_offset,
        'admin',
-       (LEAST(c.start_date + w.day_offset, COALESCE(c.end_date, DATE '2026-11-11')))::timestamp + TIME '09:00:00'
+       (LEAST(c.start_date + w.day_offset, COALESCE(c.end_date, DATE '2026-11-12')))::timestamp + TIME '09:00:00'
 FROM farming_cycles c
 JOIN barns b ON b.id = c.barn_id
 JOIN (VALUES
@@ -935,19 +971,19 @@ JOIN (VALUES
   (84, 2.280),
   (98, 2.400)
 ) AS w(day_offset, avg_w) ON TRUE
-WHERE c.start_date + w.day_offset <= COALESCE(c.end_date, DATE '2026-11-11')
+WHERE c.start_date + w.day_offset <= COALESCE(c.end_date, DATE '2026-11-12')
   AND NOT (b.name_key IN ('nhà b1', 'nhà b2') AND w.day_offset > 75);
 
--- Cập nhật cân mẫu gần nhất của các chuồng ACTIVE đang xuất bán sát thực tế
+-- Bổ sung cân mẫu gần nhất của các chuồng ACTIVE sát thực tế xuất bán
 INSERT INTO weight_samples (cycle_id, sample_date, avg_weight_kg, sample_size, note, created_by, created_at)
 SELECT c.id, v.sample_date, v.avg_w, 50, v.note, 'admin', v.sample_date::timestamp + TIME '09:30:00'
 FROM (VALUES
   ('nhà a1', 3, DATE '2026-11-10', 2.210, 'Cân kiểm tra trước xuất bán hết lứa 3'),
   ('nhà a2', 3, DATE '2026-11-09', 1.650, 'Đàn Mía 66 ngày tuổi đồng đều tốt'),
   ('nhà a3', 3, DATE '2026-11-11', 0.980, 'Cân kiểm tra tuần 6 (42 ngày tuổi)'),
-  ('nhà b1', 3, DATE '2026-11-09', 2.410, 'Cân xuất chuồng 72 ngày tuổi đạt chuẩn'),
+  ('nhà b1', 3, DATE '2026-11-09', 2.410, 'Cân xuất chuồng 71 ngày tuổi đạt chuẩn'),
   ('nhà b2', 4, DATE '2026-11-10', 0.375, 'Cân mẫu kết thúc giai đoạn úm 2 tuần'),
-  ('nhà c1', 3, DATE '2026-11-11', 0.155, 'Cân mẫu tuần 1 gà ta úm đạt chuẩn')
+  ('nhà c1', 3, DATE '2026-11-12', 0.168, 'Cân mẫu tuần 1 gà ta úm đạt chuẩn')
 ) AS v(barn_key, cyc_no, sample_date, avg_w, note)
 JOIN barns b ON b.name_key = v.barn_key
 JOIN farming_cycles c ON c.barn_id = b.id AND c.cycle_number = v.cyc_no
@@ -971,17 +1007,17 @@ CROSS JOIN (VALUES
   (14, 'MEDICINE', 2400000, 'Vắc-xin Lasota/Gumboro & vitamin tăng đề kháng'),
   (38, 'OTHER',    1400000, 'Vôi bột, chất sát trùng định kỳ & bổ sung trấu chuồng')
 ) AS e(day_offset, category, base_amount, note)
-WHERE c.start_date + e.day_offset <= COALESCE(c.end_date, DATE '2026-11-11');
+WHERE c.start_date + e.day_offset <= COALESCE(c.end_date, DATE '2026-11-12');
 
 -- ---------------------------------------------------------------------
--- 11. Phân công công nhân, Việc giao (Work Tasks) & Nhật ký việc 7 ngày gần nhất
+-- 12. Phân công công nhân, Việc giao (Work Tasks) & Nhật ký việc 7 ngày gần nhất
 -- ---------------------------------------------------------------------
 INSERT INTO farm_area_workers (area_id, account_id)
 SELECT fa.id, a.id
 FROM farm_areas fa
 JOIN accounts a ON a.email = CASE fa.name_key
   WHEN 'khu mía thịt' THEN 'congnhan@smartfarm.com'
-  WHEN 'khu j thịt' THEN 'hung@smartfarm.com'
+  WHEN 'khu j thịt'   THEN 'hung@smartfarm.com'
   ELSE 'hang@smartfarm.com'
 END
 ON CONFLICT (area_id, account_id) DO NOTHING;
@@ -992,7 +1028,7 @@ FROM barns b
 JOIN farm_areas fa ON fa.id = b.area_id
 JOIN accounts a ON a.email = CASE fa.name_key
   WHEN 'khu mía thịt' THEN 'congnhan@smartfarm.com'
-  WHEN 'khu j thịt' THEN 'hung@smartfarm.com'
+  WHEN 'khu j thịt'   THEN 'hung@smartfarm.com'
   ELSE 'hang@smartfarm.com'
 END
 ON CONFLICT (barn_id, account_id) DO NOTHING;
@@ -1010,28 +1046,28 @@ FROM barns b
 JOIN barn_workers bw ON bw.barn_id = b.id
 JOIN accounts a ON a.id = bw.account_id
 JOIN (VALUES
-  ('congnhan@smartfarm.com', 'Rửa máng uống tự động', 'Rửa sạch cặn cám, pha sát trùng theo liều hướng dẫn', TIME '07:00'),
-  ('congnhan@smartfarm.com', 'Kiểm tra quạt hút & nhiệt kế', 'Ghi nhiệt độ đầu và cuối chuồng, báo ngay nếu quạt hỏng', TIME '16:30'),
-  ('hung@smartfarm.com',     'Sát trùng hố ga & lối đi chuồng kín', 'Thay dung dịch sát trùng BKC ở cửa ra vào chuồng', TIME '15:00'),
-  ('hang@smartfarm.com',     'Kiểm tra quây úm & thay trấu ẩm', 'Bù trấu khô quanh máng uống, điều chỉnh chụp sưởi', TIME '08:00')
+  ('congnhan@smartfarm.com', 'Rửa máng uống tự động',            'Rửa sạch cặn cám, pha sát trùng theo liều hướng dẫn', TIME '07:00'),
+  ('congnhan@smartfarm.com', 'Kiểm tra quạt hút & nhiệt kế',     'Ghi nhiệt độ đầu và cuối chuồng, báo ngay nếu quạt hỏng', TIME '16:30'),
+  ('hung@smartfarm.com',     'Sát trùng hố ga & lối đi chuồng kín','Thay dung dịch sát trùng BKC ở cửa ra vào chuồng',       TIME '15:00'),
+  ('hang@smartfarm.com',     'Kiểm tra quây úm & thay trấu ẩm',  'Bù trấu khô quanh máng uống, điều chỉnh chụp sưởi',       TIME '08:00')
 ) AS v(email, title, note, due_time) ON v.email = a.email
 WHERE b.status = 'ACTIVE';
 
--- Đánh dấu hoàn thành work_tasks từ 06/11 đến 11/11 (và một phần sáng 12/11)
+-- Đánh dấu hoàn thành work_tasks từ 07/11 đến 12/11 (và phần buổi sáng 13/11)
 INSERT INTO work_task_checks (task_id, check_date, note, done_by, done_at)
 SELECT wt.id, d.chk_date, 'Đã kiểm tra & hoàn thành đúng quy trình', a.email, d.chk_date::timestamp + COALESCE(wt.due_time, TIME '09:00')
 FROM work_tasks wt
 JOIN accounts a ON a.id = wt.assignee_id
 CROSS JOIN (VALUES
-  (DATE '2026-11-06'), (DATE '2026-11-07'), (DATE '2026-11-08'),
-  (DATE '2026-11-09'), (DATE '2026-11-10'), (DATE '2026-11-11'),
-  (DATE '2026-11-12')
+  (DATE '2026-11-07'), (DATE '2026-11-08'), (DATE '2026-11-09'),
+  (DATE '2026-11-10'), (DATE '2026-11-11'), (DATE '2026-11-12'),
+  (DATE '2026-11-13')
 ) AS d(chk_date)
-WHERE d.chk_date < DATE '2026-11-12'
-   OR (d.chk_date = DATE '2026-11-12' AND wt.due_time <= TIME '09:00');
+WHERE d.chk_date < DATE '2026-11-13'
+   OR (d.chk_date = DATE '2026-11-13' AND wt.due_time <= TIME '09:00');
 
--- Sinh daily_task_logs + feed_records + daily_stock_allocations cho 7 ngày (06/11 – 12/11/2026)
--- theo đúng task_key & đơn vị quy đổi của DailyPlanService
+-- Sinh daily_task_logs + feed_records + daily_stock_allocations cho 7 ngày (07/11 – 13/11/2026)
+-- theo đúng công thức task_key & đơn vị quy đổi của DailyPlanService
 DO $$
 DECLARE
   r_day       RECORD;
@@ -1054,7 +1090,7 @@ DECLARE
 BEGIN
   FOR r_day IN
     SELECT d::date AS work_date, c.id AS cycle_id, c.start_date, b.id AS barn_id, b.area_id, b.name AS barn_name
-    FROM generate_series(DATE '2026-11-06', DATE '2026-11-12', INTERVAL '1 day') d
+    FROM generate_series(DATE '2026-11-07', DATE '2026-11-13', INTERVAL '1 day') d
     CROSS JOIN farming_cycles c
     JOIN barns b ON b.id = c.barn_id
     WHERE c.status = 'ACTIVE' AND d::date >= c.start_date
@@ -1116,8 +1152,8 @@ BEGIN
           v_per_meal := ROUND(v_planned / GREATEST(COALESCE(r_step.meals_per_day, 1), 1), 3);
 
           FOR v_meal IN 1..GREATEST(COALESCE(r_step.meals_per_day, 1), 1) LOOP
-            -- Hôm nay (12/11): hoàn thành cữ 1 buổi sáng, để cữ 2/3/4 chờ công nhân bấm trên giao diện
-            IF r_day.work_date < DATE '2026-11-12' OR v_meal = 1 THEN
+            -- Hôm nay (13/11): hoàn thành cữ 1 buổi sáng, để cữ 2/3/4 chờ công nhân bấm trên giao diện
+            IF r_day.work_date < DATE '2026-11-13' OR v_meal = 1 THEN
               v_task_key := 'FEED:I' || r_step.inventory_item_id || ':M' || v_meal;
               v_packs := ROUND(v_per_meal / v_pack_kg, 6);
               v_cost := ROUND(v_packs * v_area_px, 0);
@@ -1153,14 +1189,14 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------
--- 12. Xuất nhập nội bộ (CHỈ 2 LOẠI: EXPORT & TRANSFER) & Chứng từ XNB000001..XNB000008
+-- 13. Xuất nhập nội bộ (CHỈ 2 LOẠI: EXPORT & TRANSFER) & Chứng từ XNB000001..XNB000008
 -- ---------------------------------------------------------------------
 INSERT INTO internal_stock_categories (movement_type, name, name_key, description, is_system, created_at, updated_at)
 VALUES
-  ('EXPORT',   'Xuất hủy',                 'xuất hủy',                 'Xuất hủy hàng hóa ẩm mốc, quá hạn hoặc hư hỏng trong trang trại', TRUE,  TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-  ('TRANSFER', 'Chuyển kho nội bộ',        'chuyển kho nội bộ',        'Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại', TRUE,  TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-  ('EXPORT',   'Xuất hao hụt kiểm kê',     'xuất hao hụt kiểm kê',     'Cân bằng kho khi phát hiện thiếu hụt, rơi vãi sau kiểm kê định kỳ', FALSE, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
-  ('EXPORT',   'Xuất vật tư tiêu hao',     'xuất vật tư tiêu hao',     'Xuất bóng sưởi, chất sát trùng, vôi bột, đệm lót dùng cho chuồng nuôi', FALSE, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+  ('EXPORT',   'Xuất hủy',                  'xuất hủy',                  'Xuất hủy hàng hóa ẩm mốc, quá hạn hoặc hư hỏng trong trang trại', TRUE,  TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+  ('TRANSFER', 'Chuyển kho nội bộ',         'chuyển kho nội bộ',         'Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại', TRUE,  TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+  ('EXPORT',   'Xuất hao hụt kiểm kê',      'xuất hao hụt kiểm kê',      'Cân bằng kho khi phát hiện thiếu hụt, rơi vãi sau kiểm kê định kỳ', FALSE, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
+  ('EXPORT',   'Xuất vật tư tiêu hao',      'xuất vật tư tiêu hao',      'Xuất bóng sưởi, chất sát trùng, vôi bột, đệm lót dùng cho chuồng nuôi', FALSE, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00'),
   ('TRANSFER', 'Chuyển sang kho đệm chuồng','chuyển sang kho đệm chuồng','Chuyển cám, thuốc từ kho tổng sang kho đệm tại từng khu chuồng nuôi', FALSE, TIMESTAMP '2026-01-01 08:00:00', TIMESTAMP '2026-01-01 08:00:00')
 ON CONFLICT (name_key) DO NOTHING;
 
@@ -1173,14 +1209,14 @@ DECLARE
 BEGIN
   FOR v_rec IN
     SELECT * FROM (VALUES
-      ('XNB000001', 'TRANSFER', 'chuyển kho nội bộ',        DATE '2026-02-18', 'kho cám mía thịt',   'kho cám j thịt',     'cám gà thịt higro 02',              30.000, 'bao25', 335000.00, 'COMPLETED', 'Điều chuyển cám Higro 02 hỗ trợ Khu J Thịt', TIMESTAMP '2026-02-18 09:00:00'),
-      ('XNB000002', 'EXPORT',   'xuất vật tư tiêu hao',     DATE '2026-03-29', 'kho thuốc mía thịt', NULL,                 'toltrazuril 2.5% (han-coc)',         3.000, 'chai1l', 680000.00, 'COMPLETED', 'Xuất dung dịch vệ sinh & sát trùng chuồng A1 sau lứa 1', TIMESTAMP '2026-03-29 14:00:00'),
-      ('XNB000003', 'TRANSFER', 'chuyển kho nội bộ',        DATE '2026-05-12', 'kho thuốc mía thịt', 'kho thuốc đông tảo', 'men tiêu hóa bio-zyme',              8.000, 'goi1kg', 120000.00, 'COMPLETED', 'Bổ sung men tiêu hóa sang Khu Đông Tảo chuẩn bị nhập lứa 2', TIMESTAMP '2026-05-12 10:30:00'),
-      ('XNB000004', 'EXPORT',   'xuất hao hụt kiểm kê',     DATE '2026-06-30', 'kho cám j thịt',     NULL,                 'cám gà vỗ béo higro 03',             2.000, 'bao25', 325000.00, 'COMPLETED', 'Cân bằng tồn kho định kỳ cuối quý 2/2026 (rách bao 2 bao)', TIMESTAMP '2026-06-30 16:00:00'),
-      ('XNB000005', 'TRANSFER', 'chuyển sang kho đệm chuồng',DATE '2026-08-15', 'kho cám mía thịt',   'kho cám a',          'cám gà thịt higro 02',              40.000, 'bao25', 335000.00, 'COMPLETED', 'Điều chuyển 40 bao dự trữ sang kho Khu A', TIMESTAMP '2026-08-15 08:30:00'),
-      ('XNB000006', 'EXPORT',   'xuất hủy',                 DATE '2026-09-20', 'kho thuốc j thịt',   NULL,                 'vắc-xin newcastle lasota',           4.000, 'lo1000',  42000.00, 'COMPLETED', 'Xuất hủy 4 lọ vắc-xin hỏng bảo quản lạnh khi mất điện', TIMESTAMP '2026-09-20 15:00:00'),
-      ('XNB000007', 'TRANSFER', 'chuyển sang kho đệm chuồng',DATE '2026-10-12', 'kho thuốc mía thịt', 'kho thuốc a',        'men tiêu hóa bio-zyme',             10.000, 'goi1kg', 120000.00, 'COMPLETED', 'Chuyển 10 gói Bio-Zyme sang kho đệm Khu A', TIMESTAMP '2026-10-12 09:30:00'),
-      ('XNB000008', 'EXPORT',   'xuất hao hụt kiểm kê',     DATE '2026-11-05', 'kho cám đông tảo',   NULL,                 'ngô hạt nghiền',                    50.000, 'kg',       7800.00, 'CANCELLED', 'Phiếu nháp kiểm kê ngô (hủy do cân đối lại số bao nguyên)', TIMESTAMP '2026-11-05 16:45:00')
+      ('XNB000001', 'TRANSFER', 'chuyển kho nội bộ',         DATE '2026-02-18', 'kho cám mía thịt',   'kho cám j thịt',     'cám gà thịt higro 02',         30.000, 'bao25',  335000.00, 'COMPLETED', 'Điều chuyển cám Higro 02 hỗ trợ Khu J Thịt',                  TIMESTAMP '2026-02-18 09:00:00'),
+      ('XNB000002', 'EXPORT',   'xuất vật tư tiêu hao',      DATE '2026-03-29', 'kho thuốc mía thịt', NULL,                 'toltrazuril 2.5% (han-coc)',    3.000, 'chai1l', 680000.00, 'COMPLETED', 'Xuất dung dịch vệ sinh & sát trùng chuồng A1 sau lứa 1',       TIMESTAMP '2026-03-29 14:00:00'),
+      ('XNB000003', 'TRANSFER', 'chuyển kho nội bộ',         DATE '2026-05-12', 'kho thuốc mía thịt', 'kho thuốc đông tảo', 'men tiêu hóa bio-zyme',         8.000, 'goi1kg', 120000.00, 'COMPLETED', 'Bổ sung men tiêu hóa sang Khu Đông Tảo chuẩn bị nhập lứa 2',  TIMESTAMP '2026-05-12 10:30:00'),
+      ('XNB000004', 'EXPORT',   'xuất hao hụt kiểm kê',      DATE '2026-06-30', 'kho cám j thịt',     NULL,                 'cám gà vỗ béo higro 03',        2.000, 'bao25',  325000.00, 'COMPLETED', 'Cân bằng tồn kho định kỳ cuối quý 2/2026 (rách bao 2 bao)',   TIMESTAMP '2026-06-30 16:00:00'),
+      ('XNB000005', 'TRANSFER', 'chuyển sang kho đệm chuồng',DATE '2026-08-15', 'kho cám mía thịt',   'kho cám a',          'cám gà thịt higro 02',         40.000, 'bao25',  335000.00, 'COMPLETED', 'Điều chuyển 40 bao dự trữ sang kho Khu A',                    TIMESTAMP '2026-08-15 08:30:00'),
+      ('XNB000006', 'EXPORT',   'xuất hủy',                  DATE '2026-09-20', 'kho thuốc j thịt',   NULL,                 'vắc-xin newcastle lasota',      4.000, 'lo1000',  42000.00, 'COMPLETED', 'Xuất hủy 4 lọ vắc-xin hỏng bảo quản lạnh khi mất điện',       TIMESTAMP '2026-09-20 15:00:00'),
+      ('XNB000007', 'TRANSFER', 'chuyển sang kho đệm chuồng',DATE '2026-10-12', 'kho thuốc mía thịt', 'kho thuốc a',        'men tiêu hóa bio-zyme',        10.000, 'goi1kg', 120000.00, 'COMPLETED', 'Chuyển 10 gói Bio-Zyme sang kho đệm Khu A',                   TIMESTAMP '2026-10-12 09:30:00'),
+      ('XNB000008', 'EXPORT',   'xuất hao hụt kiểm kê',      DATE '2026-11-05', 'kho cám đông tảo',   NULL,                 'ngô hạt nghiền',               50.000, 'kg',       7800.00, 'CANCELLED', 'Phiếu nháp kiểm kê ngô (hủy do cân đối lại số bao nguyên)',    TIMESTAMP '2026-11-05 16:45:00')
     ) AS t(code, mv_type, cat_key, mv_date, src_wh_key, tgt_wh_key, prod_key, qty, unit_key, unit_px, st, note, created_at)
   LOOP
     SELECT ii.id INTO v_src_ii
