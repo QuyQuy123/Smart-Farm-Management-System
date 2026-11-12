@@ -17,6 +17,7 @@ import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
 import { SupplierPicker } from './SupplierPicker';
 import { FlockDetailDialog } from './FlockDetailDialog';
+import { MovementDetailDialog } from './MovementDetailDialog';
 import { AreaTabs } from './AreaTabs';
 import { DailyPlanCard } from './DailyPlanCard';
 import { useDailyPlanActions } from './useDailyPlanActions';
@@ -640,9 +641,13 @@ export const BarnDetailView = () => {
               <td>{isOwner && active && <button type="button" className={styles.iconButton} aria-label={`Xóa lần cân ${formatDay(item.date)}`} onClick={() => openDelete('lần cân mẫu', () => deleteWeightSample(cycle.id, item.id))}><Trash2 size={14} /></button>}</td></tr>)}</tbody>
           </table></div>)}
           {journalTab === 'LOSS' && (losses.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
-            <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Khối lượng (kg)</th><th>Ghi chú</th></tr></thead>
+            <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Khối lượng (kg)</th><th>Ghi chú</th><th aria-label="Chi tiết" /></tr></thead>
             <tbody>{losses.map(item => <tr key={item.id}><td>{formatDay(item.movementDate)}</td><td>{item.flockCode}</td><td>{labelOf(MOVEMENT_TYPES, item.type)}
-              {item.relatedFlockCode ? ` (${item.type === 'TRANSFER_OUT' ? 'sang' : 'từ'} ${item.relatedFlockCode})` : ''}</td><td>{num(item.quantity)}</td><td>{num(item.weightKg, 2)}</td><td>{item.note || '—'}</td></tr>)}</tbody>
+              {item.relatedFlockCode ? ` (${item.type === 'TRANSFER_OUT' ? 'sang' : 'từ'} ${item.relatedFlockCode})` : ''}</td><td>{num(item.quantity)}</td><td>{num(item.weightKg, 2)}</td><td>{item.note || '—'}</td>
+              <td className={styles.rowActions}><button type="button" className={styles.iconButton} title="Xem chi tiết, ảnh đính kèm"
+                aria-label={`Chi tiết ${labelOf(MOVEMENT_TYPES, item.type).toLowerCase()} ngày ${formatDay(item.movementDate)} đàn ${item.flockCode}`}
+                onClick={() => setModal({ type: 'movement', movement: item })}><Eye size={15} />
+                {item.photoUrls?.length ? <span className={styles.photoCount}>{item.photoUrls.length}</span> : null}</button></td></tr>)}</tbody>
           </table></div>)}
         </Card>
 
@@ -679,6 +684,7 @@ export const BarnDetailView = () => {
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate('/barns')}>Về danh sách chuồng</button></div>
         : <><AreaTabs areas={areas} active={barn.areaId} />{header}{detail ? renderCycle() : renderNoCycle()}</>}
     {modal?.type === 'flock' && <FlockDetailDialog flock={modal.flock} canFinance={canFinance} onClose={() => setModal(null)} />}
+    {modal?.type === 'movement' && <MovementDetailDialog movement={modal.movement} onClose={() => setModal(null)} />}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}
     {modal && !modal.type && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </FarmShiftLayout>;
