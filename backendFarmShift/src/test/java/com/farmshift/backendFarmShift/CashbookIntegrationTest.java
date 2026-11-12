@@ -1,11 +1,7 @@
 package com.farmshift.backendFarmShift;
 
-import com.farmshift.backendFarmShift.dto.request.CashFundRequest;
-import com.farmshift.backendFarmShift.dto.request.CashFundTransferRequest;
-import com.farmshift.backendFarmShift.dto.request.CashTransactionRequest;
-import com.farmshift.backendFarmShift.repository.CashFundRepository;
-import com.farmshift.backendFarmShift.repository.CashFundTransferRepository;
-import com.farmshift.backendFarmShift.repository.CashTransactionRepository;
+import com.farmshift.backendFarmShift.dto.request.*;
+import com.farmshift.backendFarmShift.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,12 +31,20 @@ class CashbookIntegrationTest {
     @Autowired CashFundRepository fundRepository;
     @Autowired CashTransactionRepository txRepository;
     @Autowired CashFundTransferRepository transferRepository;
+    @Autowired CycleCostAllocationRepository costAllocationRepository;
+    @Autowired FarmAssetRepository assetRepository;
+    @Autowired PayrollRecordRepository payrollRepository;
+    @Autowired CashTransactionCategoryRepository categoryRepository;
 
     @BeforeEach
     void cleanSlate() {
         transferRepository.deleteAll();
         txRepository.deleteAll();
         fundRepository.deleteAll();
+        costAllocationRepository.deleteAll();
+        assetRepository.deleteAll();
+        payrollRepository.deleteAll();
+        categoryRepository.deleteAll();
     }
 
     @Test
@@ -128,12 +132,163 @@ class CashbookIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "ketoan@smartfarm.com", authorities = "ROLE_ACCOUNTANT")
+    void crudCostAllocationsAssetsCategoriesAndInsufficientBalanceGuard() throws Exception {
+        var fundRes = mvc.perform(post("/api/cashbook/funds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashFundRequest("Quỹ Tiền Mặt", "—", "Thủ quỹ", "CASH", 5_000_000L, ""))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long fundId = mapper.readTree(fundRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        // Insufficient fund balance guard on Chi
+        mvc.perform(post("/api/cashbook/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashTransactionRequest(
+                                LocalDate.of(2026, 10, 20), "Chi", "Chi phí khác", 6_000_000L,
+                                "Đối tượng khác", "Nhà cung cấp", fundId, "Vượt số dư"
+                        ))))
+                .andExpect(status().isBadRequest());
+
+        // Cost allocation CRUD
+        var allocRes = mvc.perform(post("/api/cashbook/cost-allocations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CycleCostAllocationRequest(
+                                null, "Nhà A1", "LUA-01", "Điện năng", 1_500_000L, "PC0001", LocalDate.of(2026, 10, 20), "Ghi chú"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.house").value("Nhà A1"))
+                .andReturn();
+        long allocId = mapper.readTree(allocRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        mvc.perform(put("/api/cashbook/cost-allocations/" + allocId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CycleCostAllocationRequest(
+                                null, "Nhà A2", "LUA-01", "Điện năng", 2_000_000L, "PC0001", LocalDate.of(2026, 10, 20), "Cập nhật"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.amount").value(2_000_000));
+
+        mvc.perform(delete("/api/cashbook/cost-allocations/" + allocId))
+                .andExpect(status().isOk());
+
+        // Farm asset CRUD
+        var assetRes = mvc.perform(post("/api/cashbook/assets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new FarmAssetRequest(
+                                "Máy phát điện 20kVA", 36_000_000L, 24, "Toàn trang trại", LocalDate.of(2026, 10, 1), "Đang trích khấu hao", ""
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.monthlyDep").value(1_500_000))
+                .andReturn();
+        long assetId = mapper.readTree(assetRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        mvc.perform(delete("/api/cashbook/assets/" + assetId))
+                .andExpect(status().isOk());
+
+        // Cash transaction category CRUD + duplicate & in-use checks
+        var catRes = mvc.perform(post("/api/cashbook/categories")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashTransactionCategoryRequest(
+                                "Tiền trấu độn chuồng", "Chi", "Chi phí biến đổi", "Mua trấu"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long catId = mapper.readTree(catRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        mvc.perform(post("/api/cashbook/categories")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashTransactionCategoryRequest(
+                                "Tiền trấu độn chuồng", "Chi", "Chi phí biến đổi", ""
+                        ))))
+                .andExpect(status().isConflict());
+
+        var usedTxRes = mvc.perform(post("/api/cashbook/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashTransactionRequest(
+                                LocalDate.of(2026, 10, 21), "Chi", "Tiền trấu độn chuồng", 1_000_000L,
+                                "Nhà cung cấp", "Hộ dân A", fundId, ""
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long usedTxId = mapper.readTree(usedTxRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        mvc.perform(delete("/api/cashbook/categories/" + catId))
+                .andExpect(status().isConflict());
+
+        mvc.perform(delete("/api/cashbook/transactions/" + usedTxId)).andExpect(status().isOk());
+        mvc.perform(delete("/api/cashbook/categories/" + catId)).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "ketoan@smartfarm.com", authorities = "ROLE_ACCOUNTANT")
+    void payrollCrudAndAtomicDisbursementToCashFund() throws Exception {
+        var fundRes = mvc.perform(post("/api/cashbook/funds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new CashFundRequest("Quỹ Trả Lương", "—", "Thủ quỹ", "CASH", 10_000_000L, ""))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long fundId = mapper.readTree(fundRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        var payrollRes = mvc.perform(post("/api/cashbook/payrolls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new PayrollRequest(
+                                null, "Lê Văn Công", "2026-10", 20, 400_000L, 500_000L, 1_000_000L, "Công chăm sóc"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.total").value(8_500_000))
+                .andExpect(jsonPath("$.data.remain").value(7_500_000))
+                .andExpect(jsonPath("$.data.status").value("Còn nợ lương"))
+                .andReturn();
+        long payrollId = mapper.readTree(payrollRes.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        // Exceeding remaining amount fails 400
+        mvc.perform(post("/api/cashbook/payrolls/" + payrollId + "/pay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new PayrollPayRequest(8_000_000L, fundId, LocalDate.of(2026, 10, 25), "Vượt mức"))))
+                .andExpect(status().isBadRequest());
+
+        // Atomic pay creates PC voucher and reduces fund balance cleanly
+        mvc.perform(post("/api/cashbook/payrolls/" + payrollId + "/pay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new PayrollPayRequest(7_500_000L, fundId, LocalDate.of(2026, 10, 25), "Chi lương tháng 10"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.paid").value(7_500_000))
+                .andExpect(jsonPath("$.data.remain").value(0))
+                .andExpect(jsonPath("$.data.status").value("Đã thanh toán"));
+
+        assertEquals(2_500_000L, fundRepository.findById(fundId).orElseThrow().getBalance());
+        assertTrue(txRepository.findAll().stream().anyMatch(tx ->
+                "Chi".equals(tx.getType()) && "Tiền lương công nhân".equals(tx.getCategory()) && tx.getAmount() == 7_500_000L));
+
+        // Cannot delete paid payroll -> 409 PAYROLL_IN_USE
+        mvc.perform(delete("/api/cashbook/payrolls/" + payrollId))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_FARM_WORKER")
     void workerIsForbiddenFromCashbookEndpoints() throws Exception {
         mvc.perform(get("/api/cashbook/summary")).andExpect(status().isForbidden());
         mvc.perform(post("/api/cashbook/funds")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(new CashFundRequest("Quỹ Worker", "", "Bank", "CASH", 0L, ""))))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/cashbook/assets")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(new FarmAssetRequest("Tài sản Worker", 1_000_000L, 12, "Nhà A1", LocalDate.now(), "Đang trích khấu hao", ""))))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/cashbook/payrolls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(new PayrollRequest(null, "Worker", "2026-10", 10, 300_000L, 0L, 0L, ""))))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/cashbook/cost-allocations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(new CycleCostAllocationRequest(null, "Nhà A1", "L01", "Điện", 100_000L, "", LocalDate.now(), ""))))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/cashbook/categories")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(new CashTransactionCategoryRequest("Mục mới", "Chi", "Khác", ""))))
                 .andExpect(status().isForbidden());
     }
 }

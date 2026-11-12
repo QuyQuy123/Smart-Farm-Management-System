@@ -107,8 +107,8 @@ export const AppRouter = () => {
         <Route path="/system-map" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
         <Route path="/energy" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
         <Route path="/cycles" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
-        <Route path="/payroll" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />
-        <Route path="/assets" element={<ProtectedRoute><CashbookView /></ProtectedRoute>} />
+        <Route path="/payroll" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><CashbookView /></ProtectedRoute>} />
+        <Route path="/assets" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><CashbookView /></ProtectedRoute>} />
         <Route path="/growth-targets" element={<ProtectedRoute><BreedingSettingsView /></ProtectedRoute>} />
         <Route path="/screens" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />

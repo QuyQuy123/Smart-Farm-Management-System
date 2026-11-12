@@ -1,0 +1,109 @@
+/* Editorial SaaS styles for CashbookView (no Tailwind, token-based) */
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.tabsWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow: visible;
+  white-space: normal;
+  padding-bottom: 8px;
+}
+
+.tabBtnCompact {
+  padding: 7px 12px !important;
+  font-size: 13.5px !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.filterGroup {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.compactTable th,
+.compactTable td {
+  padding: 10px 10px;
+  font-size: 13.5px;
+  vertical-align: middle;
+}
+
+.codeCell {
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+.dateCell {
+  white-space: nowrap;
+  color: var(--color-body);
+}
+
+.amountCell {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.personCell {
+  min-width: 135px;
+  max-width: 190px;
+}
+
+.personSub {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+.noteCell {
+  max-width: 210px;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionsCell {
+  text-align: center;
+  white-space: nowrap;
+  position: sticky;
+  right: 0;
+  background: var(--color-surface, #ffffff);
+  box-shadow: -6px 0 10px -8px rgba(15, 23, 42, 0.14);
+}
+
+.actionsGroup {
+  display: inline-flex;
+  gap: 5px;
+  justify-content: center;
+}
+
+.iconBtn {
+  padding: 4px 7px !important;
+}
+
+.advisoryNote {
+  padding: 13px 16px;
+  border-radius: var(--rounded-md);
+  background-color: var(--color-surface-soft);
+  border: 1px solid var(--color-hairline);
+  font-size: 14px;
+  color: var(--color-body);
+}
+

@@ -892,3 +892,101 @@ FROM (VALUES
 JOIN cash_funds ff ON ff.name = v.from_name
 JOIN cash_funds tf ON tf.name = v.to_name
 ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS cash_transaction_categories (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  name_key VARCHAR(180) NOT NULL UNIQUE,
+  type VARCHAR(10) NOT NULL,
+  cost_group VARCHAR(120) NOT NULL,
+  note VARCHAR(500),
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO cash_transaction_categories (name, name_key, type, cost_group, note, active, created_at, updated_at)
+VALUES
+  ('Đơn bán gà', 'thu:đơn bán gà', 'Thu', 'Doanh thu chính', 'Thu tiền xuất bán gà thịt', TRUE, NOW(), NOW()),
+  ('Thu hồi công nợ', 'thu:thu hồi công nợ', 'Thu', 'Công nợ', 'Khách hàng thanh toán nợ cũ', TRUE, NOW(), NOW()),
+  ('Thu khác', 'thu:thu khác', 'Thu', 'Thu nhập khác', 'Khoản thu ngoài hoạt động xuất bán', TRUE, NOW(), NOW()),
+  ('Tiền thức ăn (Cám)', 'chi:tiền thức ăn (cám)', 'Chi', 'Chi phí biến đổi', 'Thanh toán tiền cám theo lứa', TRUE, NOW(), NOW()),
+  ('Tiền con giống', 'chi:tiền con giống', 'Chi', 'Chi phí biến đổi', 'Mua giống gà nhập đàn', TRUE, NOW(), NOW()),
+  ('Thuốc thú y & vắc-xin', 'chi:thuốc thú y & vắc-xin', 'Chi', 'Chi phí thú y', 'Phòng và trị bệnh định kỳ', TRUE, NOW(), NOW()),
+  ('Tiền điện & nước trang trại', 'chi:tiền điện & nước trang trại', 'Chi', 'Chi phí vận hành', 'Hệ thống quạt làm mát & chiếu sáng', TRUE, NOW(), NOW()),
+  ('Tiền lương công nhân', 'chi:tiền lương công nhân', 'Chi', 'Chi phí nhân công', 'Chi lương & phụ cấp nhân sự', TRUE, NOW(), NOW()),
+  ('Thanh toán công nợ NCC', 'chi:thanh toán công nợ ncc', 'Chi', 'Công nợ', 'Trả tiền hóa đơn nhập hàng', TRUE, NOW(), NOW()),
+  ('Chi phí khác', 'chi:chi phí khác', 'Chi', 'Chi phí khác', 'Chi phí phát sinh khác tại trang trại', TRUE, NOW(), NOW())
+ON CONFLICT (name_key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS farm_assets (
+  id BIGSERIAL PRIMARY KEY,
+  code VARCHAR(30) NOT NULL UNIQUE,
+  name VARCHAR(200) NOT NULL,
+  cost BIGINT NOT NULL,
+  depreciation_months INT NOT NULL,
+  monthly_depreciation BIGINT NOT NULL,
+  barn_location VARCHAR(200),
+  purchase_date DATE,
+  status VARCHAR(80) NOT NULL DEFAULT 'Đang trích khấu hao',
+  note VARCHAR(500),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO farm_assets (code, name, cost, depreciation_months, monthly_depreciation, barn_location, purchase_date, status, note, created_at, updated_at)
+VALUES
+  ('TS0001', 'Quạt hút công nghiệp 1.2kW (Hệ 5 quạt)', 35000000, 36, 972222, 'Nhà A1, A2, A3', DATE '2025-01-15', 'Đang trích khấu hao', 'Hệ thống thông gió chuồng kín', NOW(), NOW()),
+  ('TS0002', 'Giàn làm mát Cooling Pad tấm tôn inox', 24000000, 24, 1000000, 'Khu Mía Thịt', DATE '2025-04-01', 'Đang trích khấu hao', 'Làm mát mùa hè', NOW(), NOW()),
+  ('TS0003', 'Hệ thống đường ống núm uống tự động Lubing', 18000000, 36, 500000, 'Nhà B1, B2', DATE '2025-06-10', 'Đang trích khấu hao', 'Cấp nước uống tự động', NOW(), NOW()),
+  ('TS0004', 'Máy phát điện dự phòng 15kVA Cummins', 65000000, 60, 1083333, 'Toàn trang trại', DATE '2024-11-01', 'Đang trích khấu hao', 'Dự phòng mất điện lưới', NOW(), NOW())
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS payroll_records (
+  id BIGSERIAL PRIMARY KEY,
+  code VARCHAR(30) NOT NULL UNIQUE,
+  account_id BIGINT,
+  employee_name VARCHAR(150) NOT NULL,
+  pay_period VARCHAR(20) NOT NULL,
+  work_days INT NOT NULL DEFAULT 0,
+  daily_rate BIGINT NOT NULL DEFAULT 0,
+  bonus BIGINT NOT NULL DEFAULT 0,
+  advance BIGINT NOT NULL DEFAULT 0,
+  total_amount BIGINT NOT NULL DEFAULT 0,
+  paid_amount BIGINT NOT NULL DEFAULT 0,
+  remaining_amount BIGINT NOT NULL DEFAULT 0,
+  status VARCHAR(50) NOT NULL DEFAULT 'Còn nợ lương',
+  note VARCHAR(500),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO payroll_records (code, employee_name, pay_period, work_days, daily_rate, bonus, advance, total_amount, paid_amount, remaining_amount, status, note, created_at, updated_at)
+VALUES
+  ('CC0001', 'Nguyễn Văn An', '2026-10', 26, 350000, 1000000, 2000000, 10100000, 8100000, 0, 'Đã thanh toán', 'Chăm sóc khu chuồng A', NOW(), NOW()),
+  ('CC0002', 'Trần Văn Bình', '2026-10', 25, 350000, 800000, 1500000, 9550000, 5000000, 3050000, 'Còn nợ lương', 'Chăm sóc khu chuồng B', NOW(), NOW()),
+  ('CC0003', 'Nguyễn Văn Hải', '2026-10', 28, 500000, 2000000, 3000000, 16000000, 13000000, 0, 'Đã thanh toán', 'Quản lý kỹ thuật trang trại', NOW(), NOW()),
+  ('CC0004', 'Nguyễn Thị Mai', '2026-10', 24, 400000, 500000, 0, 10100000, 10100000, 0, 'Đã thanh toán', 'Kế toán kiêm thủ kho', NOW(), NOW())
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS cycle_cost_allocations (
+  id BIGSERIAL PRIMARY KEY,
+  code VARCHAR(30) NOT NULL UNIQUE,
+  cycle_id BIGINT,
+  barn_name VARCHAR(120) NOT NULL,
+  cycle_code VARCHAR(80) NOT NULL,
+  cost_type VARCHAR(150) NOT NULL,
+  amount BIGINT NOT NULL,
+  source_voucher_code VARCHAR(80),
+  allocation_date DATE NOT NULL,
+  note VARCHAR(500),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO cycle_cost_allocations (code, barn_name, cycle_code, cost_type, amount, source_voucher_code, allocation_date, note, created_at)
+VALUES
+  ('PB0001', 'Nhà A1', 'LUA-2026-MIA01', 'Thức ăn chăn nuôi (Cám)', 48500000, 'PC000036', DATE '2026-10-18', 'Cám Higro 01 úm gà con tuần 1', NOW()),
+  ('PB0002', 'Nhà A2', 'LUA-2026-MIA01', 'Thuốc thú y & Vắc-xin', 8200000, 'PC000034', DATE '2026-10-19', 'Vắc-xin Newcastle Lasota + Kháng thể', NOW()),
+  ('PB0003', 'Nhà B1', 'LUA-2026-J02', 'Thức ăn chăn nuôi (Cám)', 92400000, 'PC000038', DATE '2026-10-15', 'Cám Higro 03 giai đoạn vỗ béo', NOW()),
+  ('PB0004', 'Nhà B1', 'LUA-2026-J02', 'Điện năng vận hành', 3600000, 'PC000035', DATE '2026-10-20', 'Tiền điện quạt hút công nghiệp 1.5kW', NOW())
+ON CONFLICT (code) DO NOTHING;

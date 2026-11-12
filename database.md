@@ -66,9 +66,12 @@ erDiagram
     warehouse_categories ||--o{ purchase_invoice_items : "destination_warehouse"
     purchase_invoice_items ||--o| inventory_items : "receipt_lot"
 
-    %% Cashbook & Funds
+    %% Cashbook, Funds, Assets & Payroll
     cash_funds ||--o{ cash_transactions : "tracks_vouchers"
     cash_funds ||--o{ cash_fund_transfers : "transfers_between"
+    cash_transaction_categories ||--o{ cash_transactions : "classifies"
+    accounts ||--o{ payroll_records : "receives_salary"
+    farming_cycles ||--o{ cycle_cost_allocations : "absorbs_costs"
 
     %% Internal Stock Movements
     internal_stock_categories ||--o{ internal_stock_vouchers : "categorizes"
@@ -1001,8 +1004,85 @@ Entity: `CashFundTransfer`. Quản lý giao dịch rút tiền mặt từ ngân 
 | `creator` | VARCHAR(150) | Tài khoản thực hiện. |
 | `created_at` | TIMESTAMP | Thời điểm ghi nhận. |
 
+### 9.4 Bảng `cash_transaction_categories` — Danh mục Loại Phiếu Thu / Chi
+
+Entity: `CashTransactionCategory`. Quản lý các hạng mục thu/chi tại **Sổ quỹ → Loại phiếu thu / chi** và đồng bộ trực tiếp vào dropdown khi lập/sửa phiếu thu/chi.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `name` | VARCHAR(150) | NOT NULL. Tên loại giao dịch (VD: `Đơn bán gà`, `Tiền lương công nhân`). |
+| `name_key` | VARCHAR(180) | NOT NULL, UNIQUE. Khóa chuẩn hóa dạng `{type}:{lower(name)}` ngăn trùng theo phân loại Thu/Chi. |
+| `type` | VARCHAR(10) | NOT NULL. `Thu` hoặc `Chi`. |
+| `cost_group` | VARCHAR(120) | NOT NULL. Nhóm chi phí / doanh thu (VD: `Chi phí biến đổi`, `Chi phí nhân công`). |
+| `note` | VARCHAR(500) | Diễn giải chi tiết. |
+| `active` | BOOLEAN | NOT NULL, DEFAULT TRUE. Trạng thái kích hoạt. |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+
+### 9.5 Bảng `farm_assets` — Tài sản cố định & Trích khấu hao
+
+Entity: `FarmAsset`. Quản lý tài sản cố định, máy móc, hệ thống quạt/làm mát tại **Sổ quỹ → Tài sản & Khấu hao** (`/assets`).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã tài sản tự sinh `TS0001`, `TS0002`... |
+| `name` | VARCHAR(200) | NOT NULL. Tên tài sản cố định / trang thiết bị. |
+| `cost` | BIGINT | NOT NULL. Nguyên giá đầu tư (VNĐ). |
+| `depreciation_months` | INT | NOT NULL. Số tháng trích khấu hao (`>= 1`). |
+| `monthly_depreciation` | BIGINT | NOT NULL. Giá trị khấu hao hằng tháng = `round(cost / depreciation_months)` (VNĐ). |
+| `barn_location` | VARCHAR(200) | Chuồng / khu phân bổ sử dụng (VD: `Nhà A1, A2, A3`, `Toàn trang trại`). |
+| `purchase_date` | DATE | Ngày mua / đưa vào sử dụng. |
+| `status` | VARCHAR(80) | NOT NULL, DEFAULT `'Đang trích khấu hao'`. Trạng thái (`Đang trích khấu hao`, `Đã khấu hao hết`, `Ngưng sử dụng`). |
+| `note` | VARCHAR(500) | Ghi chú kỹ thuật. |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+
+### 9.6 Bảng `payroll_records` — Bảng chấm công & Thanh toán tiền lương
+
+Entity: `PayrollRecord`. Quản lý chấm công, tính lương ròng và chi trả lương liên kết trực tiếp nguồn quỹ tại **Sổ quỹ → Tiền công nhân viên** (`/payroll`).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã bảng công tự sinh `CC0001`, `CC0002`... |
+| `account_id` | BIGINT | FOREIGN KEY → `accounts.id` (`fk_payroll_account`, nullable). Tài khoản nhân sự liên kết. |
+| `employee_name` | VARCHAR(150) | NOT NULL. Họ tên nhân viên. |
+| `pay_period` | VARCHAR(20) | NOT NULL. Kỳ lương theo tháng (`YYYY-MM`, VD: `2026-10`). |
+| `work_days` | INT | NOT NULL, DEFAULT 0. Số ngày công làm việc. |
+| `daily_rate` | BIGINT | NOT NULL, DEFAULT 0. Đơn giá tiền công/ngày (VNĐ). |
+| `bonus` | BIGINT | NOT NULL, DEFAULT 0. Phụ cấp / thưởng (VNĐ). |
+| `advance` | BIGINT | NOT NULL, DEFAULT 0. Số tiền đã tạm ứng trước (VNĐ). |
+| `total_amount` | BIGINT | NOT NULL, DEFAULT 0. Tổng lương = `work_days * daily_rate + bonus`. |
+| `paid_amount` | BIGINT | NOT NULL, DEFAULT 0. Số tiền đã chi trả qua sổ quỹ. |
+| `remaining_amount` | BIGINT | NOT NULL, DEFAULT 0. Còn phải trả = `max(0, total_amount - advance - paid_amount)`. |
+| `status` | VARCHAR(50) | NOT NULL, DEFAULT `'Còn nợ lương'`. Trạng thái (`Còn nợ lương` hoặc `Đã thanh toán`). |
+| `note` | VARCHAR(500) | Ghi chú kỳ công. |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+
+### 9.7 Bảng `cycle_cost_allocations` — Phân bổ chi phí về Lứa nuôi
+
+Entity: `CycleCostAllocation`. Quản lý khoản chi được phân bổ cụ thể về từng chuồng/lứa để phục vụ tính giá thành tại **Sổ quỹ → Phân bổ chi phí lứa**.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã phân bổ tự sinh `PB0001`, `PB0002`... |
+| `cycle_id` | BIGINT | FOREIGN KEY → `farming_cycles.id` (`fk_cost_alloc_cycle`, nullable). Lứa nuôi nhận chi phí. |
+| `barn_name` | VARCHAR(120) | NOT NULL. Tên chuồng nuôi (tự đồng bộ nếu chọn `cycle_id`). |
+| `cycle_code` | VARCHAR(80) | NOT NULL. Mã lứa nuôi (VD: `L000001`, `LUA-2026-MIA01`). |
+| `cost_type` | VARCHAR(150) | NOT NULL. Loại chi phí phân bổ (VD: `Thức ăn chăn nuôi (Cám)`, `Điện năng vận hành`). |
+| `amount` | BIGINT | NOT NULL. Số tiền phân bổ (VNĐ). |
+| `source_voucher_code` | VARCHAR(80) | Mã chứng từ nguồn liên quan (VD: `PC000035`). |
+| `allocation_date` | DATE | NOT NULL. Ngày ghi nhận phân bổ. |
+| `note` | VARCHAR(500) | Ghi chú chi tiết. |
+| `created_at` | TIMESTAMP | Thời điểm tạo bản ghi. |
+
 **Quy tắc & API Quản lý Sổ quỹ (`CashbookController`, yêu cầu `ROLE_FARM_OWNER` hoặc `ROLE_ACCOUNTANT`):**
-- `GET /api/cashbook/summary?type=&fundId=&from=&to=&search=`: Trả về tổng thu, tổng chi, tổng số dư toàn quỹ, danh sách nguồn quỹ, danh sách phiếu thu/chi đã lọc và lịch sử chuyển quỹ.
-- `GET /api/cashbook/funds`, `POST /api/cashbook/funds`, `PUT /api/cashbook/funds/{id}`, `DELETE /api/cashbook/funds/{id}`: Quản lý nguồn tiền (không xóa được quỹ đã phát sinh phiếu hoặc chuyển quỹ → 409 `CASH_FUND_IN_USE`).
-- `POST /api/cashbook/transactions`, `PUT /api/cashbook/transactions/{id}`, `DELETE /api/cashbook/transactions/{id}`: Lập, sửa, xóa phiếu thu/chi; khi sửa hoặc xóa, hệ thống tự động hoàn tác biến động số dư cũ trên `oldFund` rồi áp dụng biến động mới lên `targetFund` trong cùng transaction.
+- `GET /api/cashbook/summary?type=&fundId=&from=&to=&search=`: Trả về tổng thu, tổng chi, tổng số dư toàn quỹ, danh sách nguồn quỹ, danh sách phiếu thu/chi đã lọc, lịch sử chuyển quỹ, phân bổ chi phí lứa, tài sản cố định, bảng lương, danh mục loại phiếu và danh sách `staffOptions` / `cycleOptions`.
+- `GET /api/cashbook/funds`, `POST /api/cashbook/funds`, `PUT /api/cashbook/funds/{id}`, `DELETE /api/cashbook/funds/{id}`: Quản lý nguồn tiền (biến động số dư thực hiện qua câu `UPDATE` nguyên tử kèm điều kiện `balance >= amount`; không xóa được quỹ đã phát sinh phiếu hoặc chuyển quỹ → 409 `CASH_FUND_IN_USE`).
+- `POST /api/cashbook/transactions`, `PUT /api/cashbook/transactions/{id}`, `DELETE /api/cashbook/transactions/{id}`: Lập, sửa, xóa phiếu thu/chi; chặn chi vượt số dư quỹ; tự động hoàn tác biến động số dư cũ trên `oldFund` rồi áp dụng biến động mới lên `targetFund` trong cùng transaction.
 - `POST /api/cashbook/transfers`: Chuyển quỹ nội bộ (kiểm tra quỹ nguồn khác quỹ đích và đủ số dư `amount + fee`).
+- `POST/PUT/DELETE /api/cashbook/cost-allocations/**`: CRUD phân bổ chi phí lứa.
+- `POST/PUT/DELETE /api/cashbook/assets/**`: CRUD tài sản cố định & khấu hao.
+- `POST/PUT/DELETE /api/cashbook/payrolls/**` & `POST /api/cashbook/payrolls/{id}/pay`: CRUD bảng lương & thanh toán lương nguyên tử (khóa quỹ nguồn, trừ `CashFund.balance`, tự sinh phiếu chi `PC...` danh mục `Tiền lương công nhân` và cập nhật `paid_amount`/`remaining_amount`); chặn xóa bảng lương đã phát sinh thanh toán (`PAYROLL_IN_USE`).
+- `POST/PUT/DELETE /api/cashbook/categories/**`: CRUD loại phiếu thu/chi (chặn trùng `CATEGORY_DUPLICATE` và chặn xóa danh mục đang có phiếu tham chiếu `CATEGORY_IN_USE`).

@@ -14,5 +14,7 @@ public interface CashTransactionRepository extends JpaRepository<CashTransaction
     Optional<CashTransaction> findByCode(String code);
 
     boolean existsByFund_Id(Long fundId);
+
+    boolean existsByCategoryIgnoreCaseAndTypeIgnoreCase(String category, String type);
 }
 

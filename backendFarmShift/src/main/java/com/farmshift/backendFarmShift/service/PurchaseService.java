@@ -107,7 +107,11 @@ public class PurchaseService {
         invoice.setOtherCost(request.otherCost() != null ? request.otherCost() : 0L);
         invoice.setReferenceCode(request.referenceCode() != null ? request.referenceCode().strip() : null);
         invoice.setNote(request.note() != null ? request.note().strip() : "");
-        invoice.setAttachmentUrl(request.attachmentUrl());
+        String attachment = trimOrNull(request.attachmentUrl());
+        if (attachment != null && !(attachment.startsWith("/img/") || attachment.startsWith("https://") || attachment.startsWith("http://"))) {
+            throw new BadRequestException("Đường dẫn ảnh chứng từ không hợp lệ.");
+        }
+        invoice.setAttachmentUrl(attachment);
 
         if (request.tagIds() != null && !request.tagIds().isEmpty()) {
             invoice.setTags(new HashSet<>(tagRepository.findAllById(request.tagIds())));

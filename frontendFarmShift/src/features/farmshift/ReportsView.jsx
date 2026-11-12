@@ -1,6 +1,6 @@
 // src/features/farmshift/ReportsView.jsx
 // Báo cáo & Thống kê toàn diện trang trại chuẩn FarmShift & DESIGN.md (Đủ 9 loại báo cáo)
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart3, TrendingUp, FileSpreadsheet, PieChart,
   Calendar, ArrowUpRight, DollarSign, Package, Warehouse,
@@ -8,10 +8,44 @@ import {
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
+import { getCashbookSummary } from '../../services/cashbookService';
+
+const DEFAULT_CASHBOOK_REPORT = {
+  totalRevenue: INITIAL_FARMSHIFT_DATA.cashbook
+    .filter(t => t.type === 'Thu')
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0),
+  totalExpense: INITIAL_FARMSHIFT_DATA.cashbook
+    .filter(t => t.type === 'Chi')
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0),
+  totalFundsBalance: 332120000,
+  funds: [
+    { id: 'f-1', name: 'Tài khoản MB Bank (TK Chính)', fundType: 'BANK', bank: 'Ngân hàng Quân Đội', balance: 228920000 },
+    { id: 'f-2', name: 'Tiền mặt tại quỹ trại', fundType: 'CASH', bank: 'Quỹ thủ quỹ', balance: 53200000 },
+    { id: 'f-3', name: 'Tài khoản Vietcombank dự phòng', fundType: 'BANK', bank: 'Vietcombank', balance: 50000000 }
+  ],
+  transactions: INITIAL_FARMSHIFT_DATA.cashbook
+};
 
 export const ReportsView = () => {
   const [activeTab, setActiveTab] = useState('summary');
-  // 'summary' | 'sales' | 'purchases' | 'inventory' | 'cashbook' | 'harvest' | 'growth' | 'internal' | 'activity'
+  const [cashbookReport, setCashbookReport] = useState(DEFAULT_CASHBOOK_REPORT);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCashbookSummary({ type: 'ALL' })
+      .then(data => {
+        if (cancelled) return;
+        if (data && typeof data === 'object' && Array.isArray(data.funds) && Array.isArray(data.transactions)) {
+          setCashbookReport(data);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const cashIn = Number(cashbookReport.totalRevenue || 0);
+  const cashOut = Number(cashbookReport.totalExpense || 0);
+  const netCashflow = cashIn - cashOut;
 
   return (
     <FarmShiftLayout
@@ -362,22 +396,31 @@ export const ReportsView = () => {
       {/* ── Tab 5: Báo cáo sổ quỹ ────────────────────────── */}
       {activeTab === 'cashbook' && (
         <div className="farmshift-card">
-          <div className="farmshift-card-header">
+          <div className="farmshift-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h3 className="farmshift-card-title">Dòng tiền lưu chuyển trang trại</h3>
+            <span className="farmshift-badge farmshift-badge-neutral">
+              Tổng tồn tất cả quỹ: {Number(cashbookReport.totalFundsBalance || 0).toLocaleString('vi-VN')} đ
+            </span>
           </div>
           <div className="farmshift-card-body">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
                 <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Dòng tiền vào</div>
-                <div style={{ fontSize: '22px', fontWeight: 500, color: 'var(--color-success)', marginTop: '4px' }}>+291,880,000 đ</div>
+                <div style={{ fontSize: '22px', fontWeight: 500, color: 'var(--color-success)', marginTop: '4px' }}>
+                  +{cashIn.toLocaleString('vi-VN')} đ
+                </div>
               </div>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
                 <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Dòng tiền ra</div>
-                <div style={{ fontSize: '22px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '4px' }}>-34,760,000 đ</div>
+                <div style={{ fontSize: '22px', fontWeight: 500, color: 'var(--color-signature-coral)', marginTop: '4px' }}>
+                  -{cashOut.toLocaleString('vi-VN')} đ
+                </div>
               </div>
               <div style={{ padding: '16px', borderRadius: 'var(--rounded-md)', backgroundColor: 'var(--color-surface-soft)', border: '1px solid var(--color-hairline)' }}>
                 <div style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Dòng tiền thuần</div>
-                <div style={{ fontSize: '22px', fontWeight: 500, color: 'var(--color-primary)', marginTop: '4px' }}>+257,120,000 đ</div>
+                <div style={{ fontSize: '22px', fontWeight: 500, color: netCashflow >= 0 ? 'var(--color-primary)' : 'var(--color-signature-coral)', marginTop: '4px' }}>
+                  {netCashflow >= 0 ? '+' : '-'}{Math.abs(netCashflow).toLocaleString('vi-VN')} đ
+                </div>
               </div>
             </div>
 
@@ -386,27 +429,31 @@ export const ReportsView = () => {
                 <thead>
                   <tr>
                     <th>Nguồn quỹ</th>
-                    <th>Dư đầu kỳ</th>
-                    <th>Tổng Thu</th>
-                    <th>Tổng Chi</th>
-                    <th>Tồn cuối kỳ</th>
+                    <th>Loại / Đơn vị</th>
+                    <th>Thu (theo phiếu)</th>
+                    <th>Chi (theo phiếu)</th>
+                    <th>Tồn quỹ hiện tại</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td><strong>Tài khoản MB Bank (FarmShift)</strong></td>
-                    <td>15,000,000 đ</td>
-                    <td>260,000,000 đ</td>
-                    <td>25,000,000 đ</td>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>250,000,000 đ</strong></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Quỹ tiền mặt tại trang trại</strong></td>
-                    <td>5,000,000 đ</td>
-                    <td>31,880,000 đ</td>
-                    <td>9,760,000 đ</td>
-                    <td><strong style={{ color: 'var(--color-ink)' }}>27,120,000 đ</strong></td>
-                  </tr>
+                  {(cashbookReport.funds || []).map(f => {
+                    const fundTx = (cashbookReport.transactions || []).filter(
+                      t => String(t.fundId || '') === String(f.id) || t.fund === f.name
+                    );
+                    const fundIn = fundTx.filter(t => t.type === 'Thu').reduce((s, t) => s + Number(t.amount || 0), 0);
+                    const fundOut = fundTx.filter(t => t.type === 'Chi').reduce((s, t) => s + Number(t.amount || 0), 0);
+                    return (
+                      <tr key={f.id}>
+                        <td><strong>{f.name}</strong></td>
+                        <td style={{ color: 'var(--color-muted)' }}>
+                          {f.fundType === 'CASH' ? 'Tiền mặt' : 'Ngân hàng'} · {f.bank}
+                        </td>
+                        <td style={{ color: 'var(--color-success)' }}>{fundIn.toLocaleString('vi-VN')} đ</td>
+                        <td style={{ color: 'var(--color-signature-coral)' }}>{fundOut.toLocaleString('vi-VN')} đ</td>
+                        <td><strong style={{ color: 'var(--color-ink)' }}>{Number(f.balance || 0).toLocaleString('vi-VN')} đ</strong></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

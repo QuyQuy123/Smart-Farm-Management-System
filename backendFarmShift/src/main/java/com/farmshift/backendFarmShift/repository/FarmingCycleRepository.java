@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FarmingCycleRepository extends JpaRepository<FarmingCycle, Long> {
+    @EntityGraph(attributePaths = {"barn"})
+    List<FarmingCycle> findAllWithBarnByOrderByIdDesc();
+
     Optional<FarmingCycle> findFirstByBarnIdAndStatus(Long barnId, CycleStatus status);
     List<FarmingCycle> findAllByBarnIdOrderByCycleNumberDesc(Long barnId);
     List<FarmingCycle> findAllByStatus(CycleStatus status);

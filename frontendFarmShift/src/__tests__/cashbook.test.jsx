@@ -17,10 +17,23 @@ vi.mock('../services/cashbookService', () => ({
   createCashTransaction: vi.fn(),
   updateCashTransaction: vi.fn(),
   deleteCashTransaction: vi.fn(),
-  createCashFundTransfer: vi.fn()
+  createCashFundTransfer: vi.fn(),
+  createCostAllocation: vi.fn(),
+  updateCostAllocation: vi.fn(),
+  deleteCostAllocation: vi.fn(),
+  createFarmAsset: vi.fn(),
+  updateFarmAsset: vi.fn(),
+  deleteFarmAsset: vi.fn(),
+  createPayroll: vi.fn(),
+  updatePayroll: vi.fn(),
+  payPayroll: vi.fn(),
+  deletePayroll: vi.fn(),
+  createCashCategory: vi.fn(),
+  updateCashCategory: vi.fn(),
+  deleteCashCategory: vi.fn()
 }));
 
-describe('CashbookView - Funds Management (FIN-07) & Payment Voucher Update (FIN-08)', () => {
+describe('CashbookView - Funds, Vouchers, Assets, Payroll & Categories', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.confirm = vi.fn(() => true);
@@ -38,13 +51,33 @@ describe('CashbookView - Funds Management (FIN-07) & Payment Voucher Update (FIN
       ],
       transfers: [
         { id: 201, code: 'CQ000010', date: '2026-10-12', from: 'TK MB Bank', to: 'Quỹ Tiền Mặt', amount: 5000000, fee: 0, note: 'Rút quỹ', creator: 'Trần Kế Toán' }
-      ]
+      ],
+      costAllocations: [
+        { id: 10, code: 'PB0001', cycleId: null, house: 'Nhà A1', cycle: 'LUA-01', type: 'Điện năng', amount: 1500000, source: 'PC000099', date: '2026-10-15', notes: 'Tiền điện' }
+      ],
+      assets: [
+        { id: 30, code: 'TS0001', name: 'Quạt hút 1.2kW', cost: 24000000, months: 24, monthlyDep: 1000000, house: 'Nhà A1', purchaseDate: '2026-10-01', status: 'Đang trích khấu hao', note: '' }
+      ],
+      payrolls: [
+        { id: 20, code: 'CC0002', accountId: null, employee: 'Trần Văn Bình', period: '2026-10', days: 25, rate: 350000, bonus: 800000, advance: 1500000, total: 9550000, paid: 5000000, remain: 3050000, status: 'Còn nợ lương', note: '' }
+      ],
+      categories: [
+        { id: 1, name: 'Đơn bán gà', type: 'Thu', group: 'Doanh thu chính', note: '' },
+        { id: 2, name: 'Tiền lương công nhân', type: 'Chi', group: 'Chi phí nhân công', note: '' }
+      ],
+      staffOptions: [
+        { id: 5, fullName: 'Trần Văn Bình', role: 'ROLE_FARM_WORKER' }
+      ],
+      cycleOptions: []
     });
     cashbookService.createCashFund.mockResolvedValue({ id: 3, name: 'Quỹ Agribank' });
     cashbookService.updateCashFund.mockResolvedValue({ id: 1, name: 'Quỹ Tiền Mặt Sửa' });
     cashbookService.deleteCashFund.mockResolvedValue(undefined);
     cashbookService.updateCashTransaction.mockResolvedValue({ id: 101, code: 'PC000099' });
     cashbookService.deleteCashTransaction.mockResolvedValue(undefined);
+    cashbookService.createFarmAsset.mockResolvedValue({ id: 31, code: 'TS0002' });
+    cashbookService.payPayroll.mockResolvedValue({ id: 20, code: 'CC0002', status: 'Đã thanh toán' });
+    cashbookService.createCashCategory.mockResolvedValue({ id: 3, name: 'Chi phí bảo trì' });
   });
 
   it('edits an existing payment voucher (FIN-08) and deletes a voucher', async () => {
@@ -103,6 +136,51 @@ describe('CashbookView - Funds Management (FIN-07) & Payment Voucher Update (FIN
     // Delete fund
     fireEvent.click(screen.getByRole('button', { name: 'Xóa nguồn quỹ TK MB Bank' }));
     await waitFor(() => expect(cashbookService.deleteCashFund).toHaveBeenCalledWith(2));
+  });
+
+  it('adds a fixed asset in Tài sản & Khấu hao, disburses payroll atomically in Tiền công nhân viên, and adds a cash category', async () => {
+    render(<MemoryRouter><CashbookView /></MemoryRouter>);
+    await screen.findByText('PC000099');
+
+    // Assets tab
+    fireEvent.click(screen.getByRole('button', { name: /Tài sản & Khấu hao/i }));
+    await screen.findByText('Quạt hút 1.2kW');
+    fireEvent.click(screen.getByRole('button', { name: /Thêm tài sản/i }));
+    fireEvent.change(screen.getByLabelText(/Tên tài sản/i), { target: { value: 'Máy phát điện 15kVA' } });
+    fireEvent.change(screen.getByLabelText(/Nguyên giá/i), { target: { value: '60000000' } });
+    fireEvent.change(screen.getByLabelText(/Số tháng khấu hao/i), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu tài sản' }));
+
+    await waitFor(() => expect(cashbookService.createFarmAsset).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Máy phát điện 15kVA',
+      cost: 60000000,
+      depreciationMonths: 60
+    })));
+
+    // Payroll disbursement tab
+    fireEvent.click(screen.getByRole('button', { name: /Tiền công nhân viên/i }));
+    await screen.findByText('Trần Văn Bình');
+    fireEvent.click(screen.getByRole('button', { name: 'Thanh toán lương CC0002' }));
+    expect(await screen.findByText(/Chi trả lương · Trần Văn Bình/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận chi lương' }));
+
+    await waitFor(() => expect(cashbookService.payPayroll).toHaveBeenCalledWith(20, expect.objectContaining({
+      amount: 3050000,
+      cashFundId: 1
+    })));
+
+    // Categories tab
+    fireEvent.click(screen.getByRole('button', { name: /Loại phiếu thu \/ chi/i }));
+    await screen.findByText('Đơn bán gà');
+    fireEvent.click(screen.getByRole('button', { name: /Thêm loại phiếu/i }));
+    fireEvent.change(screen.getByLabelText(/Tên loại giao dịch/i), { target: { value: 'Chi phí bảo trì' } });
+    fireEvent.change(screen.getByLabelText(/Nhóm chi phí/i), { target: { value: 'Chi phí vận hành' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu loại phiếu' }));
+
+    await waitFor(() => expect(cashbookService.createCashCategory).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Chi phí bảo trì',
+      costGroup: 'Chi phí vận hành'
+    })));
   });
 });
 
