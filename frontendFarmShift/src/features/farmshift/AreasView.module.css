@@ -76,6 +76,14 @@
 .modalBody { padding: 22px 24px; }
 .modalBody label { display: block; font-size: 14.5px; font-weight: 500; margin: 0 0 7px; color: #182b31; }
 .modalBody input, .modalBody select { margin-bottom: 4px; }
+.warehousePicker { max-height: 190px; overflow-y: auto; margin: 0 0 4px; border: 1px solid #dce5e2; border-radius: 8px; background: #fff; }
+.warehouseOption { display: flex !important; align-items: center; gap: 10px; padding: 9px 12px; margin: 0 !important; cursor: pointer; }
+.warehouseOption + .warehouseOption { border-top: 1px solid #edf1f0; }
+.warehouseOption:hover { background: #f5faf8; }
+.warehouseOption input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0 !important; accent-color: #008577; }
+.warehouseOption span { display: flex; flex-direction: column; gap: 2px; }
+.warehouseOption strong { font-size: 14px; font-weight: 500; }
+.warehouseOption small { color: #71818a; font-size: 12.5px; }
 .modalBody textarea { resize: vertical; min-height: 80px; }
 .modalBody p { line-height: 1.6; margin: 0; }
 .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 12px 0; }
