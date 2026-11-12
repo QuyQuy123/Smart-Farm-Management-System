@@ -199,7 +199,7 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     onChange: event => set(key, event.target.value), 'aria-invalid': Boolean(errors[key]), 'aria-describedby': errors[key] ? `barn-${key}-error` : undefined,
   });
 
-  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} onClose={onClose} wide>
+  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} onClose={onClose} wide className={styles.barnModal}>
     <form onSubmit={submit} noValidate>
       <div className={styles.modalBody}>
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
