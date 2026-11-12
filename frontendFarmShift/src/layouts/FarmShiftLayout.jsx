@@ -1,11 +1,11 @@
 // src/layouts/FarmShiftLayout.jsx
 // FarmShift Shell Layout aligned with DESIGN.md
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, Fragment } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
     Menu, Maximize, Minimize, Bell, User, LogOut,
     LayoutDashboard, Warehouse, ClipboardList, Package,
-    ArrowLeftRight, FileText, ShoppingCart, DollarSign,
+    ArrowLeftRight, FileText, ShoppingCart,
     Users, BarChart3, Layers, Settings, Sliders,
     Utensils, HeartPulse, Thermometer, CheckSquare, X,
     CheckCircle, AlertTriangle, AlertCircle, ListChecks
@@ -18,6 +18,9 @@ import { getFarmInfo, saveFarmInfo } from '../data/farmshiftMockData';
 import { getFarm } from '../services/farmService';
 import farmLogo from '../assets/logo_Farm.png';
 import '../theme/farmshift.css';
+
+// Pages mount their own layout; retain the menu position between those mounts.
+let sidebarScrollTop = 0;
 
 // Floating Real-time Toast Component with Bottom Progress Bar Animation
 const ToastNotification = ({ activeToast, setActiveToast, setNotifOpen }) => {
@@ -108,6 +111,39 @@ export const FarmShiftLayout = ({
     const { alerts, unreadCount, markAsRead, markAllAsRead, clearAllAlerts, activeToast, setActiveToast } = useNotification();
     const navigate = useNavigate();
     const location = useLocation();
+    const sidebarRef = useRef(null);
+
+    useLayoutEffect(() => {
+        sidebarRef.current.scrollTop = sidebarScrollTop;
+    }, []);
+
+    useEffect(() => {
+        const sidebar = sidebarRef.current;
+        const activeItem = sidebar.querySelector('.farmshift-menu-item.active');
+        if (!activeItem || window.innerWidth <= 768) return;
+
+        const bounds = sidebar.getBoundingClientRect();
+        const itemBounds = activeItem.getBoundingClientRect();
+        const rowHeight = activeItem.closest('li').getBoundingClientRect().height;
+        if (!rowHeight) return;
+
+        // Keep three rows of context toward either edge of the visible menu.
+        const targetTop = bounds.top + rowHeight * 3;
+        const targetBottom = bounds.bottom - rowHeight * 3;
+        let offset = 0;
+        if (itemBounds.top < targetTop) offset = itemBounds.top - targetTop;
+        else if (itemBounds.bottom > targetBottom) offset = itemBounds.bottom - targetBottom;
+        else return;
+        const top = Math.max(0, Math.min(
+            sidebar.scrollHeight - sidebar.clientHeight,
+            sidebar.scrollTop + offset,
+        ));
+        if (top === sidebar.scrollTop) return;
+        sidebar.scrollTo({
+            top,
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        });
+    }, [location.key]);
 
     // Sidebar state persisted across route changes
     const [collapsed, setCollapsed] = useState(() => {
@@ -253,7 +289,6 @@ export const FarmShiftLayout = ({
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'] },
         { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
-        { id: 'cashbook', label: 'Sổ quỹ', path: '/cashbook', icon: DollarSign, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'account', label: 'Tài khoản & Nhân sự', path: '/account', icon: Users, roles: ['ROLE_FARM_OWNER'] },
         { id: 'reports', label: 'Báo cáo & Thống kê', path: '/reports', icon: BarChart3, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
     ];
@@ -565,6 +600,8 @@ export const FarmShiftLayout = ({
 
             {/* ── Secondary Sidebar ─────────────────────────────── */}
             <aside
+                ref={sidebarRef}
+                onScroll={event => { sidebarScrollTop = event.currentTarget.scrollTop; }}
                 className={`farmshift-sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
             >
                 <div className="farmshift-sidebar-header">
