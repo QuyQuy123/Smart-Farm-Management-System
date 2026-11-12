@@ -175,7 +175,7 @@ public class ReportService {
 
             // Growth / FCR row
             Integer ageDays = cycle.getHatchDate() != null
-                    ? (int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1
+                    ? Integer.valueOf((int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1) // Integer: lứa chưa có đàn thì để null, không unbox
                     : flocks.isEmpty() ? null : CycleService.ageOn(flocks.get(0), reference);
 
             BigDecimal avgWeightKg = samples.stream()
