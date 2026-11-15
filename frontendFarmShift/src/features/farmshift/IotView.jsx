@@ -6,6 +6,7 @@ import { FARM_AREAS_CHANGED, listBarns, listFarmAreas } from '../../services/far
 import { apiErrorMessage } from './farmAreaOptions';
 import { Dialog } from './FarmAreaDialogs';
 import { IotEnvironment } from './IotEnvironment';
+import { PhoneCamera } from './PhoneCamera';
 import styles from './IotView.module.css';
 
 const TYPES = {
@@ -95,7 +96,7 @@ export function IotView() {
             </div>
             <div className={styles.detail}>
               <div className={styles.monitoring}>
-                <section className={styles.cameraPanel}><header><Camera size={20} /><h3>Camera giám sát</h3></header><CameraScreen barnName={barn.name} /><footer><Warehouse size={16} />{barn.name}<span>Chưa có tín hiệu camera</span></footer></section>
+                <PhoneCamera key={barn.id} barn={barn}><CameraScreen barnName={barn.name} /></PhoneCamera>
                 <IotEnvironment key={barn.id} barnName={barn.name} />
               </div>
               <section className={styles.controls} aria-label={`Thiết bị ${barn.name}`}>
