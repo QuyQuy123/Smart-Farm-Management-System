@@ -89,6 +89,18 @@ export function IotView() {
   const [connection, setConnection] = useState('disconnected');
   const [relayStates, setRelayStates] = useState({});
   const [sensorReadings, setSensorReadings] = useState({});
+  const [liveTemperatures, setLiveTemperatures] = useState([]);
+  const [temperatureHistory, setTemperatureHistory] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('farmshift-esp32-temperature') || '[]');
+      return Array.isArray(saved) ? saved.filter(point => point && Number.isFinite(point.time)
+        && Number.isFinite(point.value) && ['temp1', 'temp3'].includes(point.sensor)
+        && point.time >= Date.now() - 7 * 86400000) : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('farmshift-esp32-temperature', JSON.stringify(temperatureHistory)); } catch { /* In-memory history remains available. */ }
+  }, [temperatureHistory]);
   const [mqttError, setMqttError] = useState('');
   const hasBarn = Boolean(barn);
   useEffect(() => {
@@ -104,12 +116,26 @@ export function IotView() {
         }
         else setMqttError('');
       },
-      onMessage: ({ topic, payload }) => {
+      onMessage: ({ topic, payload, retained }) => {
         if (cancelled) return;
         const value = payload.trim();
         const sensor = ['temp1', 'humi1', 'temp3', 'humi3'].find(key => topic === `${ESP32_TOPIC_PREFIX}/${key}`);
         if (sensor && value && Number.isFinite(Number(value))) {
           setSensorReadings(current => ({ ...current, [sensor]: Number(value) }));
+          if (sensor.startsWith('temp') && !retained) {
+            const time = Date.now();
+            setLiveTemperatures(current => {
+              const second = Math.floor(time / 1000);
+              return [...current.filter(point => point.time >= time - 60_000
+                && !(point.sensor === sensor && Math.floor(point.time / 1000) === second)),
+              { sensor, time, value: Number(value) }];
+            });
+            setTemperatureHistory(current => {
+              const last = current.findLast(point => point.sensor === sensor);
+              if (last && time - last.time < 5 * 60000) return current;
+              return [...current.filter(point => point.time >= time - 7 * 86400000), { sensor, time, value: Number(value) }];
+            });
+          }
         }
         const relay = relayStatusTopics.indexOf(topic) + 1;
         const state = payload.trim();
@@ -153,7 +179,7 @@ export function IotView() {
             <div className={styles.detail}>
               <div className={styles.monitoring}>
                 <PhoneCamera key={barn.id} barn={barn}><CameraScreen barnName={barn.name} /></PhoneCamera>
-                <IotEnvironment key={`environment:${barn.id}`} barnName={barn.name} readings={sensorReadings} connected={connection === 'connected'} />
+                <IotEnvironment key={`environment:${barn.id}`} barnName={barn.name} readings={sensorReadings} connected={connection === 'connected'} history={temperatureHistory} liveHistory={liveTemperatures} />
               </div>
               <section className={styles.controls} aria-label={`Thiết bị ${barn.name}`}>
                 <header><div><h3>Điều khiển thiết bị</h3><p>{connection === 'connected' ? 'Đã kết nối MQTT' : connection === 'connecting' ? 'Đang kết nối MQTT…' : 'MQTT chưa kết nối'} · 4 relay dùng chung</p></div>

@@ -20,6 +20,7 @@ afterAll(() => {
 });
 beforeEach(() => {
   vi.resetAllMocks();
+  localStorage.removeItem('farmshift-esp32-temperature');
   connectEsp32.mockResolvedValue({ disconnect: vi.fn() });
   listFarmAreas.mockResolvedValue([{ id: 1, name: 'Khu Mía' }, { id: 2, name: 'Khu Hồ' }]);
   listBarns.mockResolvedValue([{ id: 11, name: 'Chuồng A1', areaId: 1 }, { id: 12, name: 'Chuồng B1', areaId: 2 }]);
@@ -105,20 +106,13 @@ it('reports a failed database request and retries', async () => {
   expect(await screen.findByRole('button', { name: 'Xem chi tiết Chuồng A1' })).toBeInTheDocument();
 });
 
-it('shows disconnected sensor values and lets the user explore a clearly labeled example chart', async () => {
+it('shows an empty temperature history until actual readings arrive', async () => {
   open();
   fireEvent.click(await screen.findByRole('button', { name: 'Xem chi tiết Chuồng A1' }));
   const environment = screen.getByRole('region', { name: 'Môi trường Chuồng A1' });
   expect(within(environment).getAllByText(/Nhiệt độ hiện tại/)).toHaveLength(2);
   expect(within(environment).getAllByText(/Độ ẩm hiện tại/)).toHaveLength(2);
   expect(within(environment).getAllByText('Chưa có dữ liệu')).toHaveLength(4);
-  fireEvent.click(within(environment).getByRole('button', { name: 'Xem minh họa biểu đồ' }));
-  expect(within(environment).getByRole('group', { name: 'Biểu đồ nhiệt độ minh họa 24 giờ của Chuồng A1' })).toBeInTheDocument();
-  fireEvent.click(within(environment).getByRole('button', { name: '12:00: 29.4 °C, minh họa' }));
-  expect(within(environment).getByText('12:00 · 29,4 °C (minh họa)')).toBeInTheDocument();
-  fireEvent.click(within(environment).getByRole('button', { name: '7 ngày' }));
-  expect(within(environment).getByRole('group', { name: 'Biểu đồ nhiệt độ minh họa 7 ngày của Chuồng A1' })).toBeInTheDocument();
-  fireEvent.click(within(environment).getByRole('button', { name: 'Ẩn minh họa' }));
   expect(within(environment).getByText('Chưa có lịch sử nhiệt độ')).toBeInTheDocument();
 });
 
@@ -136,4 +130,15 @@ it('displays MQTT readings from the two installed sensor channels', async () => 
   for (const value of ['27,1', '95', '28,4', '83']) {
     expect(await within(environment).findByText(value)).toBeInTheDocument();
   }
+  const chart = within(environment).getByRole('group', { name: 'Biểu đồ nhiệt độ Chuồng A1' });
+  const marker = chart.querySelector('circle');
+  vi.spyOn(chart, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 700, height: 235 });
+  fireEvent.pointerMove(chart, { clientX: Number(marker.getAttribute('cx')), clientY: Number(marker.getAttribute('cy')) });
+  expect(within(environment).getByText(/Cảm biến 1 · .* · 27,1 °C/)).toBeInTheDocument();
+  fireEvent.click(within(environment).getByRole('button', { name: '7 ngày' }));
+  expect(chart.querySelectorAll('circle')).toHaveLength(2);
+  fireEvent.click(within(environment).getByRole('button', { name: 'Nhiệt độ trung bình' }));
+  expect(chart.querySelectorAll('polyline')).toHaveLength(1);
+  fireEvent.click(chart.querySelector('circle'));
+  expect(within(environment).getByText(/Trung bình hai cảm biến · .* · 27,75 °C/)).toBeInTheDocument();
 });
