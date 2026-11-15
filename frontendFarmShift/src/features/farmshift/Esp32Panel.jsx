@@ -59,10 +59,10 @@ export function Esp32Panel({ active, onActiveChange }) {
         setStatus('connecting');
         setError('');
         onActiveChange(!active);
-      }}>{active ? 'Ngắt kết nối MQTT' : 'Kết nối MQTT'}</button>
+      }}>{active ? 'Ngắt kết nối thiết bị phần cứng' : 'Kết nối thiết bị phần cứng'}</button>
     </header>
     {active && <>
-      <p role="status">{status === 'connected' ? 'Đã kết nối broker MQTT' : status === 'connecting' ? 'Đang kết nối MQTT…' : 'MQTT mất kết nối'}</p>
+      <p role="status">{status === 'connected' ? 'Đã kết nối thiết bị phần cứng' : status === 'connecting' ? 'Đang kết nối thiết bị phần cứng…' : 'Thiết bị phần cứng mất kết nối'}</p>
       {error && <p role="alert">{error}</p>}
       <div className={styles.sensorGrid}>
         {channels.slice(0, 3).map(channel => <article key={channel} className={styles.device}>

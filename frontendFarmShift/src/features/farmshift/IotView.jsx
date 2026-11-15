@@ -16,9 +16,9 @@ const TYPES = {
   WATER: { label: 'Nước / phun sương', icon: Droplets },
 };
 const defaultDevices = () => [
-  { id: 'fan', name: 'Quạt gió', type: 'FAN', enabled: false, speed: 1, power: '1.2' },
-  { id: 'light', name: 'Hệ thống Đèn chiếu sáng', type: 'LIGHT', enabled: false, power: '' },
-  { id: 'water', name: 'Hệ thống phun sương', type: 'WATER', enabled: false, power: '' },
+  { id: 'fan', name: 'Quạt gió', type: 'FAN', relay: 4, enabled: false, speed: 1, power: '1.2' },
+  { id: 'light', name: 'Hệ thống Đèn chiếu sáng', type: 'LIGHT', relay: 2, enabled: false, power: '' },
+  { id: 'water', name: 'Hệ thống phun sương', type: 'WATER', relay: 3, enabled: false, power: '' },
 ];
 
 function CameraScreen({ barnName }) {
@@ -53,6 +53,21 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
         <label htmlFor="iot-power">Công suất (kW, không bắt buộc)</label>
         <input id="iot-power" className="farmshift-form-control" type="number" min="0" step="0.01" value={form.power} onChange={event => set('power', event.target.value)} />
         <small>Chọn relay theo dây đang nối trên ESP32.</small>
+        <label><input type="checkbox" checked={Boolean(form.automatic)} disabled={!form.relay}
+          onChange={event => set('automatic', event.target.checked)} /> Điều khiển tự động</label>
+        {form.automatic && form.type === 'LIGHT' && <>
+          <label htmlFor="iot-on-time">Giờ bật (giờ Việt Nam)</label>
+          <input id="iot-on-time" className="farmshift-form-control" type="time" required value={form.onTime ?? '18:00'} onChange={event => set('onTime', event.target.value)} />
+          <label htmlFor="iot-off-time">Giờ tắt (giờ Việt Nam)</label>
+          <input id="iot-off-time" className="farmshift-form-control" type="time" required value={form.offTime ?? '06:00'} onChange={event => set('offTime', event.target.value)} />
+        </>}
+        {form.automatic && form.type !== 'LIGHT' && <>
+          <label htmlFor="iot-temperature">Bật khi nhiệt độ vượt (°C)</label>
+          <input id="iot-temperature" className="farmshift-form-control" type="number" required step="0.1"
+            value={form.threshold ?? (form.type === 'FAN' ? 40 : 42)} onChange={event => set('threshold', event.target.value)} />
+          <small>Tính theo trung bình hai cảm biến. Tắt khi giảm xuống thấp hơn ngưỡng ít nhất 1 °C.</small>
+        </>}
+        {form.automatic && <small>Tự động chỉ chạy khi đang mở chi tiết chuồng này và có kết nối phần cứng.</small>}
       </div>
       <footer className={styles.dialogFooter}>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose}>Bỏ qua</button>
@@ -86,6 +101,8 @@ export function IotView() {
   }, []);
   const barn = data.barns.find(item => String(item.id) === barnId);
   const mqtt = useRef(null);
+  const autoCommands = useRef(new Map());
+  const [automationTime, setAutomationTime] = useState(Date.now);
   const [connection, setConnection] = useState('disconnected');
   const [relayStates, setRelayStates] = useState({});
   const [sensorReadings, setSensorReadings] = useState({});
@@ -111,6 +128,7 @@ export function IotView() {
         if (cancelled) return;
         setConnection(status);
         if (status !== 'connected') {
+          autoCommands.current.clear();
           setRelayStates({});
           setSensorReadings({});
         }
@@ -143,11 +161,11 @@ export function IotView() {
           setRelayStates(current => ({ ...current, [relay]: state === 'ON' }));
         }
       },
-      onError: () => { if (!cancelled) setMqttError('Không thể kết nối MQTT.'); },
+      onError: () => { if (!cancelled) setMqttError('Không thể kết nối thiết bị phần cứng.'); },
     }).then(client => {
       if (cancelled) client.disconnect();
       else mqtt.current = client;
-    }).catch(() => { if (!cancelled) setMqttError('Không thể khởi tạo MQTT.'); });
+    }).catch(() => { if (!cancelled) setMqttError('Không thể khởi tạo kết nối thiết bị phần cứng.'); });
     return () => {
       cancelled = true;
       mqtt.current?.disconnect();
@@ -158,11 +176,57 @@ export function IotView() {
     if (connection !== 'connected' || !mqtt.current) return;
     setMqttError('');
     const results = await Promise.allSettled(devices.map(device => mqtt.current.publishRelay(device.relay, enabled ? 'ON' : 'OFF')));
-    if (results.some(result => result.status === 'rejected')) setMqttError('Có lệnh MQTT gửi thất bại. Kiểm tra trạng thái từng relay trước khi thử lại.');
+    if (results.some(result => result.status === 'rejected')) setMqttError('Không gửi được một số lệnh đến thiết bị phần cứng. Kiểm tra trạng thái từng relay trước khi thử lại.');
   }
   const devices = devicesByBarn[barnId] ?? defaultDevices();
   const changeDevices = update => setDevicesByBarn(current => ({ ...current, [barnId]: update(current[barnId] ?? defaultDevices()) }));
   const updateDevice = (id, values) => changeDevices(items => items.map(item => item.id === id ? { ...item, ...values } : item));
+  const automaticEnabled = devices.some(device => device.automatic && device.relay);
+  useEffect(() => {
+    if (!automaticEnabled || !barnId) return;
+    const timer = setInterval(() => setAutomationTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [automaticEnabled, barnId]);
+
+  useEffect(() => {
+    if (!barn || connection !== 'connected' || !mqtt.current || !automaticEnabled) return;
+    const now = Date.now();
+    const localTime = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(now);
+    const latest = ['temp1', 'temp3'].map(sensor => liveTemperatures.findLast(point => point.sensor === sensor));
+    for (const device of devices) {
+      if (!device.automatic || !device.relay) continue;
+      let desired;
+      if (device.type === 'LIGHT') {
+        const on = device.onTime ?? '18:00';
+        const off = device.offTime ?? '06:00';
+        if (on === off) continue;
+        desired = on < off ? localTime >= on && localTime < off : localTime >= on || localTime < off;
+      } else {
+        if (latest.some(point => !point || sensorReadings[point.sensor] === undefined || now - point.time > 15_000)) continue;
+        const average = (latest[0].value + latest[1].value) / 2;
+        const threshold = Number(device.threshold ?? (device.type === 'FAN' ? 40 : 42));
+        if (average > threshold) desired = true;
+        else if (average <= threshold - 1) desired = false;
+        else continue;
+      }
+      if (relayStates[device.relay] === desired) continue;
+      const key = `${barnId}:${device.relay}`;
+      const pending = autoCommands.current.get(key);
+      if (pending?.desired === desired && now - pending.time < 10_000) continue;
+      autoCommands.current.set(key, { desired, time: now });
+      mqtt.current.publishRelay(device.relay, desired ? 'ON' : 'OFF').catch(() => {
+        setMqttError('Không gửi được lệnh tự động đến thiết bị phần cứng.');
+      });
+    }
+  }, [automaticEnabled, automationTime, barn, barnId, connection, devices, liveTemperatures, relayStates, sensorReadings]);
+
+  function manuallyControl(targets, enabled) {
+    const ids = new Set(targets.map(device => device.id));
+    changeDevices(items => items.map(device => ids.has(device.id) ? { ...device, automatic: false } : device));
+    send(targets, enabled);
+  }
   const groups = data.areas.map(area => ({ ...area, barns: data.barns.filter(item => item.areaId === area.id)
     .filter(item => `${area.name} ${item.name}`.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi').trim())) }));
   return <FarmShiftLayout pageTitle="Thiết bị IoT" breadcrumbTitle={barn?.name || 'Thiết bị IoT'}
@@ -182,24 +246,9 @@ export function IotView() {
                 <IotEnvironment key={`environment:${barn.id}`} barnName={barn.name} readings={sensorReadings} connected={connection === 'connected'} history={temperatureHistory} liveHistory={liveTemperatures} />
               </div>
               <section className={styles.controls} aria-label={`Thiết bị ${barn.name}`}>
-                <header><div><h3>Điều khiển thiết bị</h3><p>{connection === 'connected' ? 'Đã kết nối MQTT' : connection === 'connecting' ? 'Đang kết nối MQTT…' : 'MQTT chưa kết nối'} · 4 relay dùng chung</p></div>
+                <header><div><h3>Điều khiển thiết bị</h3><p>{connection === 'connected' ? 'Đã kết nối thiết bị phần cứng' : connection === 'connecting' ? 'Đang kết nối thiết bị phần cứng…' : 'Thiết bị phần cứng chưa kết nối'}</p></div>
                   <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => setModal({ kind: 'add' })}><Plus size={17} />Thêm thiết bị</button></header>
                 {mqttError && <p role="alert">{mqttError}</p>}
-                <section className={styles.device} aria-label="Điều khiển relay trực tiếp">
-                  <h4>Relay ESP32</h4>
-                  {[1, 2, 3, 4].map(relay => {
-                    const enabled = relayStates[relay];
-                    return <div key={relay} className={styles.directRelay}>
-                      <span>Relay {relay} · {enabled === undefined ? 'Chưa nhận trạng thái' : enabled ? 'Đang bật' : 'Đang tắt'}</span>
-                      <div>
-                        <button type="button" className="farmshift-btn farmshift-btn-secondary" aria-label={`Bật relay ${relay}`}
-                          disabled={connection !== 'connected'} onClick={() => send([{ relay }], true)}>Bật</button>
-                        <button type="button" className="farmshift-btn farmshift-btn-secondary" aria-label={`Tắt relay ${relay}`}
-                          disabled={connection !== 'connected'} onClick={() => send([{ relay }], false)}>Tắt</button>
-                      </div>
-                    </div>;
-                  })}
-                </section>
                 {devices.length === 0 && <p className={styles.state}>Chưa có thiết bị. Nhấn “Thêm thiết bị” để bắt đầu.</p>}
                 {['FAN', 'LIGHT', 'WATER'].map(type => {
                   const members = devices.filter(device => device.type === type);
@@ -213,9 +262,10 @@ export function IotView() {
                   const enabled = relayStates[device.relay];
                   return <article key={device.id} className={`${styles.device} ${enabled ? styles.enabled : ''}`}>
                     <div className={styles.deviceTop}><span className={styles.deviceIcon}><Icon size={23} /></span>
-                      <div className={styles.deviceInfo}><h4>{device.name}</h4><p>{device.relay ? `Relay ${device.relay}` : 'Chưa gán relay'} · {enabled === undefined ? 'Chưa nhận trạng thái' : enabled ? 'Đang bật' : 'Đang tắt'}</p></div>
+                      <div className={styles.deviceInfo}><h4>{device.name}</h4><p>{!device.relay ? 'Chọn kênh trong Chỉnh sửa' : enabled === undefined ? 'Chưa nhận trạng thái' : enabled ? 'Đang bật' : 'Đang tắt'}</p>
+                        <p>{device.automatic && device.relay ? 'Tự động' : 'Điều khiển tay'}</p></div>
                       <button type="button" role="switch" aria-checked={enabled === true} aria-label={`Bật tắt ${device.name}`} className={styles.toggle}
-                        disabled={!device.relay || connection !== 'connected'} onClick={() => send([device], !enabled)}><span /></button>
+                        disabled={!device.relay || connection !== 'connected'} onClick={() => manuallyControl([device], !enabled)}><span /></button>
                       </div>
                     <div className={styles.deviceActions}><button type="button" onClick={() => setModal({ kind: 'edit', device })}><Pencil size={14} />Chỉnh sửa</button>
                       <button type="button" onClick={() => setModal({ kind: 'delete', device })}><Trash2 size={14} />Xóa</button></div>
@@ -226,9 +276,9 @@ export function IotView() {
                   return <article key={`${barnId}:${type}`} className={styles.device}>
                     <div className={styles.deviceTop}>
                       <span className={styles.deviceIcon}><Icon size={23} /></span>
-                      <div className={styles.deviceInfo}><h4>{title}</h4><p>{count}/{assigned.length} relay đã gán đang bật</p></div>
+                      <div className={styles.deviceInfo}><h4>{title}</h4><p>{count}/{assigned.length} thiết bị đang bật</p></div>
                       <button type="button" role="switch" aria-checked={allOn} aria-label={`Bật tắt toàn bộ ${title}`} className={styles.toggle}
-                        disabled={!assigned.length || connection !== 'connected'} onClick={() => send(assigned, !allOn)}><span /></button>
+                        disabled={!assigned.length || connection !== 'connected'} onClick={() => manuallyControl(assigned, !allOn)}><span /></button>
                     </div>
                     <details className={styles.deviceGroup}>
                       <summary>{members.length} thiết bị</summary>

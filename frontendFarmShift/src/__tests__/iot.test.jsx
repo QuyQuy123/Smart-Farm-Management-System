@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { IotView } from '../features/farmshift/IotView';
 import { listBarns, listFarmAreas } from '../services/farmAreaService';
@@ -26,6 +26,35 @@ beforeEach(() => {
   listBarns.mockResolvedValue([{ id: 11, name: 'Chuồng A1', areaId: 1 }, { id: 12, name: 'Chuồng B1', areaId: 2 }]);
 });
 const open = () => render(<MemoryRouter><IotView /></MemoryRouter>);
+
+it('automates a configured fan and yields to its manual switch', async () => {
+  const publishRelay = vi.fn().mockResolvedValue(undefined);
+  let receive;
+  connectEsp32.mockImplementation(async ({ onConnection, onMessage }) => {
+    receive = onMessage;
+    onConnection('connected');
+    return { disconnect: vi.fn(), publishRelay };
+  });
+  open();
+  fireEvent.click(await screen.findByRole('button', { name: 'Xem chi tiết Chuồng A1' }));
+  await screen.findByText('Đã kết nối thiết bị phần cứng');
+  const group = screen.getByRole('switch', { name: 'Bật tắt toàn bộ Quạt gió' }).closest('article');
+  group.querySelector('details').open = true;
+  fireEvent.click(within(group).getByRole('button', { name: 'Chỉnh sửa' }));
+  const dialog = screen.getByRole('dialog');
+  fireEvent.change(within(dialog).getByLabelText('Relay ESP32'), { target: { value: '1' } });
+  fireEvent.click(within(dialog).getByLabelText('Điều khiển tự động'));
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thiết bị' }));
+  act(() => {
+    receive({ topic: `${ESP32_TOPIC_PREFIX}/temp1`, payload: '41' });
+    receive({ topic: `${ESP32_TOPIC_PREFIX}/temp3`, payload: '43' });
+  });
+  await waitFor(() => expect(publishRelay).toHaveBeenCalledWith(1, 'ON'));
+  act(() => receive({ topic: relayStatusTopics[0], payload: 'ON' }));
+  fireEvent.click(within(group).getByRole('switch', { name: 'Bật tắt Quạt gió' }));
+  expect(publishRelay).toHaveBeenLastCalledWith(1, 'OFF');
+  expect(within(group).getByText('Điều khiển tay')).toBeInTheDocument();
+});
 
 it('opens only the requested barn when following the environment shortcut', async () => {
   render(<MemoryRouter initialEntries={['/iot?barn=11']}><IotView /></MemoryRouter>);
@@ -57,16 +86,17 @@ it('sends commands for assigned relays individually and as a group', async () =>
   open();
   fireEvent.click(await screen.findByRole('button', { name: 'Xem chi tiết Chuồng A1' }));
   const fanName = 'Bật tắt toàn bộ Quạt gió';
-  expect(screen.getByRole('switch', { name: fanName })).toBeDisabled();
+  await screen.findByText('Đã kết nối thiết bị phần cứng');
+  expect(screen.getByRole('switch', { name: fanName })).toBeEnabled();
   fireEvent.click(screen.getByRole('button', { name: 'Tất cả camera' }));
   fireEvent.click(screen.getByRole('button', { name: 'Xem chi tiết Chuồng B1' }));
-  await screen.findByText(/Đã kết nối MQTT/);
+  await screen.findByText(/Đã kết nối thiết bị phần cứng/);
   expect(screen.getByRole('switch', { name: fanName })).toHaveAttribute('aria-checked', 'false');
   fireEvent.click(screen.getByRole('button', { name: 'Thêm thiết bị' }));
   let dialog = screen.getByRole('dialog');
   fireEvent.change(within(dialog).getByLabelText(/Tên thiết bị/), { target: { value: 'Đèn dự phòng' } });
   fireEvent.change(within(dialog).getByLabelText('Loại thiết bị'), { target: { value: 'LIGHT' } });
-  fireEvent.change(within(dialog).getByLabelText('Relay ESP32'), { target: { value: '4' } });
+  fireEvent.change(within(dialog).getByLabelText('Relay ESP32'), { target: { value: '1' } });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thiết bị' }));
   screen.getByText('2 thiết bị', { selector: 'summary' }).closest('details').open = true;
   const allLights = screen.getByRole('switch', { name: 'Bật tắt toàn bộ Hệ thống đèn chiếu sáng' });
@@ -78,10 +108,10 @@ it('sends commands for assigned relays individually and as a group', async () =>
   fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thiết bị' }));
   fireEvent.click(allLights);
   expect(publishRelay).toHaveBeenCalledWith(2, 'ON');
-  expect(publishRelay).toHaveBeenCalledWith(4, 'ON');
+  expect(publishRelay).toHaveBeenCalledWith(1, 'ON');
   expect(spareLight).toHaveAttribute('aria-checked', 'true');
   fireEvent.click(spareLight);
-  expect(publishRelay).toHaveBeenLastCalledWith(4, 'OFF');
+  expect(publishRelay).toHaveBeenLastCalledWith(1, 'OFF');
   expect(allLights).toHaveAttribute('aria-checked', 'false');
   expect(screen.getByRole('switch', { name: 'Bật tắt Hệ thống Đèn chiếu sáng' })).toHaveAttribute('aria-checked', 'true');
   let card = screen.getByRole('heading', { name: 'Đèn dự phòng' }).closest('article');
@@ -95,7 +125,8 @@ it('sends commands for assigned relays individually and as a group', async () =>
   expect(screen.queryByRole('heading', { name: 'Đèn mới' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Tất cả camera' }));
   fireEvent.click(screen.getByRole('button', { name: 'Xem chi tiết Chuồng A1' }));
-  expect(screen.getByRole('switch', { name: fanName })).toBeDisabled();
+  await screen.findByText('Đã kết nối thiết bị phần cứng');
+  expect(screen.getByRole('switch', { name: fanName })).toBeEnabled();
 });
 
 it('reports a failed database request and retries', async () => {

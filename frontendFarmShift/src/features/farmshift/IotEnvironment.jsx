@@ -48,7 +48,7 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
   const x = time => 55 + (time - start) / duration * 610;
   const y = value => 190 - (value - low) / (high - low) * 155;
   return <section className={styles.environment} aria-label={`Môi trường ${barnName}`}>
-    <header className={styles.environmentHeading}><div><h3>Môi trường chuồng nuôi</h3><p>Theo dõi nhiệt độ và độ ẩm · {barnName}</p></div><span className={styles.sensorStatus}>{!connected ? 'MQTT chưa kết nối' : Object.keys(readings).length ? 'Đã nhận số đo ESP32' : 'Đang chờ số đo ESP32'}</span></header>
+    <header className={styles.environmentHeading}><div><h3>Môi trường chuồng nuôi</h3><p>Theo dõi nhiệt độ và độ ẩm · {barnName}</p></div><span className={styles.sensorStatus}>{!connected ? 'Thiết bị phần cứng chưa kết nối' : Object.keys(readings).length ? 'Đã nhận số đo ESP32' : 'Đang chờ số đo ESP32'}</span></header>
     <div className={styles.sensorGrid}>
       {[1, 3].flatMap(channel => [
         { key: `temp${channel}`, label: 'Nhiệt độ hiện tại', unit: '°C', Icon: Thermometer, color: styles.temperatureIcon },
@@ -62,7 +62,7 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
       </article>))}
     </div>
     <div className={styles.chartPanel}>
-      <header className={styles.chartHeading}><div><h4><TrendingUp size={18} />Diễn biến nhiệt độ</h4><p>Số đo MQTT lưu trên trình duyệt này</p></div>
+      <header className={styles.chartHeading}><div><h4><TrendingUp size={18} />Diễn biến nhiệt độ</h4><p>Số đo từ thiết bị phần cứng được lưu trên trình duyệt này</p></div>
         <div className={styles.chartRanges} role="group" aria-label="Khoảng thời gian biểu đồ">
           <button type="button" aria-pressed={live} onClick={() => { setClock(Date.now()); setRange('live'); setSelected(null); }}>Trực tiếp</button>
           <button type="button" aria-pressed={range === 'day'} onClick={() => { setRange('day'); setSelected(null); }}>24 giờ</button>
