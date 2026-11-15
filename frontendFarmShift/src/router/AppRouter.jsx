@@ -29,6 +29,7 @@ const BreedingSettingsView = lazy(() => import('../features/farmshift/BreedingSe
 const GeneralSettingsView = lazy(() => import('../features/farmshift/GeneralSettingsView').then(m => ({ default: m.GeneralSettingsView })));
 const AccountView = lazy(() => import('../features/farmshift/AccountView').then(m => ({ default: m.AccountView })));
 const IotView = lazy(() => import('../features/farmshift/IotView').then(m => ({ default: m.IotView })));
+const PhoneCameraPublisher = lazy(() => import('../features/farmshift/PhoneCamera').then(m => ({ default: m.PhoneCameraPublisher })));
 
 /* ── Role Constants ─────────────────────────────────────────── */
 const OWNER_ONLY = ['ROLE_FARM_OWNER'];
@@ -73,6 +74,7 @@ export const AppRouter = () => {
       <Routes>
         {/* ── Public Auth Routes ──────────────────────────────── */}
         <Route path="/login" element={<Login />} />
+        <Route path="/phone-camera" element={<PhoneCameraPublisher />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-otp" element={<ResetPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

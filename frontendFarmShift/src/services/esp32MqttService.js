@@ -27,7 +27,8 @@ export async function connectEsp32({ onConnection = () => {}, onMessage = () => 
   onConnection('connecting');
   client.on('connect', () => {
     if (closed) return;
-    client.subscribe([...relayStatusTopics, ...deviceNameTopics], { qos: 0 }, error => {
+    const sensors = [1, 2, 3].flatMap(channel => ['temp', 'humi'].map(metric => `${ESP32_TOPIC_PREFIX}/${metric}${channel}`));
+    client.subscribe([...relayStatusTopics, ...deviceNameTopics, ...sensors], { qos: 0 }, error => {
       if (closed) return;
       if (error) { onConnection('error'); onError(error.message); }
       else onConnection('connected');

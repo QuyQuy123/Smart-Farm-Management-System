@@ -17,6 +17,7 @@
     "jwt-decode": "^4.0.0",
     "lucide-react": "^1.47.0",
     "mqtt": "^5.16.1",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-image-crop": "^11.1.2",

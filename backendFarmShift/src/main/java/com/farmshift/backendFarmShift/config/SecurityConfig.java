@@ -43,6 +43,8 @@ import java.util.List;
 @EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
+    @org.springframework.beans.factory.annotation.Value("${app.cors.camera-web-origin:}")
+    private String cameraWebOrigin = "";
 
     private final JwtAuthFilter jwtAuthFilter;
     private final HttpRateLimitFilter httpRateLimitFilter;
@@ -72,6 +74,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public auth endpoints
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/phone-camera/publish/*").permitAll()
+                        .requestMatchers("/api/phone-camera/**").hasAuthority("ROLE_FARM_OWNER")
                         // Public health check endpoints for UptimeRobot / Render keep-alive
                         .requestMatchers("/api/health", "/health").permitAll()
                         // Actuator health check (add more granular rules as needed)
@@ -124,6 +128,7 @@ public class SecurityConfig {
                 "https://admin-acet-ech291.vercel.app"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        if (!cameraWebOrigin.isBlank()) config.addAllowedOrigin(cameraWebOrigin.trim());
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
