@@ -7,7 +7,7 @@ const SERIES = {
   week: { labels: ['Ngày 1', 'Ngày 2', 'Ngày 3', 'Ngày 4', 'Ngày 5', 'Ngày 6', 'Ngày 7'], values: [26.8, 27.5, 28.1, 27.2, 29.1, 28.4, 27.6] },
 };
 
-export function IotEnvironment({ barnName }) {
+export function IotEnvironment({ barnName, readings = {}, connected = false }) {
   const [range, setRange] = useState('day');
   const [preview, setPreview] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -17,10 +17,18 @@ export function IotEnvironment({ barnName }) {
   const y = value => 190 - (value - 20) * 11;
   const points = series.values.map((value, index) => `${x(index)},${y(value)}`).join(' ');
   return <section className={styles.environment} aria-label={`Môi trường ${barnName}`}>
-    <header className={styles.environmentHeading}><div><h3>Môi trường chuồng nuôi</h3><p>Theo dõi nhiệt độ và độ ẩm · {barnName}</p></div><span className={styles.sensorStatus}>Cảm biến chưa kết nối</span></header>
+    <header className={styles.environmentHeading}><div><h3>Môi trường chuồng nuôi</h3><p>Theo dõi nhiệt độ và độ ẩm · {barnName}</p></div><span className={styles.sensorStatus}>{!connected ? 'MQTT chưa kết nối' : Object.keys(readings).length ? 'Đã nhận số đo ESP32' : 'Đang chờ số đo ESP32'}</span></header>
     <div className={styles.sensorGrid}>
-      <article className={styles.sensorCard}><span className={styles.temperatureIcon}><Thermometer size={23} /></span><div><h4>Nhiệt độ hiện tại</h4><strong>— <small>°C</small></strong><p>Chưa có dữ liệu</p></div></article>
-      <article className={styles.sensorCard}><span className={styles.humidityIcon}><Droplets size={23} /></span><div><h4>Độ ẩm hiện tại</h4><strong>— <small>%</small></strong><p>Chưa có dữ liệu</p></div></article>
+      {[1, 3].flatMap(channel => [
+        { key: `temp${channel}`, label: 'Nhiệt độ hiện tại', unit: '°C', Icon: Thermometer, color: styles.temperatureIcon },
+        { key: `humi${channel}`, label: 'Độ ẩm hiện tại', unit: '%', Icon: Droplets, color: styles.humidityIcon },
+      ].map(({ key, label, unit, Icon, color }) => <article key={key} className={styles.sensorCard}>
+        <span className={color}><Icon size={23} /></span>
+        <div><h4>{label} · Cảm biến {channel}</h4>
+          <strong>{readings[key]?.toLocaleString('vi-VN') ?? '—'} <small>{unit}</small></strong>
+          {readings[key] === undefined && <p>Chưa có dữ liệu</p>}
+        </div>
+      </article>))}
     </div>
     <div className={styles.chartPanel}>
       <header className={styles.chartHeading}><div><h4><TrendingUp size={18} />Diễn biến nhiệt độ</h4><p>{preview ? 'Dữ liệu minh họa · Không phải số đo từ cảm biến' : 'Lịch sử nhiệt độ theo thời gian'}</p></div>
