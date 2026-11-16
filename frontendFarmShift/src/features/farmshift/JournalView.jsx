@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  Thermometer, Fan, X, Video, MapPinned
+  X, Video
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -555,31 +555,6 @@ export const JournalView = () => {
       pageTitle="Ghi nhật ký chăn nuôi"
       breadcrumbs={[{ label: 'Ghi nhật ký' }]}
     >
-      {/* ── FarmShift Tab Navigation ────────────────────────── */}
-      <div className="farmshift-tabs">
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'barns' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('barns'); setJournalCycleId(null); }}
-        >
-          <MapPinned size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Nhật ký chuồng (hao hụt, cân mẫu)
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'env' ? 'active' : ''}`}
-          onClick={() => setActiveTab('env')}
-        >
-          <Thermometer size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Môi trường (nhiệt độ, độ ẩm)
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'iot_devices' ? 'active' : ''}`}
-          onClick={() => setActiveTab('iot_devices')}
-        >
-          <Fan size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Thiết bị IoT & quạt
-        </button>
-      </div>
-
       {/* ── TAB: HAO HỤT / CÂN MẪU (dữ liệu thật theo chuồng) ── */}
       {activeTab === 'barns' && <BarnJournal mode={journalMode} selectedCycleId={journalCycleId} onSelect={setJournalCycleId} />}
 

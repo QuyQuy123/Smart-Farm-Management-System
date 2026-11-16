@@ -109,6 +109,8 @@ export const FarmShiftLayout = ({
     breadcrumbs = [],
     showShortcuts = false,
     environmentHref = '/journal?tab=env',
+    feedHref = '/today-tasks',
+    weightHref = '/journal?tab=weight',
     lossHref = '/journal?tab=loss',
     actions = null,
 }) => {
@@ -721,7 +723,7 @@ export const FarmShiftLayout = ({
                 {/* 4 Quick Shortcut Cards */}
                 {showShortcuts && (
                     <div className="farmshift-shortcuts">
-                        <Link to="/today-tasks" className="farmshift-shortcut-card">
+                        <Link to={feedHref} className="farmshift-shortcut-card">
                             <div className="farmshift-shortcut-icon meal">
                                 <Utensils size={20} />
                             </div>
@@ -731,7 +733,7 @@ export const FarmShiftLayout = ({
                             </div>
                         </Link>
 
-                        <Link to="/journal?tab=weight" className="farmshift-shortcut-card">
+                        <Link to={weightHref} className="farmshift-shortcut-card">
                             <div className="farmshift-shortcut-icon health">
                                 <HeartPulse size={20} />
                             </div>
