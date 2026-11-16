@@ -17,6 +17,7 @@ public class SalesOrder {
  private BigDecimal unitPrice;
  private BigDecimal totalAmount;
  private BigDecimal paidAmount;
+ @Column(name="payment_method", length=100) private String paymentMethod;
  private String status;
  @Column(name="weight_slip_url", length=500) private String weightSlipUrl;
  @Column(columnDefinition="TEXT") private String note;

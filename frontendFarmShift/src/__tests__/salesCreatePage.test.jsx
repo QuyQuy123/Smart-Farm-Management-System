@@ -4,12 +4,12 @@ import { render, screen, fireEvent, within, waitFor } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { SalesView } from '../features/farmshift/SalesView';
 import { extractWeightSlip, confirmWeightSlip } from '../services/weightSlipService';
-import { createSalesOrder } from '../services/salesCustomerService';
+import { createSalesOrder, listSalesCustomers, listSalesOrders, paySalesOrders } from '../services/salesCustomerService';
 
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children, actions }) => <main>{actions}{children}</main> }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'owner@test.local' } }) }));
 vi.mock('../services/localSalesStorage', () => ({ readLocalSales: () => [] }));
-vi.mock('../services/salesCustomerService', () => ({ listSalesCustomers: vi.fn(async () => []), listSalesOrders: vi.fn(async () => []), createSalesOrder: vi.fn(), updateSalesOrder: vi.fn() }));
+vi.mock('../services/salesCustomerService', () => ({ listSalesCustomers: vi.fn(async () => []), listSalesOrders: vi.fn(async () => []), createSalesOrder: vi.fn(), updateSalesOrder: vi.fn(), paySalesOrders: vi.fn() }));
 vi.mock('../services/farmAreaService', () => ({ listBarns: async () => [{ id: 1, name: 'Chuồng A', areaName: 'Khu A' }] }));
 vi.mock('../services/cycleService', () => ({ listCycles: async () => [{ id: 2, code: 'L000002' }] }));
 vi.mock('../features/farmshift/SalesInvoiceTemplate', () => ({ SalesInvoiceTemplate: () => null }));
@@ -56,6 +56,32 @@ it('supports a direct link to the create tab and cancellation without saving', a
   fireEvent.click(within(form).getByRole('button', { name: 'Hủy' }));
   await waitFor(() => expect(screen.queryByRole('region', { name: 'Tạo đơn bán hàng' })).not.toBeInTheDocument());
   expect(createSalesOrder).not.toHaveBeenCalled();
+});
+
+it('shows totals for the selected phone and updates invoices after a bulk payment', async () => {
+  const phone = '0912345678';
+  const first = { id: '1', code: 'BH001', customer: 'Linh', phone, quantity: 1, totalWeight: 1, unitPrice: 30000, totalAmount: 30000, paidAmount: 0, status: 'DEBT' };
+  const second = { ...first, id: '2', code: 'BH002', customer: 'Thùy Linh', unitPrice: 40000, totalAmount: 40000, paidAmount: 10000, status: 'PARTIAL' };
+  listSalesCustomers.mockResolvedValueOnce([{ id: 2, name: 'Thùy Linh', phone }]);
+  listSalesOrders.mockResolvedValueOnce([first, second, { ...first, id: '3', code: 'BH003', phone: '0901111111' }]);
+  paySalesOrders.mockResolvedValueOnce([{ ...first, paidAmount: 30000, status: 'PAID' }]);
+  render(<MemoryRouter initialEntries={['/sales?tab=customers']}><SalesView /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Xem hóa đơn của Thùy Linh' }));
+  const pay = await screen.findByRole('button', { name: 'Thanh toán', exact: true });
+  expect(screen.getByText('70.000 đ')).toBeInTheDocument();
+  expect(screen.getByText('10.000 đ')).toBeInTheDocument();
+  expect(screen.getByText('60.000 đ')).toBeInTheDocument();
+  expect(screen.queryByText('BH003')).not.toBeInTheDocument();
+  fireEvent.click(pay);
+  const dialog = screen.getByRole('dialog', { name: 'Thanh toán công nợ' });
+  fireEvent.change(within(dialog).getByLabelText('Hình thức thanh toán'), { target: { value: 'Chuyển khoản' } });
+  fireEvent.change(within(dialog).getByLabelText('Số tiền thanh toán (đ)'), { target: { value: '30000' } });
+  expect(within(dialog).getByLabelText('Số tiền thanh toán (đ)')).toHaveValue('30.000');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Xác nhận thanh toán' }));
+  await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  expect(paySalesOrders).toHaveBeenCalledWith({ phone, amount: 30000, expectedDebt: 60000, paymentMethod: 'Chuyển khoản' });
+  expect(screen.getAllByText('Đã thanh toán')).toHaveLength(2);
+  expect(screen.getAllByText('30.000 đ').some(node => node.parentElement.textContent.includes('Còn nợ'))).toBe(true);
 });
 
 const ocrData = { isWeightSlip: true, customer: 'OCR Buyer', phone: '0912345678', address: 'Ha Noi', date: '2026-10-30',

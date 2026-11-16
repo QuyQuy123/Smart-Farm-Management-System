@@ -20,7 +20,7 @@ class SalesOrderServiceTest {
   when(orders.findById("sale-id")).thenReturn(Optional.empty());
   when(orders.save(any())).thenAnswer(call -> call.getArgument(0));
   var customer = new CustomerContact(); customer.setTotalBought(new BigDecimal("100000")); customer.setDebt(new BigDecimal("50000"));
-  when(customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc("0912345678", "Buyer")).thenReturn(Optional.of(customer));
+  when(customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc("0912345678", "Buyer")).thenReturn(Optional.of(customer));
   var order = new SalesOrderService(orders, customers, mock(com.farmshift.backendFarmShift.service.SalesInvoiceCodeService.class), mock(com.farmshift.backendFarmShift.service.ocr.WeightSlipStorage.class)).create(request("PARTIAL", "300000"));
   assertEquals(0, new BigDecimal("1000000").compareTo(order.getTotalAmount()));
   assertEquals(0, new BigDecimal("300000").compareTo(order.getPaidAmount()));
@@ -35,7 +35,7 @@ class SalesOrderServiceTest {
   for (String status : new String[]{"PAID", "DEBT"}) {
    var orders = mock(SalesOrderRepository.class); var customers = mock(CustomerContactRepository.class);
    when(orders.findById(any())).thenReturn(Optional.empty());
-   when(customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(any(), any())).thenReturn(Optional.empty());
+   when(customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc(any(), any())).thenReturn(Optional.empty());
    when(orders.save(any())).thenAnswer(call -> call.getArgument(0));
    var service = new SalesOrderService(orders, customers, mock(com.farmshift.backendFarmShift.service.SalesInvoiceCodeService.class), mock(com.farmshift.backendFarmShift.service.ocr.WeightSlipStorage.class));
    var order = service.create(request(status, null));
@@ -68,7 +68,7 @@ class SalesOrderServiceTest {
 
   when(orders.findById("sale-id")).thenReturn(Optional.empty());
   when(orders.save(any())).thenAnswer(call -> call.getArgument(0));
-  when(customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(any(), any())).thenReturn(Optional.empty());
+  when(customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc(any(), any())).thenReturn(Optional.empty());
   when(codes.nextCode()).thenReturn("DH000001");
   when(movements.save(any())).thenAnswer(call -> call.getArgument(0));
 

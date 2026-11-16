@@ -1,10 +1,10 @@
 // src/features/farmshift/SalesView.jsx
 // Quản lý bán hàng và danh sách khách hàng.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { readLocalSales } from '../../services/localSalesStorage';
 import { useSearchParams } from 'react-router-dom';
-import { listSalesCustomers, listSalesOrders, createSalesOrder, updateSalesOrder } from '../../services/salesCustomerService';
+import { listSalesCustomers, listSalesOrders, createSalesOrder, updateSalesOrder, paySalesOrders } from '../../services/salesCustomerService';
 import { listBarns } from '../../services/farmAreaService';
 import { listCycles } from '../../services/cycleService';
 import styles from './SalesView.module.css';
@@ -18,23 +18,40 @@ import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = ['orders', 'customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'create';
-  const setActiveTab = tab => setSearchParams({ tab });
   const { user } = useAuth();
   const storageKey = `farmshift-sales-v1:${user?.email || 'demo'}`;
   const [sales, setSales] = useState(() => readLocalSales(storageKey));
   const requestId = useRef(null);
   const [saving, setSaving] = useState(false);
   const [ordersError, setOrdersError] = useState('');
+  const [ordersReady, setOrdersReady] = useState(false);
+  const [orderRevision, setOrderRevision] = useState(0);
+  const [payment, setPayment] = useState(null);
+  const [paying, setPaying] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [selectedSale, setSelectedSale] = useState(null);
   const invoiceRef = useRef(null);
   const [invoiceReady, setInvoiceReady] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('customer') || '');
+  const [searchTerm, setSearchTerm] = useState('');
   const [orderPage, setOrderPage] = useState(0);
+  const setActiveTab = tab => {
+    if (tab === 'orders') {
+      setSearchTerm('');
+      setOrderPage(0);
+    }
+    setSearchParams({ tab });
+  };
   const customerFilter = searchParams.get('customer') || '';
+  const customerPhoneFilter = searchParams.get('customerPhone') || '';
   const showCustomerOrders = customer => {
-    setSearchTerm(customer.name);
-    setSearchParams({ tab: 'orders', customer: customer.name });
+    setSearchTerm('');
+    setOrderPage(0);
+    setSearchParams({
+      tab: 'orders',
+      customer: customer.name,
+      ...(customer.phone?.trim() ? { customerPhone: customer.phone.trim() } : {}),
+    });
   };
   const clearCustomerFilter = () => {
     setSearchTerm('');
@@ -43,8 +60,32 @@ export const SalesView = () => {
   const [editingSale, setEditingSale] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [customers, setCustomers] = useState([]);
+  const groupedCustomers = useMemo(() => {
+    const byPhone = new Map();
+    const withoutPhone = [];
+    for (const customer of customers) {
+      const phone = customer.phone?.trim();
+      if (!phone) {
+        withoutPhone.push(customer);
+        continue;
+      }
+      const previous = byPhone.get(phone);
+      if (!previous) {
+        byPhone.set(phone, customer);
+        continue;
+      }
+      // Contact IDs are assigned on insert and increase with each new record.
+      const latest = customer.id > previous.id ? customer : previous;
+      byPhone.set(phone, {
+        ...latest,
+        totalBought: Number(previous.totalBought ?? 0) + Number(customer.totalBought ?? 0),
+        debt: Number(previous.debt ?? 0) + Number(customer.debt ?? 0),
+      });
+    }
+    return [...byPhone.values(), ...withoutPhone].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [customers]);
   const [customerPage, setCustomerPage] = useState(0);
-  const customerPageCount = Math.max(1, Math.ceil(customers.length / 10));
+  const customerPageCount = Math.max(1, Math.ceil(groupedCustomers.length / 10));
   const currentCustomerPage = Math.min(customerPage, customerPageCount - 1);
   const [customersLoading, setCustomersLoading] = useState(true);
   const [customersError, setCustomersError] = useState('');
@@ -54,10 +95,12 @@ export const SalesView = () => {
     listSalesOrders().then(rows => {
       if (cancelled) return;
       const local = readLocalSales(storageKey);
-      setSales([...rows, ...local.filter(row => !rows.some(saved => saved.id === row.id))]);
+      setSales([...rows, ...local.filter(row => !rows.some(saved => saved.id === row.id)).map(row => ({ ...row, localOnly: true }))]);
+      setOrdersError('');
+      setOrdersReady(true);
     }).catch(() => { if (!cancelled) setOrdersError('Không thể tải đơn bán từ máy chủ. Vui lòng tải lại trang.'); });
     return () => { cancelled = true; };
-  }, [storageKey]);
+  }, [storageKey, orderRevision]);
   useEffect(() => {
     let cancelled = false;
     listSalesCustomers().then(data => {
@@ -153,7 +196,7 @@ export const SalesView = () => {
     if (sale) {
       const buyer = customers.find(customer => customer.name === sale.customer && customer.phone === sale.phone);
       setNewSale({ customer: sale.customer, phone: sale.phone || '', address: sale.address || '',
-        taxCode: buyer?.taxCode || '', paymentMethod: buyer?.paymentMethod || 'Tiền mặt',
+        taxCode: buyer?.taxCode || '', paymentMethod: sale.paymentMethod ?? buyer?.paymentMethod ?? 'Tiền mặt',
         date: sale.date, flock: '__existing__', quantity: String(sale.quantity), totalWeight: String(sale.totalWeight),
         unitPrice: String(sale.unitPrice), note: sale.note || '',
         paymentStatus: sale.totalAmount <= sale.paidAmount ? 'PAID' : sale.paidAmount > 0 ? 'PARTIAL' : 'DEBT',
@@ -245,10 +288,48 @@ export const SalesView = () => {
   const normalizeSearch = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
   const searchWords = normalizeSearch(searchTerm).trim().split(/\s+/).filter(Boolean);
   const filteredSales = sales.filter(s => {
+    if (customerPhoneFilter) return s.phone?.trim() === customerPhoneFilter;
     if (customerFilter) return normalizeSearch(s.customer).trim() === normalizeSearch(customerFilter).trim();
     const searchable = normalizeSearch([s.code, s.customer, s.flock].join(' '));
     return searchWords.every(word => searchable.includes(word));
   });
+  const customerTotals = customerPhoneFilter && ordersReady ? filteredSales.reduce((totals, sale) => {
+    if (sale.localOnly) return totals;
+    const total = Number(sale.totalAmount ?? 0);
+    const paid = Number(sale.paidAmount ?? 0);
+    totals.total += Math.round(total * 100);
+    totals.paid += Math.round(paid * 100);
+    totals.debt += Math.max(0, Math.round(total * 100) - Math.round(paid * 100));
+    return totals;
+  }, { total: 0, paid: 0, debt: 0 }) : null;
+
+  const submitPayment = async event => {
+    event.preventDefault();
+    if (paying || !payment) return;
+    const amount = Number(payment.amount.replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0 || amount > payment.debt) {
+      setPaymentError('Số tiền phải lớn hơn 0 và không vượt quá công nợ.');
+      return;
+    }
+    setPaying(true);
+    setPaymentError('');
+    try {
+      const updated = await paySalesOrders({
+        phone: payment.phone, amount, expectedDebt: payment.debt, paymentMethod: payment.method,
+      });
+      const byId = new Map(updated.map(order => [order.id, order]));
+      setSales(previous => previous.map(order => byId.get(order.id) ?? order));
+      setCustomerRevision(value => value + 1);
+      setPayment(null);
+    } catch (error) {
+      setPaymentError(error.response?.data?.message || 'Không thể xác nhận kết quả thanh toán. Hãy kiểm tra lại số dư trước khi thử lại.');
+      setOrdersReady(false);
+      setOrderRevision(value => value + 1);
+      setCustomerRevision(value => value + 1);
+    } finally {
+      setPaying(false);
+    }
+  };
   const orderPageSize = 15;
   const orderPageCount = Math.max(1, Math.ceil(filteredSales.length / orderPageSize));
   const currentOrderPage = Math.min(orderPage, orderPageCount - 1);
@@ -294,7 +375,7 @@ export const SalesView = () => {
             <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={clearCustomerFilter}>Bỏ lọc</button>
           </div>}
           {ordersError && <p role="alert" className={styles.error}>{ordersError}</p>}
-          <div className="farmshift-toolbar">
+          <div className={`farmshift-toolbar ${styles.orderToolbar}`}>
             <div className="farmshift-search-box">
               <Search size={16} color="var(--color-muted)" />
               <input
@@ -309,6 +390,16 @@ export const SalesView = () => {
                 }}
               />
             </div>
+            {customerTotals && <div className={styles.paymentSummary}>
+              <span>Tổng tiền <strong>{formatMoney(customerTotals.total / 100)}</strong></span>
+              <span>Đã thanh toán <strong>{formatMoney(customerTotals.paid / 100)}</strong></span>
+              <span>Còn nợ <strong>{formatMoney(customerTotals.debt / 100)}</strong></span>
+              <button type="button" className="farmshift-btn farmshift-btn-mint" disabled={customerTotals.debt <= 0}
+                onClick={() => {
+                  setPaymentError('');
+                  setPayment({ phone: customerPhoneFilter, debt: customerTotals.debt / 100, method: 'Tiền mặt', amount: '' });
+                }}>Thanh toán</button>
+            </div>}
           </div>
 
           <div className="farmshift-card">
@@ -403,8 +494,8 @@ export const SalesView = () => {
               <tbody>
                 {customersLoading ? <tr><td colSpan={6} role="status">Đang tải khách hàng...</td></tr>
                   : customersError ? <tr><td colSpan={6} role="alert">{customersError} <button className="farmshift-btn farmshift-btn-secondary" onClick={() => { setCustomersLoading(true); setCustomersError(''); setCustomerRevision(value => value + 1); }}>Thử lại</button></td></tr>
-                  : customers.length === 0 ? <tr><td colSpan={6}>Chưa có khách hàng.</td></tr>
-                  : customers.slice(currentCustomerPage * 10, (currentCustomerPage + 1) * 10).map(c => (
+                  : groupedCustomers.length === 0 ? <tr><td colSpan={6}>Chưa có khách hàng.</td></tr>
+                  : groupedCustomers.slice(currentCustomerPage * 10, (currentCustomerPage + 1) * 10).map(c => (
                   <tr key={c.id}>
                     <td><button type="button" className={styles.customerLink} onClick={() => showCustomerOrders(c)} aria-label={`Xem hóa đơn của ${c.name}`}>{c.name}</button></td>
                     <td>{c.phone || '—'}</td>
@@ -420,7 +511,7 @@ export const SalesView = () => {
             </table>
           </div>
           <nav aria-label="Phân trang khách hàng" className={styles.pagination}>
-            <span>{customers.length ? `${currentCustomerPage * 10 + 1}–${Math.min((currentCustomerPage + 1) * 10, customers.length)} / ${customers.length} khách hàng` : '0 khách hàng'}</span>
+            <span>{groupedCustomers.length ? `${currentCustomerPage * 10 + 1}–${Math.min((currentCustomerPage + 1) * 10, groupedCustomers.length)} / ${groupedCustomers.length} khách hàng` : '0 khách hàng'}</span>
             <div>
               <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={customersLoading || currentCustomerPage === 0} onClick={() => setCustomerPage(currentCustomerPage - 1)}>Trước</button>
               <span>Trang {currentCustomerPage + 1} / {customerPageCount}</span>
@@ -478,7 +569,7 @@ export const SalesView = () => {
                 <X size={18} />
               </button>}
             </div>
-            <div className={ocrFile ? styles.ocrReview : undefined}>
+            <div className={[showAddModal && styles.saleDialogContent, ocrFile && styles.ocrReview].filter(Boolean).join(' ')}>
             {ocrFile && <aside className={styles.weightPreview} aria-label="Phiếu cân gốc">
               <h4>Phiếu cân gốc</h4>
               <WeightSlipPreview file={ocrFile} imageUrl={ocrPreview} />
@@ -700,6 +791,44 @@ export const SalesView = () => {
         </div>
       )}
 
+      {payment && (
+        <div className="farmshift-modal-backdrop" onClick={event => {
+          if (event.target === event.currentTarget && !paying) setPayment(null);
+        }}>
+          <form className={`farmshift-modal ${styles.modal} ${styles.paymentModal}`} role="dialog" aria-modal="true" aria-labelledby="sales-payment-title" onSubmit={submitPayment}>
+            <div className="farmshift-modal-header">
+              <h3 id="sales-payment-title" className="farmshift-modal-title">Thanh toán công nợ</h3>
+            </div>
+            <div className={`farmshift-modal-body ${styles.paymentBody}`}>
+              <p>Còn nợ <strong>{formatMoney(payment.debt)}</strong></p>
+              <div className="farmshift-form-group">
+                <label className="farmshift-form-label" htmlFor="sales-payment-method">Hình thức thanh toán</label>
+                <select id="sales-payment-method" className="farmshift-form-control" value={payment.method} disabled={paying}
+                  onChange={event => setPayment(previous => ({ ...previous, method: event.target.value }))}>
+                  <option>Tiền mặt</option>
+                  <option>Chuyển khoản</option>
+                </select>
+              </div>
+              <div className="farmshift-form-group">
+                <label className="farmshift-form-label" htmlFor="sales-payment-amount">Số tiền thanh toán (đ)</label>
+                <input id="sales-payment-amount" className="farmshift-form-control" type="text" inputMode="decimal"
+                  required value={payment.amount.replace(/^\d+/, digits => digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.'))}
+                  disabled={paying} onChange={event => {
+                    const amount = event.target.value.replace(/\./g, '').replace(/^0+(?=\d)/, '');
+                    if (/^\d*(,\d{0,2})?$/.test(amount)) setPayment(previous => ({ ...previous, amount }));
+                  }} />
+              </div>
+              {paymentError && <p role="alert" className={styles.error}>{paymentError}</p>}
+            </div>
+            <div className="farmshift-modal-footer">
+              <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={paying} onClick={() => setPayment(null)}>Đóng</button>
+              <button type="submit" className="farmshift-btn farmshift-btn-mint" disabled={paying || !customerTotals || customerTotals.debt / 100 !== payment.debt}>
+                {paying ? 'Đang thanh toán...' : 'Xác nhận thanh toán'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {showCapture && <WeightSlipCapture onFile={readWeightSlip} onClose={() => setShowCapture(false)} />}
     </FarmShiftLayout>
   );

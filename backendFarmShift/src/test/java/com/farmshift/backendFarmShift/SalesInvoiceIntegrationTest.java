@@ -51,5 +51,43 @@ class SalesInvoiceIntegrationTest {
   mvc.perform(get("/api/sales/orders/"+id+"/invoice")).andExpect(jsonPath("$.data.buyer.address").value("Updated database address"));
  }
  @Test void requiresAuthentication() throws Exception { mvc.perform(get("/api/sales/orders/unknown/invoice")).andExpect(status().is4xxClientError()); }
+ @Test @WithMockUser(authorities="ROLE_ACCOUNTANT")
+ void allocatesOnePaymentToOldestInvoicesAcrossCustomerNames() throws Exception {
+  String phone = "0981234599";
+  String firstId = UUID.randomUUID().toString();
+  String secondId = UUID.randomUUID().toString();
+  String thirdId = UUID.randomUUID().toString();
+  createDebtInvoice(thirdId, phone, "Latest buyer", "2020-01-03", 30000000);
+  createDebtInvoice(firstId, phone, "Earlier buyer", "2020-01-01", 30000000);
+  createDebtInvoice(secondId, phone, "Earlier buyer", "2020-01-02", 40000000);
+
+  var body = mapper.writeValueAsString(Map.of("phone", phone, "amount", 80000000,
+   "expectedDebt", 100000000, "paymentMethod", "Chuyển khoản"));
+  mvc.perform(post("/api/sales/orders/payments").contentType(MediaType.APPLICATION_JSON).content(body))
+   .andExpect(status().isOk())
+   .andExpect(jsonPath("$.data[0].id").value(firstId))
+   .andExpect(jsonPath("$.data[0].status").value("PAID"))
+   .andExpect(jsonPath("$.data[1].id").value(secondId))
+   .andExpect(jsonPath("$.data[1].status").value("PAID"))
+   .andExpect(jsonPath("$.data[2].id").value(thirdId))
+   .andExpect(jsonPath("$.data[2].status").value("PARTIAL"))
+   .andExpect(jsonPath("$.data[2].paidAmount").value(10000000));
+
+  mvc.perform(get("/api/sales/orders/" + thirdId + "/invoice")).andExpect(status().isOk())
+   .andExpect(jsonPath("$.data.buyer.paymentMethod").value("Chuyển khoản"))
+   .andExpect(jsonPath("$.data.order.debtAmount").value(20000000));
+  assertEquals(0, customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(phone, "Earlier buyer").orElseThrow().getDebt().signum());
+  assertEquals(0, customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(phone, "Latest buyer").orElseThrow()
+   .getDebt().compareTo(java.math.BigDecimal.valueOf(20000000)));
+  mvc.perform(post("/api/sales/orders/payments").contentType(MediaType.APPLICATION_JSON).content(body))
+   .andExpect(status().isBadRequest());
+ }
+
+ private void createDebtInvoice(String id, String phone, String name, String date, int total) throws Exception {
+  var body = Map.of("id", id, "date", date, "customer", name, "phone", phone, "address", "Buyer address",
+   "flock", "Area A - Barn A - Cycle A", "quantity", 1, "totalWeight", 1, "unitPrice", total, "status", "DEBT");
+  mvc.perform(post("/api/sales/orders").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
+   .andExpect(status().isOk());
+ }
  @Test @WithMockUser(authorities="ROLE_FARM_OWNER") void missingOrderIsNotFound() throws Exception { mvc.perform(get("/api/sales/orders/unknown/invoice")).andExpect(status().isNotFound()); }
 }

@@ -25,7 +25,9 @@ public class SalesInvoiceService {
   var debt = order.getTotalAmount() == null ? null : order.getTotalAmount().subtract(paid).max(java.math.BigDecimal.ZERO);
   return new SalesInvoiceResponse(order.getCreatedAt()==null ? order.getDate() : order.getCreatedAt().toLocalDate(),
    new SalesInvoiceResponse.Seller(name,taxCode,address,phone,fax,bankAccount),
-   buyer==null ? null : new SalesInvoiceResponse.Buyer(buyer.getName(),buyer.getTaxCode(),buyer.getAddress(),buyer.getPaymentMethod()),
+   new SalesInvoiceResponse.Buyer(buyer == null ? order.getCustomer() : buyer.getName(),
+    buyer == null ? null : buyer.getTaxCode(), buyer == null ? order.getAddress() : buyer.getAddress(),
+    order.getPaymentMethod() != null ? order.getPaymentMethod() : buyer == null ? null : buyer.getPaymentMethod()),
    new SalesInvoiceResponse.Order(order.getCode(),order.getQuantity(),order.getTotalWeight(),order.getUnitPrice(),order.getTotalAmount(),paid,debt,order.getNote()));
  }
 }
