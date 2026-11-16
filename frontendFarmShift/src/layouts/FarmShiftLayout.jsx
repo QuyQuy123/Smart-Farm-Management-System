@@ -109,6 +109,7 @@ export const FarmShiftLayout = ({
     breadcrumbs = [],
     showShortcuts = false,
     environmentHref = '/journal?tab=env',
+    lossHref = '/journal?tab=loss',
     actions = null,
 }) => {
     const { user, logout } = useAuth();
@@ -750,7 +751,7 @@ export const FarmShiftLayout = ({
                             </div>
                         </Link>
 
-                        <Link to="/journal?tab=loss" className="farmshift-shortcut-card">
+                        <Link to={lossHref} className="farmshift-shortcut-card">
                             <div className="farmshift-shortcut-icon todo">
                                 <CheckSquare size={20} />
                             </div>
