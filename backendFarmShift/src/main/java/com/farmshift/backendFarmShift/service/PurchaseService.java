@@ -66,8 +66,6 @@ public class PurchaseService {
                     .orElseThrow(() -> new ResourceNotFoundException("Mặt hàng không tồn tại."));
             var updatedItem = new PurchaseInvoiceItem(invoice, product, row.name().strip(), row.qty(), row.unit().strip(), row.price(), row.vatRate(), amount);
             updatedItem.setWarehouse(resolveItemWarehouse(product, row.warehouseId()));
-            updatedItem.setLotNumber(trimOrNull(row.lotNumber()));
-            updatedItem.setExpiryDate(row.expiryDate());
             updatedItems.add(updatedItem);
         }
         long total;
@@ -138,8 +136,6 @@ public class PurchaseService {
                     lineAmount
             );
             item.setWarehouse(resolveItemWarehouse(category, itemReq.warehouseId()));
-            item.setLotNumber(trimOrNull(itemReq.lotNumber()));
-            item.setExpiryDate(itemReq.expiryDate());
             invoice.addItem(item);
         }
 
@@ -396,11 +392,6 @@ public class PurchaseService {
             inventoryItem.setStock(BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 0.0));
             inventoryItem.setPrice(BigDecimal.valueOf(item.getUnitPrice() != null ? item.getUnitPrice() : 0L));
             inventoryItem.setPurchaseInvoiceItemId(item.getId());
-            String lotNum = trimOrNull(item.getLotNumber());
-            inventoryItem.setLotNumber(lotNum != null ? lotNum : "LO-" + invoice.getCode());
-            if (item.getExpiryDate() != null) {
-                inventoryItem.setExpiryDate(item.getExpiryDate());
-            }
 
             inventoryRepository.save(inventoryItem);
         }
@@ -469,9 +460,7 @@ public class PurchaseService {
                         it.getUnitPrice(),
                         it.getVatRate(),
                         it.getAmount(),
-                        it.getWarehouse() == null ? null : it.getWarehouse().getId(),
-                        it.getLotNumber(),
-                        it.getExpiryDate()
+                        it.getWarehouse() == null ? null : it.getWarehouse().getId()
                 )
         ).toList();
 

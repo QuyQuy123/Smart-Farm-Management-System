@@ -126,7 +126,8 @@ public class HttpRateLimitFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/ai/")) {
             return Tier.AI;
         }
-        if ("/health".equals(path) || "/api/health".equals(path) || "/actuator/health".equals(path)) {
+        if ("/health".equals(path) || "/api/health".equals(path) || "/actuator/health".equals(path)
+                || "/api/ws".equals(path) || path.startsWith("/api/ws/")) {
             return Tier.HEALTH;
         }
         return Tier.API;

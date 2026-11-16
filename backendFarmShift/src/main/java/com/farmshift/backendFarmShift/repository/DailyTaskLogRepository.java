@@ -8,8 +8,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DailyTaskLogRepository extends JpaRepository<DailyTaskLog, Long> {
-    @EntityGraph(attributePaths = {"cycle", "cycle.barn"})
-    List<DailyTaskLog> findTop60ByOrderByDoneAtDescIdDesc();
+    @EntityGraph(attributePaths = {"cycle", "cycle.barn", "cycle.barn.area", "expense"})
+    List<DailyTaskLog> findTop500ByOrderByDoneAtDescIdDesc();
+
+    @EntityGraph(attributePaths = {"cycle", "cycle.barn", "cycle.barn.area", "expense"})
+    List<DailyTaskLog> findTop500ByTaskDateBetweenOrderByDoneAtDescIdDesc(LocalDate from, LocalDate to);
 
     List<DailyTaskLog> findAllByCycleIdAndTaskDate(Long cycleId, LocalDate taskDate);
     List<DailyTaskLog> findAllByCycleIdInAndTaskDateBetween(List<Long> cycleIds, LocalDate from, LocalDate to);

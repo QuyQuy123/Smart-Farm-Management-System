@@ -30,6 +30,7 @@ import { fileService } from '../../services/fileService';
 import { listProductTypes } from '../../services/productTypeService';
 import { listAllInventoryItems } from '../../services/inventoryItemService';
 import { listMeasurementUnits } from '../../services/measurementUnitService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './PurchasesView.module.css';
 import { PurchaseRowActions } from './PurchaseRowActions';
 import { ConfirmStockImport } from './ConfirmStockImport';
@@ -165,7 +166,7 @@ export const PurchasesView = () => {
     stockStatus: 'Chưa nhập kho',
     tagIds: [],
     items: [
-      { productCategoryId: '', name: '', qty: 1, unit: '', price: 0, lotNumber: '', expiryDate: '' }
+      { productCategoryId: '', name: '', qty: 1, unit: '', price: 0 }
     ]
   });
 
@@ -174,6 +175,11 @@ export const PurchasesView = () => {
     setLoading(true);
     setRevision(r => r + 1);
   }, []);
+
+  useRealtimeRefresh(
+    ['/purchases', '/suppliers', '/purchase-tags', '/product-types', '/inventory-items', '/debts'],
+    () => setRevision(r => r + 1)
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -701,7 +707,7 @@ export const PurchasesView = () => {
   const handleAddItemRow = () => {
     setNewPo(prev => ({
       ...prev,
-      items: [...prev.items, { productCategoryId: '', name: '', qty: 1, unit: '', price: 0, lotNumber: '', expiryDate: '' }]
+      items: [...prev.items, { productCategoryId: '', name: '', qty: 1, unit: '', price: 0 }]
     }));
     setPoErrors(prev => {
       if (!prev.items) return prev;
@@ -782,9 +788,7 @@ export const PurchasesView = () => {
           name: it.name,
           qty: Number(it.qty),
           unit: it.unit,
-          price: Number(it.price),
-          ...(it.lotNumber?.trim() ? { lotNumber: it.lotNumber.trim() } : {}),
-          ...(it.expiryDate ? { expiryDate: it.expiryDate } : {})
+          price: Number(it.price)
         }))
       };
 
@@ -809,7 +813,7 @@ export const PurchasesView = () => {
         otherCost: 0,
         tagIds: [],
         items: [
-          { productCategoryId: '', name: '', qty: 1, unit: '', price: 0, lotNumber: '', expiryDate: '' }
+          { productCategoryId: '', name: '', qty: 1, unit: '', price: 0 }
         ]
       });
       fetchData();
@@ -1789,23 +1793,6 @@ export const PurchasesView = () => {
                     </p>
                   )}
                   <PurchaseInvoiceTemplate ref={purchaseInvoiceRef} order={selectedOrder} supplier={suppliers.find(supplier => supplier.id === selectedOrder.supplierId)} />
-                  {Array.isArray(selectedOrder.items) && selectedOrder.items.some(it => it.lotNumber || it.expiryDate) && (
-                    <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', backgroundColor: '#f6f9f8', border: '1px solid var(--color-hairline)' }}>
-                      <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-ink)', marginBottom: '6px' }}>
-                        Thông tin Lô hàng & Hạn sử dụng (INV-05)
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12.5px' }}>
-                        {selectedOrder.items.filter(it => it.lotNumber || it.expiryDate).map((it, idx) => (
-                          <div key={it.id || idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                            <span><strong>{it.name}</strong></span>
-                            <span style={{ color: 'var(--color-muted)' }}>
-                              Lô: <strong>{it.lotNumber || '—'}</strong> · HSD: <strong>{it.expiryDate ? it.expiryDate.split('-').reverse().join('/') : '—'}</strong>
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   {selectedOrder.attachmentUrl && (
                     <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', backgroundColor: '#f6f9f8', border: '1px solid var(--color-hairline)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -2415,35 +2402,6 @@ export const PurchasesView = () => {
                               ✕
                             </button>
                           )}
-                        </div>
-                        <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '2px', paddingBottom: '6px', borderBottom: '1px dashed var(--color-hairline)' }}>
-                          <input
-                            type="text"
-                            aria-label={`Số lô ${idx + 1}`}
-                            placeholder="Số lô nhập hàng (tùy chọn, VD: LO-2026-01)"
-                            className="farmshift-form-control"
-                            style={{ fontSize: '12.5px', height: '32px' }}
-                            maxLength={100}
-                            value={row.lotNumber || ''}
-                            onChange={(e) => {
-                              const updated = [...newPo.items];
-                              updated[idx].lotNumber = e.target.value;
-                              setNewPo({ ...newPo, items: updated });
-                            }}
-                          />
-                          <input
-                            type="date"
-                            aria-label={`Hạn sử dụng ${idx + 1}`}
-                            title="Hạn sử dụng lô hàng (tùy chọn)"
-                            className="farmshift-form-control"
-                            style={{ fontSize: '12.5px', height: '32px' }}
-                            value={row.expiryDate || ''}
-                            onChange={(e) => {
-                              const updated = [...newPo.items];
-                              updated[idx].expiryDate = e.target.value;
-                              setNewPo({ ...newPo, items: updated });
-                            }}
-                          />
                         </div>
                       </div>
                     );

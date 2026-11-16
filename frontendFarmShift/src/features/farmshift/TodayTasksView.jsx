@@ -11,6 +11,7 @@ import { MealScheduleDialog } from './MealScheduleDialog';
 import { addDaysIso, apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import styles from './TodayTasksView.module.css';
 import { dataCache } from '../../services/dataCache';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const ageText = plan => {
   const ages = [...new Set(plan.flocks.map(flock => flock.ageDays))].sort((a, b) => a - b);
@@ -74,9 +75,14 @@ export const TodayTasksView = () => {
     return () => window.removeEventListener('farmshift:ai-action', handleAiAction);
   }, []);
 
+  useRealtimeRefresh(
+    ['/today-tasks', '/daily-plan', '/daily-plans', '/work-tasks', '/work-assignments', '/cycles', '/flocks', '/barns', '/barn-responsibilities', '/inventory-items'],
+    () => setRevision(r => r + 1)
+  );
+
   const { busyKey, confirm, undo, confirmAssigned, undoAssigned } = useDailyPlanActions(updated =>
     setState(current => ({ ...current, plans: current.plans.map(plan => (plan.cycleId === updated.cycleId ? updated : plan)) })));
-  const loading = state.key !== requestKey;
+  const loading = state.key === null || !state.key.startsWith(`${date}:`);
   // Đếm cả việc theo chương trình và việc được giao.
   const count = plan => plan.tasks.length + (plan.assignedTasks || []).length;
   const doneOf = plan => plan.doneCount + (plan.assignedTasks || []).filter(task => task.done).length;

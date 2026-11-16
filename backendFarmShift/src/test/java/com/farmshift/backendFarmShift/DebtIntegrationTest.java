@@ -100,13 +100,12 @@ class DebtIntegrationTest {
     @Test
     @WithMockUser(username = "ketoan@smartfarm.com", authorities = "ROLE_ACCOUNTANT")
     void unifiedDebtSummarySupplierLedgerWithPaymentIntegration() throws Exception {
-        LocalDate exp = LocalDate.of(2027, 3, 1);
-        // Create PO with partial payment (total 10M, paid 2M) + attachmentUrl + lotNumber/expiryDate
+        // Create PO with partial payment (total 10M, paid 2M) + attachmentUrl
         var poReq = new PurchaseInvoiceRequest(
                 supplierId,
                 null,
                 LocalDate.of(2026, 10, 10),
-                List.of(new PurchaseInvoiceItemRequest(null, "Cám Công Nợ Lot", 10.0, "Bao", 1_000_000L, 0.0, null, "LOT-DEBT-01", exp)),
+                List.of(new PurchaseInvoiceItemRequest(null, "Cám Công Nợ Lot", 10.0, "Bao", 1_000_000L, 0.0, null)),
                 0L, 0L, 2_000_000L,
                 "Thanh toán một phần",
                 "Chưa nhập kho",
@@ -118,7 +117,6 @@ class DebtIntegrationTest {
         var createdPo = mvc.perform(post("/api/purchases").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(poReq)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.attachmentUrl").value("/img/purchases/sample-invoice.png"))
-                .andExpect(jsonPath("$.data.items[0].lotNumber").value("LOT-DEBT-01"))
                 .andReturn();
         long invoiceId = mapper.readTree(createdPo.getResponse().getContentAsString()).path("data").path("id").asLong();
 

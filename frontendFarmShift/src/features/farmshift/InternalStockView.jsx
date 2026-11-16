@@ -23,6 +23,7 @@ import {
 } from '../../services/internalStockService';
 import { listWarehouseCategories } from '../../services/warehouseCategoryService';
 import { listInventoryItems } from '../../services/inventoryItemService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { PrintableInternalVoucher } from './PrintableInternalVoucher';
 import styles from './InternalStockView.module.css';
 import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
@@ -35,8 +36,14 @@ export const InternalStockView = () => {
   const isWorker = user?.role === 'ROLE_FARM_WORKER';
   const canMutate = user?.role === 'ROLE_FARM_OWNER' || user?.role === 'ROLE_ACCOUNTANT';
 
+  const initialLinkedSearch = typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('search') || '')
+    : '';
+
   // Tabs: 'create' | 'vouchers' | 'categories'
-  const [activeTab, setActiveTabState] = useState(() => getPersistedTab('farmshift_tab_internal_stock', 'vouchers'));
+  const [activeTab, setActiveTabState] = useState(() =>
+    initialLinkedSearch ? 'vouchers' : getPersistedTab('farmshift_tab_internal_stock', 'vouchers')
+  );
   const setActiveTab = (tab) => {
     setActiveTabState(tab);
     setPersistedTab('farmshift_tab_internal_stock', tab);
@@ -61,7 +68,7 @@ export const InternalStockView = () => {
   const [size, setSize] = useState(10);
 
   // Filters
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialLinkedSearch);
   const [filterType, setFilterType] = useState('ALL');
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [filterWarehouse, setFilterWarehouse] = useState('ALL');
@@ -124,7 +131,8 @@ export const InternalStockView = () => {
     loadWarehouses();
   }, []);
 
-  // Load available inventory items when sourceWarehouseId changes
+  // Load vouchers & items silently on remote updates
+  const [itemsRevision, setItemsRevision] = useState(0);
   useEffect(() => {
     const fetchItems = async () => {
       try {
@@ -139,10 +147,10 @@ export const InternalStockView = () => {
       }
     };
     fetchItems();
-  }, [voucherForm.sourceWarehouseId]);
+  }, [voucherForm.sourceWarehouseId, itemsRevision]);
 
-  const loadVouchers = async () => {
-    setVouchersLoading(true);
+  const loadVouchers = async ({ silent = false } = {}) => {
+    if (!silent) setVouchersLoading(true);
     try {
       const res = await listInternalStockVouchers({
         page,
@@ -159,9 +167,9 @@ export const InternalStockView = () => {
       setTotalElements(res.totalElements || 0);
       setTotalPages(res.totalPages || 1);
     } catch {
-      showToast('Không tải được danh sách phiếu xuất nhập.', 'error');
+      if (!silent) showToast('Không tải được danh sách phiếu xuất nhập.', 'error');
     } finally {
-      setVouchersLoading(false);
+      if (!silent) setVouchersLoading(false);
     }
   };
 
@@ -169,6 +177,16 @@ export const InternalStockView = () => {
   useEffect(() => {
     loadVouchers();
   }, [page, size, search, filterType, filterCategory, filterWarehouse, filterStatus, filterFrom, filterTo]);
+
+  useRealtimeRefresh(
+    ['/internal-stock', '/inventory-items', '/inventory', '/warehouse-categories', '/warehouses', '/transfer-categories', '/cycles', '/daily-plan', '/journal'],
+    () => {
+      loadCategories();
+      loadWarehouses();
+      setItemsRevision(r => r + 1);
+      loadVouchers({ silent: true });
+    }
+  );
 
   // ── Tab 1: Form Handlers ──────────────────────────────────────────
   const handleTypeChange = (type) => {

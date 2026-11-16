@@ -45,6 +45,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      TZ: Asia/Bangkok
       SPRING_PROFILES_ACTIVE: local
       AI_SERVICE_URL: http://ai-service:8000
       AI_SERVICE_AUTOSTART_ENABLED: "false"

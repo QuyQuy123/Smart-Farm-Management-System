@@ -12,6 +12,7 @@ import { getDashboard } from '../../services/dashboardService';
 import { formatDay } from './farmAreaOptions';
 import styles from './DashboardView.module.css';
 import { dataCache } from '../../services/dataCache';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
 const money = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 0 })}đ`;
@@ -64,6 +65,15 @@ export const DashboardView = () => {
       .catch(error => { if (!cancelled) setState({ revision, data: null, error: error?.response?.data?.message || 'Không tải được bảng tin. Vui lòng thử lại.' }); });
     return () => { cancelled = true; };
   }, [revision]);
+
+  useRealtimeRefresh(
+    [
+      '/dashboard', '/reports', '/purchases', '/sales', '/sales-orders', '/internal-stock',
+      '/cycles', '/flocks', '/journal', '/today-tasks', '/daily-plans', '/daily-plan',
+      '/barns', '/inventory-items', '/work-tasks', '/farm-areas', '/areas',
+    ],
+    () => setRevision(value => value + 1)
+  );
 
   const loading = state.revision !== revision;
   const { data } = state;

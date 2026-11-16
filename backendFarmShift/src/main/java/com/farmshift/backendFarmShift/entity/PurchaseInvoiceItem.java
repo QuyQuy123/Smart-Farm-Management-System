@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
-
 @Entity
 @Table(name = "purchase_invoice_items")
 @Data
@@ -45,12 +43,6 @@ public class PurchaseInvoiceItem {
 
     @Column(nullable = false)
     private Long amount = 0L;
-
-    @Column(name = "lot_number", length = 100)
-    private String lotNumber;
-
-    @Column(name = "expiry_date")
-    private LocalDate expiryDate;
 
     public PurchaseInvoiceItem(PurchaseInvoice invoice, ProductCategory productCategory, String productName,
                                Double quantity, String unit, Long unitPrice, Double vatRate, Long amount) {

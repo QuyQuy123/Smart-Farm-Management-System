@@ -21,6 +21,7 @@ import { AreaTabs } from './AreaTabs';
 import { DailyPlanCard } from './DailyPlanCard';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { getBarnDailyPlan } from '../../services/dailyPlanService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import {
   EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
@@ -121,7 +122,12 @@ export const BarnDetailView = () => {
     return () => { cancelled = true; };
   }, [id, requestedCycle, requestKey]);
 
-  const loading = state.key !== requestKey;
+  useRealtimeRefresh(
+    ['/barns', '/cycles', '/flocks', '/daily-plan', '/daily-plans', '/journal', '/today-tasks', '/farm-areas', '/areas', '/farming-programs', '/sales', '/sales-orders'],
+    () => setRevision(value => value + 1)
+  );
+
+  const loading = state.key === null || !state.key.startsWith(`${id}|${requestedCycle || ''}|`);
   const { barn, cycles = [], barns = [], areas = [], programs = [], detail, dayPlan, error } = state;
   const cycle = detail?.cycle;
   const metrics = detail?.metrics;
