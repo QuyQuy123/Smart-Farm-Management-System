@@ -43,12 +43,11 @@ import java.util.List;
 @EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
-    @org.springframework.beans.factory.annotation.Value("${app.cors.camera-web-origin:}")
-    private String cameraWebOrigin = "";
 
     private final JwtAuthFilter jwtAuthFilter;
     private final HttpRateLimitFilter httpRateLimitFilter;
     private final CustomUserDetailsService userDetailsService;
+    private final CorsOriginsProperties corsOrigins;
 
     @Bean
     public FilterRegistrationBean<HttpRateLimitFilter> httpRateLimitFilterRegistration(HttpRateLimitFilter filter) {
@@ -78,6 +77,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/phone-camera/**").hasAuthority("ROLE_FARM_OWNER")
                         // Public health check endpoints for UptimeRobot / Render keep-alive
                         .requestMatchers("/api/health", "/health").permitAll()
+                        // STOMP WebSocket endpoint (JWT validated on STOMP CONNECT frame)
+                        .requestMatchers("/api/ws", "/api/ws/**").permitAll()
                         // Actuator health check (add more granular rules as needed)
                         .requestMatchers("/actuator/health").permitAll()
                         // All other endpoints require an authenticated JWT
@@ -112,23 +113,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://127.0.0.1:*",
-                "https://*.vercel.app"
-        ));
-        config.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://localhost:5174",
-                "http://localhost:5175",
-                "http://localhost:3000",
-                "https://farmshift-smartfarm.vercel.app",
-                "https://admin-ae1mzp943-acet-ech291.vercel.app",
-                "https://admin-flax-eta-71.vercel.app",
-                "https://admin-acet-ech291.vercel.app"
-        ));
+        config.setAllowedOriginPatterns(corsOrigins.getAllowedOriginPatterns());
+        config.setAllowedOrigins(corsOrigins.getAllowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        if (!cameraWebOrigin.isBlank()) config.addAllowedOrigin(cameraWebOrigin.trim());
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 

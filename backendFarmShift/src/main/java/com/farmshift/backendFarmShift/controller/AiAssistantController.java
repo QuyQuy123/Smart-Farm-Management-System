@@ -5,6 +5,7 @@ import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
 import com.farmshift.backendFarmShift.dto.SpeechTranscribeResponse;
 import com.farmshift.backendFarmShift.service.AiAssistantService;
 import com.farmshift.backendFarmShift.service.GroqWhisperService;
+import com.farmshift.backendFarmShift.service.RealtimeSyncService;
 import com.farmshift.backendFarmShift.service.ai.AiRateLimiter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class AiAssistantController {
     private final GroqWhisperService whisperService;
     private final AiAssistantService assistantService;
     private final AiRateLimiter rateLimiter;
+    private final RealtimeSyncService realtimeSyncService;
 
     @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<SpeechTranscribeResponse> transcribe(@RequestParam(value = "file", required = false) MultipartFile file,
@@ -49,6 +51,7 @@ public class AiAssistantController {
     @PostMapping("/assistant")
     public ResponseEntity<AiAssistantResponse> handleAssistantRequest(
             @Valid @RequestBody AiAssistantRequest request,
+            @RequestHeader(value = "X-Client-Id", required = false) String clientId,
             Authentication authentication
     ) {
         String username = authentication != null ? authentication.getName() : "Người dùng";
@@ -64,33 +67,39 @@ public class AiAssistantController {
         }
 
         AiAssistantResponse response = assistantService.processRequest(request, username, authorities);
+        if (response.isExecuted()) {
+            realtimeSyncService.broadcastDataChange("/all", "AI", username, clientId);
+        }
         return ResponseEntity.ok(response);
     }
 
     @PostMapping(value = "/assistant/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamAssistantPost(
             @Valid @RequestBody AiAssistantRequest request,
+            @RequestHeader(value = "X-Client-Id", required = false) String clientId,
             Authentication authentication
     ) {
-        return createAssistantSseEmitter(request, authentication);
+        return createAssistantSseEmitter(request, authentication, clientId);
     }
 
     @GetMapping(value = "/assistant/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamAssistantGet(
             @RequestParam("message") String message,
             @RequestParam(value = "currentRoute", required = false) String currentRoute,
+            @RequestHeader(value = "X-Client-Id", required = false) String clientId,
             Authentication authentication
     ) {
         AiAssistantRequest request = AiAssistantRequest.builder()
                 .message(message)
                 .currentRoute(currentRoute)
                 .build();
-        return createAssistantSseEmitter(request, authentication);
+        return createAssistantSseEmitter(request, authentication, clientId);
     }
 
     private SseEmitter createAssistantSseEmitter(
             AiAssistantRequest request,
-            Authentication authentication
+            Authentication authentication,
+            String clientId
     ) {
         SseEmitter emitter = new SseEmitter(60_000L);
         String username = authentication != null ? authentication.getName() : "Người dùng";
@@ -113,6 +122,9 @@ public class AiAssistantController {
         CompletableFuture.runAsync(() -> {
             try {
                 AiAssistantResponse response = assistantService.processRequest(request, username, authorities);
+                if (response.isExecuted()) {
+                    realtimeSyncService.broadcastDataChange("/all", "AI", username, clientId);
+                }
                 String text = response.getReply() != null ? response.getReply() : "";
                 String[] words = text.split(" ");
                 for (String word : words) {

@@ -144,7 +144,7 @@ public class DailyPlanService {
         log.setDeviated(deviated);
         log.setNote(note);
         log.setDoneBy(user);
-        log.setDoneAt(LocalDateTime.now());
+        log.setDoneAt(LocalDateTime.now(VN_ZONE));
 
         BigDecimal cost = BigDecimal.ZERO;
         if (measured && actual != null && actual.signum() > 0) {

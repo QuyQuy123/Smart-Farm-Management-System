@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, Fragment } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-    Menu, Maximize, Minimize, Bell, User, LogOut,
+    Menu, Maximize, Minimize, Bell, BellRing, BellOff, Smartphone, User, LogOut,
     LayoutDashboard, Warehouse, ClipboardList, Package,
     ArrowLeftRight, FileText, ShoppingCart,
     Users, BarChart3, Layers, Settings, Sliders, Radio,
@@ -12,6 +12,15 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification, formatNotificationTime, renderNotificationContent } from '../context/NotificationContext';
+import {
+    getPushStatus,
+    isIosSafariNeedingInstall,
+    isWebPushSupported,
+    registerServiceWorker,
+    sendTestPushNotification,
+    subscribeUserToPush,
+    unsubscribeUserFromPush,
+} from '../services/webPushClient';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { GlobalSearch } from '../components/GlobalSearch/GlobalSearch';
 import { getFarmInfo, saveFarmInfo } from '../data/farmshiftMockData';
@@ -115,7 +124,7 @@ export const FarmShiftLayout = ({
     actions = null,
 }) => {
     const { user, logout } = useAuth();
-    const { alerts, unreadCount, markAsRead, markAllAsRead, clearAllAlerts, activeToast, setActiveToast } = useNotification();
+    const { alerts, unreadCount, markAsRead, markAllAsRead, clearAllAlerts, activeToast, setActiveToast, showToast } = useNotification();
     const navigate = useNavigate();
     const location = useLocation();
     const sidebarRef = useRef(null);
@@ -165,6 +174,77 @@ export const FarmShiftLayout = ({
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [pushSubscribed, setPushSubscribed] = useState(false);
+    const [pushDeviceCount, setPushDeviceCount] = useState(0);
+    const [pushBusy, setPushBusy] = useState(false);
+    const [pushError, setPushError] = useState('');
+    const pushSupported = isWebPushSupported();
+    const showIosInstallHint = isIosSafariNeedingInstall();
+
+    useEffect(() => {
+        if (!user?.email) return;
+        if (typeof window !== 'undefined' && window.Notification?.permission === 'granted') {
+            registerServiceWorker().catch(() => {});
+        }
+    }, [user?.email]);
+
+    useEffect(() => {
+        if (!notifOpen || !user?.email) return undefined;
+        let cancelled = false;
+        getPushStatus()
+            .then((status) => {
+                if (cancelled) return;
+                setPushSubscribed(Boolean(status.localSubscribed || status.hasActiveSubscription));
+                setPushDeviceCount(Number(status.deviceCount || 0));
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [notifOpen, user?.email]);
+
+    const handleToggleWebPush = async () => {
+        setPushBusy(true);
+        setPushError('');
+        try {
+            if (pushSubscribed) {
+                await unsubscribeUserFromPush();
+                setPushSubscribed(false);
+                setPushDeviceCount((c) => Math.max(0, c - 1));
+                showToast('Đã tắt thông báo đẩy trên thiết bị này.', 'info');
+            } else {
+                await subscribeUserToPush();
+                setPushSubscribed(true);
+                setPushDeviceCount((c) => Math.max(1, c + 1));
+                showToast('Đã bật thông báo đẩy về điện thoại thành công.', 'success');
+            }
+        } catch (err) {
+            const msg = err?.response?.data?.message || err?.message || 'Không thể cập nhật cài đặt thông báo đẩy.';
+            setPushError(msg);
+            showToast(msg, 'warning');
+        } finally {
+            setPushBusy(false);
+        }
+    };
+
+    const handleSendTestPush = async () => {
+        setPushBusy(true);
+        setPushError('');
+        try {
+            const res = await sendTestPushNotification();
+            if (res?.sentCount > 0) {
+                showToast(res.message || 'Đã gửi thông báo thử nghiệm tới thiết bị của bạn.', 'success');
+            } else {
+                const msg = res?.message || 'Tài khoản chưa đăng ký thiết bị nhận thông báo.';
+                setPushError(msg);
+                showToast(msg, 'warning');
+            }
+        } catch (err) {
+            const msg = err?.response?.data?.message || err?.message || 'Không thể gửi thông báo thử nghiệm.';
+            setPushError(msg);
+            showToast(msg, 'error');
+        } finally {
+            setPushBusy(false);
+        }
+    };
 
     const notifRef = useRef(null);
     const userMenuRef = useRef(null);
@@ -414,6 +494,48 @@ export const FarmShiftLayout = ({
                                             </>
                                         )}
                                     </div>
+                                </div>
+                                <div className={styles.pushBar} aria-label="Thông báo đẩy trên điện thoại">
+                                    <div className={styles.pushBarRow}>
+                                        <span className={styles.pushBarInfo}>
+                                            <Smartphone size={14} />
+                                            <span>Thông báo đẩy ĐT{pushDeviceCount > 0 ? ` (${pushDeviceCount} thiết bị)` : ''}</span>
+                                        </span>
+                                        <div className={styles.pushBarActions}>
+                                            <button
+                                                type="button"
+                                                className={`${styles.pushToggleBtn} ${pushSubscribed ? styles.pushToggleBtnActive : ''}`}
+                                                onClick={handleToggleWebPush}
+                                                disabled={pushBusy || (!pushSubscribed && !pushSupported)}
+                                                title={pushSubscribed ? 'Bấm để tắt thông báo đẩy trên thiết bị này' : 'Bật nhận thông báo khi đóng trình duyệt'}
+                                            >
+                                                {pushSubscribed ? <BellOff size={13} /> : <BellRing size={13} />}
+                                                <span>{pushSubscribed ? 'Đang bật thông báo ĐT' : 'Bật thông báo ĐT'}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={styles.pushTestBtn}
+                                                onClick={handleSendTestPush}
+                                                disabled={pushBusy}
+                                                title="Gửi thông báo đẩy thử nghiệm tới thiết bị đã đăng ký"
+                                            >
+                                                Gửi thử
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {showIosInstallHint && (
+                                        <span className={styles.pushHint}>
+                                            Trên iPhone: bấm Chia sẻ → Thêm vào MH chính để nhận thông báo đẩy.
+                                        </span>
+                                    )}
+                                    {!pushSupported && !showIosInstallHint && (
+                                        <span className={styles.pushHint}>
+                                            Trình duyệt hiện tại chưa hỗ trợ Web Push nền.
+                                        </span>
+                                    )}
+                                    {pushError && (
+                                        <span role="alert" className={styles.pushError}>{pushError}</span>
+                                    )}
                                 </div>
                                 <div className={styles.notifList}>
                                     {alerts.length === 0 ? (

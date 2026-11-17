@@ -35,12 +35,22 @@ public record ReportSummaryResponse(
             BigDecimal totalCost,
             BigDecimal totalRevenue,
             BigDecimal totalProfit,
-            List<BarnCycleRow> cycles
+            BigDecimal chickCost,
+            BigDecimal feedCost,
+            BigDecimal otherCost,
+            BigDecimal medicineCost,
+            BigDecimal otherDirectCost,
+            List<BarnCycleRow> cycles,
+            BigDecimal realizedProfit,
+            BigDecimal wipCost,
+            BigDecimal wipRevenue,
+            int closedCycles
     ) {}
 
     public record BarnCycleRow(
             Long cycleId,
             String cycleCode,
+            Long barnId,
             String barnName,
             String areaName,
             String breed,
@@ -56,7 +66,17 @@ public record ReportSummaryResponse(
             BigDecimal survivalRate,
             BigDecimal totalCost,
             BigDecimal revenue,
-            BigDecimal profit
+            BigDecimal profit,
+            BigDecimal chickCost,
+            BigDecimal feedCost,
+            BigDecimal otherCost,
+            BigDecimal medicineCost,
+            BigDecimal otherDirectCost,
+            BigDecimal fcr,
+            BigDecimal avgWeightKg,
+            BigDecimal harvestedWeightKg,
+            BigDecimal biomassKg,
+            BigDecimal costPerKg
     ) {}
 
     public record SalesReport(
@@ -82,7 +102,10 @@ public record ReportSummaryResponse(
             BigDecimal totalAmount,
             BigDecimal paidAmount,
             BigDecimal debtAmount,
-            String status
+            String status,
+            Long cycleId,
+            String barnName,
+            String areaName
     ) {}
 
     public record PurchasesReport(
@@ -104,14 +127,14 @@ public record ReportSummaryResponse(
             long paidAmount,
             long debtAmount,
             String paymentStatus,
-            String stockStatus
+            String stockStatus,
+            String barnName,
+            String areaName
     ) {}
 
     public record InventoryReport(
             int totalSkus,
             BigDecimal totalValue,
-            int lowStockCount,
-            int expiryAlertCount,
             List<InventoryRow> items
     ) {}
 
@@ -123,13 +146,10 @@ public record ReportSummaryResponse(
             String productType,
             String unitName,
             BigDecimal stock,
-            BigDecimal minStock,
             BigDecimal unitPrice,
             BigDecimal totalValue,
-            String lotNumber,
-            LocalDate expiryDate,
-            boolean lowStock,
-            String expiryStatus
+            String areaName,
+            String warehouseKind
     ) {}
 
     public record HarvestReport(
@@ -204,7 +224,9 @@ public record ReportSummaryResponse(
             BigDecimal totalAmount,
             String sourceWarehouse,
             String targetDestination,
-            String status
+            String status,
+            String barnName,
+            String areaName
     ) {}
 
     public record ActivityReport(
@@ -220,7 +242,10 @@ public record ReportSummaryResponse(
             String module,
             String action,
             String detail,
-            String referenceCode
+            String referenceCode,
+            String barnName,
+            String areaName,
+            String referenceId
     ) {}
 }
 

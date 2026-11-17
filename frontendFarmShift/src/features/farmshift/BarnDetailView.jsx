@@ -17,10 +17,12 @@ import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
 import { SupplierPicker } from './SupplierPicker';
 import { FlockDetailDialog } from './FlockDetailDialog';
+import { MovementDetailDialog } from './MovementDetailDialog';
 import { AreaTabs } from './AreaTabs';
 import { DailyPlanCard } from './DailyPlanCard';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { getBarnDailyPlan } from '../../services/dailyPlanService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import {
   EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
@@ -121,7 +123,12 @@ export const BarnDetailView = () => {
     return () => { cancelled = true; };
   }, [id, requestedCycle, requestKey]);
 
-  const loading = state.key !== requestKey;
+  useRealtimeRefresh(
+    ['/barns', '/cycles', '/flocks', '/daily-plan', '/daily-plans', '/journal', '/today-tasks', '/farm-areas', '/areas', '/farming-programs', '/sales', '/sales-orders'],
+    () => setRevision(value => value + 1)
+  );
+
+  const loading = state.key === null || !state.key.startsWith(`${id}|${requestedCycle || ''}|`);
   const { barn, cycles = [], barns = [], areas = [], programs = [], detail, dayPlan, error } = state;
   const cycle = detail?.cycle;
   const metrics = detail?.metrics;
@@ -472,15 +479,20 @@ export const BarnDetailView = () => {
   };
 
   // Chỉ số chính luôn hiện; các chỉ số phụ nằm sau nút "Xem thêm chỉ số" cho gọn.
-  const weightProgress = metrics && metrics.avgWeightKg != null && barn.targetWeight
-    ? Math.min(100, Math.round((Number(metrics.avgWeightKg) / Number(barn.targetWeight)) * 100)) : null;
+  // Mục tiêu cân nặng lấy từ chương trình nuôi của lứa (không đặt theo chuồng).
+  const targetProgram = (detail?.programs || []).find(program => program.targetWeightMax != null || program.targetWeightMin != null);
+  const targetKg = targetProgram ? Number(targetProgram.targetWeightMax ?? targetProgram.targetWeightMin) : null;
+  const targetText = targetProgram && [targetProgram.targetWeightMin, targetProgram.targetWeightMax]
+    .filter(value => value != null).map(value => num(value, 2)).join('–');
+  const weightProgress = metrics && metrics.avgWeightKg != null && targetKg
+    ? Math.min(100, Math.round((Number(metrics.avgWeightKg) / targetKg) * 100)) : null;
   const mainKpis = metrics && [
     { icon: CalendarDays, label: 'Ngày tuổi', value: metrics.ageDays != null ? num(metrics.ageDays) : '—', unit: 'ngày',
       hint: `Ngày nuôi thứ ${num(metrics.dayOfCycle)}` },
     { icon: Users, label: 'Đang nuôi', value: num(metrics.currentQuantity), unit: 'con',
       hint: `Hao hụt ${num(metrics.deaths)} con${metrics.lossRate != null ? ` (${num(metrics.lossRate, 2)}%)` : ''}` },
     { icon: Scale, label: 'Cân nặng TB', value: metrics.avgWeightKg != null ? num(metrics.avgWeightKg, 3) : '—', unit: 'kg',
-      hint: barn.targetWeight != null ? `Mục tiêu ${num(barn.targetWeight, 2)} kg` : 'Chưa đặt mục tiêu', progress: weightProgress },
+      hint: targetText ? `Mục tiêu ${targetText} kg` : 'Chương trình nuôi chưa đặt mục tiêu', progress: weightProgress },
     { icon: Wheat, label: 'Hệ số FCR', value: metrics.fcr != null ? num(metrics.fcr, 2) : '—', unit: '',
       hint: `Đã ăn ${num(metrics.feedKg, 1)} kg cám` },
   ];
@@ -635,9 +647,13 @@ export const BarnDetailView = () => {
               <td>{isOwner && active && <button type="button" className={styles.iconButton} aria-label={`Xóa lần cân ${formatDay(item.date)}`} onClick={() => openDelete('lần cân mẫu', () => deleteWeightSample(cycle.id, item.id))}><Trash2 size={14} /></button>}</td></tr>)}</tbody>
           </table></div>)}
           {journalTab === 'LOSS' && (losses.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
-            <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Khối lượng (kg)</th><th>Ghi chú</th></tr></thead>
+            <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Khối lượng (kg)</th><th>Ghi chú</th><th aria-label="Chi tiết" /></tr></thead>
             <tbody>{losses.map(item => <tr key={item.id}><td>{formatDay(item.movementDate)}</td><td>{item.flockCode}</td><td>{labelOf(MOVEMENT_TYPES, item.type)}
-              {item.relatedFlockCode ? ` (${item.type === 'TRANSFER_OUT' ? 'sang' : 'từ'} ${item.relatedFlockCode})` : ''}</td><td>{num(item.quantity)}</td><td>{num(item.weightKg, 2)}</td><td>{item.note || '—'}</td></tr>)}</tbody>
+              {item.relatedFlockCode ? ` (${item.type === 'TRANSFER_OUT' ? 'sang' : 'từ'} ${item.relatedFlockCode})` : ''}</td><td>{num(item.quantity)}</td><td>{num(item.weightKg, 2)}</td><td>{item.note || '—'}</td>
+              <td className={styles.rowActions}><button type="button" className={styles.iconButton} title="Xem chi tiết, ảnh đính kèm"
+                aria-label={`Chi tiết ${labelOf(MOVEMENT_TYPES, item.type).toLowerCase()} ngày ${formatDay(item.movementDate)} đàn ${item.flockCode}`}
+                onClick={() => setModal({ type: 'movement', movement: item })}><Eye size={15} />
+                {item.photoUrls?.length ? <span className={styles.photoCount}>{item.photoUrls.length}</span> : null}</button></td></tr>)}</tbody>
           </table></div>)}
         </Card>
 
@@ -677,6 +693,7 @@ export const BarnDetailView = () => {
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate('/barns')}>Về danh sách chuồng</button></div>
         : <><AreaTabs areas={areas} active={barn.areaId} />{header}{detail ? renderCycle() : renderNoCycle()}</>}
     {modal?.type === 'flock' && <FlockDetailDialog flock={modal.flock} canFinance={canFinance} onClose={() => setModal(null)} />}
+    {modal?.type === 'movement' && <MovementDetailDialog movement={modal.movement} onClose={() => setModal(null)} />}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}
     {modal && !modal.type && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </FarmShiftLayout>;

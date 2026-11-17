@@ -13,6 +13,9 @@ public interface CycleExpenseRepository extends JpaRepository<CycleExpense, Long
     @EntityGraph(attributePaths = {"cycle"})
     List<CycleExpense> findAllWithCycleBy();
 
+    @EntityGraph(attributePaths = {"cycle"})
+    List<CycleExpense> findWithCycleByCycleIdIn(List<Long> cycleIds);
+
     List<CycleExpense> findAllByCycleIdOrderByExpenseDateDescIdDesc(Long cycleId);
     Optional<CycleExpense> findByIdAndCycleId(Long id, Long cycleId);
 

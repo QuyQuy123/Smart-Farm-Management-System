@@ -14,6 +14,7 @@ import { WeightSlipCapture } from './WeightSlipCapture';
 import { SalesInvoiceTemplate } from './SalesInvoiceTemplate';
 import { Plus, Search, FileSpreadsheet, X, Printer, Pencil, ScanText, Loader2 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,7 +34,7 @@ export const SalesView = () => {
   const [selectedSale, setSelectedSale] = useState(null);
   const invoiceRef = useRef(null);
   const [invoiceReady, setInvoiceReady] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || searchParams.get('customer') || '');
   const [orderPage, setOrderPage] = useState(0);
   const setActiveTab = tab => {
     if (tab === 'orders') {
@@ -89,7 +90,17 @@ export const SalesView = () => {
   const currentCustomerPage = Math.min(customerPage, customerPageCount - 1);
   const [customersLoading, setCustomersLoading] = useState(true);
   const [customersError, setCustomersError] = useState('');
+  const [ordersRevision, setOrdersRevision] = useState(0);
   const [customerRevision, setCustomerRevision] = useState(0);
+
+  useRealtimeRefresh(
+    ['/sales', '/sales-orders', '/customer-contacts', '/customers', '/cycles', '/flocks', '/barns'],
+    () => {
+      setOrdersRevision(r => r + 1);
+      setCustomerRevision(r => r + 1);
+    }
+  );
+
   useEffect(() => {
     let cancelled = false;
     listSalesOrders().then(rows => {
@@ -100,7 +111,7 @@ export const SalesView = () => {
       setOrdersReady(true);
     }).catch(() => { if (!cancelled) setOrdersError('Không thể tải đơn bán từ máy chủ. Vui lòng tải lại trang.'); });
     return () => { cancelled = true; };
-  }, [storageKey, orderRevision]);
+  }, [storageKey, ordersRevision]);
   useEffect(() => {
     let cancelled = false;
     listSalesCustomers().then(data => {

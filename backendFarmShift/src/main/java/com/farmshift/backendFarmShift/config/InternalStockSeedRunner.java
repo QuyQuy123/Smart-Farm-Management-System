@@ -29,7 +29,7 @@ public class InternalStockSeedRunner implements ApplicationRunner {
         }
 
         // Danh mục hệ thống mặc định (bảo vệ không xóa)
-        seedIfMissing("EXPORT", "Xuất hủy", "xuất hủy", "Xuất hủy hàng hóa ẩm mốc, quá hạn hoặc hư hỏng trong trang trại", true);
+        seedIfMissing("EXPORT", "Xuất hủy", "xuất hủy", "Xuất hủy hàng hóa ẩm mốc hoặc hư hỏng trong trang trại", true);
         seedIfMissing("TRANSFER", "Chuyển kho nội bộ", "chuyển kho nội bộ", "Luân chuyển điều chuyển hàng hóa chung giữa các kho trong trang trại", true);
 
         // Danh mục nghiệp vụ thực tế trang trại (người dùng có thể sửa/xóa khi cần)

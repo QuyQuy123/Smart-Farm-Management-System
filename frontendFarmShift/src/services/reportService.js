@@ -11,6 +11,7 @@ export const getReportSummary = async (params = {}) => {
   const res = await api.get('/reports/summary', {
     params: cleanParams,
     forceRefresh: Boolean(params?.forceRefresh),
+    ttl: 2000,
   });
   return res?.data?.data ?? null;
 };

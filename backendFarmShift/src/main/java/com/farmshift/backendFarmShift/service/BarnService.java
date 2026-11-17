@@ -116,7 +116,6 @@ public class BarnService {
         if (creating) barn.setStatus(BarnStatus.INACTIVE);
         barn.setCapacity(request.capacity());
         barn.setAreaM2(request.areaM2());
-        barn.setTargetWeight(request.targetWeight());
         barn.setDescription(request.description() == null ? "" : request.description().strip());
         try {
             return response(repository.saveAndFlush(barn), activeCycle);
@@ -146,7 +145,7 @@ public class BarnService {
         FarmArea area = barn.getArea();
         return new BarnResponse(barn.getId(), String.format(Locale.ROOT, "CH%06d", barn.getId()), area.getId(), area.getName(),
                 barn.getName(), barn.getStatus(), barn.getCapacity(),
-                barn.getCurrentQuantity(), barn.getAreaM2(), barn.getTargetWeight(), barn.getDescription(), activeCycleId,
+                barn.getCurrentQuantity(), barn.getAreaM2(), barn.getDescription(), activeCycleId,
                 barn.getCreatedAt(), barn.getUpdatedAt());
     }
 }

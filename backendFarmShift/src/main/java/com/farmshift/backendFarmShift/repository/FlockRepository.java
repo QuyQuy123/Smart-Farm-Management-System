@@ -13,6 +13,9 @@ public interface FlockRepository extends JpaRepository<Flock, Long> {
     @EntityGraph(attributePaths = {"cycle", "program", "supplier"})
     List<Flock> findAllByOrderByImportDateAscIdAsc();
 
+    @EntityGraph(attributePaths = {"cycle", "program", "supplier"})
+    List<Flock> findByCycleIdInOrderByImportDateAscIdAsc(List<Long> cycleIds);
+
     List<Flock> findAllByCycleIdOrderByImportDateAscIdAsc(Long cycleId);
     boolean existsByProgramId(Long programId);
     boolean existsBySupplierId(Long supplierId);

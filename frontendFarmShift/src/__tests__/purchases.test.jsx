@@ -1108,12 +1108,12 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       expect(screen.getByText('TT-NH000003')).toBeInTheDocument();
     });
 
-    it('renders lot/expiry info and scanned invoice attachment inside PO detail modal (FIN-14, INV-05)', async () => {
+    it('renders scanned invoice attachment inside PO detail modal (FIN-14)', async () => {
       const detailedOrder = {
         ...mockPurchases[0],
         attachmentUrl: '/img/purchases/scanned-po.png',
         items: [
-          { name: 'Cám Giai đoạn 1 (Úm)', qty: 200, unit: 'Bao 25kg', price: 320000, amount: 64000000, lotNumber: 'LOT-CP-2026', expiryDate: '2027-02-15' }
+          { name: 'Cám Giai đoạn 1 (Úm)', qty: 200, unit: 'Bao 25kg', price: 320000, amount: 64000000 }
         ]
       };
       purchaseService.listPurchases.mockResolvedValueOnce([detailedOrder, ...mockPurchases.slice(1)]);
@@ -1127,9 +1127,7 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
       await screen.findByText('NH000000');
       fireEvent.click(screen.getByRole('button', { name: 'Xem hóa đơn NH000000' }));
 
-      expect(await screen.findByText('Thông tin Lô hàng & Hạn sử dụng (INV-05)')).toBeInTheDocument();
-      expect(screen.getByText('LOT-CP-2026')).toBeInTheDocument();
-      expect(screen.getByAltText('Ảnh chứng từ NH000000')).toHaveAttribute('src', '/img/purchases/scanned-po.png');
+      expect(await screen.findByAltText('Ảnh chứng từ NH000000')).toHaveAttribute('src', '/img/purchases/scanned-po.png');
     });
   });
 });

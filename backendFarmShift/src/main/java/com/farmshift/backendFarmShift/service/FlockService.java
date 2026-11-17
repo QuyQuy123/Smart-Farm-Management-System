@@ -12,6 +12,7 @@ import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -22,10 +23,13 @@ import java.util.List;
 
 import static com.farmshift.backendFarmShift.service.CycleService.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class FlockService {
+    private static final BigDecimal CRITICAL_LOSS_RATE_PERCENT = new BigDecimal("0.5");
+
     private final FlockRepository repository;
     private final FlockMovementRepository movementRepository;
     private final FarmingCycleRepository cycleRepository;
@@ -35,6 +39,7 @@ public class FlockService {
     private final FarmingProgramService programService;
     private final SupplierRepository supplierRepository;
     private final PurchaseService purchaseService;
+    private final WebPushService webPushService;
 
     /** Nhập đàn con giống vào lứa đang nuôi. */
     @Transactional
@@ -191,7 +196,31 @@ public class FlockService {
             movement.setPhotoUrls(String.join("\n", request.photoUrls().stream().map(String::trim).toList()));
         }
         decrease(flock, request.quantity());
+        notifyCriticalLossIfNeeded(flock, request);
         return movementResponse(movement, false);
+    }
+
+    private void notifyCriticalLossIfNeeded(Flock flock, FlockLossRequest request) {
+        if (request.type() != FlockMovementType.DEATH) return;
+        Barn barn = flock.getCycle().getBarn();
+        int beforeBarnQty = Math.max(1, barn.getCurrentQuantity() + request.quantity());
+        BigDecimal pct = BigDecimal.valueOf(request.quantity() * 100L)
+                .divide(BigDecimal.valueOf(beforeBarnQty), 2, RoundingMode.HALF_UP);
+        if (request.quantity() >= 5 || pct.compareTo(CRITICAL_LOSS_RATE_PERCENT) >= 0) {
+            try {
+                String areaName = barn.getArea() != null ? barn.getArea().getName() : "";
+                String locationLabel = areaName.isBlank() ? barn.getName() : barn.getName() + " (" + areaName + ")";
+                webPushService.sendIoTAlertToAuthorizedUsers(
+                        barn,
+                        "Cảnh báo hao hụt đàn · " + barn.getName(),
+                        "Ghi nhận " + request.quantity() + " con chết tại " + locationLabel + " (" + pct + "% đàn).",
+                        "CRITICAL",
+                        "/barns/" + barn.getId()
+                );
+            } catch (Exception ex) {
+                log.warn("Failed to dispatch Web Push mortality alert for barn {}: {}", barn.getId(), ex.getMessage());
+            }
+        }
     }
 
     /** Xuất bán / thu hoạch, ghi doanh thu theo khối lượng và đơn giá. */

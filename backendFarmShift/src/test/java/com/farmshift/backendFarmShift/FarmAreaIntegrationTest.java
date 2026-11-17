@@ -57,7 +57,6 @@ class FarmAreaIntegrationTest {
         body.put("name", name);
         body.put("capacity", capacity);
         body.put("areaM2", 1000);
-        body.put("targetWeight", 2.3);
         return body;
     }
 

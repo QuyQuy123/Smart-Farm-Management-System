@@ -3,6 +3,7 @@ import { jwtDecode } from 'jwt-decode';
 import { getProfile } from '../services/userService';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../utils/authStorage';
 import { dataCache } from '../services/dataCache';
+import { realtimeSocket } from '../services/realtimeSocket';
 
 const AuthContext = createContext(null);
 
@@ -49,6 +50,7 @@ export const AuthProvider = ({ children }) => {
   const [activeToken, setActiveToken] = useState(getAuthToken);
 
   const logout = useCallback(() => {
+    realtimeSocket.disconnect(true);
     clearAuthToken();
     dataCache.clearAll();
     sessionStorage.removeItem('demo_mode');
@@ -75,6 +77,7 @@ export const AuthProvider = ({ children }) => {
     const token = getAuthToken();
 
     if (token) {
+      realtimeSocket.connect(token);
       // Safety timeout: đảm bảo màn hình loading không bị treo vĩnh viễn nếu backend chưa bật
       safetyTimer = setTimeout(() => {
         if (isMounted) setLoading(false);
@@ -115,6 +118,7 @@ export const AuthProvider = ({ children }) => {
       isMounted = false;
       clearTimeout(safetyTimer);
       window.removeEventListener('unauthorized', handleUnauthorized);
+      realtimeSocket.disconnect(false);
     };
   }, [activeToken, logout]);
 

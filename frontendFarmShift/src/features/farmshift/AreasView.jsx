@@ -11,6 +11,7 @@ import { getFarmArea, listBarns, listFarmAreas } from '../../services/farmAreaSe
 import { BARN_STATUSES, apiErrorMessage } from './farmAreaOptions';
 import { AreaDialog, BarnDialog, DeleteDialog } from './FarmAreaDialogs';
 import { AreaTabs } from './AreaTabs';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './AreasView.module.css';
 
 const PAGE_SIZES = [10, 15, 20, 25, 30, 40, 50];
@@ -154,7 +155,7 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
   const navigate = useNavigate();
   const sorted = useMemo(() => [...barns].sort(byCreated(1)), [barns]);
   const { rows, pager } = usePaging(sorted, String(barns.length));
-  const columns = area ? 7 : 6;
+  const columns = 6;
 
   return <>
     <div className={styles.toolbar}>
@@ -172,7 +173,6 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
             <th>Khu nuôi</th>
             <th>Trạng thái hoạt động</th>
             <th>Số con</th>
-            {area && <th>Mục tiêu (kg)</th>}
             <th>Ngày tạo</th>
             <th aria-label="Thao tác" />
           </tr>
@@ -188,7 +188,6 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
                 <td><span className={`${styles.badge} ${styles[`badge_${status?.tone || 'neutral'}`]}`}>{status?.label || barn.status}</span></td>
                 <td><span className={styles.quantity}><strong>{formatNumber(barn.currentQuantity)}</strong> /{formatNumber(barn.capacity)}</span>
                   <span className={styles.fillTrack} aria-hidden="true"><span style={{ width: `${fill}%` }} /></span></td>
-                {area && <td>{barn.targetWeight == null ? '—' : Number(barn.targetWeight).toLocaleString('vi-VN')}</td>}
                 <td className={styles.date}>{formatDate(barn.createdAt)}</td>
                 <td className={styles.actionCell}><RowMenu label={barn.name} items={[
                   { label: 'Xem chi tiết chuồng', icon: Eye, onClick: () => navigate(`/barns/${barn.id}`) },
@@ -231,8 +230,13 @@ export const AreasView = () => {
   // Data is tagged with the request it answers; while the tags differ the page shows the loading state.
   const requestKey = `${mode}|${id || ''}|${revision}`;
   const [data, setData] = useState({ key: null, areas: [], barns: [], area: null, error: '' });
-  const loading = data.key !== requestKey;
+  const loading = data.key === null || !data.key.startsWith(`${mode}|${id || ''}|`);
   const { areas, barns, area, error } = loading ? { areas: data.areas, barns: [], area: null, error: '' } : data;
+
+  useRealtimeRefresh(
+    ['/farm-areas', '/areas', '/barns', '/cycles', '/flocks'],
+    () => setRevision(value => value + 1)
+  );
 
   useEffect(() => {
     let cancelled = false;

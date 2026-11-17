@@ -141,7 +141,6 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     name: barn?.name || '',
     capacity: String(barn?.capacity ?? ''),
     areaM2: barn?.areaM2 == null ? '' : String(barn.areaM2),
-    targetWeight: barn?.targetWeight == null ? '' : String(barn.targetWeight),
     description: barn?.description || '',
   }));
   const [errors, setErrors] = useState({});
@@ -157,6 +156,8 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
   };
   const setCapacity = value => { setCapacityAuto(false); set('capacity', value); };
   const suggested = suggestCapacity(form.areaM2);
+  // Tạo chuồng từ trong một khu: khu đã rõ nên không cho chọn lại; màn Tất cả chuồng và khi sửa chuồng vẫn chọn được.
+  const fixedArea = !editing && defaultAreaId != null ? areas.find(area => String(area.id) === String(defaultAreaId)) : null;
   const density = suggested && Number(form.capacity) > 0 ? Number(form.capacity) / Number(form.areaM2) : null;
   const capacityHint = suggested == null ? `Nhập diện tích để được gợi ý sức chứa theo mức ${BIRDS_PER_M2} con/m².`
     : <>Gợi ý: {Number(form.areaM2).toLocaleString('vi-VN')} m² × {BIRDS_PER_M2} con/m² = <strong>{suggested.toLocaleString('vi-VN')} con</strong>
@@ -174,7 +175,7 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     const payload = {
       areaId: Number(form.areaId), name: form.name.trim(),
       capacity: Number(form.capacity), areaM2: form.areaM2 === '' ? null : Number(form.areaM2),
-      targetWeight: form.targetWeight === '' ? null : Number(form.targetWeight), description: form.description.trim(),
+      description: form.description.trim(),
     };
     try {
       if (editing) await updateBarn(barn.id, payload);
@@ -199,12 +200,12 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     onChange: event => set(key, event.target.value), 'aria-invalid': Boolean(errors[key]), 'aria-describedby': errors[key] ? `barn-${key}-error` : undefined,
   });
 
-  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} onClose={onClose} wide className={styles.barnModal}>
+  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : fixedArea ? `Tạo Chuồng · ${fixedArea.name}` : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} onClose={onClose} wide className={styles.barnModal}>
     <form onSubmit={submit} noValidate>
       <div className={styles.modalBody}>
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
         <div className={styles.formGrid}>
-          {field('areaId', 'Khu nuôi', <select {...inputProps('areaId')}>
+          {!fixedArea && field('areaId', 'Khu nuôi', <select {...inputProps('areaId')}>
             {areas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
           </select>, true)}
           {field('name', 'Tên chuồng', <input {...inputProps('name')} maxLength={100} placeholder="Ví dụ: Nhà A1" autoFocus />, true)}
@@ -212,7 +213,6 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
             type="number" min="0" step="0.01" inputMode="decimal" placeholder="Ví dụ: 1000" />)}
           {field('capacity', 'Sức chứa tối đa (con)', <input {...inputProps('capacity')} onChange={event => setCapacity(event.target.value)}
             type="number" min="1" step="1" inputMode="numeric" placeholder="Ví dụ: 8000" />, true, capacityHint)}
-          {field('targetWeight', 'Mục tiêu cân nặng xuất chuồng (kg/con)', <input {...inputProps('targetWeight')} type="number" min="0" max="999" step="0.01" inputMode="decimal" placeholder="Ví dụ: 2.3" />)}
         </div>
         <p className={styles.formHint}>{editing
           ? `Đang nuôi ${(barn.currentQuantity || 0).toLocaleString('vi-VN')} con. Số con chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt và xuất bán.`

@@ -144,6 +144,33 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.getByRole('button', { name: 'Kết thúc lứa nuôi' })).toBeDisabled();
   });
 
+  it('opens the details of a loss with its note, recorder and attached photos', async () => {
+    cycles.getCycle.mockResolvedValue({ ...detail(), movements: [
+      { id: 91, flockId: 4, flockCode: 'H0004', flockName: 'MÍA-DABACO TRỐNG', type: 'DEATH', movementDate: iso(0), quantity: 1, weightKg: null,
+        relatedFlockCode: null, note: 'Đè / ngạt', createdBy: 'mienbinh@smartfarm.com', photoUrls: ['/uploads/losses/a.jpg', '/uploads/losses/b.jpg'] },
+      { id: 92, flockId: 4, flockCode: 'H0004', flockName: 'MÍA-DABACO TRỐNG', type: 'TRANSFER_OUT', movementDate: iso(-2), quantity: 1000, weightKg: 40,
+        relatedFlockCode: 'H0020', note: null, createdBy: 'mienbinh@smartfarm.com', photoUrls: [] },
+    ] });
+    renderAt('/barns/2');
+    fireEvent.click(await screen.findByRole('tab', { name: 'Hao hụt & chuyển đàn' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Chi tiết hao hụt \(chết\) ngày .* đàn H0004$/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Đè / ngạt')).toBeInTheDocument();
+    expect(within(dialog).getByText('mienbinh@smartfarm.com')).toBeInTheDocument();
+    expect(within(dialog).getByText('H0004 · MÍA-DABACO TRỐNG')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ảnh đính kèm (2)')).toBeInTheDocument();
+    expect(within(dialog).getByRole('img', { name: 'Ảnh 1 của H0004' })).toHaveAttribute('src', '/uploads/losses/a.jpg');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Xem ảnh 2' }));
+    expect(within(dialog).getByRole('img', { name: 'Ảnh 2 của H0004' })).toHaveAttribute('src', '/uploads/losses/b.jpg');
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Đóng' }).at(-1));
+
+    // A transfer has no photos: the dialog says so and shows where the birds went.
+    fireEvent.click(screen.getByRole('button', { name: /^Chi tiết chuyển đi ngày .* đàn H0004$/ }));
+    const transfer = await screen.findByRole('dialog');
+    expect(within(transfer).getByText(/sang đàn H0020/)).toBeInTheDocument();
+    expect(within(transfer).getByText('Không có ảnh đính kèm.')).toBeInTheDocument();
+  });
+
   it('enforces the 3-day import window and barn capacity before importing a flock', async () => {
     renderAt('/barns/2');
     fireEvent.click(await screen.findByRole('button', { name: 'Nhập đàn' }));

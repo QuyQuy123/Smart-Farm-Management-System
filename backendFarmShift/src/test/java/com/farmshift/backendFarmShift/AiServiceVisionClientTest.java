@@ -45,7 +45,10 @@ public class AiServiceVisionClientTest {
             return;
         }
 
-        byte[] imageBytes = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get("../sample_invoices/hoa_don_mau_cp.png"));
+        java.nio.file.Path samplePath = java.nio.file.Files.exists(java.nio.file.Paths.get("../frontendFarmShift/public/samples/hoa_don_mau_cp.png"))
+                ? java.nio.file.Paths.get("../frontendFarmShift/public/samples/hoa_don_mau_cp.png")
+                : java.nio.file.Paths.get("../sample_invoices/hoa_don_mau_cp.png");
+        byte[] imageBytes = java.nio.file.Files.readAllBytes(samplePath);
         JsonNode result = client.extractJson("", imageBytes, "image/png", Map.of());
 
         assertNotNull(result);

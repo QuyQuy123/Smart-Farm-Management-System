@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics } from '../../services/esp32MqttService';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Plus, Search, Trash2, Warehouse } from 'lucide-react';
+import { ArrowLeft, BellOff, BellRing, Camera, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Plus, Search, Smartphone, Trash2, Warehouse } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { FARM_AREAS_CHANGED, listBarns, listFarmAreas } from '../../services/farmAreaService';
+import { useOptionalNotification } from '../../context/NotificationContext';
+import {
+  dispatchBarnIotAlert,
+  getPushStatus,
+  isWebPushSupported,
+  sendTestPushNotification,
+  subscribeUserToPush,
+  unsubscribeUserFromPush,
+} from '../../services/webPushClient';
 import { apiErrorMessage } from './farmAreaOptions';
 import { Dialog } from './FarmAreaDialogs';
 import { IotEnvironment } from './IotEnvironment';
@@ -80,6 +89,7 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
 export function IotView() {
   const [params, setParams] = useSearchParams();
   const barnId = params.get('barn');
+  const notification = useOptionalNotification();
   const [data, setData] = useState({ areas: [], barns: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -87,6 +97,102 @@ export function IotView() {
   const [query, setQuery] = useState('');
   const [devicesByBarn, setDevicesByBarn] = useState({});
   const [modal, setModal] = useState(null);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushFeedback, setPushFeedback] = useState({ text: '', isError: false });
+  const pushSupported = isWebPushSupported();
+  const lastThermalPushAt = useRef(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    getPushStatus()
+      .then((st) => {
+        if (!cancelled) {
+          setPushSubscribed(Boolean(st?.localSubscribed || st?.hasActiveSubscription));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleToggleIotPush = async () => {
+    setPushBusy(true);
+    setPushFeedback({ text: '', isError: false });
+    try {
+      if (pushSubscribed) {
+        await unsubscribeUserFromPush();
+        setPushSubscribed(false);
+        const msg = 'Đã tắt cảnh báo IoT đẩy về điện thoại trên thiết bị này.';
+        setPushFeedback({ text: msg, isError: false });
+        notification?.showToast?.(msg, 'info');
+      } else {
+        await subscribeUserToPush();
+        setPushSubscribed(true);
+        const msg = 'Đã bật cảnh báo IoT đẩy về điện thoại.';
+        setPushFeedback({ text: msg, isError: false });
+        notification?.showToast?.(msg, 'success');
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Không thể bật thông báo đẩy IoT.';
+      setPushFeedback({ text: msg, isError: true });
+      notification?.showToast?.(msg, 'warning');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const handleTestIotPush = async () => {
+    setPushBusy(true);
+    setPushFeedback({ text: '', isError: false });
+    try {
+      const targetBarn = data.barns.find(item => String(item.id) === barnId);
+      const res = await sendTestPushNotification({
+        title: targetBarn ? `Cảnh báo thử nghiệm · ${targetBarn.name}` : 'FarmShift · Kiểm tra cảnh báo IoT',
+        body: targetBarn
+          ? `Kiểm tra thông báo đẩy cảm biến nhiệt độ cho ${targetBarn.name}.`
+          : 'Kiểm tra kết nối thông báo đẩy cảnh báo trang trại qua Web Push.',
+        url: targetBarn ? `/iot?barn=${targetBarn.id}` : '/iot',
+      });
+      const ok = res?.sentCount > 0;
+      const msg = res?.message || (ok ? 'Đã gửi thông báo thử nghiệm tới thiết bị của bạn.' : 'Chưa có thiết bị đăng ký nhận thông báo.');
+      setPushFeedback({ text: msg, isError: !ok });
+      notification?.showToast?.(msg, ok ? 'success' : 'warning');
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Không thể gửi thông báo thử nghiệm.';
+      setPushFeedback({ text: msg, isError: true });
+      notification?.showToast?.(msg, 'error');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const renderPushControls = () => (
+    <div className={styles.pushBannerGroup}>
+      <button
+        type="button"
+        className={`${styles.pushBtn} ${pushSubscribed ? styles.pushBtnActive : ''}`}
+        onClick={handleToggleIotPush}
+        disabled={pushBusy || (!pushSubscribed && !pushSupported)}
+      >
+        {pushSubscribed ? <BellOff size={15} /> : <BellRing size={15} />}
+        <span>{pushSubscribed ? 'Đang bật thông báo ĐT' : 'Bật thông báo ĐT'}</span>
+      </button>
+      <button
+        type="button"
+        className={styles.pushTestBtn}
+        onClick={handleTestIotPush}
+        disabled={pushBusy}
+      >
+        <Smartphone size={14} />
+        <span>Gửi thử</span>
+      </button>
+      {pushFeedback.text && (
+        <span className={`${styles.pushFeedback} ${pushFeedback.isError ? styles.pushFeedbackError : ''}`}>
+          {pushFeedback.text}
+        </span>
+      )}
+    </div>
+  );
   useEffect(() => {
     let cancelled = false;
     Promise.all([listFarmAreas(), listBarns()]).then(([areas, barns]) => {
@@ -207,7 +313,31 @@ export function IotView() {
         if (latest.some(point => !point || sensorReadings[point.sensor] === undefined || now - point.time > 15_000)) continue;
         const average = (latest[0].value + latest[1].value) / 2;
         const threshold = Number(device.threshold ?? (device.type === 'FAN' ? 40 : 42));
-        if (average > threshold) desired = true;
+        if (average > threshold) {
+          desired = true;
+          const cooldownKey = `${barn.id}`;
+          const lastSent = lastThermalPushAt.current.get(cooldownKey) || 0;
+          if (now - lastSent > 300_000) {
+            lastThermalPushAt.current.set(cooldownKey, now);
+            const avgFmt = average.toFixed(1);
+            const thrFmt = threshold.toFixed(1);
+            const alertTitle = `⚠️ Cảnh báo nhiệt độ ${barn.name}`;
+            const alertBody = `Nhiệt độ trung bình tại ${barn.name} đạt ${avgFmt}°C, vượt ngưỡng an toàn (${thrFmt}°C).`;
+            notification?.sendNotification?.({
+              barn: barn.name,
+              type: 'Nhiệt độ cao',
+              value: `${avgFmt}°C (Ngưỡng ${thrFmt}°C)`,
+              level: 'Cảnh báo',
+              status: `Tự động bật ${device.name}`,
+            });
+            dispatchBarnIotAlert({
+              barnId: barn.id,
+              title: alertTitle,
+              body: alertBody,
+              severity: 'CRITICAL',
+            }).catch(() => {});
+          }
+        }
         else if (average <= threshold - 1) desired = false;
         else continue;
       }
@@ -239,6 +369,7 @@ export function IotView() {
             <div className={styles.detailHeading}>
               <button type="button" className={styles.back} onClick={() => setParams({})}><ArrowLeft size={18} />Tất cả camera</button>
               <div><h2>{barn.name}</h2><p>{data.areas.find(area => area.id === barn.areaId)?.name || barn.areaName}</p></div>
+              {renderPushControls()}
             </div>
             <div className={styles.detail}>
               <div className={styles.monitoring}>
@@ -291,7 +422,7 @@ export function IotView() {
           </> : <>
             <div className={styles.overviewHeading}><div><span className={styles.eyebrow}>GIÁM SÁT TRANG TRẠI</span><h2>Camera theo khu nuôi</h2><p>Theo dõi từng chuồng và mở nhanh bảng điều khiển thiết bị.</p></div>
               <label className={styles.search}><Search size={18} /><input aria-label="Tìm khu hoặc chuồng" placeholder="Tìm khu, chuồng..." value={query} onChange={event => setQuery(event.target.value)} /></label></div>
-            <div className={styles.stats}><span><strong>{data.areas.length}</strong> khu nuôi</span><span><strong>{data.barns.length}</strong> chuồng / camera</span><span><span className={styles.statusDot} />Chờ kết nối thiết bị</span></div>
+            <div className={styles.stats}><span><strong>{data.areas.length}</strong> khu nuôi</span><span><strong>{data.barns.length}</strong> chuồng / camera</span><span><span className={styles.statusDot} />Chờ kết nối thiết bị</span>{renderPushControls()}</div>
             {groups.filter(area => area.barns.length || !query).map(area => <section key={area.id} className={styles.area} aria-label={area.name}>
               <header><span className={styles.areaIcon}><Warehouse size={20} /></span><h3>{area.name}</h3><span>{area.barns.length} chuồng</span></header>
               {area.barns.length === 0 ? <p className={styles.empty}>Khu này chưa có chuồng.</p> : <div className={styles.grid}>{area.barns.map(item => <article key={item.id} className={styles.barn}>
