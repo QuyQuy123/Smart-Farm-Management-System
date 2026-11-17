@@ -42,9 +42,6 @@ export const validateBarn = (form, barn) => {
   if (form.capacity === '' || !Number.isInteger(capacity) || capacity < 1) errors.capacity = 'Sức chứa tối đa phải là số nguyên lớn hơn 0.';
   else if (capacity < stock) errors.capacity = `Sức chứa tối đa nhỏ hơn số con đang nuôi (${stock.toLocaleString('vi-VN')}).`;
   if (form.areaM2 !== '' && (Number.isNaN(Number(form.areaM2)) || Number(form.areaM2) <= 0)) errors.areaM2 = 'Diện tích phải lớn hơn 0.';
-  if (form.targetWeight !== '' && (Number.isNaN(Number(form.targetWeight)) || Number(form.targetWeight) < 0 || Number(form.targetWeight) > 999)) {
-    errors.targetWeight = 'Mục tiêu cân nặng từ 0 đến 999 kg.';
-  }
   if (barn?.activeCycleId) {
     if (String(form.areaId) !== String(barn.areaId)) errors.areaId = 'Chuồng đang có lứa nuôi nên không thể chuyển sang khu khác.';
   }
