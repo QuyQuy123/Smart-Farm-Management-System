@@ -1,6 +1,7 @@
 -- =====================================================================
 -- Dữ liệu mẫu (Seed Data) chuẩn hóa cho dự án FarmShift
--- Đồng bộ hoàn toàn 100% với database.md, 40 JPA @Entity (1 @Embeddable
+-- Đồng bộ hoàn toàn 100% với docs/database.md, 41 JPA @Entity (1 @Embeddable
+-- daily_stock_allocations + 5 bảng trung gian N-N = 47 bảng vật lý)
 -- và toàn bộ quy tắc nghiệp vụ hiện hành (tính đến 17/11/2026).
 -- =====================================================================
 
@@ -26,7 +27,7 @@ BEGIN
       'inventory_items', 'product_categories', 'barns', 'farm_area_warehouses',
       'warehouse_categories', 'farm_areas', 'suppliers', 'brands', 'specifications',
       'measurement_units', 'product_types', 'customer_contacts', 'farms',
-      'otp_tokens', 'customers', 'accounts', 'roles'
+      'otp_tokens', 'push_subscriptions', 'customers', 'accounts', 'roles'
     );
   IF v_tables IS NOT NULL THEN
     EXECUTE 'TRUNCATE TABLE ' || v_tables || ' RESTART IDENTITY CASCADE';

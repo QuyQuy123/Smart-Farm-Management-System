@@ -634,7 +634,7 @@ export const AIChatbot = ({ userRole: propRole }) => {
           id: Date.now() + 1,
           type: 'bot',
           text: `⚠️ ${backendMsg}`,
-          time: formatTime(new Date()),
+          time: formatCurrentTime(),
           actionCard: null
         }
       ]);

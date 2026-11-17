@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { INITIAL_FARMSHIFT_DATA } from '../data/farmshiftMockData';
 import { SYSTEM_MESSAGES, getSystemMessage } from '../constants/systemMessages';
+import { showLocalSwNotification } from '../services/webPushClient';
 
 const NotificationContext = createContext();
 
@@ -221,6 +222,17 @@ export const NotificationProvider = ({ children }) => {
     // Bắn sự kiện Custom Event
     window.dispatchEvent(new CustomEvent('farmshift_new_alert', { detail: newAlert }));
 
+    // Local fallback bridge via Service Worker when alert is warning/error and browser granted permission
+    if (level === 'Cảnh báo' || level === 'Lỗi') {
+      void showLocalSwNotification({
+        title: `${barn} · ${type}`,
+        body: value || status || 'Vui lòng kiểm tra hệ thống FarmShift.',
+        url: type?.toLowerCase().includes('iot') || type?.toLowerCase().includes('nhiệt') ? '/iot' : '/dashboard',
+        tag: `farmshift-alert-${barn}`,
+        severity: level === 'Lỗi' ? 'CRITICAL' : 'WARN',
+      });
+    }
+
     return newAlert;
   };
 
@@ -337,3 +349,5 @@ export const useNotification = () => {
   }
   return context;
 };
+
+export const useOptionalNotification = () => useContext(NotificationContext) || null;

@@ -4,10 +4,10 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
-- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`), làm sạch toàn bộ 46 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu giả lập xuyên suốt từ `01/01/2026` đến `17/11/2026` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
-- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **13 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`.
-- **Kiểm kê 46 bảng vật lý trong PostgreSQL:**
-  - **40 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `work_tasks`, `work_task_checks`, `sales_orders`, `sales_invoice_numbers`.
+- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`), làm sạch toàn bộ 47 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu giả lập xuyên suốt từ `01/01/2026` đến `17/11/2026` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
+- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **14 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`, `PushSubscriptionSchemaUpgrade`.
+- **Kiểm kê 47 bảng vật lý trong PostgreSQL:**
+  - **41 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `push_subscriptions`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `work_tasks`, `work_task_checks`, `sales_orders`, `sales_invoice_numbers`.
   - **1 `@Embeddable` (`@ElementCollection`):** `daily_stock_allocations` (thuộc `DailyTaskLog`).
   - **5 bảng trung gian N-N (`@ManyToMany`):** `farm_area_workers`, `farm_area_warehouses`, `warehouse_workers`, `supplier_tag_mappings`, `purchase_invoice_tag_mappings`.
   - *Lưu ý:* Các `enum` Java (`BarnStatus`, `CycleStatus`, `FlockGender`, `FlockMovementType`, `FlockSource`, `FlockStatus`, `ExpenseCategory`, `ProgramStepCategory`, `AdministrationMethod`, `UsageUnit`) được ánh xạ dạng `VARCHAR` trong bảng, không tạo Postgres `ENUM` type riêng. Dữ liệu IoT ESP32 và luồng Camera QR hoạt động ở RAM / `localStorage`, không tạo bảng PostgreSQL riêng.
@@ -21,6 +21,7 @@ erDiagram
     %% Auth & User
     roles ||--o{ accounts : "has"
     accounts ||--o| customers : "profiles"
+    accounts ||--o{ push_subscriptions : "receives_push"
     
     %% Farm Infrastructure & Daily Operations
     farm_areas ||--o{ barns : "contains"
@@ -148,6 +149,29 @@ Entity: `OtpToken`. Quản lý mã OTP 6 chữ số phục vụ luồng **Quên 
 - `POST /api/auth/forgot-password`: Nhận email, tạo OTP mới và gửi qua email. Luôn trả HTTP 200 (anti-enumeration).
 - `POST /api/auth/verify-otp`: Kiểm tra mã OTP hợp lệ trước khi cho phép nhập mật khẩu mới.
 - `POST /api/auth/reset-password`: Xác thực OTP, cập nhật mật khẩu mới đã mã hóa BCrypt cho tài khoản tương ứng, và đánh dấu `is_used = true`.
+
+### 1.5 Bảng `push_subscriptions` — Đăng ký Nhận Thông báo Đẩy (Mobile Web Push VAPID)
+
+Entity: `PushSubscription` (`PushSubscriptionSchemaUpgrade`). Lưu thông tin đăng ký PWA Service Worker (`endpoint` + khóa mã hóa `p256dh` / `auth`) theo từng tài khoản để gửi cảnh báo thời gian thực (IoT vượt ngưỡng, hao hụt đàn đột biến) về điện thoại kể cả khi đóng trình duyệt.
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `account_id` | BIGINT | NOT NULL, FOREIGN KEY → `accounts.id` ON DELETE CASCADE. Tài khoản nhận thông báo. |
+| `endpoint` | TEXT | NOT NULL, UNIQUE. URL Push Service (FCM/APNs/Mozilla) do trình duyệt cấp. |
+| `p256dh_key` | VARCHAR(255) | NOT NULL. Khóa công khai P-256 phía thiết bị (Base64URL). |
+| `auth_key` | VARCHAR(255) | NOT NULL. Chuỗi bí mật xác thực Web Push (Base64URL). |
+| `user_agent` | VARCHAR(500) | Metadata trình duyệt / thiết bị (Android Chrome, iOS PWA...). |
+| `is_active` | BOOLEAN | NOT NULL, DEFAULT TRUE. Tự động chuyển `FALSE` khi Push Service trả HTTP `404` / `410` (hết hiệu lực). |
+| `created_at` | TIMESTAMP | NOT NULL. Thời điểm đăng ký theo múi giờ `Asia/Bangkok`. |
+| `updated_at` | TIMESTAMP | NOT NULL. Thời điểm cập nhật gần nhất theo múi giờ `Asia/Bangkok`. |
+
+**Chỉ mục:** `idx_push_sub_account_active (account_id, is_active)`.
+**API (`PushNotificationController` — `/api/push`):**
+- `GET /api/push/vapid-public-key`: Trả `{ publicKey }` Base64URL P-256 cho trình duyệt đăng ký `pushManager.subscribe(...)` (tự sinh cặp khóa xác định nếu chưa cấu hình `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`).
+- `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `GET /api/push/status`: Quản lý đăng ký thiết bị theo tài khoản đang đăng nhập.
+- `POST /api/push/test`: Gửi ngay thông báo thử nghiệm tới các thiết bị đang hoạt động của người dùng.
+- `POST /api/push/iot-alert`: Điều phối cảnh báo IoT tới toàn bộ `ROLE_FARM_OWNER` và `ROLE_FARM_WORKER` phụ trách chuồng/khu nuôi đó.
 
 ---
 
