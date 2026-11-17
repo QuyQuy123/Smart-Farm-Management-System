@@ -21,6 +21,7 @@ public class SalesOrderSchemaUpgrade implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         jdbc.execute("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS weight_slip_url varchar(500)");
+        jdbc.execute("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS payment_method varchar(100)");
         jdbc.execute("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS cycle_id bigint REFERENCES farming_cycles(id)");
         jdbc.execute("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS movement_id bigint UNIQUE REFERENCES flock_movements(id)");
     }

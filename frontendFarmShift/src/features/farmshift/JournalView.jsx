@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  Thermometer, Fan, X, Video, MapPinned
+  X, Video
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
@@ -21,19 +21,21 @@ export const JournalView = () => {
   const searchParams = new URLSearchParams(location.search);
   const tabParamValue = searchParams.get('tab') || '';
   const initialTab = tabOf(tabParamValue);
+  const cycleParam = Number(searchParams.get('cycle'));
+  const initialCycleId = initialTab === 'barns' && Number.isSafeInteger(cycleParam) && cycleParam > 0 ? cycleParam : null;
   // ?tab=weight mở thẳng phần cân mẫu khi bấm vào chuồng.
   const journalMode = tabParamValue === 'weight' ? 'weight' : 'loss';
 
   const { sendNotification, showToast: showGlobalToast } = useNotification();
   const [activeTab, setActiveTab] = useState(initialTab); // 'barns' | 'env' | 'iot_devices'
   // Chuồng đang mở ở tab Nhật ký chuồng; null là đang xem sơ đồ khu.
-  const [journalCycleId, setJournalCycleId] = useState(null);
+  const [journalCycleId, setJournalCycleId] = useState(initialCycleId);
   // Lối tắt ?tab=... bấm khi đang ở trang này vẫn chuyển đúng tab.
-  const [tabParam, setTabParam] = useState(tabParamValue);
-  if (tabParam !== tabParamValue) {
-    setTabParam(tabParamValue);
+  const [journalSearch, setJournalSearch] = useState(location.search);
+  if (journalSearch !== location.search) {
+    setJournalSearch(location.search);
     setActiveTab(initialTab);
-    setJournalCycleId(null);
+    setJournalCycleId(initialCycleId);
   }
   const [viewingCctvBarn, setViewingCctvBarn] = useState(null);
   const [activeChartBarns, setActiveChartBarns] = useState({});
@@ -553,31 +555,6 @@ export const JournalView = () => {
       pageTitle="Ghi nhật ký chăn nuôi"
       breadcrumbs={[{ label: 'Ghi nhật ký' }]}
     >
-      {/* ── FarmShift Tab Navigation ────────────────────────── */}
-      <div className="farmshift-tabs">
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'barns' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('barns'); setJournalCycleId(null); }}
-        >
-          <MapPinned size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Nhật ký chuồng (hao hụt, cân mẫu)
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'env' ? 'active' : ''}`}
-          onClick={() => setActiveTab('env')}
-        >
-          <Thermometer size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Môi trường (nhiệt độ, độ ẩm)
-        </button>
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'iot_devices' ? 'active' : ''}`}
-          onClick={() => setActiveTab('iot_devices')}
-        >
-          <Fan size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Thiết bị IoT & quạt
-        </button>
-      </div>
-
       {/* ── TAB: HAO HỤT / CÂN MẪU (dữ liệu thật theo chuồng) ── */}
       {activeTab === 'barns' && <BarnJournal mode={journalMode} selectedCycleId={journalCycleId} onSelect={setJournalCycleId} />}
 

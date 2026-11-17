@@ -53,4 +53,9 @@ public class SalesOrderController {
  public ApiResponse<SalesOrder> update(@PathVariable String id, @Valid @RequestBody SalesOrderRequest request) {
   return ApiResponse.success("Đã cập nhật hóa đơn", service.update(id, request));
  }
+ @PostMapping("/payments")
+ @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+ public ApiResponse<List<SalesOrder>> pay(@Valid @RequestBody com.farmshift.backendFarmShift.dto.request.SalesPaymentRequest request) {
+  return ApiResponse.success("Đã ghi nhận thanh toán", service.pay(request));
+ }
 }

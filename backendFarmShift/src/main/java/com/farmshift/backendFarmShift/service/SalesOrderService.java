@@ -2,6 +2,7 @@ package com.farmshift.backendFarmShift.service;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
 import com.farmshift.backendFarmShift.dto.request.SalesOrderRequest;
+import com.farmshift.backendFarmShift.dto.request.SalesPaymentRequest;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.ArrayList;
 
 @Service
 public class SalesOrderService {
@@ -77,6 +79,50 @@ public class SalesOrderService {
   return save(order, request);
  }
 
+ @Transactional
+ public List<SalesOrder> pay(SalesPaymentRequest request) {
+  var invoices = orders.findByPhoneOrderByDateAscCreatedAtAscCodeAsc(request.phone().strip());
+  var debt = invoices.stream().map(SalesOrderService::outstanding).reduce(BigDecimal.ZERO, BigDecimal::add);
+  if (debt.compareTo(request.expectedDebt()) != 0) {
+   throw new BadRequestException("Công nợ đã thay đổi. Vui lòng tải lại danh sách trước khi thanh toán.");
+  }
+  if (request.amount().compareTo(debt) > 0) {
+   throw new BadRequestException("Số tiền thanh toán không được vượt quá công nợ.");
+  }
+
+  var remaining = request.amount();
+  var updated = new ArrayList<SalesOrder>();
+  for (var invoice : invoices) {
+   if (remaining.signum() == 0) break;
+   var due = outstanding(invoice);
+   if (due.signum() == 0) continue;
+   var allocated = due.min(remaining);
+   invoice.setPaidAmount(invoice.getTotalAmount().subtract(due).add(allocated));
+   invoice.setStatus(allocated.compareTo(due) == 0 ? "PAID" : "PARTIAL");
+   invoice.setPaymentMethod(request.paymentMethod());
+   var buyer = lockBuyer(invoice);
+   if (buyer != null) {
+    var buyerDebt = buyer.getDebt() == null ? BigDecimal.ZERO : buyer.getDebt();
+    buyer.setDebt(buyerDebt.subtract(allocated).max(BigDecimal.ZERO));
+   }
+   updated.add(invoice);
+   remaining = remaining.subtract(allocated);
+  }
+  return updated;
+ }
+
+ private static BigDecimal outstanding(SalesOrder order) {
+  var paid = order.getPaidAmount() == null ? BigDecimal.ZERO : order.getPaidAmount();
+  return order.getTotalAmount().subtract(paid).max(BigDecimal.ZERO);
+ }
+
+ private CustomerContact lockBuyer(SalesOrder order) {
+  var buyer = order.getBuyer();
+  return (buyer == null
+   ? customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc(order.getPhone(), order.getCustomer())
+   : customers.findForUpdate(buyer.getId())).orElse(null);
+ }
+
  private SalesOrder save(SalesOrder order, SalesOrderRequest request) {
   BigDecimal total = request.totalWeight().multiply(request.unitPrice()).setScale(2, RoundingMode.HALF_UP);
   BigDecimal paid = switch (request.status()) {
@@ -91,8 +137,7 @@ public class SalesOrderService {
   };
 
   if (order.getId() != null) {
-   var previousBuyer = order.getBuyer();
-   if (previousBuyer == null) previousBuyer = customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(order.getPhone(), order.getCustomer()).orElse(null);
+   var previousBuyer = lockBuyer(order);
    if (previousBuyer != null) {
     previousBuyer.setTotalBought((previousBuyer.getTotalBought() == null ? BigDecimal.ZERO : previousBuyer.getTotalBought()).subtract(order.getTotalAmount()));
     previousBuyer.setDebt((previousBuyer.getDebt() == null ? BigDecimal.ZERO : previousBuyer.getDebt()).subtract(order.getTotalAmount().subtract(order.getPaidAmount())));
@@ -101,7 +146,7 @@ public class SalesOrderService {
    revertPreviousHarvest(order);
   }
 
-  var customer = customers.findFirstByPhoneAndNameIgnoreCaseOrderByIdAsc(request.phone().strip(), request.customer().strip()).orElseGet(CustomerContact::new);
+  var customer = customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc(request.phone().strip(), request.customer().strip()).orElseGet(CustomerContact::new);
   customer.setName(request.customer().strip()); customer.setPhone(request.phone().strip()); customer.setAddress(request.address().strip());
   if(request.taxCode()!=null && !request.taxCode().isBlank()) customer.setTaxCode(request.taxCode().strip());
   if(request.paymentMethod()!=null && !request.paymentMethod().isBlank()) customer.setPaymentMethod(request.paymentMethod().strip());
@@ -114,6 +159,7 @@ public class SalesOrderService {
   order.setDate(request.date()); order.setCustomer(customer.getName()); order.setPhone(customer.getPhone()); order.setAddress(customer.getAddress());
   order.setFlock(request.flock()); order.setQuantity(request.quantity()); order.setTotalWeight(request.totalWeight()); order.setUnitPrice(request.unitPrice());
   order.setTotalAmount(total); order.setPaidAmount(paid); order.setStatus(request.status()); order.setNote(request.note());
+  order.setPaymentMethod(request.paymentMethod());
 
   FarmingCycle cycle = resolveCycle(request);
   if (cycle != null) {
