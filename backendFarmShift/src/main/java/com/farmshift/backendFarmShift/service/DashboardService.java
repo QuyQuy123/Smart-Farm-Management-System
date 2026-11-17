@@ -192,7 +192,8 @@ public class DashboardService {
         }
         points.sort(Comparator.comparingInt(WeightPoint::ageDays));
         FarmingProgramResponse program = detail.programs().isEmpty() ? null : detail.programs().get(0);
-        BigDecimal target = program != null && program.targetWeightMax() != null ? program.targetWeightMax() : detail.barn().targetWeight();
+        // Mục tiêu cân nặng thuộc chương trình nuôi, không đặt theo chuồng.
+        BigDecimal target = program == null ? null : program.targetWeightMax() != null ? program.targetWeightMax() : program.targetWeightMin();
         return new Growth(plan.barnId(), plan.barnName(), points, program == null ? null : program.durationDays(), target);
     }
 

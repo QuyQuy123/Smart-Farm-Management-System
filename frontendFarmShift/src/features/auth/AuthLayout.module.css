@@ -10,34 +10,38 @@
   min-height: 100dvh;
   --auth-heading-gap: clamp(14px, 3vh, 24px);
   --auth-remember-gap: clamp(14px, 3vh, 24px);
+  position: relative;
   display: flex;
-  background: linear-gradient(160deg, #f4fbf6 0%, #eaf7ee 55%, #f7fcf4 100%);
+  background: #1f9d6b url('../../assets/login-farm.webp') center / cover no-repeat;
   font-family: var(--font-haas);
 }
 
-/* Left: farm photo with a green → young-green veil */
-.visual {
-  flex: 1 1 0;
-  min-width: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: clamp(24px, 6vh, 56px) clamp(24px, 4vw, 64px);
-  gap: 24px;
-  color: #ffffff;
-  background: url('../../assets/login-farm.webp') center / cover no-repeat;
-  overflow: hidden;
+/* The app keeps a scrollbar gutter on every page; the full-bleed login photo must reach the right edge instead. */
+:global(html):has(.page),
+:global(body):has(.page) {
+  overflow-y: auto;
+  scrollbar-gutter: auto;
 }
 
-.visual::before {
+/* Farm photo across the whole page with a green → young-green veil */
+.page::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(165deg, rgba(14, 110, 74, 0.86) 0%, rgba(31, 157, 107, 0.62) 45%, rgba(138, 190, 60, 0.38) 100%);
+  background: linear-gradient(165deg, rgba(14, 110, 74, 0.82) 0%, rgba(31, 157, 107, 0.55) 45%, rgba(138, 190, 60, 0.32) 100%);
 }
 
-.visual > * { position: relative; }
+/* Logo (top-left) and ticks (bottom) sit on the photo, behind the centred card */
+.visual {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(24px, 5vh, 48px) clamp(24px, 4vw, 64px);
+  color: #ffffff;
+  pointer-events: none;
+}
 
 .visualBrand { display: flex; align-items: center; gap: 14px; }
 
@@ -54,32 +58,7 @@
 .visualBrand strong { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 .visualBrand small { display: block; margin-top: 2px; font-size: 14.5px; font-weight: 400; color: #e3f6dc; }
 
-.visualBody { max-width: 520px; }
-
-.badge {
-  display: inline-block;
-  margin-bottom: 20px;
-  padding: 5px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.visualBody h1 {
-  margin: 0 0 18px;
-  font-size: clamp(28px, 2.8vw, 40px);
-  font-weight: 600;
-  line-height: 1.22;
-  letter-spacing: -0.02em;
-  color: #ffffff !important;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
-}
-
-.visualBody p { margin: 0; font-size: 15.5px; line-height: 1.65; color: #f0fbec; }
-
-.ticks { display: flex; flex-wrap: wrap; gap: 10px; }
+.ticks { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 
 .ticks span {
   padding: 7px 14px;
@@ -89,9 +68,11 @@
   backdrop-filter: blur(4px);
 }
 
-/* Right: white card on a pale mint canvas */
+/* Centre: white card over the photo */
 .formPanel {
-  flex: 1 1 0;
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -101,12 +82,12 @@
 
 .card {
   width: 100%;
-  max-width: 560px;
-  padding: clamp(20px, 4vh, 40px) clamp(24px, 3.5vw, 56px);
+  max-width: 520px;
+  padding: clamp(20px, 4vh, 40px) clamp(24px, 3.5vw, 48px);
   background: #ffffff;
-  border: 1px solid #d8eedf;
+  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 16px;
-  box-shadow: 0 18px 48px rgba(31, 157, 107, 0.12);
+  box-shadow: 0 24px 64px rgba(6, 60, 38, 0.35);
 }
 
 .cardBrand {
@@ -160,13 +141,9 @@
 
 @media (max-width: 1100px) {
   .visual { padding: clamp(24px, 5vh, 44px) 32px; }
-  .visualBody h1 { font-size: 32px; }
 }
 
-@media (max-height: 650px) {
-  .visualBody h1 { font-size: 28px; }
-  .badge { margin-bottom: 12px; }
-  .visualBody p { font-size: 14px; }
-  .ticks { gap: 6px; }
-  .ticks span { padding: 5px 10px; font-size: 13px; }
+/* Short screens: the ticks would collide with the card, keep only the logo */
+@media (max-height: 760px) {
+  .ticks { display: none; }
 }

@@ -301,7 +301,6 @@ public class AiAssistantService {
                 if (payload.containsKey("name")) d.put("Tên chuồng", change(barn.getName(), payload.get("name"), null));
                 if (payload.containsKey("capacity")) d.put("Sức chứa", change(vn(barn.getCapacity()), vn(Integer.valueOf(String.valueOf(payload.get("capacity")))), "con"));
                 if (payload.containsKey("areaM2")) d.put("Diện tích", change(barn.getAreaM2(), payload.get("areaM2"), "m²"));
-                if (payload.containsKey("targetWeight")) d.put("Cân nặng mục tiêu", change(barn.getTargetWeight(), payload.get("targetWeight"), "kg"));
                 return d;
             }
             case "UPDATE_INVENTORY_ITEM": {
@@ -553,13 +552,21 @@ public class AiAssistantService {
     private AiAssistantResponse evaluateMutationEngine(String message, String rawMessage, String currentRoute, Env env, Map<String, Object> ctx) {
         String norm = normalizeText(message);
 
-        // 1. UPDATE_BARN_INFO (Sửa thông tin chuồng nuôi: sức chứa, diện tích, mục tiêu cân nặng, tên chuồng)
+        // 1. UPDATE_BARN_INFO (Sửa thông tin chuồng nuôi: sức chứa, diện tích, tên chuồng; mục tiêu cân nặng thuộc chương trình nuôi)
         boolean isBarnInfoUpdate = ((norm.contains("suc chua") || norm.contains("dien tich") || norm.contains("muc tieu can") || norm.contains("trong luong muc tieu"))
                 && (norm.contains("sua") || norm.contains("doi") || norm.contains("cap nhat") || norm.contains("chinh") || norm.contains("thay doi") || norm.contains("tang") || norm.contains("giam") || norm.contains("len") || norm.contains("xuong") || norm.contains("thanh")))
                 || ((norm.contains("doi ten") || norm.contains("sua ten") || norm.contains("dat ten")) && (norm.contains("chuong") || norm.contains("nha")));
         if (isBarnInfoUpdate) {
             if (env.worker()) {
                 return workerBlocked("UPDATE_BARN_INFO");
+            }
+            if ((norm.contains("muc tieu can") || norm.contains("trong luong muc tieu"))
+                    && !norm.contains("suc chua") && !norm.contains("dien tich") && !norm.contains("ten")) {
+                return AiAssistantResponse.builder()
+                        .reply("Mục tiêu cân nặng xuất chuồng được đặt theo **chương trình nuôi**, không theo chuồng. Bạn sửa ở mục Thiết lập chăn nuôi → Chương trình nuôi.")
+                        .actionType("UPDATE_BARN_INFO")
+                        .executed(false)
+                        .build();
             }
             Barn barn = resolveBarn(norm, message, currentRoute);
             if (barn == null && ctx.get("barnId") != null) {
@@ -609,14 +616,7 @@ public class AiAssistantService {
                 }
             }
 
-            // Extract targetWeight
-            Matcher weightMatcher = Pattern.compile("(?:muc tieu can|trong luong muc tieu|muc tieu)\\s*(?:la|thanh)?\\s*(\\d+(?:[.,]\\d+)?)", Pattern.CASE_INSENSITIVE).matcher(norm);
-            if (weightMatcher.find()) {
-                double newWeight = Double.parseDouble(weightMatcher.group(1).replace(',', '.'));
-                payload.put("targetWeight", newWeight);
-            }
-
-            if (!payload.containsKey("capacity") && !payload.containsKey("areaM2") && !payload.containsKey("targetWeight") && !payload.containsKey("name")) {
+            if (!payload.containsKey("capacity") && !payload.containsKey("areaM2") && !payload.containsKey("name")) {
                 Matcher anyNum = Pattern.compile("(\\d+(?:[.,]\\d+)?)").matcher(norm);
                 if (anyNum.find()) {
                     if (norm.contains("suc chua")) {
@@ -633,7 +633,6 @@ public class AiAssistantService {
                 if (payload.containsKey("name")) details.put("Tên chuồng mới", payload.get("name"));
                 if (payload.containsKey("capacity")) details.put("Sức chứa mới", payload.get("capacity") + " con");
                 if (payload.containsKey("areaM2")) details.put("Diện tích mới", payload.get("areaM2") + " m²");
-                if (payload.containsKey("targetWeight")) details.put("Trọng lượng mục tiêu", payload.get("targetWeight") + " kg");
 
                 return AiAssistantResponse.builder()
                         .reply("Bạn có muốn cập nhật thông tin cho **" + barn.getName() + "** không?")
@@ -2140,7 +2139,6 @@ public class AiAssistantService {
                 name,
                 capacity,
                 BigDecimal.valueOf(floorArea),
-                BigDecimal.ZERO,
                 "Tạo bởi AI Assistant"
         );
         barnService.create(req);
@@ -2364,9 +2362,6 @@ public class AiAssistantService {
                 }
                 if (payload.containsKey("areaM2")) {
                     barn.setAreaM2(BigDecimal.valueOf(Double.parseDouble(String.valueOf(payload.get("areaM2")))));
-                }
-                if (payload.containsKey("targetWeight")) {
-                    barn.setTargetWeight(BigDecimal.valueOf(Double.parseDouble(String.valueOf(payload.get("targetWeight")))));
                 }
                 if (payload.containsKey("name")) {
                     String newName = FarmAreaService.normalizeName(String.valueOf(payload.get("name")));

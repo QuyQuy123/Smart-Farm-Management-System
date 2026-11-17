@@ -150,14 +150,18 @@ describe('Farm area management', () => {
     expect(screen.getByText('90.000 con')).toBeInTheDocument();
     expect(screen.getByText('90%')).toBeInTheDocument();
     expect(screen.getByText('Nhà A1')).toBeInTheDocument();
-    expect(screen.getByText('Mục tiêu (kg)')).toBeInTheDocument();
+    // Mục tiêu cân nặng thuộc chương trình nuôi nên danh sách chuồng không còn cột này.
+    expect(screen.queryByText('Mục tiêu (kg)')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Tạo Chuồng' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByLabelText(/Khu nuôi/)).toHaveValue('1');
+    // Đang ở trong Khu Mía Thịt: chuồng mới thuộc khu này, không hiện ô chọn khu.
+    expect(within(dialog).queryByLabelText(/Khu nuôi/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Tạo Chuồng · Khu Mía Thịt')).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Tên chuồng/), { target: { value: 'Nhà A3' } });
     // Animals arrive only through flock imports, so the barn form declares capacity and area instead of a stock count.
     expect(within(dialog).queryByLabelText(/Số con hiện có/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/Mục tiêu cân nặng/)).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Sức chứa tối đa/), { target: { value: '0' } });
     fireEvent.change(within(dialog).getByLabelText(/Diện tích/), { target: { value: '-5' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
@@ -170,8 +174,15 @@ describe('Farm area management', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await screen.findByText('Nhà A3');
     expect(service.createBarn).toHaveBeenCalledWith({
-      areaId: 1, name: 'Nhà A3', capacity: 100, areaM2: 120, targetWeight: null, description: '',
+      areaId: 1, name: 'Nhà A3', capacity: 100, areaM2: 120, description: '',
     });
+  });
+
+  it('lets the owner pick the area when creating a barn from the all-barns list', async () => {
+    renderAt('/barns');
+    fireEvent.click(await screen.findByRole('button', { name: 'Tạo Chuồng' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText(/Khu nuôi/)).toHaveValue('1');
   });
 
   it('suggests barn capacity from the floor area at 8 birds per m²', async () => {

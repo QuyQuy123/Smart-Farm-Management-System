@@ -1,5 +1,5 @@
 // src/features/auth/AuthLayout.jsx
-// Bright white / green login shell: farm photo panel on the left, logo + form card on the right.
+// Login shell: farm photo across the whole page, logo + form card centred on top of it.
 // The login-visual-panel / farmshift-auth-form-* classes keep the responsive rules in farmshift.css.
 import React from 'react';
 import farmLogo from '../../assets/logo_Farm.png';
@@ -8,6 +8,7 @@ import styles from './AuthLayout.module.css';
 export const AuthLayout = ({ children }) => {
   return (
     <div className={styles.page}>
+      {/* Ảnh trang trại phủ cả trang (nền của .page); logo ở góc trên, nhãn ở chân trang, ẩn trên màn hẹp. */}
       <div className={`login-visual-panel ${styles.visual}`}>
         <div className={styles.visualBrand}>
           <img src={farmLogo} alt="" className={styles.visualLogo} />
@@ -15,17 +16,6 @@ export const AuthLayout = ({ children }) => {
             FarmShift Management
             <small>Quản lý trang trại gà thịt</small>
           </strong>
-        </div>
-
-        <div className={styles.visualBody}>
-          <span className={styles.badge}>Nền tảng quản lý chăn nuôi chuyên biệt gia cầm</span>
-          <h1>
-            Giám sát chuồng trại.<br />
-            Tự động hóa sổ sách & IoT.
-          </h1>
-          <p>
-            Tích hợp đầy đủ từ nhật ký cho ăn từng cữ, cảm biến vi khí hậu trực tuyến, hóa đơn nhập xuất kho đến báo cáo chi phí & công nợ theo thời gian thực.
-          </p>
         </div>
 
         <div className={styles.ticks}>

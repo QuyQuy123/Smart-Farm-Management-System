@@ -272,7 +272,7 @@ public class ReportService {
 
             // Growth / FCR calculation as of effectiveTo (shared between FarmSummary & GrowthReport)
             Integer ageDays = cycle.getHatchDate() != null
-                    ? (int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1
+                    ? Integer.valueOf((int) ChronoUnit.DAYS.between(cycle.getHatchDate(), reference) + 1) // Integer: lứa chưa có đàn thì để null, không unbox
                     : flocks.isEmpty() ? null : CycleService.ageOn(flocks.get(0), reference);
 
             BigDecimal avgWeightKg = samples.stream()
@@ -347,9 +347,9 @@ public class ReportService {
                             .divide(BigDecimal.valueOf(ageDays), 1, RoundingMode.HALF_UP)
                     : null;
 
-            BigDecimal targetWeightKg = program != null && program.getTargetWeightMax() != null
-                    ? program.getTargetWeightMax()
-                    : (barn != null ? barn.getTargetWeight() : null);
+            // Mục tiêu cân nặng thuộc chương trình nuôi, không đặt theo chuồng.
+            BigDecimal targetWeightKg = program == null ? null
+                    : program.getTargetWeightMax() != null ? program.getTargetWeightMax() : program.getTargetWeightMin();
 
             if (cumIn > 0 || cumFeedKg.signum() > 0) {
                 growthRows.add(new GrowthCycleRow(
