@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Sliders, Shield, Building, Save, CheckCircle, Database, Upload,
-  RefreshCw, Warehouse, Users, Bell, ExternalLink, Download, Search, Check, Filter
+  RefreshCw, Warehouse, Users, Bell, BellRing, BellOff, Smartphone, Send,
+  ExternalLink, Download, Search, Check, Filter
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -12,8 +13,36 @@ import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA, getFarmInfo, saveFarmInfo } from '../../data/farmshiftMockData';
 import { FARMSHIFT_SCREENS } from '../../data/screensMatrix';
 import { getFarm, updateFarm } from '../../services/farmService';
+import {
+  getPushStatus,
+  isIosSafariNeedingInstall,
+  isWebPushSupported,
+  sendTestPushNotification,
+  subscribeUserToPush,
+  unsubscribeUserFromPush,
+} from '../../services/webPushClient';
 import { BarnResponsibilities } from './BarnResponsibilities';
 import { WarehouseResponsibilities } from './WarehouseResponsibilities';
+
+const DEFAULT_NOTIF_SETTINGS = {
+  push: true,
+  email: false,
+  sms: false,
+  critical: true,
+  tasks: true,
+  debt: true,
+};
+
+const loadNotifSettings = (email) => {
+  try {
+    const key = `farmshift_notif_prefs:${email || 'default'}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return DEFAULT_NOTIF_SETTINGS;
+    return { ...DEFAULT_NOTIF_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_NOTIF_SETTINGS;
+  }
+};
 
 export const GeneralSettingsView = () => {
   const { user } = useAuth();
@@ -21,8 +50,12 @@ export const GeneralSettingsView = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const canEditFarm = user?.role === 'ROLE_FARM_OWNER';
+  const isStandaloneNotificationsPage = !canEditFarm && location.pathname.includes('notifications');
+
   // Detect tab from URL path or search query
   const getInitialTab = () => {
+    if (isStandaloneNotificationsPage) return 'notifications';
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
     if (tabParam) return tabParam;
@@ -32,12 +65,12 @@ export const GeneralSettingsView = () => {
   };
 
   const [farmInfo, setFarmInfo] = useState(() => getFarmInfo(user));
-  const [isLoadingFarm, setIsLoadingFarm] = useState(true);
+  const [isLoadingFarm, setIsLoadingFarm] = useState(() => !isStandaloneNotificationsPage);
   const [isSavingFarm, setIsSavingFarm] = useState(false);
   const [farmError, setFarmError] = useState('');
-  const canEditFarm = user?.role === 'ROLE_FARM_OWNER';
 
   useEffect(() => {
+    if (isStandaloneNotificationsPage) return undefined;
     let cancelled = false;
     getFarm().then((farm) => {
       if (cancelled) return;
@@ -51,36 +84,100 @@ export const GeneralSettingsView = () => {
       if (!cancelled) setIsLoadingFarm(false);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [isStandaloneNotificationsPage]);
   const [activeTab, setActiveTab] = useState(getInitialTab);
+  const locKey = `${location.pathname}${location.search}`;
+  const [prevLocKey, setPrevLocKey] = useState(locKey);
+  if (locKey !== prevLocKey) {
+    setPrevLocKey(locKey);
+    setActiveTab(getInitialTab());
+  }
+
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [notifSaved, setNotifSaved] = useState(false);
 
-  // Notifications preference state
-  const [notifSettings, setNotifSettings] = useState({
-    push: true,
-    email: false,
-    sms: false,
-    critical: true,
-    tasks: true,
-    debt: true
-  });
+  // Web Push device state (quản lý tập trung tại Tab Thông báo cá nhân & Cảnh báo)
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushDeviceCount, setPushDeviceCount] = useState(0);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushFeedback, setPushFeedback] = useState({ text: '', isError: false });
+  const pushSupported = isWebPushSupported();
+  const showIosInstallHint = isIosSafariNeedingInstall();
+
+  // Notifications preference state (đồng bộ theo user?.email)
+  const [prevNotifEmail, setPrevNotifEmail] = useState(user?.email);
+  const [notifSettings, setNotifSettings] = useState(() => loadNotifSettings(user?.email));
+  if (user?.email !== prevNotifEmail) {
+    setPrevNotifEmail(user?.email);
+    setNotifSettings(loadNotifSettings(user?.email));
+    setNotifSaved(false);
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'notifications') return undefined;
+    let cancelled = false;
+    getPushStatus()
+      .then((status) => {
+        if (cancelled || !status) return;
+        setPushSubscribed(Boolean(status.localSubscribed));
+        setPushDeviceCount(Number(status.deviceCount || 0));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTab, user?.email]);
+
+  const handleToggleWebPush = async () => {
+    setPushBusy(true);
+    setPushFeedback({ text: '', isError: false });
+    try {
+      if (pushSubscribed) {
+        await unsubscribeUserFromPush();
+        setPushSubscribed(false);
+        setPushDeviceCount((c) => Math.max(0, c - 1));
+        const msg = 'Đã tắt thông báo đẩy trên thiết bị này.';
+        setPushFeedback({ text: msg, isError: false });
+        showToast(msg, 'info');
+      } else {
+        await subscribeUserToPush();
+        setPushSubscribed(true);
+        setPushDeviceCount((c) => Math.max(1, c + 1));
+        const msg = 'Đã bật thông báo đẩy về điện thoại thành công.';
+        setPushFeedback({ text: msg, isError: false });
+        showToast(msg, 'success');
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Không thể cập nhật cài đặt thông báo đẩy.';
+      setPushFeedback({ text: msg, isError: true });
+      showToast(msg, 'warning');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setPushBusy(true);
+    setPushFeedback({ text: '', isError: false });
+    try {
+      const res = await sendTestPushNotification();
+      const ok = Number(res?.sentCount || 0) > 0;
+      const msg = res?.message || (ok
+        ? 'Đã gửi thông báo thử nghiệm tới thiết bị của bạn.'
+        : 'Tài khoản chưa đăng ký thiết bị nhận thông báo.');
+      setPushFeedback({ text: msg, isError: !ok });
+      showToast(msg, ok ? 'success' : 'warning');
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Không thể gửi thông báo thử nghiệm.';
+      setPushFeedback({ text: msg, isError: true });
+      showToast(msg, 'error');
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   // Screen matrix search & filter states
   const [screenSearch, setScreenSearch] = useState('');
   const [groupFilter, setGroupFilter] = useState('ALL');
   const [roleFilter, setRoleFilter] = useState('ALL');
-
-  const [prevLoc, setPrevLoc] = useState(() => location.pathname + location.search);
-  const currentLoc = location.pathname + location.search;
-  if (currentLoc !== prevLoc) {
-    setPrevLoc(currentLoc);
-    const params = new URLSearchParams(location.search);
-    const tabParam = params.get('tab');
-    if (tabParam) setActiveTab(tabParam);
-    else if (location.pathname.includes('screens')) setActiveTab('screens');
-    else if (location.pathname.includes('notifications')) setActiveTab('notifications');
-  }
 
   const handleSaveFarmInfo = async (e) => {
     e.preventDefault();
@@ -109,6 +206,11 @@ export const GeneralSettingsView = () => {
 
   const handleSaveNotifications = (e) => {
     e.preventDefault();
+    try {
+      const key = `farmshift_notif_prefs:${user?.email || 'default'}`;
+      localStorage.setItem(key, JSON.stringify(notifSettings));
+    } catch { /* ignore storage errors */ }
+    setNotifSaved(true);
     showToast('Đã lưu cài đặt thông báo trang trại thành công!', 'success');
   };
 
@@ -140,10 +242,11 @@ export const GeneralSettingsView = () => {
 
   return (
     <FarmShiftLayout
-      pageTitle="Thiết lập chung"
-      breadcrumbs={[{ label: 'Thiết lập chung' }]}
+      pageTitle={isStandaloneNotificationsPage ? 'Thông báo cá nhân & Cảnh báo' : 'Thiết lập chung'}
+      breadcrumbs={[{ label: isStandaloneNotificationsPage ? 'Thông báo cá nhân & Cảnh báo' : 'Thiết lập chung' }]}
     >
       {/* ── Tabs Navigation (All 7 General Settings Views) ── */}
+      {!isStandaloneNotificationsPage && (
       <div className="farmshift-tabs">
         <button
           className={`farmshift-tab-btn ${activeTab === 'info' ? 'active' : ''}`}
@@ -188,6 +291,7 @@ export const GeneralSettingsView = () => {
           Danh mục 73 màn hình hệ thống
         </button>
       </div>
+      )}
 
       {/* ── Tab 1: Thông tin cơ sở ────────────────────────── */}
       {activeTab === 'info' && (
@@ -355,12 +459,90 @@ export const GeneralSettingsView = () => {
               </span>
             )}
           </div>
-          <form onSubmit={handleSaveNotifications}>
+          <form onSubmit={handleSaveNotifications} onChange={() => setNotifSaved(false)}>
             <div className="farmshift-card-body">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Khu vực quản lý Thông báo đẩy Web Push (VAPID) cho Điện thoại & Trình duyệt */}
+                <div
+                  style={{
+                    padding: '16px 18px',
+                    borderRadius: 'var(--rounded-md)',
+                    border: '1px solid #cce6df',
+                    backgroundColor: '#f2faf7',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 280px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <Smartphone size={17} style={{ color: '#0f766e' }} />
+                        <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>
+                          Thông báo đẩy về Điện thoại &amp; Trình duyệt (Web Push)
+                        </strong>
+                        <span className={`farmshift-badge ${pushSubscribed ? 'farmshift-badge-success' : 'farmshift-badge-neutral'}`}>
+                          {pushSubscribed
+                            ? (pushDeviceCount > 0 ? `Đang bật · ${pushDeviceCount} thiết bị` : 'Đang bật trên thiết bị này')
+                            : (pushDeviceCount > 0 ? `Chưa bật trên máy này · ${pushDeviceCount} thiết bị khác` : 'Chưa bật trên thiết bị này')}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
+                        Nhận cảnh báo nhiệt độ IoT, nhắc việc và sự cố khẩn cấp ngay cả khi đã đóng trình duyệt hoặc tắt màn hình điện thoại.
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className={`farmshift-btn ${pushSubscribed ? 'farmshift-btn-secondary' : 'farmshift-btn-primary'}`}
+                        onClick={handleToggleWebPush}
+                        disabled={pushBusy || (!pushSubscribed && !pushSupported)}
+                        title={pushSubscribed ? 'Bấm để tắt thông báo đẩy trên thiết bị này' : 'Bật nhận thông báo đẩy khi đóng trình duyệt'}
+                      >
+                        {pushSubscribed ? <BellOff size={15} /> : <BellRing size={15} />}
+                        <span>{pushSubscribed ? 'Đang bật thông báo ĐT' : 'Bật thông báo ĐT'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="farmshift-btn farmshift-btn-secondary"
+                        onClick={handleSendTestPush}
+                        disabled={pushBusy}
+                        title="Gửi thông báo đẩy thử nghiệm tới các thiết bị đã đăng ký"
+                      >
+                        <Send size={14} />
+                        <span>Gửi thử</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {showIosInstallHint && (
+                    <p style={{ fontSize: '12.5px', color: '#0f5c55', margin: 0 }}>
+                      Trên iPhone / iPad: bấm <strong>Chia sẻ → Thêm vào MH chính</strong> để bật nhận thông báo đẩy nền.
+                    </p>
+                  )}
+                  {!pushSupported && !showIosInstallHint && (
+                    <p style={{ fontSize: '12.5px', color: 'var(--color-muted)', margin: 0 }}>
+                      Trình duyệt hiện tại chưa hỗ trợ Web Push nền (cần HTTPS hoặc Chrome/Edge/Safari PWA).
+                    </p>
+                  )}
+                  {pushFeedback.text && (
+                    <p
+                      role={pushFeedback.isError ? 'alert' : 'status'}
+                      style={{
+                        fontSize: '13px',
+                        margin: 0,
+                        color: pushFeedback.isError ? '#e11d48' : '#0f766e',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {pushFeedback.text}
+                    </p>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--color-hairline)' }}>
                   <div>
-                    <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Thông báo trong ứng dụng (Push notification)</strong>
+                    <strong style={{ color: 'var(--color-ink)', fontSize: '15px' }}>Thông báo trong ứng dụng (Chuông &amp; Toast)</strong>
                     <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '3px 0 0 0' }}>Hiển thị chuông thông báo góc trên màn hình khi có sự kiện mới</p>
                   </div>
                   <input

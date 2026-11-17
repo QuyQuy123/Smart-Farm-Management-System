@@ -12,6 +12,7 @@ import { api } from '../utils/api';
 import { FarmShiftLayout } from '../layouts/FarmShiftLayout';
 import { NotificationProvider } from '../context/NotificationContext';
 import { AuthProvider } from '../context/AuthContext';
+import { GeneralSettingsView } from '../features/farmshift/GeneralSettingsView';
 import { IotView } from '../features/farmshift/IotView';
 import { listBarns, listFarmAreas } from '../services/farmAreaService';
 import { connectEsp32, ESP32_TOPIC_PREFIX } from '../services/esp32MqttService';
@@ -228,7 +229,7 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
     expect(res.sentCount).toBe(1);
   });
 
-  it('Header Notification Bell renders Bật thông báo ĐT and Gửi thử controls and triggers subscribe/test on click', async () => {
+  it('Header Notification Bell stays clean without push configuration/test controls', async () => {
     setupPushBrowserMocks({ permission: 'granted' });
 
     render(
@@ -244,6 +245,24 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
     );
 
     fireEvent.click(screen.getByTitle('Thông báo hệ thống'));
+
+    expect(await screen.findByText('Thông báo & Cảnh báo')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Bật thông báo ĐT|Đang bật thông báo ĐT/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Gửi thử/i })).not.toBeInTheDocument();
+  });
+
+  it('GeneralSettingsView Thông báo cá nhân & Cảnh báo tab renders Web Push controls and handles subscribe/test/unsubscribe', async () => {
+    const { unsubscribe } = setupPushBrowserMocks({ permission: 'granted' });
+
+    render(
+      <MemoryRouter initialEntries={['/general-settings?tab=notifications']}>
+        <AuthProvider>
+          <NotificationProvider>
+            <GeneralSettingsView />
+          </NotificationProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    );
 
     const toggleBtn = await screen.findByRole('button', { name: /Bật thông báo ĐT/i });
     const testBtn = screen.getByRole('button', { name: /Gửi thử/i });
@@ -261,15 +280,51 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
         })
       );
     });
-    expect(await screen.findByRole('button', { name: /Đang bật thông báo ĐT/i })).toBeInTheDocument();
+
+    const activeBtn = await screen.findByRole('button', { name: /Đang bật thông báo ĐT/i });
+    expect(activeBtn).toBeInTheDocument();
 
     fireEvent.click(testBtn);
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/push/test', {});
     });
+
+    fireEvent.click(activeBtn);
+    await waitFor(() => {
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
+      expect(api.post).toHaveBeenCalledWith('/push/unsubscribe', {
+        endpoint: 'https://fcm.googleapis.com/fcm/send/mock-device-token',
+      });
+    });
   });
 
-  it('IotView renders quick mobile push controls and dispatches /api/push/iot-alert on temperature breach', async () => {
+  it('GeneralSettingsView shows other-device count when another device is subscribed but current browser is not', async () => {
+    setupPushBrowserMocks({ permission: 'granted', existingSubscription: null });
+    api.get.mockImplementation(async (url) => {
+      if (url === '/push/status') {
+        return { data: { hasActiveSubscription: true, deviceCount: 2 } };
+      }
+      if (url === '/push/vapid-public-key') {
+        return { data: { publicKey: SAMPLE_VAPID_PUB } };
+      }
+      return { data: {} };
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/general-settings?tab=notifications']}>
+        <AuthProvider>
+          <NotificationProvider>
+            <GeneralSettingsView />
+          </NotificationProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Chưa bật trên máy này · 2 thiết bị khác')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Bật thông báo ĐT/i })).toBeEnabled();
+  });
+
+  it('IotView stays free of duplicate push setup buttons while still dispatching /api/push/iot-alert on temperature breach', async () => {
     setupPushBrowserMocks({ permission: 'granted' });
     const publishRelay = vi.fn().mockResolvedValue(undefined);
     let receive;
@@ -289,12 +344,10 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
       </MemoryRouter>
     );
 
-    const toggleBtn = await screen.findByRole('button', { name: /Bật thông báo ĐT/i });
-    expect(toggleBtn).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Gửi thử/i })).toBeInTheDocument();
-
     // Configure Fan automatic threshold & send high temperature from ESP32 sensors
     await screen.findByText('Đã kết nối thiết bị phần cứng');
+    expect(screen.queryByRole('button', { name: /Bật thông báo ĐT|Đang bật thông báo ĐT/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Gửi thử/i })).not.toBeInTheDocument();
     const group = screen.getByRole('switch', { name: 'Bật tắt toàn bộ Quạt gió' }).closest('article');
     group.querySelector('details').open = true;
     fireEvent.click(within(group).getByRole('button', { name: 'Chỉnh sửa' }));
