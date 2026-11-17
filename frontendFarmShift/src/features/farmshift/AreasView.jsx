@@ -11,6 +11,7 @@ import { getFarmArea, listBarns, listFarmAreas } from '../../services/farmAreaSe
 import { BARN_STATUSES, apiErrorMessage } from './farmAreaOptions';
 import { AreaDialog, BarnDialog, DeleteDialog } from './FarmAreaDialogs';
 import { AreaTabs } from './AreaTabs';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './AreasView.module.css';
 
 const PAGE_SIZES = [10, 15, 20, 25, 30, 40, 50];
@@ -229,8 +230,13 @@ export const AreasView = () => {
   // Data is tagged with the request it answers; while the tags differ the page shows the loading state.
   const requestKey = `${mode}|${id || ''}|${revision}`;
   const [data, setData] = useState({ key: null, areas: [], barns: [], area: null, error: '' });
-  const loading = data.key !== requestKey;
+  const loading = data.key === null || !data.key.startsWith(`${mode}|${id || ''}|`);
   const { areas, barns, area, error } = loading ? { areas: data.areas, barns: [], area: null, error: '' } : data;
+
+  useRealtimeRefresh(
+    ['/farm-areas', '/areas', '/barns', '/cycles', '/flocks'],
+    () => setRevision(value => value + 1)
+  );
 
   useEffect(() => {
     let cancelled = false;

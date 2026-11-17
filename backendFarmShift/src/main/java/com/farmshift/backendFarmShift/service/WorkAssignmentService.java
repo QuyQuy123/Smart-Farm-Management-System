@@ -129,7 +129,7 @@ public class WorkAssignmentService {
         check.setCheckDate(day);
         check.setNote(clean(request.note()));
         check.setDoneBy(user);
-        check.setDoneAt(LocalDateTime.now());
+        check.setDoneAt(LocalDateTime.now(VN_ZONE));
         return response(task, checkRepository.saveAndFlush(check));
     }
 

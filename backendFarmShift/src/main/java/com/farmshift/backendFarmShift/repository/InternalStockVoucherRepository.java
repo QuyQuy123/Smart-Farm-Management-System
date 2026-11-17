@@ -21,9 +21,16 @@ public interface InternalStockVoucherRepository extends JpaRepository<InternalSt
     Optional<InternalStockVoucher> findWithDetailsById(@org.springframework.data.repository.query.Param("id") Long id);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {
-            "category", "sourceWarehouse", "targetWarehouse", "cycle", "cycle.barn",
+            "category", "sourceWarehouse", "targetWarehouse", "cycle", "cycle.barn", "cycle.barn.area", "expense",
             "items", "items.product", "items.unit"
     })
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT v FROM InternalStockVoucher v ORDER BY v.movementDate DESC, v.id DESC")
     List<InternalStockVoucher> findAllWithDetailsForReport();
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {
+            "category", "sourceWarehouse", "targetWarehouse", "cycle", "cycle.barn", "cycle.barn.area", "expense",
+            "items", "items.product", "items.unit"
+    })
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT v FROM InternalStockVoucher v WHERE v.status NOT IN ('CANCELLED', 'Đã hủy') AND v.movementDate BETWEEN :from AND :to ORDER BY v.movementDate DESC, v.id DESC")
+    List<InternalStockVoucher> findActiveInDateRangeForReport(@org.springframework.data.repository.query.Param("from") java.time.LocalDate from, @org.springframework.data.repository.query.Param("to") java.time.LocalDate to);
 }

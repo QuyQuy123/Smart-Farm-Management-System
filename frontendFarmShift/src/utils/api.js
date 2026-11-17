@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { getAuthToken, clearAuthToken } from './authStorage';
 import { dataCache, buildCacheKey, shouldSkipCache } from '../services/dataCache';
+import { CLIENT_SESSION_ID } from './clientSession';
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -18,6 +19,10 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const method = config.method?.toLowerCase();
+    if (['post', 'put', 'patch', 'delete'].includes(method)) {
+      config.headers['X-Client-Id'] = CLIENT_SESSION_ID;
+    }
     return config;
   },
   (error) => Promise.reject(error)
@@ -28,7 +33,7 @@ api.interceptors.response.use(
   (response) => {
     const method = response.config?.method?.toLowerCase();
     if (['post', 'put', 'patch', 'delete'].includes(method)) {
-      dataCache.invalidateForMutation(response.config?.url);
+      dataCache.invalidateForMutation(response.config?.url, { source: 'api-mutation' });
     }
     return response;
   },

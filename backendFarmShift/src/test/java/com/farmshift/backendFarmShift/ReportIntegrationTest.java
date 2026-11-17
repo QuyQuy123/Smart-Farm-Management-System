@@ -185,7 +185,6 @@ class ReportIntegrationTest {
         stockItem.setWarehouse(whSrc);
         stockItem.setProduct(prod);
         stockItem.setStock(new BigDecimal("50"));
-        stockItem.setMinStock(new BigDecimal("60")); // low stock!
         stockItem.setPrice(new BigDecimal("100000"));
         stockItem = inventoryRepository.saveAndFlush(stockItem);
 
@@ -248,7 +247,12 @@ class ReportIntegrationTest {
         assertTrue(farm.path("harvested").asInt() >= 400);
         assertTrue(farm.path("deaths").asInt() >= 20);
         assertTrue(farm.path("currentLive").asInt() >= 580);
+        assertTrue(farm.path("wipCost").asLong() > 0);
         assertTrue(farm.path("cycles").toString().contains("Nhà BC-01"));
+        JsonNode firstCycle = farm.path("cycles").get(0);
+        assertTrue(firstCycle.path("harvestedWeightKg").asDouble() >= 400.0);
+        assertTrue(firstCycle.path("biomassKg").asDouble() > 0.0);
+        assertTrue(firstCycle.path("costPerKg").asLong() > 0L);
 
         // Sales
         JsonNode sales = data.path("salesReport");
@@ -256,6 +260,7 @@ class ReportIntegrationTest {
         assertTrue(sales.path("totalRevenue").asLong() >= 32_000_000L);
         assertTrue(sales.path("debtAmount").asLong() >= 12_000_000L);
         assertTrue(sales.path("orders").toString().contains("Thương lái Báo Cáo"));
+        assertTrue(sales.path("orders").toString().contains("Nhà BC-01"));
 
         // Purchases (cancelled excluded from valid invoiceCount / totalAmount)
         JsonNode purchases = data.path("purchasesReport");
@@ -263,11 +268,11 @@ class ReportIntegrationTest {
         assertTrue(purchases.path("cancelledCount").asInt() >= 1);
         assertTrue(purchases.path("invoices").toString().contains("NCC Cám Report"));
 
-        // Inventory valuation & low-stock check (45 * 100,000 after 5 transferred)
+        // Inventory valuation (45 * 100,000 after 5 transferred)
         JsonNode inventory = data.path("inventoryReport");
         assertTrue(inventory.path("totalSkus").asInt() >= 1);
-        assertTrue(inventory.path("lowStockCount").asInt() >= 1);
         assertTrue(inventory.path("items").toString().contains("Vắc-xin Report"));
+        assertTrue(inventory.path("items").toString().contains("warehouseKind"));
 
         // Harvest report
         JsonNode harvest = data.path("harvestReport");
@@ -275,7 +280,7 @@ class ReportIntegrationTest {
         assertTrue(harvest.path("totalWeightKg").asDouble() >= 400.0);
         assertTrue(harvest.path("rows").toString().contains("Nhà BC-01"));
 
-        // Growth / FCR: currentQty=780 * 1.50kg + 400kg out - 40kg in = 1530kg gain, feed 3000kg -> FCR ~ 1.96
+        // Growth / FCR: currentQty=580 * 1.50kg + 800kg out - 40kg in = 1630kg gain, feed 3000kg -> FCR ~ 1.84
         JsonNode growth = data.path("growthReport");
         assertTrue(growth.path("analyzedCycles").asInt() >= 1);
         assertTrue(growth.path("avgFcr").asDouble() > 0);
@@ -286,10 +291,16 @@ class ReportIntegrationTest {
         assertTrue(internal.path("transferCount").asInt() >= 1);
         assertTrue(internal.path("totalAmount").asLong() >= 500_000L);
 
-        // Activity feed
+        // Activity feed (aggregated across journal, weight sample, flock movements, trade & internal stock)
         JsonNode activity = data.path("activityReport");
-        assertTrue(activity.path("totalActivities").asInt() >= 4);
-        assertTrue(activity.path("items").toString().contains("Công nhân An"));
+        assertTrue(activity.path("totalActivities").asInt() >= 7);
+        String actJson = activity.path("items").toString();
+        assertTrue(actJson.contains("Công nhân An"));
+        assertTrue(actJson.contains("Khu Báo Cáo Test"));
+        assertTrue(actJson.contains("Cân mẫu"));
+        assertTrue(actJson.contains("Hao hụt đàn"));
+        assertTrue(actJson.contains("Nhập đàn giống"));
+        assertTrue(actJson.contains("Xuất chuồng trực tiếp"));
     }
 
     @Test
@@ -311,5 +322,61 @@ class ReportIntegrationTest {
         String purchasesJson = data.path("purchasesReport").path("invoices").toString();
         assertTrue(purchasesJson.contains("NCC Cám Report"));
         assertFalse(purchasesJson.contains("NCC Cũ Ngoài 7 Ngày"));
+
+        // In-range harvest and activity must appear, while out-of-range losses/imports must be excluded
+        assertTrue(data.path("harvestReport").path("totalHead").asInt() >= 200);
+        String activityJson = data.path("activityReport").path("items").toString();
+        assertTrue(activityJson.contains("Công nhân An"));
+        assertTrue(activityJson.contains("Cân mẫu"));
+        assertFalse(activityJson.contains("Hao hụt đàn"));
+        assertFalse(activityJson.contains("Nhập đàn giống"));
+
+        // FarmSummary in [TODAY-7, TODAY] must track ONLY flows in that range (no TODAY-20 chick cost / TODAY-10 death)
+        JsonNode bcRow7d = findCycleRow(data.path("farmSummary").path("cycles"), "Nhà BC-01");
+        assertNotNull(bcRow7d);
+        assertEquals(0, bcRow7d.path("totalIn").asInt());
+        assertEquals(0, bcRow7d.path("deaths").asInt());
+        assertEquals(0L, bcRow7d.path("chickCost").asLong());
+        assertEquals(42_000_000L, bcRow7d.path("feedCost").asLong());
+        assertEquals(400, bcRow7d.path("harvested").asInt());
+        assertEquals(64_000_000L, bcRow7d.path("revenue").asLong());
+        assertEquals(580, bcRow7d.path("currentQuantity").asInt());
+
+        // Backtest past window [TODAY-15, TODAY-8]: includes DEATH=20 at TODAY-10, before feed/harvest, so closing live=980
+        String pastRaw = mvc.perform(get("/api/reports/summary")
+                        .param("from", TODAY.minusDays(15).toString())
+                        .param("to", TODAY.minusDays(8).toString()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode bcRowPast = findCycleRow(mapper.readTree(pastRaw).path("data").path("farmSummary").path("cycles"), "Nhà BC-01");
+        assertNotNull(bcRowPast);
+        assertEquals(0, bcRowPast.path("totalIn").asInt());
+        assertEquals(20, bcRowPast.path("deaths").asInt());
+        assertEquals(0, bcRowPast.path("harvested").asInt());
+        assertEquals(0L, bcRowPast.path("feedCost").asLong());
+        assertEquals(0L, bcRowPast.path("revenue").asLong());
+        assertEquals(980, bcRowPast.path("currentQuantity").asInt());
+
+        // Single-day filter [TODAY, TODAY]: zero feed/harvest/chick flows on TODAY alone
+        String todayRaw = mvc.perform(get("/api/reports/summary")
+                        .param("from", TODAY.toString())
+                        .param("to", TODAY.toString()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode bcRowToday = findCycleRow(mapper.readTree(todayRaw).path("data").path("farmSummary").path("cycles"), "Nhà BC-01");
+        assertNotNull(bcRowToday);
+        assertEquals(0, bcRowToday.path("harvested").asInt());
+        assertEquals(0L, bcRowToday.path("feedCost").asLong());
+        assertEquals(0L, bcRowToday.path("revenue").asLong());
+        assertEquals(580, bcRowToday.path("currentQuantity").asInt());
+    }
+
+    private JsonNode findCycleRow(JsonNode cycles, String barnName) {
+        for (JsonNode row : cycles) {
+            if (barnName.equals(row.path("barnName").asText())) {
+                return row;
+            }
+        }
+        return null;
     }
 }

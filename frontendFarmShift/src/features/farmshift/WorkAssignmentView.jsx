@@ -5,6 +5,7 @@ import { deleteWorkTask, getWorkBoard, setBarnWorkers, createWorkTask, updateWor
 import { FormDialog } from './CycleDialogs';
 import { Dialog } from './FarmAreaDialogs';
 import { addDaysIso, apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './WorkAssignmentView.module.css';
 
 /** Việc chăm sóc hay giao, để chủ trại bấm chọn nhanh khi giao việc. */
@@ -106,7 +107,12 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
     return () => { cancelled = true; };
   }, [date, requestKey]);
 
-  const loading = state.key !== requestKey;
+  useRealtimeRefresh(
+    ['/work-assignments', '/work-tasks', '/barn-responsibilities', '/barns', '/farm-areas', '/areas', '/cycles'],
+    () => setRevision(value => value + 1)
+  );
+
+  const loading = state.key === null || !state.key.startsWith(`${date}:`);
   const board = state.board;
   const displayedDate = board?.date || date;
   const done = message => { setModal(null); showToast(message, 'success'); setRevision(value => value + 1); };

@@ -11,6 +11,9 @@ public interface CycleCarriedExpenseRepository extends JpaRepository<CycleCarrie
     @EntityGraph(attributePaths = {"cycle"})
     List<CycleCarriedExpense> findAllWithCycleBy();
 
+    @EntityGraph(attributePaths = {"cycle"})
+    List<CycleCarriedExpense> findWithCycleByCycleIdIn(List<Long> cycleIds);
+
     List<CycleCarriedExpense> findAllByCycleId(Long cycleId);
     Optional<CycleCarriedExpense> findByCycleIdAndCategory(Long cycleId, ExpenseCategory category);
 }

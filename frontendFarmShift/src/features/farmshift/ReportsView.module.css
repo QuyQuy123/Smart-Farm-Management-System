@@ -1,4 +1,15 @@
-/* ReportsView.module.css - FarmShift Mint/Teal Editorial Analytics Styles (Zero Tailwind) */
+/* ReportsView.module.css - FarmShift Mint/Teal Editorial Analytics & P&L Styles (Zero Tailwind) */
+
+.filterCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: #ffffff;
+  border: 1px solid #e2eae7;
+  border-radius: 12px;
+}
 
 .filterBar {
   display: flex;
@@ -6,11 +17,53 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  background: #ffffff;
-  border: 1px solid #e2eae7;
-  border-radius: 12px;
+}
+
+.dimensionFilterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #edf2f0;
+}
+
+.dimensionGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterFieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #516a64;
+}
+
+.clearFilterBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid #f0d0cd;
+  border-radius: 8px;
+  background: #fef5f4;
+  color: #9e2a22;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.clearFilterBtn:hover {
+  background: #fbe7e5;
 }
 
 .presetGroup {
@@ -93,22 +146,53 @@
   border-color: #019788;
 }
 
+/* ── Grouped Tabs Navigation ────────────────────────────────────────────── */
+
+.tabClusterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: flex-end;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: #ffffff;
+  border: 1px solid #e2eae7;
+  border-radius: 12px;
+}
+
+.tabClusterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tabClusterLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b827c;
+  padding-left: 2px;
+}
+
 .tabsWrap {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   overflow: visible;
   white-space: normal;
-  padding-bottom: 10px;
-  margin-bottom: 18px;
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 .tabBtn {
-  padding: 7px 12px !important;
-  font-size: 13.5px !important;
+  padding: 6px 11px !important;
+  font-size: 13px !important;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  border-radius: 8px !important;
 }
 
 .tabCount {
@@ -134,12 +218,14 @@
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
+
+/* ── KPI Strip ──────────────────────────────────────────────────────────── */
 
 .kpiGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
 }
 
@@ -147,15 +233,25 @@
   background: #ffffff;
   border: 1px solid #e2eae7;
   border-radius: 12px;
-  padding: 16px 18px;
+  padding: 15px 17px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
 .kpiCardHighlight {
-  background: linear-gradient(180deg, #f5fbf9 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #f3faf7 0%, #ffffff 100%);
   border-color: #bfe3d7;
+}
+
+.kpiCardProfit {
+  background: linear-gradient(180deg, #effaf5 0%, #ffffff 100%);
+  border-color: #a7dfd0;
+}
+
+.kpiCardLoss {
+  background: linear-gradient(180deg, #fef5f4 0%, #ffffff 100%);
+  border-color: #f3c4c0;
 }
 
 .kpiHeader {
@@ -166,7 +262,7 @@
 }
 
 .kpiLabel {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -184,13 +280,30 @@
   flex-shrink: 0;
 }
 
+.kpiIconWarn {
+  background: #fef2f2;
+  color: #b42318;
+}
+
+.kpiIconBlue {
+  background: #eff6ff;
+  color: #0369a1;
+}
+
+.kpiValueRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
 .kpiValue {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   color: #182b31;
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
-  margin-top: 2px;
 }
 
 .kpiValueAccent {
@@ -206,10 +319,300 @@
 }
 
 .kpiSub {
-  font-size: 13px;
+  font-size: 12.5px;
   color: #607781;
   font-variant-numeric: tabular-nums;
+  line-height: 1.4;
 }
+
+/* ── Analytics SVG Charts ───────────────────────────────────────────────── */
+
+.analyticsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.analyticsGridEqual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.chartCard {
+  background: #ffffff;
+  border: 1px solid #e2eae7;
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chartHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chartTitleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chartTitle {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #182b31;
+}
+
+.chartSubtitle {
+  font-size: 12.5px;
+  color: #607781;
+}
+
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12.5px;
+  color: #42545c;
+}
+
+.chartLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chartLegendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.svgPlot {
+  position: relative;
+  width: 100%;
+}
+
+.svgPlot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+}
+
+.svgPlot g[tabindex]:focus {
+  outline: none;
+}
+
+.axisText {
+  font-size: 11px;
+  fill: #607781;
+  font-variant-numeric: tabular-nums;
+}
+
+.barValueText {
+  font-size: 11px;
+  font-weight: 600;
+  fill: #182b31;
+  font-variant-numeric: tabular-nums;
+}
+
+.chartTooltip {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+  max-width: 260px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #182b31;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+  transform: translate(-50%, -106%);
+  box-shadow: 0 8px 20px rgba(24, 43, 49, 0.24);
+  font-variant-numeric: tabular-nums;
+}
+
+.chartTooltip strong {
+  font-size: 12.5px;
+  color: #a7f3d0;
+  margin-bottom: 2px;
+}
+
+.chartEmpty {
+  margin: 0;
+  padding: 38px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  color: #6b7f87;
+  background: #f9fcfb;
+  border-radius: 10px;
+  border: 1px dashed #d8e6e1;
+}
+
+/* ── Donut Cost Breakdown ───────────────────────────────────────────────── */
+
+.donutLayout {
+  display: grid;
+  grid-template-columns: minmax(170px, 210px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.donutSvgWrap {
+  position: relative;
+  max-width: 210px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.donutCenterValue {
+  font-size: 17px;
+  font-weight: 700;
+  fill: #182b31;
+  font-variant-numeric: tabular-nums;
+}
+
+.donutCenterLabel {
+  font-size: 11.5px;
+  fill: #607781;
+}
+
+.donutCenterSub {
+  font-size: 9.5px;
+  font-weight: 600;
+  fill: #607781;
+  letter-spacing: 0.04em;
+}
+
+.donutLegendList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.donutLegendRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8fbfa;
+  border: 1px solid #e6efec;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.donutLegendRow:hover {
+  background: #edf8f4;
+  border-color: #bfe3d7;
+}
+
+.donutLegendLeft {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: #182b31;
+}
+
+.donutLegendRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: #182b31;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.donutPctBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #e8f6f1;
+  color: #007968;
+}
+
+.donutLegendItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.donutLegendTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.donutLegendName {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: #182b31;
+}
+
+.donutLegendAmounts {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.donutLegendPct {
+  font-size: 12px;
+  font-weight: 700;
+  color: #007968;
+}
+
+.donutLegendMoney {
+  font-size: 13px;
+  font-weight: 600;
+  color: #182b31;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: #edf3f1;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+/* ── Section Toolbar & Search ───────────────────────────────────────────── */
 
 .sectionToolbar {
   display: flex;
@@ -243,9 +646,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 240px;
+  min-width: 230px;
   max-width: 340px;
-  flex: 1 1 240px;
+  flex: 1 1 230px;
 }
 
 .searchIcon {
@@ -274,20 +677,27 @@
 }
 
 .selectFilter {
-  height: 36px;
-  padding: 6px 12px;
+  height: 34px;
+  padding: 4px 10px;
   border: 1px solid #d9e7e2;
   border-radius: 8px;
   background: #ffffff;
   color: #182b31;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
 }
+
+.selectFilter:focus {
+  outline: 2px solid rgba(1, 151, 136, 0.22);
+  border-color: #019788;
+}
+
+/* ── Tables, Profit Cells & Drill-Down Links ────────────────────────────── */
 
 .compactTable th,
 .compactTable td {
   padding: 10px 12px;
-  font-size: 13.5px;
+  font-size: 13px;
   vertical-align: middle;
 }
 
@@ -300,7 +710,7 @@
 .codeCell {
   font-family: 'Cascadia Mono', 'Consolas', 'JetBrains Mono', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: #007968;
   white-space: nowrap;
@@ -319,13 +729,57 @@
   margin-top: 2px;
 }
 
+.drilldownLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #007968;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.drilldownLink:hover {
+  color: #005a4d;
+  text-decoration: underline;
+}
+
+.moduleNavLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid #bfe3d7;
+  border-radius: 8px;
+  background: #f3faf7;
+  color: #007968;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.moduleNavLink:hover {
+  background: #e4f4ee;
+  border-color: #019788;
+}
+
+.tableFooterRow td {
+  background: #f4faf7;
+  border-top: 2px solid #cbe3db;
+  font-weight: 700;
+  color: #182b31;
+}
+
 .mintBadge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 9px;
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   background: #e8f6f1;
   color: #007968;
@@ -339,7 +793,7 @@
   gap: 4px;
   padding: 2px 9px;
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   background: #f3f7f6;
   color: #49655f;
@@ -353,7 +807,7 @@
   gap: 4px;
   padding: 2px 9px;
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   background: #fef9ec;
   color: #92400e;
@@ -367,12 +821,32 @@
   gap: 4px;
   padding: 2px 9px;
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   background: #fef2f2;
   color: #b42318;
   border: 1px solid #f5c6c3;
   white-space: nowrap;
+}
+
+.marginPill {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.marginPositive {
+  background: #e8f6f1;
+  color: #007968;
+}
+
+.marginNegative {
+  background: #fef2f2;
+  color: #b42318;
 }
 
 .positiveText {
@@ -386,6 +860,45 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Ranked Partner / Warehouse Bars ────────────────────────────────────── */
+
+.rankedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.rankedItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rankedItemTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.rankedName {
+  font-weight: 600;
+  color: #182b31;
+}
+
+.rankedValue {
+  font-weight: 600;
+  color: #007968;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Growth FCR Cards ───────────────────────────────────────────────────── */
 
 .growthGrid {
   display: grid;
@@ -412,7 +925,7 @@
 }
 
 .growthMeta {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   color: #516a64;
   text-transform: uppercase;
@@ -432,7 +945,7 @@
 }
 
 .fcrValue {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   color: #007968;
   font-variant-numeric: tabular-nums;
@@ -455,12 +968,6 @@
   color: #182b31;
   font-variant-numeric: tabular-nums;
   margin-top: 1px;
-}
-
-.twoColGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  gap: 18px;
 }
 
 .emptyRow {
@@ -539,16 +1046,395 @@
 }
 
 @keyframes fsReportSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 960px) {
+
+  .analyticsGrid,
+  .analyticsGridEqual {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
-  .twoColGrid {
-    grid-template-columns: 1fr;
-  }
-  .filterBar {
+
+  .filterBar,
+  .dimensionFilterBar {
     align-items: stretch;
+  }
+
+  .donutLayout {
+    grid-template-columns: 1fr;
   }
 }
 
+.printOnly {
+  display: none;
+}
+
+.printHeader {
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid #019788;
+}
+
+.printFarmTitle {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #007968;
+}
+
+.printReportTitle {
+  margin: 4px 0 6px;
+  font-size: 19px;
+  font-weight: 700;
+  color: #182b31;
+}
+
+.printMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 12.5px;
+  color: #4f646b;
+}
+
+.wipPill {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+@media print {
+
+  .filterCard,
+  .tabClusterBar,
+  .pagerBar,
+  .searchWrap,
+  .pillRow,
+  .moduleNavLink {
+    display: none !important;
+  }
+
+  .printOnly {
+    display: block !important;
+  }
+
+  .chartCard {
+    break-inside: avoid;
+  }
+}
+
+/* ── Visual Inventory, Pie Mode Switch & Interactive Category Filters ────── */
+
+.modeSwitchGroup,
+.chartModeSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #f1f6f4;
+  border: 1px solid #d9e7e2;
+}
+
+.modeSwitchBtn,
+.chartModeBtn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #49655f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+.modeSwitchBtn:hover,
+.chartModeBtn:hover {
+  color: #007968;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.modeSwitchBtnActive,
+.chartModeBtnActive {
+  background: #ffffff;
+  color: #007968;
+  box-shadow: 0 1px 3px rgba(24, 43, 49, 0.1);
+}
+
+.donutInteractiveItem {
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin: -4px -8px;
+  transition: background-color 0.15s ease;
+}
+
+.donutInteractiveBtn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.donutInteractiveItem:hover {
+  background: #f4faf7;
+}
+
+.donutInteractiveItemActive {
+  background: #e8f6f1;
+  outline: 1px solid #a7dfd0;
+}
+
+.donutSubMeta {
+  font-size: 11.5px;
+  color: #607781;
+  font-variant-numeric: tabular-nums;
+}
+
+.pillRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  background: #f8fbfa;
+  border-bottom: 1px solid #edf2f0;
+}
+
+.filterPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid #d9e7e2;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3e5b54;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.filterPill:hover {
+  background: #e8f6f1;
+  border-color: #bfe3d7;
+  color: #007968;
+}
+
+.filterPillActive {
+  background: #019788;
+  border-color: #019788;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.filterPillActive:hover {
+  background: #00796b;
+  border-color: #00796b;
+  color: #ffffff;
+}
+
+.pillDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.warehouseGroupBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: #f7fbf9;
+  border: 1px solid #e2eee9;
+}
+
+.warehouseGroupHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #182b31;
+}
+
+.warehouseGroupTrack {
+  display: flex;
+  width: 100%;
+  height: 11px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e7efec;
+  gap: 2px;
+}
+
+.warehouseGroupSeg {
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.warehouseGroupLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: #49655f;
+  font-variant-numeric: tabular-nums;
+}
+
+.healthGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.allocGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.healthCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid #e2eae7;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.healthCard:hover {
+  border-color: #019788;
+  background: #f4faf7;
+}
+
+.healthCardActive {
+  border-color: #019788;
+  background: #e8f6f1;
+}
+
+.healthLabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #516a64;
+}
+
+.healthCount {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #182b31;
+}
+
+.allocTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.allocPct {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
+.allocQty {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #3b5851;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiSharePill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #e8f6f1;
+  color: #007968;
+  font-variant-numeric: tabular-nums;
+}
+
+.catTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.miniStockWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.miniStockTrack {
+  width: 84px;
+  height: 5px;
+  border-radius: 999px;
+  background: #e6efec;
+  overflow: hidden;
+}
+
+.miniStockFill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+@media (max-width: 720px) {
+  .healthGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .allocGrid {
+    grid-template-columns: 1fr;
+  }
+}

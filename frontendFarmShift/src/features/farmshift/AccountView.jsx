@@ -26,6 +26,7 @@ import { PasswordInput } from '../../components/PasswordInput/PasswordInput';
 import employeeFormStyles from './EmployeeForm.module.css';
 import styles from './AccountView.module.css';
 import { dataCache } from '../../services/dataCache';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
@@ -206,6 +207,7 @@ export const AccountView = () => {
     return [];
   });
   const [isLoadingStaff, setIsLoadingStaff] = useState(() => !cachedStaff);
+  const [staffRevision, setStaffRevision] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
   const [filterRole, setFilterRole] = useState('ALL');
@@ -385,7 +387,9 @@ export const AccountView = () => {
       isMounted = false;
       controller.abort();
     };
-  }, [debouncedSearch, filterRole, filterStatus]);
+  }, [debouncedSearch, filterRole, filterStatus, staffRevision]);
+
+  useRealtimeRefresh(['/employees', '/users', '/accounts'], () => setStaffRevision(r => r + 1));
 
   // ── 1. Create Employee ──────────────────────────────────────────────────────
   const handleOpenAddModal = () => {

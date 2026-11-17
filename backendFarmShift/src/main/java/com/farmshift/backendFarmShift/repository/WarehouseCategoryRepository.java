@@ -19,4 +19,8 @@ public interface WarehouseCategoryRepository extends JpaRepository<WarehouseCate
 
     @Query("SELECT DISTINCT w FROM WarehouseCategory w LEFT JOIN w.areas a WHERE w.area.id = :areaId OR a.id = :areaId")
     List<WarehouseCategory> findAllByArea_Id(@Param("areaId") Long areaId);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"area", "areas"})
+    @Query("SELECT DISTINCT w FROM WarehouseCategory w")
+    List<WarehouseCategory> findAllWithAreasForReport();
 }

@@ -9,6 +9,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     // Fetch all fields used by InventoryItemResponse in one query, avoiding per-row lazy loads.
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "product", "brand", "unit"})
     List<InventoryItem> findAllWithDetailsBy(Sort sort);
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "warehouse.area", "product", "brand", "unit"})
+    @org.springframework.data.jpa.repository.Query("select i from InventoryItem i order by i.warehouse.name asc, i.product.name asc, i.id asc")
+    List<InventoryItem> findAllForReport();
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "product", "brand", "unit"})
     java.util.Optional<InventoryItem> findWithDetailsById(Long id);
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "product", "brand", "unit"})

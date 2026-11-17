@@ -6,6 +6,7 @@ import { getFarmDailyPlan } from '../../services/dailyPlanService';
 import { addWeightSample, getCycle, recordLoss } from '../../services/cycleService';
 import { fileService } from '../../services/fileService';
 import { apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './BarnJournal.module.css';
 
 /** Nguyên nhân hay gặp, bấm để ghi nhanh vào ghi chú. */
@@ -323,6 +324,11 @@ function BarnPage({ cycleId, barn, initialMode, canRecord, onBack }) {
     return () => { active = false; };
   }, [cycleId, revision]);
 
+  useRealtimeRefresh(
+    ['/cycles', '/flocks', '/daily-plan', '/daily-plans', '/journal', '/today-tasks', '/barns'],
+    () => setRevision(value => value + 1)
+  );
+
   const current = detail.cycleId === cycleId ? detail : { data: null, error: '' };
   const samples = useMemo(() => weighings(current.data?.weightSamples), [current.data]);
   const { data } = current;
@@ -365,6 +371,7 @@ export function BarnJournal({ mode, selectedCycleId, onSelect }) {
   const worker = user?.role === 'ROLE_FARM_WORKER';
   const canRecord = worker || user?.role === 'ROLE_FARM_OWNER';
   const [barns, setBarns] = useState({ loading: true, list: [], error: '' });
+  const [barnsRevision, setBarnsRevision] = useState(0);
 
   // Quay lại danh sách thì tải lại để số con trên thẻ là mới nhất.
   useEffect(() => {
@@ -374,7 +381,13 @@ export function BarnJournal({ mode, selectedCycleId, onSelect }) {
       .then(list => { if (active) setBarns({ loading: false, list, error: '' }); })
       .catch(error => { if (active) setBarns({ loading: false, list: [], error: apiErrorMessage(error) }); });
     return () => { active = false; };
-  }, [selectedCycleId]);
+  }, [selectedCycleId, barnsRevision]);
+
+  useRealtimeRefresh(
+    ['/cycles', '/flocks', '/daily-plan', '/daily-plans', '/journal', '/today-tasks', '/barns'],
+    () => setBarnsRevision(value => value + 1),
+    { enabled: !selectedCycleId }
+  );
 
   if (selectedCycleId) {
     return <BarnPage key={selectedCycleId} cycleId={selectedCycleId} barn={barns.list.find(barn => barn.cycleId === selectedCycleId)}

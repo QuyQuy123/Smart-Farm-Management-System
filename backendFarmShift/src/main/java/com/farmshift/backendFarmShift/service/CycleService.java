@@ -24,6 +24,7 @@ import java.util.*;
 public class CycleService {
     /** All purchased flocks of one cycle must arrive within this many days of the first one (all-in / all-out). */
     public static final int MAX_IMPORT_SPREAD_DAYS = 3;
+    public static final java.time.ZoneId VN_ZONE = java.time.ZoneId.of("Asia/Bangkok");
     static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final FarmingCycleRepository repository;
@@ -240,7 +241,7 @@ public class CycleService {
         }
     }
 
-    static LocalDate today() { return LocalDate.now(); }
+    static LocalDate today() { return LocalDate.now(VN_ZONE); }
 
     static String format(LocalDate date) { return date.format(DATE); }
 

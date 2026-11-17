@@ -13,6 +13,9 @@ public interface WeightSampleRepository extends JpaRepository<WeightSample, Long
     @EntityGraph(attributePaths = {"cycle"})
     List<WeightSample> findAllByOrderBySampleDateDescIdDesc();
 
+    @EntityGraph(attributePaths = {"cycle"})
+    List<WeightSample> findByCycleIdInOrderBySampleDateDescIdDesc(List<Long> cycleIds);
+
     List<WeightSample> findAllByCycleIdOrderBySampleDateDescIdDesc(Long cycleId);
     Optional<WeightSample> findByIdAndCycleId(Long id, Long cycleId);
 

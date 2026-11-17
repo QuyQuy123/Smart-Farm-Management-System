@@ -21,11 +21,11 @@ public class PurchasingDebtSchemaUpgrade implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        jdbc.execute("ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS lot_number VARCHAR(100)");
-        jdbc.execute("ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS expiry_date DATE");
-        jdbc.execute("ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS min_stock NUMERIC(19, 6)");
-        jdbc.execute("ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS lot_number VARCHAR(100)");
-        jdbc.execute("ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS expiry_date DATE");
+        jdbc.execute("ALTER TABLE inventory_items DROP COLUMN IF EXISTS lot_number");
+        jdbc.execute("ALTER TABLE inventory_items DROP COLUMN IF EXISTS expiry_date");
+        jdbc.execute("ALTER TABLE inventory_items DROP COLUMN IF EXISTS min_stock");
+        jdbc.execute("ALTER TABLE purchase_invoice_items DROP COLUMN IF EXISTS lot_number");
+        jdbc.execute("ALTER TABLE purchase_invoice_items DROP COLUMN IF EXISTS expiry_date");
 
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS purchase_payments (

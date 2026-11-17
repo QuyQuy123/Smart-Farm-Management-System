@@ -389,7 +389,7 @@ export const IotDevicesTab = ({
                         />
                       </div>
                       <div>
-                        <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Quạt thông gió (Quạt hút)</strong>
+                        <strong style={{ fontSize: '15px', color: 'var(--color-ink)' }}>Quạt gió</strong>
                         <div style={{ fontSize: '13px', color: 'var(--color-muted)', marginTop: '2px' }}>
                           {b.fan?.power} · {b.fan?.on ? b.fan?.rpm : 'Đang dừng'}
                         </div>

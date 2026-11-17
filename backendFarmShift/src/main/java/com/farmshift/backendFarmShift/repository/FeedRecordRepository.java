@@ -13,6 +13,9 @@ public interface FeedRecordRepository extends JpaRepository<FeedRecord, Long> {
     @EntityGraph(attributePaths = {"cycle"})
     List<FeedRecord> findAllByOrderByRecordDateDescIdDesc();
 
+    @EntityGraph(attributePaths = {"cycle"})
+    List<FeedRecord> findByCycleIdInOrderByRecordDateDescIdDesc(List<Long> cycleIds);
+
     List<FeedRecord> findAllByCycleIdOrderByRecordDateDescIdDesc(Long cycleId);
     Optional<FeedRecord> findByIdAndCycleId(Long id, Long cycleId);
 

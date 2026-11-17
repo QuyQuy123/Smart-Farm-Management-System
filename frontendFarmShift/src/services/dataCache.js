@@ -33,6 +33,10 @@ export const INVALIDATION_MATRIX = {
     '/measurement-units',
     '/units',
     '/suppliers',
+    '/debts',
+    '/cycles',
+    '/flocks',
+    '/barns',
     '/reports',
     '/dashboard'
   ],
@@ -143,6 +147,7 @@ export const INVALIDATION_MATRIX = {
     '/daily-plan',
     '/barn-responsibilities',
     '/work-assignments',
+    '/reports',
     '/dashboard'
   ],
   '/areas': [
@@ -159,6 +164,7 @@ export const INVALIDATION_MATRIX = {
     '/daily-plan',
     '/barn-responsibilities',
     '/work-assignments',
+    '/reports',
     '/dashboard'
   ],
   '/cycles': [
@@ -267,13 +273,41 @@ export const INVALIDATION_MATRIX = {
     '/work-assignments',
     '/daily-plan',
     '/daily-plans',
-    '/today-tasks'
+    '/today-tasks',
+    '/reports',
+    '/dashboard'
   ],
   '/work-assignments': [
     '/work-assignments',
     '/warehouse-responsibilities',
     '/daily-plans',
-    '/today-tasks'
+    '/today-tasks',
+    '/reports',
+    '/dashboard'
+  ],
+  '/debts': [
+    '/debts',
+    '/purchases',
+    '/suppliers',
+    '/reports',
+    '/dashboard'
+  ],
+  '/transfer-categories': [
+    '/transfer-categories',
+    '/internal-stock'
+  ],
+  '/farming-programs': [
+    '/farming-programs',
+    '/cycles',
+    '/daily-plan',
+    '/daily-plans',
+    '/today-tasks',
+    '/barns'
+  ],
+  '/specifications': [
+    '/specifications',
+    '/inventory-items',
+    '/purchases'
   ],
   '/warehouse-responsibilities': [
     '/warehouse-responsibilities',
@@ -496,7 +530,7 @@ export class DataCache {
     }
   }
 
-  invalidateByPrefix(prefixes) {
+  invalidateByPrefix(prefixes, meta = {}) {
     const list = (Array.isArray(prefixes) ? prefixes : [prefixes])
       .filter(Boolean)
       .map(p => normalizeCacheKey(p));
@@ -530,11 +564,11 @@ export class DataCache {
     }
 
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('farmshift:cache-invalidated', { detail: { prefixes } }));
+      window.dispatchEvent(new CustomEvent('farmshift:cache-invalidated', { detail: { prefixes, ...meta } }));
     }
   }
 
-  invalidateForMutation(url) {
+  invalidateForMutation(url, meta = {}) {
     if (!url) return;
     const cleanUrl = String(url).split('?')[0].replace(/^\/api/, '');
     const matchedPrefixes = new Set();
@@ -555,11 +589,11 @@ export class DataCache {
     }
 
     if (matchedPrefixes.size > 0) {
-      this.invalidateByPrefix([...matchedPrefixes]);
+      this.invalidateByPrefix([...matchedPrefixes], meta);
     }
   }
 
-  invalidateAllFarmData() {
+  invalidateAllFarmData(meta = {}) {
     this.invalidateByPrefix([
       '/purchases',
       '/inventory-items',
@@ -586,7 +620,7 @@ export class DataCache {
       '/customers',
       '/reports',
       '/dashboard'
-    ]);
+    ], meta);
   }
 
   clearAll() {
