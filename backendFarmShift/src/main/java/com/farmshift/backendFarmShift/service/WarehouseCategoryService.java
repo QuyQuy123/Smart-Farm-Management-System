@@ -24,6 +24,9 @@ public class WarehouseCategoryService {
     private final com.farmshift.backendFarmShift.repository.ProductCategoryRepository productCategoryRepository;
     private final com.farmshift.backendFarmShift.repository.InternalStockVoucherRepository internalStockVoucherRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer speechNormalizer;
+
     public List<WarehouseCategoryResponse> list() {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
     }
@@ -72,7 +75,9 @@ public class WarehouseCategoryService {
         category.setNameKey(key);
         category.setDescription(request.description() == null ? "" : request.description().strip());
         try {
-            return response(repository.saveAndFlush(category));
+            WarehouseCategoryResponse saved = response(repository.saveAndFlush(category));
+            if (speechNormalizer != null) speechNormalizer.evictLexiconCache();
+            return saved;
         } catch (DataIntegrityViolationException exception) {
             throw duplicateName();
         }

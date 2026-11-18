@@ -72,4 +72,35 @@ class WeightSlipOcrTests(unittest.IsolatedAsyncioTestCase):
                 await extract_weight_slip(self.image(), "image/png")
             self.assertEqual(502, error.exception.status_code)
 
+    async def test_internal_ai_token_guard_enforced_when_configured(self):
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+        with patch("app.api.router.settings.AI_INTERNAL_TOKEN", "farmshift-secret-token"):
+            # /health stays open for container healthcheck
+            health_res = client.get("/health")
+            self.assertEqual(200, health_res.status_code)
+
+            # Missing token returns 403 Forbidden
+            missing_res = client.post("/api/voice/chat", json={"message": "hello", "systemPrompt": "test", "history": []})
+            self.assertEqual(403, missing_res.status_code)
+
+            # Wrong token returns 403 Forbidden
+            wrong_res = client.post(
+                "/api/voice/chat",
+                json={"message": "hello", "systemPrompt": "test", "history": []},
+                headers={"X-Internal-AI-Token": "wrong-token"}
+            )
+            self.assertEqual(403, wrong_res.status_code)
+
+            # Valid token clears the dependency guard (endpoint handles empty keys gracefully offline)
+            with patch("app.core.config.settings.GROQ_API_KEY", ""), patch("app.core.config.settings.OPENAI_API_KEY", ""):
+                ok_res = client.post(
+                    "/api/voice/chat",
+                    json={"message": "hello", "systemPrompt": "test", "history": []},
+                    headers={"X-Internal-AI-Token": "farmshift-secret-token"}
+                )
+                self.assertEqual(200, ok_res.status_code)
+
 if __name__ == "__main__": unittest.main()

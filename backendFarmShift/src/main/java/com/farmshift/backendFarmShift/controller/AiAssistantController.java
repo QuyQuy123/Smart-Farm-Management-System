@@ -48,7 +48,7 @@ public class AiAssistantController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/assistant")
+    @PostMapping({"/assistant", "/chat"})
     public ResponseEntity<AiAssistantResponse> handleAssistantRequest(
             @Valid @RequestBody AiAssistantRequest request,
             @RequestHeader(value = "X-Client-Id", required = false) String clientId,
@@ -70,7 +70,20 @@ public class AiAssistantController {
         if (response.isExecuted()) {
             realtimeSyncService.broadcastDataChange("/all", "AI", username, clientId);
         }
+        if (response.getActionType() != null && response.getActionType().startsWith("SECURITY_TOKEN_")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        }
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/confirm")
+    public ResponseEntity<AiAssistantResponse> confirmAssistantAction(
+            @Valid @RequestBody AiAssistantRequest request,
+            @RequestHeader(value = "X-Client-Id", required = false) String clientId,
+            Authentication authentication
+    ) {
+        request.setConfirmAction(true);
+        return handleAssistantRequest(request, clientId, authentication);
     }
 
     @PostMapping(value = "/assistant/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

@@ -76,6 +76,14 @@
   pointer-events: auto;
   transform-origin: bottom right;
   animation: chat-pop-up 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), height 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chatWindowExpanded {
+  width: 640px;
+  height: 740px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 104px);
 }
 
 @keyframes chat-pop-up {
@@ -807,6 +815,22 @@
   color: #92400e;
   font-weight: 700;
   font-size: 15px;
+  flex-wrap: wrap;
+}
+
+.securityBadge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .confirmIcon {
@@ -965,5 +989,118 @@
   border-color: #38bdf8;
   color: #0369a1;
 }
+
+/* ── Multi-Session Bar & Drawer ("Nhiều Section") ────────── */
+.iconBtnBadgeWrapper {
+  position: relative;
+}
+
+.sessionCountBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #019788;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #e6f7f4;
+  line-height: 1;
+}
+
+.sessionListPanel {
+  background: #ffffff;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 185px;
+  overflow-y: auto;
+  flex-shrink: 0;
+  box-shadow: inset 0 -2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.sessionListHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f4a43;
+}
+
+.sessionListItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sessionListItem:hover {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+
+.sessionListItemActive {
+  border-color: #019788;
+  background: #ecfdf5;
+}
+
+.sessionListMeta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.sessionListTitle {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessionListSub {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessionDeleteBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sessionDeleteBtn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
 
 

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     GROQ_STT_MODEL: str = "whisper-large-v3"
     GROQ_CHAT_MODEL: str = "llama-3.3-70b-versatile"
 
+    # Internal service-to-service shared token (enforced when non-empty)
+    AI_INTERNAL_TOKEN: str = ""
+
     # CORS
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

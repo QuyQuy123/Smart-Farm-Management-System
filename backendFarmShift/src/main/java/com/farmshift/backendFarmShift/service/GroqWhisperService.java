@@ -26,20 +26,31 @@ import java.time.Duration;
 public class GroqWhisperService {
 
     private final String aiServiceUrl;
+    private final String internalAiToken;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer dynamicNormalizer;
+
+    @org.springframework.beans.factory.annotation.Autowired
     public GroqWhisperService(
             @Value("${ai-service.url:http://localhost:8000}") String aiServiceUrl,
+            @Value("${ai-service.internal-token:${AI_INTERNAL_TOKEN:farmshift-local-ai-token}}") String internalAiToken,
             ObjectMapper objectMapper
     ) {
         this.aiServiceUrl = aiServiceUrl != null ? aiServiceUrl.strip().replaceAll("/+$", "") : "http://localhost:8000";
+        this.internalAiToken = internalAiToken != null ? internalAiToken.strip() : "";
         this.objectMapper = objectMapper;
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(5));
         requestFactory.setReadTimeout(Duration.ofSeconds(30));
         this.restTemplate = new RestTemplate(requestFactory);
+    }
+
+    public GroqWhisperService(String aiServiceUrl, ObjectMapper objectMapper) {
+        this(aiServiceUrl, "farmshift-local-ai-token", objectMapper);
     }
 
     public SpeechTranscribeResponse transcribe(MultipartFile file) {
@@ -76,6 +87,9 @@ public class GroqWhisperService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            if (!internalAiToken.isBlank()) {
+                headers.set("X-Internal-AI-Token", internalAiToken);
+            }
 
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             ByteArrayResource fileResource = new ByteArrayResource(fileBytes) {
@@ -93,7 +107,9 @@ public class GroqWhisperService {
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 JsonNode root = objectMapper.readTree(response.getBody());
                 String rawText = root.path("text").asText("").trim();
-                String transcribedText = VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawText);
+                String transcribedText = dynamicNormalizer != null
+                        ? dynamicNormalizer.normalize(rawText)
+                        : VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawText);
                 boolean fallback = root.path("fallback").asBoolean(false);
                 String provider = root.path("provider").asText("AI_SERVICE_WHISPER");
                 long duration = root.has("durationMs") ? root.path("durationMs").asLong()

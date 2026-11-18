@@ -98,7 +98,7 @@ class VoiceService:
         if req.system_prompt:
             messages.append({"role": "system", "content": req.system_prompt})
         if req.history:
-            for h in req.history[-6:]:
+            for h in req.history[-14:]:
                 role = h.get("role", "user")
                 content = h.get("content", "")
                 if content and content.strip():

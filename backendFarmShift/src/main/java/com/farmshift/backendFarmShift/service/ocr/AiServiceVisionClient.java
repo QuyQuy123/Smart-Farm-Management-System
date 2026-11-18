@@ -34,6 +34,9 @@ public class AiServiceVisionClient implements VisionClient {
     private final HttpClient httpClient;
     private final String aiServiceUrl;
 
+    @Value("${ai-service.internal-token:${AI_INTERNAL_TOKEN:farmshift-local-ai-token}}")
+    private String internalAiToken = "farmshift-local-ai-token";
+
     public AiServiceVisionClient(
             ObjectMapper objectMapper,
             @Value("${ai-service.url:http://localhost:8000}") String aiServiceUrl
@@ -71,10 +74,14 @@ public class AiServiceVisionClient implements VisionClient {
         try {
             byte[] multipartBody = createMultipartPayload(boundary, "file", filename, mimeType, document);
 
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(aiServiceUrl + "/api/ocr/extract-invoice"))
                     .timeout(Duration.ofSeconds(30))
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+            if (internalAiToken != null && !internalAiToken.isBlank()) {
+                reqBuilder.header("X-Internal-AI-Token", internalAiToken);
+            }
+            HttpRequest request = reqBuilder
                     .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
                     .build();
 

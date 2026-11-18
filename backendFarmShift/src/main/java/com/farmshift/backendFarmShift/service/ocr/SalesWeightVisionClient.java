@@ -19,6 +19,10 @@ public class SalesWeightVisionClient {
             .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+
+    @Value("${ai-service.internal-token:${AI_INTERNAL_TOKEN:farmshift-local-ai-token}}")
+    private String internalAiToken = "farmshift-local-ai-token";
+
     public SalesWeightVisionClient(ObjectMapper mapper, @Value("${ai-service.url:http://localhost:8000}") String url) {
         this.mapper = mapper; this.baseUrl = url.replaceAll("/+$", "");
     }
@@ -29,9 +33,12 @@ public class SalesWeightVisionClient {
             body.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"weight-slip" + document.extension() + "\"\r\nContent-Type: " + document.mime() + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
             body.write(document.bytes());
             body.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
-            var request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/ocr/extract-weight-slip"))
-                    .timeout(Duration.ofSeconds(90)).header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build();
+            var reqBuilder = HttpRequest.newBuilder(URI.create(baseUrl + "/api/ocr/extract-weight-slip"))
+                    .timeout(Duration.ofSeconds(90)).header("Content-Type", "multipart/form-data; boundary=" + boundary);
+            if (internalAiToken != null && !internalAiToken.isBlank()) {
+                reqBuilder.header("X-Internal-AI-Token", internalAiToken);
+            }
+            var request = reqBuilder.POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() != 200) {
                 String message = "Dịch vụ OCR chưa bóc tách được phiếu cân (HTTP " + response.statusCode() + ").";

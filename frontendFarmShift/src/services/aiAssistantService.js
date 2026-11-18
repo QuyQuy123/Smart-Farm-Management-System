@@ -43,6 +43,10 @@ export const sendAssistantMessage = async ({
   history,
   confirmAction,
   pendingActionPayload,
+  actionId,
+  actionToken,
+  sessionId,
+  resetSession,
   lastActionContext
 }) => {
   const response = await api.post('/ai/assistant', {
@@ -52,6 +56,10 @@ export const sendAssistantMessage = async ({
     history,
     confirmAction,
     pendingActionPayload,
+    ...(actionId ? { actionId } : {}),
+    ...(actionToken ? { actionToken } : {}),
+    ...(sessionId ? { sessionId } : {}),
+    ...(resetSession ? { resetSession: true } : {}),
     lastActionContext
   });
 

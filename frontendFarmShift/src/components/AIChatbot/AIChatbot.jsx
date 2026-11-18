@@ -1,13 +1,12 @@
 // src/components/AIChatbot/AIChatbot.jsx
 // Trợ lý Giọng nói & AI FarmShift (Actionable Voice Assistant & System Automation)
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Sparkles, X, Send, RotateCcw,
-  ChevronDown, Mic, MicOff, ShieldAlert,
+  Sparkles, X, Send, RotateCcw, Plus, History, Trash2,
+  Maximize2, Minimize2, Mic, MicOff, ShieldCheck,
   Zap, ExternalLink, Volume2, VolumeX, Check, AlertCircle
 } from 'lucide-react';
-import { getSystemMessage } from '../../constants/systemMessages';
 import { transcribeAudio, sendAssistantMessage } from '../../services/aiAssistantService';
 import farmLogo from '../../assets/logo_Farm.png';
 import styles from './AIChatbot.module.css';
@@ -15,9 +14,20 @@ import styles from './AIChatbot.module.css';
 let nextMsgId = 100;
 const generateMessageId = () => `msg_${Date.now()}_${++nextMsgId}`;
 
+let nextSessionSeq = 0;
+const SESSIONS_STORAGE_KEY = 'farmshift_ai_sessions_v1';
+const ACTIVE_SESSION_STORAGE_KEY = 'farmshift_ai_active_session_id';
+const LEGACY_HISTORY_KEY = 'farmshift_ai_chat_history';
+
 const formatCurrentTime = () => {
   const now = new Date();
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
+const formatSessionTitle = (text) => {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return 'Phiên mới';
+  return clean.length > 26 ? `${clean.slice(0, 26)}…` : clean;
 };
 
 const INITIAL_MESSAGE = {
@@ -26,6 +36,20 @@ const INITIAL_MESSAGE = {
   text: 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể thực thi trực tiếp các thao tác ghi cám, cân mẫu, báo cáo hao hụt, nhập kho hoặc giải đáp thú y & điều hành trang trại.',
   time: formatCurrentTime(),
   showChips: true
+};
+
+const createSessionObject = (index = 1, seedMessages = [INITIAL_MESSAGE]) => {
+  const msgs = Array.isArray(seedMessages) && seedMessages.length > 0 ? seedMessages : [INITIAL_MESSAGE];
+  const firstUser = msgs.find(m => m.type === 'user' && m.text);
+  const now = Date.now();
+  return {
+    id: `session_${now}_${++nextSessionSeq}`,
+    title: firstUser ? formatSessionTitle(firstUser.text) : `Phiên #${index}`,
+    createdAt: now,
+    updatedAt: now,
+    messages: msgs,
+    lastActionContext: null
+  };
 };
 
 export const ROLE_SUGGESTIONS = {
@@ -231,6 +255,7 @@ export const AIChatbot = ({ userRole: propRole }) => {
   const activeSuggestions = (userRole && ROLE_SUGGESTIONS[userRole]) ? ROLE_SUGGESTIONS[userRole] : SUGGESTIONS;
   const navigate = useNavigate();
   const location = useLocation();
+  const confirmInFlightRef = useRef(new Set());
 
   // Restore previous open/closed status from sessionStorage across routes & tabs
   const [isOpen, setIsOpen] = useState(() => {
@@ -250,28 +275,92 @@ export const AIChatbot = ({ userRole: propRole }) => {
     }
   }, [isOpen]);
 
-  // Restore previous session messages from sessionStorage
-  const [messages, setMessages] = useState(() => {
+  // Restore multi-session conversations & active session from sessionStorage
+  const [sessions, setSessions] = useState(() => {
     try {
-      const saved = sessionStorage.getItem('farmshift_ai_chat_history');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const savedSessions = sessionStorage.getItem(SESSIONS_STORAGE_KEY);
+      if (savedSessions) {
+        const parsed = JSON.parse(savedSessions);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((s, idx) => ({
+            ...s,
+            id: s.id || `session_restored_${idx + 1}`,
+            title: s.title || `Phiên #${idx + 1}`,
+            messages: Array.isArray(s.messages) && s.messages.length > 0 ? s.messages : [INITIAL_MESSAGE],
+            lastActionContext: s.lastActionContext || null
+          }));
+        }
+      }
+      const legacySaved = sessionStorage.getItem(LEGACY_HISTORY_KEY);
+      if (legacySaved) {
+        const parsedLegacy = JSON.parse(legacySaved);
+        if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
+          return [createSessionObject(1, parsedLegacy)];
+        }
       }
     } catch (_e) {
       // ignore
     }
-    return [INITIAL_MESSAGE];
+    return [createSessionObject(1, [INITIAL_MESSAGE])];
   });
+
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    try {
+      const savedActive = sessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+      if (savedActive) return savedActive;
+    } catch (_e) {
+      // ignore
+    }
+    return sessions[0]?.id;
+  });
+
+  const [isSessionListOpen, setIsSessionListOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+  const effectiveSessionId = activeSession?.id;
+  const messages = useMemo(
+    () => (Array.isArray(activeSession?.messages) ? activeSession.messages : [INITIAL_MESSAGE]),
+    [activeSession]
+  );
+  const lastActionContext = activeSession?.lastActionContext || null;
+
+  const updateSessionMessages = (targetSessionId, updater) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id !== targetSessionId) return s;
+      const prevMsgs = Array.isArray(s.messages) ? s.messages : [INITIAL_MESSAGE];
+      const nextMsgs = typeof updater === 'function' ? updater(prevMsgs) : updater;
+      const firstUser = nextMsgs.find(m => m.type === 'user' && m.text);
+      return {
+        ...s,
+        title: firstUser ? formatSessionTitle(firstUser.text) : s.title,
+        updatedAt: Date.now(),
+        messages: nextMsgs
+      };
+    }));
+  };
+
+  const setSessionActionContext = (targetSessionId, nextCtx) => {
+    setSessions(prev => prev.map(s => (
+      s.id === targetSessionId
+        ? { ...s, lastActionContext: nextCtx, updatedAt: Date.now() }
+        : s
+    )));
+  };
+
+  const setMessages = (updater) => {
+    if (effectiveSessionId) {
+      updateSessionMessages(effectiveSessionId, updater);
+    }
+  };
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState('');
-  const [lastActionContext, setLastActionContext] = useState(null);
 
   // TTS Voice Synthesis States
-  const [isAutoSpeakEnabled, setIsAutoSpeakEnabled] = useState(() => {
+  const [isAutoSpeakEnabled] = useState(() => {
     try {
       return localStorage.getItem('farmshift_ai_auto_speak') === 'true';
     } catch (_e) {
@@ -318,24 +407,22 @@ export const AIChatbot = ({ userRole: propRole }) => {
       .replace(/\bkhu\s+mía(?:\s+thịt)?\b/giu, 'Khu Mía Thịt');
   };
 
-  const closeChatWindow = () => {
-    if ('speechSynthesis' in window) {
-      try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
-    }
-    setSpeakingMsgId(null);
-    setIsOpen(false);
-  };
-
-  // Persist messages across views in sessionStorage
+  // Persist multi-session conversations & active session across views in sessionStorage
   useEffect(() => {
     try {
+      if (sessions.length > 0) {
+        sessionStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+      }
+      if (effectiveSessionId) {
+        sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, effectiveSessionId);
+      }
       if (messages.length > 0) {
-        sessionStorage.setItem('farmshift_ai_chat_history', JSON.stringify(messages));
+        sessionStorage.setItem(LEGACY_HISTORY_KEY, JSON.stringify(messages));
       }
     } catch (_e) {
       // ignore
     }
-  }, [messages]);
+  }, [sessions, effectiveSessionId, messages]);
 
   // Dọn dẹp media streams và Web Speech API khi unmount
   useEffect(() => {
@@ -409,20 +496,6 @@ export const AIChatbot = ({ userRole: propRole }) => {
   }, [messages, isTyping, isOpen]);
 
   // ── Web Speech API Text-to-Speech (TTS) Voice Synthesis ──
-  const toggleAutoSpeak = () => {
-    setIsAutoSpeakEnabled(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem('farmshift_ai_auto_speak', String(next));
-      } catch (_e) { /* ignore */ }
-      if (!next && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        setSpeakingMsgId(null);
-      }
-      return next;
-    });
-  };
-
   const speakText = (text, msgId) => {
     if (!('speechSynthesis' in window)) return;
 
@@ -499,6 +572,10 @@ export const AIChatbot = ({ userRole: propRole }) => {
       setSpeakingMsgId(null);
     }
 
+    const targetSessionId = effectiveSessionId;
+    const sessionMessages = messages;
+    const sessionContext = lastActionContext;
+
     const userMsg = {
       id: generateMessageId(),
       type: 'user',
@@ -506,15 +583,36 @@ export const AIChatbot = ({ userRole: propRole }) => {
       time: formatCurrentTime()
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    // Nếu ngay phía trên đang có thẻ chờ xác nhận và người dùng gõ lời đồng ý tự nhiên -> thực thi xác nhận luôn
+    const lastMsg = sessionMessages[sessionMessages.length - 1];
+    const normalizedReply = textToSend
+      .toLowerCase()
+      .replace(/[?!.,:;]+$/g, '')
+      .trim();
+    const isVerbalConfirmOfPendingCard = Boolean(
+      lastMsg
+      && lastMsg.type === 'bot'
+      && lastMsg.requiresConfirmation
+      && lastMsg.pendingAction
+      && lastMsg.confirmationStatus === 'pending'
+      && /^(?:ok|oke|okay|xác nhận|đồng ý|chốt|làm đi|thực hiện đi|ừ|uh|vâng|đúng rồi)$/i.test(normalizedReply)
+    );
+
+    updateSessionMessages(targetSessionId, prev => [...prev, userMsg]);
     setInput('');
+
+    if (isVerbalConfirmOfPendingCard) {
+      await handleConfirmAction(lastMsg.id, lastMsg.pendingAction, targetSessionId, sessionContext);
+      return;
+    }
+
     setIsTyping(true);
 
     try {
-      // Build conversation history of past turns for multi-turn awareness
-      const historyPayload = messages
+      // Build conversation history of past turns for multi-turn awareness within the same session
+      const historyPayload = sessionMessages
         .filter(m => m.id !== 1 && m.text)
-        .slice(-8)
+        .slice(-14)
         .map(m => ({
           role: m.type === 'user' ? 'user' : 'assistant',
           content: m.text
@@ -524,14 +622,15 @@ export const AIChatbot = ({ userRole: propRole }) => {
         message: textToSend,
         currentRoute: location.pathname,
         history: historyPayload,
-        lastActionContext: lastActionContext || undefined,
+        sessionId: targetSessionId,
+        lastActionContext: sessionContext || undefined,
         autoExecute: false
       });
 
       if (response.actionContext) {
-        setLastActionContext(response.actionContext);
+        setSessionActionContext(targetSessionId, response.actionContext);
       } else if (response.actionSummary) {
-        setLastActionContext(response.actionSummary);
+        setSessionActionContext(targetSessionId, response.actionSummary);
       }
 
       const botMsg = {
@@ -548,7 +647,7 @@ export const AIChatbot = ({ userRole: propRole }) => {
         time: formatCurrentTime()
       };
 
-      setMessages(prev => [...prev, botMsg]);
+      updateSessionMessages(targetSessionId, prev => [...prev, botMsg]);
 
       // Auto-read response if enabled
       if (isAutoSpeakEnabled && response.reply) {
@@ -566,7 +665,7 @@ export const AIChatbot = ({ userRole: propRole }) => {
       }
     } catch (error) {
       console.warn('Lỗi kết nối Trợ lý AI, sử dụng câu trả lời dự phòng:', error);
-      setMessages(prev => [
+      updateSessionMessages(targetSessionId, prev => [
         ...prev,
         {
           id: generateMessageId(),
@@ -583,25 +682,37 @@ export const AIChatbot = ({ userRole: propRole }) => {
   };
 
   // ── Xử lý xác nhận thực thi hành động đã yêu cầu (Human-in-the-loop Confirm) ──
-  const handleConfirmAction = async (msgId, pendingAction) => {
-    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'confirming' } : m));
+  const handleConfirmAction = async (
+    msgId,
+    pendingAction,
+    targetSessionId = effectiveSessionId,
+    sessionContext = lastActionContext
+  ) => {
+    if (confirmInFlightRef.current.has(msgId)) return;
+    confirmInFlightRef.current.add(msgId);
+    updateSessionMessages(targetSessionId, prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'confirming' } : m));
     try {
       const payload = pendingAction?.payload || pendingAction;
+      const actionId = pendingAction?.actionId ?? payload?.actionId;
+      const actionToken = pendingAction?.actionToken ?? payload?.actionToken;
       const response = await sendAssistantMessage({
         message: 'Xác nhận thực hiện',
         confirmAction: true,
         pendingActionPayload: payload,
+        actionId,
+        actionToken,
+        sessionId: targetSessionId,
         currentRoute: location.pathname,
-        lastActionContext: lastActionContext || undefined
+        lastActionContext: sessionContext || undefined
       });
 
       if (response.actionContext) {
-        setLastActionContext(response.actionContext);
+        setSessionActionContext(targetSessionId, response.actionContext);
       } else if (response.actionSummary) {
-        setLastActionContext(response.actionSummary);
+        setSessionActionContext(targetSessionId, response.actionSummary);
       }
 
-      setMessages(prev => prev.map(m => {
+      updateSessionMessages(targetSessionId, prev => prev.map(m => {
         if (m.id === msgId) {
           return {
             ...m,
@@ -627,17 +738,20 @@ export const AIChatbot = ({ userRole: propRole }) => {
       }
     } catch (err) {
       console.warn('Lỗi khi xác nhận thao tác:', err);
-      const backendMsg = err.response?.data?.message || err.message || 'Không thể thực hiện thao tác. Vui lòng kiểm tra lại.';
-      setMessages(prev => [
+      const backendMsg = err.response?.data?.reply || err.response?.data?.message || err.message || 'Không thể thực hiện thao tác. Vui lòng kiểm tra lại.';
+      const textToShow = backendMsg.startsWith('⚠️') ? backendMsg : `⚠️ ${backendMsg}`;
+      updateSessionMessages(targetSessionId, prev => [
         ...prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m),
         {
           id: Date.now() + 1,
           type: 'bot',
-          text: `⚠️ ${backendMsg}`,
+          text: textToShow,
           time: formatCurrentTime(),
           actionCard: null
         }
       ]);
+    } finally {
+      confirmInFlightRef.current.delete(msgId);
     }
   };
 
@@ -791,24 +905,65 @@ export const AIChatbot = ({ userRole: propRole }) => {
     }
   };
 
-  const handleReset = () => {
-    setMessages([INITIAL_MESSAGE]);
-    try {
-      sessionStorage.removeItem('farmshift_ai_chat_history');
-    } catch (_e) { /* ignore */ }
+  const stopVoiceAndAudio = () => {
     if (isListening) {
       stopListening();
     }
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch (_e) { /* ignore */ }
       setSpeakingMsgId(null);
     }
+  };
+
+  const handleCreateNewSession = () => {
+    stopVoiceAndAudio();
+    const hasConversation = messages.some(m => m.type === 'user');
+    const fresh = createSessionObject(
+      hasConversation ? sessions.length + 1 : Math.max(1, sessions.findIndex(s => s.id === effectiveSessionId) + 1),
+      [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]
+    );
+    if (hasConversation) {
+      setSessions(prev => [...prev, fresh]);
+    } else {
+      setSessions(prev => prev.map(s => (s.id === effectiveSessionId ? fresh : s)));
+    }
+    setActiveSessionId(fresh.id);
+    setIsSessionListOpen(false);
+  };
+
+  const handleSwitchSession = (sessionId) => {
+    stopVoiceAndAudio();
+    setActiveSessionId(sessionId);
+    setIsSessionListOpen(false);
+  };
+
+  const handleDeleteSession = (sessionId, event) => {
+    event.stopPropagation();
+    stopVoiceAndAudio();
+    setSessions(prev => {
+      const remaining = prev.filter(s => s.id !== sessionId);
+      if (remaining.length === 0) {
+        const fresh = createSessionObject(1, [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]);
+        setActiveSessionId(fresh.id);
+        return [fresh];
+      }
+      if (sessionId === effectiveSessionId) {
+        setActiveSessionId(remaining[remaining.length - 1].id);
+      }
+      return remaining;
+    });
   };
 
   return (
     <div className={styles.chatbotWidget}>
       {isOpen && (
-        <div className={styles.chatWindow} ref={chatWindowRef}>
+        <div
+          className={`${styles.chatWindow} ${isExpanded ? styles.chatWindowExpanded : ''}`}
+          ref={chatWindowRef}
+          data-testid="ai-chat-window"
+        >
           {/* ── Header ── */}
           <div className={styles.header}>
             <div className={styles.headerInfo}>
@@ -825,16 +980,82 @@ export const AIChatbot = ({ userRole: propRole }) => {
             </div>
 
             <div className={styles.headerActions}>
+              <div className={styles.iconBtnBadgeWrapper}>
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  title="Lịch sử các phiên trò chuyện"
+                  data-testid="session-list-toggle-btn"
+                  onClick={() => setIsSessionListOpen(prev => !prev)}
+                >
+                  <History size={16} />
+                </button>
+                {sessions.length > 0 && (
+                  <span className={styles.sessionCountBadge} data-testid="session-count-badge">
+                    {sessions.length}
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 className={styles.iconBtn}
-                title="Thu nhỏ cửa sổ"
-                onClick={closeChatWindow}
+                title="Cuộc trò chuyện mới"
+                data-testid="new-session-btn"
+                onClick={handleCreateNewSession}
               >
-                <ChevronDown size={18} />
+                <Plus size={17} />
+              </button>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                title={isExpanded ? 'Thu về kích thước chuẩn' : 'Phóng to cửa sổ chat'}
+                data-testid="expand-chat-btn"
+                onClick={() => setIsExpanded(prev => !prev)}
+              >
+                {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
             </div>
           </div>
+
+          {isSessionListOpen && (
+            <div className={styles.sessionListPanel} data-testid="session-list-panel">
+              <div className={styles.sessionListHeader}>
+                <span>Các phiên trò chuyện ({sessions.length})</span>
+              </div>
+              {sessions.map((s) => {
+                const isCurrent = s.id === effectiveSessionId;
+                const turnCount = Array.isArray(s.messages) ? s.messages.filter(m => m.type === 'user').length : 0;
+                return (
+                  <div
+                    key={s.id}
+                    role="button"
+                    tabIndex={0}
+                    className={`${styles.sessionListItem} ${isCurrent ? styles.sessionListItemActive : ''}`}
+                    data-testid={`session-list-item-${s.id}`}
+                    onClick={() => handleSwitchSession(s.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSwitchSession(s.id); }}
+                  >
+                    <div className={styles.sessionListMeta}>
+                      <span className={styles.sessionListTitle}>{s.title}</span>
+                      <span className={styles.sessionListSub}>
+                        {turnCount} câu hỏi
+                        {s.lastActionContext?.barnName ? ` • Nhớ: ${s.lastActionContext.barnName}` : ''}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.sessionDeleteBtn}
+                      title="Xóa phiên này"
+                      data-testid={`delete-session-${s.id}`}
+                      onClick={(e) => handleDeleteSession(s.id, e)}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* ── Message Stream ── */}
           <div className={styles.messages}>
@@ -861,6 +1082,12 @@ export const AIChatbot = ({ userRole: propRole }) => {
                       <div className={styles.confirmHeader}>
                         <AlertCircle size={15} className={styles.confirmIcon} />
                         <span className={styles.confirmTitle}>{msg.pendingAction.title || 'Xác nhận thao tác'}</span>
+                        {(msg.pendingAction.actionToken || msg.pendingAction.payload?.actionToken) && (
+                          <span className={styles.securityBadge} data-testid="signed-action-badge">
+                            <ShieldCheck size={12} />
+                            <span>Đã ký xác thực (5 phút)</span>
+                          </span>
+                        )}
                       </div>
                       {msg.pendingAction.description && (
                         <div className={styles.confirmDesc}>{msg.pendingAction.description}</div>

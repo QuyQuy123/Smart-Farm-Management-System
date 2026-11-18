@@ -34,6 +34,9 @@ public class FarmAreaService {
     private final com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouseCategoryRepository;
     private final BarnResponsibilityService responsibilities;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer speechNormalizer;
+
     public List<FarmAreaResponse> list() {
         return list(null);
     }
@@ -169,7 +172,9 @@ public class FarmAreaService {
                     areaWarehouses.rename(saved);
                 }
             }
-            return response(saved, summaries().get(saved.getId()));
+            FarmAreaResponse res = response(saved, summaries().get(saved.getId()));
+            if (speechNormalizer != null) speechNormalizer.evictLexiconCache();
+            return res;
         } catch (DataIntegrityViolationException exception) {
             throw duplicateName();
         }

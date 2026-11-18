@@ -32,6 +32,9 @@ public class BarnService {
     private final WorkTaskCheckRepository workTaskCheckRepository;
     private final BarnResponsibilityService responsibilities;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer speechNormalizer;
+
     public List<BarnResponse> list(Long areaId) {
         return list(areaId, null);
     }
@@ -118,7 +121,9 @@ public class BarnService {
         barn.setAreaM2(request.areaM2());
         barn.setDescription(request.description() == null ? "" : request.description().strip());
         try {
-            return response(repository.saveAndFlush(barn), activeCycle);
+            BarnResponse saved = response(repository.saveAndFlush(barn), activeCycle);
+            if (speechNormalizer != null) speechNormalizer.evictLexiconCache();
+            return saved;
         } catch (DataIntegrityViolationException exception) {
             throw duplicateName(area);
         }
