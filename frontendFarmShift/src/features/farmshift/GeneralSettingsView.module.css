@@ -1,0 +1,194 @@
+.rbacNotice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 20px 0;
+  padding: 10px 14px;
+  border-radius: var(--rounded-md);
+  background: #f0f9f7;
+  border: 1px solid #cce6df;
+  color: #0f5c55;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.roleSection {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.roleHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.roleSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px 20px 4px;
+}
+
+.roleCard {
+  padding: 16px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  background: var(--color-surface-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roleCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.roleCardTitleWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.roleIconBadge {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e6f5f3;
+  color: #0f766e;
+  flex-shrink: 0;
+}
+
+.roleCountPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--rounded-pill);
+  background: #ffffff;
+  border: 1px solid var(--color-hairline);
+  color: var(--color-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.roleCode {
+  font-size: 12px;
+  color: var(--color-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.roleDesc {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-body);
+}
+
+.guardrailText {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--color-body);
+}
+
+.webPushCard {
+  padding: 16px 18px;
+  border-radius: var(--rounded-md);
+  border: 1px solid #cce6df;
+  background-color: #f2faf7;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.webPushTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.webPushInfo {
+  flex: 1 1 280px;
+}
+
+.webPushHeading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.webPushIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #dff4ee;
+  color: #0f766e;
+  flex-shrink: 0;
+}
+
+.webPushActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toggleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.toggleRowLast {
+  border-bottom: none;
+}
+
+.toggleLabel {
+  cursor: pointer;
+  flex: 1;
+}
+
+.toggleCheckbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.notifErrorAlert {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: var(--rounded-sm);
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #be123c;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .roleSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+}

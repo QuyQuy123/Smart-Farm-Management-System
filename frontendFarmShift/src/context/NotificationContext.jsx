@@ -3,7 +3,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { INITIAL_FARMSHIFT_DATA } from '../data/farmshiftMockData';
 import { SYSTEM_MESSAGES, getSystemMessage } from '../constants/systemMessages';
-import { showLocalSwNotification } from '../services/webPushClient';
+import {
+  NOTIFICATION_PREFS_EVENT,
+  loadLocalNotificationPrefs,
+  showLocalSwNotification,
+} from '../services/webPushClient';
 
 const NotificationContext = createContext();
 
@@ -175,6 +179,24 @@ export const NotificationProvider = ({ children }) => {
   });
 
   const [activeToast, setActiveToast] = useState(null);
+  const [notifPrefs, setNotifPrefs] = useState(() => loadLocalNotificationPrefs());
+
+  useEffect(() => {
+    const syncPrefs = (event) => {
+      const next = event?.detail;
+      if (next && typeof next === 'object') {
+        setNotifPrefs(next);
+      } else {
+        setNotifPrefs(loadLocalNotificationPrefs());
+      }
+    };
+    window.addEventListener(NOTIFICATION_PREFS_EVENT, syncPrefs);
+    window.addEventListener('storage', syncPrefs);
+    return () => {
+      window.removeEventListener(NOTIFICATION_PREFS_EVENT, syncPrefs);
+      window.removeEventListener('storage', syncPrefs);
+    };
+  }, []);
 
   // Lưu trữ đồng bộ vào localStorage
   useEffect(() => {
@@ -198,6 +220,9 @@ export const NotificationProvider = ({ children }) => {
     const now = new Date(createdAt);
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+    const inAppEnabled = notifPrefs?.inAppEnabled !== false;
+    const iotAlertEnabled = notifPrefs?.iotAlertEnabled !== false;
+
     const newAlert = {
       id: 'al-' + createdAt,
       time: timeStr,
@@ -210,24 +235,27 @@ export const NotificationProvider = ({ children }) => {
       read: false
     };
 
-    setAlerts(prev => [newAlert, ...prev]);
-    setUnreadCount(prev => prev + 1);
+    if (inAppEnabled) {
+      setAlerts(prev => [newAlert, ...prev]);
+      setUnreadCount(prev => prev + 1);
 
-    // Kích hoạt banner toast nổi ở góc phải màn hình
-    setActiveToast(newAlert);
-    setTimeout(() => {
-      setActiveToast(null);
-    }, 4500);
+      // Kích hoạt banner toast nổi ở góc phải màn hình
+      setActiveToast(newAlert);
+      setTimeout(() => {
+        setActiveToast(null);
+      }, 4500);
+    }
 
     // Bắn sự kiện Custom Event
     window.dispatchEvent(new CustomEvent('farmshift_new_alert', { detail: newAlert }));
 
     // Local fallback bridge via Service Worker when alert is warning/error and browser granted permission
-    if (level === 'Cảnh báo' || level === 'Lỗi') {
+    const isIotType = type?.toLowerCase().includes('iot') || type?.toLowerCase().includes('nhiệt');
+    if ((level === 'Cảnh báo' || level === 'Lỗi') && (!isIotType || iotAlertEnabled)) {
       void showLocalSwNotification({
         title: `${barn} · ${type}`,
         body: value || status || 'Vui lòng kiểm tra hệ thống FarmShift.',
-        url: type?.toLowerCase().includes('iot') || type?.toLowerCase().includes('nhiệt') ? '/iot' : '/dashboard',
+        url: isIotType ? '/iot' : '/dashboard',
         tag: `farmshift-alert-${barn}`,
         severity: level === 'Lỗi' ? 'CRITICAL' : 'WARN',
       });
@@ -306,18 +334,21 @@ export const NotificationProvider = ({ children }) => {
       read: false
     };
 
-    // Khi bất cứ thao tác nào SUCCESS:
+    // Khi bất cứ thao tác nào SUCCESS và bật thông báo trong ứng dụng:
     // Tự động ghi nhận vào danh sách thông báo trung tâm (alerts) để người dùng xem lại trong menu Chuông Header!
-    if (type === 'success' || toastLevel === 'Thành công') {
+    const inAppEnabled = notifPrefs?.inAppEnabled !== false;
+    if (inAppEnabled && (type === 'success' || toastLevel === 'Thành công')) {
       setAlerts(prev => [toastObj, ...prev.slice(0, 49)]); // Lưu tối đa 50 thông báo gần nhất
       setUnreadCount(prev => prev + 1);
     }
 
-    // Hiển thị toast popup nổi ở góc phải màn hình
-    setActiveToast(toastObj);
-    setTimeout(() => {
-      setActiveToast(prev => prev?.id === toastObj.id ? null : prev);
-    }, 4500);
+    // Hiển thị toast popup nổi ở góc phải màn hình khi inAppEnabled được bật
+    if (inAppEnabled) {
+      setActiveToast(toastObj);
+      setTimeout(() => {
+        setActiveToast(prev => prev?.id === toastObj.id ? null : prev);
+      }, 4500);
+    }
 
     // Bắn sự kiện Custom Event
     window.dispatchEvent(new CustomEvent('farmshift_new_alert', { detail: toastObj }));
@@ -330,6 +361,7 @@ export const NotificationProvider = ({ children }) => {
       alerts,
       unreadCount,
       activeToast,
+      notifPrefs,
       sendNotification,
       showToast,
       markAsRead,

@@ -6,8 +6,12 @@
 .table th:nth-child(2) { width: 22%; }
 .areaRow { background: #f0f8f4; }
 .areaRow th { color: #236647; }
-.areaRow th svg { vertical-align: middle; margin-right: 8px; }
-.areaRow small { display: block; color: var(--color-muted); font-size: 13px; font-weight: 400; margin: 5px 0 0 26px; }
+.areaHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.areaTitle { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.areaTitle svg { flex-shrink: 0; }
+.warehouseBadge { display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 12.5px; background: #ffffff; border: 1px solid #cce3d8; color: #1e5b42; padding: 2px 8px; border-radius: 999px; }
+.warehouseBadge svg { flex-shrink: 0; }
+.areaRow small { display: block; color: var(--color-muted); font-size: 13px; font-weight: 400; margin: 5px 0 0 25px; }
 .table .barnName { padding-left: 46px; font-weight: 500; }
 .assignment { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
 .people { display: flex; flex-wrap: wrap; gap: 8px; }

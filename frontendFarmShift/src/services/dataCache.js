@@ -315,7 +315,11 @@ export const INVALIDATION_MATRIX = {
     '/warehouses'
   ],
   '/farm': [
-    '/farm'
+    '/farm',
+    '/settings'
+  ],
+  '/push/preferences': [
+    '/push/preferences'
   ]
 };
 

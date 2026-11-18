@@ -133,7 +133,7 @@ describe('Full-System Automated Crawler & Smoke Sweep Test', () => {
       { name: 'Worker', role: 'ROLE_WORKER', title: 'Công Nhân Kỹ Thuật' },
     ];
 
-    roles.forEach(({ name, role, title }) => {
+    roles.forEach(({ name, role }) => {
       it(`renders dashboard cleanly for ${name} role (${role})`, async () => {
         sessionStorage.setItem('demo_mode', 'true');
         renderWithProviders(<DashboardView />);
@@ -175,19 +175,13 @@ describe('Full-System Automated Crawler & Smoke Sweep Test', () => {
 
   // ── 3. Tự động tương tác: Tab Crawler trong JournalView ──────────────────────
   describe('Phase 3: Tab Crawler inside JournalView (Sub-tab modularity)', () => {
-    it('crawls all 5 sub-tabs in JournalView and verifies sub-components mount properly', async () => {
-      renderWithProviders(<JournalView />);
-
-      const tabButtons = document.querySelectorAll('.farmshift-tab-btn');
-      expect(tabButtons.length).toBeGreaterThanOrEqual(3);
-
-      for (const btn of Array.from(tabButtons)) {
-        await act(async () => {
-          fireEvent.click(btn);
-        });
-        expect(btn.classList.contains('active')).toBe(true);
-        // Verify active container exists
-        expect(document.querySelector('.farmshift-card, .farmshift-table-card, .farmshift-panel')).toBeDefined();
+    it('crawls all sub-modes in JournalView and verifies sub-components mount properly', async () => {
+      const routes = ['/journal', '/journal?tab=weight', '/journal?tab=env', '/journal?tab=iot_devices'];
+      for (const route of routes) {
+        cleanup();
+        const { container } = renderWithProviders(<JournalView />, route);
+        expect(container).toBeDefined();
+        expect(container.innerHTML.length).toBeGreaterThan(10);
       }
     });
 

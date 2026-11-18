@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification, formatNotificationTime, renderNotificationContent } from '../context/NotificationContext';
-import { registerServiceWorker } from '../services/webPushClient';
+import { getNotificationPreferences, registerServiceWorker } from '../services/webPushClient';
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { GlobalSearch } from '../components/GlobalSearch/GlobalSearch';
 import { getFarmInfo, saveFarmInfo } from '../data/farmshiftMockData';
@@ -116,7 +117,8 @@ export const FarmShiftLayout = ({
     actions = null,
 }) => {
     const { user, logout } = useAuth();
-    const { alerts, unreadCount, markAsRead, markAllAsRead, clearAllAlerts, activeToast, setActiveToast } = useNotification();
+    const { alerts, unreadCount, markAsRead, markAllAsRead, clearAllAlerts, activeToast, setActiveToast, notifPrefs } = useNotification();
+    const inAppEnabled = notifPrefs?.inAppEnabled !== false;
     const navigate = useNavigate();
     const location = useLocation();
     const sidebarRef = useRef(null);
@@ -169,6 +171,7 @@ export const FarmShiftLayout = ({
 
     useEffect(() => {
         if (!user?.email) return;
+        getNotificationPreferences(user.email).catch(() => {});
         if (typeof window !== 'undefined' && window.Notification?.permission === 'granted') {
             registerServiceWorker().catch(() => {});
         }
@@ -278,6 +281,20 @@ export const FarmShiftLayout = ({
         return () => window.removeEventListener('farmshift_info_updated', handleFarmUpdate);
     }, [user]);
 
+    useRealtimeRefresh(
+        ['/farm', '/settings'],
+        () => {
+            if (!user?.email) return;
+            getFarm().then((farm) => {
+                if (farm) {
+                    saveFarmInfo(farm);
+                    setFarmInfo(farm);
+                }
+            }).catch(() => {});
+        },
+        { enabled: Boolean(user?.email) }
+    );
+
     // Area and barn pages keep the "Khu nuôi" item highlighted; their sub-navigation is a tab bar on the page.
     const inAreaPages = location.pathname.startsWith('/areas') || location.pathname.startsWith('/barns');
 
@@ -370,7 +387,7 @@ export const FarmShiftLayout = ({
                             onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }}
                         >
                             <Bell size={19} />
-                            {unreadCount > 0 && (
+                            {unreadCount > 0 && inAppEnabled && (
                                 <span className="farmshift-badge-counter farmshift-badge-bounce">{unreadCount}</span>
                             )}
                         </button>
@@ -786,7 +803,7 @@ export const FarmShiftLayout = ({
             </main>
 
             {/* Floating Real-time Notification Banner with Countdown Animation */}
-            {activeToast && (
+            {activeToast && inAppEnabled && (
                 <ToastNotification
                     activeToast={activeToast}
                     setActiveToast={setActiveToast}

@@ -10,7 +10,10 @@ vi.mock('../services/workAssignmentService', () => ({
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: vi.fn() }) }));
 
 const workers = [{ id: 1, fullName: 'Nguyễn An', email: 'an@farm.test' }, { id: 2, fullName: 'Trần Bình', email: 'binh@farm.test' }];
-const board = () => ({ workers, areas: [{ id: 10, name: 'Khu thật', workers: [], barns: [
+const board = () => ({ workers, areas: [{ id: 10, name: 'Khu thật', warehouses: [
+  { id: 101, name: 'Kho cám Khu thật', kind: 'FEED' },
+  { id: 102, name: 'Kho thuốc Khu thật', kind: 'MEDICINE' },
+], workers: [], barns: [
   { id: 11, name: 'Chuồng thật', workers: [], inherited: true },
 ] }] });
 
@@ -22,8 +25,10 @@ beforeEach(() => { vi.resetAllMocks(); service.getBarnResponsibilities.mockResol
 afterEach(cleanup);
 
 describe('barn responsibility settings', () => {
-  it('loads real areas and barns, and assigns multiple workers to an area', async () => {
+  it('loads real areas and barns, displays linked warehouse badges, and assigns multiple workers to an area', async () => {
     render(<BarnResponsibilities canEdit />);
+    expect(await screen.findByText('Kho cám Khu thật')).toBeInTheDocument();
+    expect(screen.getByText('Kho thuốc Khu thật')).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Thêm công nhân phụ trách · Khu thật' }));
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByLabelText(/Nguyễn An/));
@@ -118,6 +123,14 @@ describe('barn responsibility settings', () => {
     expect(within(dialog).queryByRole('group', { name: /Chuồng thật/ })).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('switch'));
     expect(within(within(dialog).getByRole('group', { name: /Chuồng thật/ })).getByLabelText('Trần Bình')).toBeChecked();
+  });
+
+  it('shows actionable navigation button to /barns when there are no farm areas', async () => {
+    service.getBarnResponsibilities.mockResolvedValue({ workers, areas: [] });
+    render(<BarnResponsibilities canEdit />);
+    expect(await screen.findByText(/Chưa có khu nuôi/)).toBeInTheDocument();
+    const goToBarns = screen.getByRole('link', { name: /Đi tới Quản lý Khu nuôi/i });
+    expect(goToBarns).toHaveAttribute('href', '/barns');
   });
 
 });

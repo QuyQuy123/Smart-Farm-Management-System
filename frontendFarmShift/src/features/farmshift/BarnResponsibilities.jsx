@@ -1,10 +1,37 @@
 import { useEffect, useState } from 'react';
-import { Building2, Pencil, Plus, Users } from 'lucide-react';
+import { useInRouterContext, useNavigate } from 'react-router-dom';
+import { Building2, Pencil, Plus, Users, Warehouse } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { getBarnResponsibilities, inheritAreaWorkers, saveAreaWorkerAssignments, setBarnWorkers } from '../../services/workAssignmentService';
 import { Dialog } from './FarmAreaDialogs';
 import { apiErrorMessage } from './farmAreaOptions';
 import styles from './BarnResponsibilities.module.css';
+
+function RouterGoToBarnsButton() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" className="farmshift-btn farmshift-btn-primary" onClick={() => navigate('/barns')}>
+      <Plus size={15} /> Đi tới Quản lý Khu nuôi
+    </button>
+  );
+}
+
+function GoToBarnsButton() {
+  const inRouter = useInRouterContext();
+  if (!inRouter) {
+    return (
+      <a href="/barns" className="farmshift-btn farmshift-btn-primary">
+        <Plus size={15} /> Đi tới Quản lý Khu nuôi
+      </a>
+    );
+  }
+  return <RouterGoToBarnsButton />;
+}
+
+const warehousesOf = area => (Array.isArray(area?.warehouses) ? area.warehouses : [])
+  .map(wh => (typeof wh === 'string' ? { id: wh, name: wh } : wh))
+  .filter(wh => wh?.name);
 
 function WorkerNames({ workers }) {
   return <div className={styles.people}>{workers.map(worker => <span key={worker.id} className={styles.person}>
@@ -134,6 +161,11 @@ export function BarnResponsibilities({ canEdit }) {
       .catch(error => { if (!cancelled) setState({ data: null, error: apiErrorMessage(error), loading: false }); });
     return () => { cancelled = true; };
   }, [canEdit, revision]);
+  useRealtimeRefresh(
+    ['/barn-responsibilities', '/farm-areas', '/areas', '/barns', '/work-assignments', '/employees'],
+    () => setRevision(current => current + 1),
+    { enabled: Boolean(canEdit) }
+  );
   const refresh = () => { setState(current => ({ ...current, loading: true })); setRevision(current => current + 1); };
   const saved = () => { setTarget(null); showToast('Đã cập nhật công nhân phụ trách.', 'success'); refresh(); };
   if (!canEdit) return <div className="farmshift-card farmshift-card-body">Chỉ chủ trang trại có quyền quản lý phân công khu nuôi và chuồng nuôi.</div>;
@@ -156,11 +188,27 @@ export function BarnResponsibilities({ canEdit }) {
     </header>
     {loading ? <p role="status" className={styles.empty}>Đang tải phân công...</p>
       : error ? <div className={styles.empty}><p role="alert" className={styles.error}>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={refresh}>Thử lại</button></div>
-      : !data?.areas?.length ? <p className={styles.empty}>Chưa có khu nuôi. Thêm khu nuôi tại menu Khu nuôi để bắt đầu phân công.</p>
+      : !data?.areas?.length ? (
+        <div className={styles.empty}>
+          <p style={{ margin: '0 0 12px' }}>Chưa có khu nuôi. Thêm khu nuôi tại menu Khu nuôi để bắt đầu phân công.</p>
+          <GoToBarnsButton />
+        </div>
+      )
       : <div className="farmshift-table-container" style={{ border: 'none' }}><table className={`farmshift-table ${styles.table}`}>
         <thead><tr><th>Khu nuôi / Chuồng nuôi</th><th>Phạm vi phân công</th><th>Công nhân phụ trách</th></tr></thead>
         {data.areas.map(area => <tbody key={area.id}>
-          <tr className={styles.areaRow}><th scope="row"><Building2 size={17} />{area.name}<small>{area.barns.length} chuồng nuôi</small></th>
+          <tr className={styles.areaRow}>
+            <th scope="row">
+              <div className={styles.areaHeading}>
+                <span className={styles.areaTitle}><Building2 size={17} />{area.name}</span>
+                {warehousesOf(area).map(wh => (
+                  <span key={wh.id ?? wh.name} className={`farmshift-badge farmshift-badge-neutral ${styles.warehouseBadge}`}>
+                    <Warehouse size={13} />{wh.name}
+                  </span>
+                ))}
+              </div>
+              <small>{area.barns.length} chuồng nuôi</small>
+            </th>
             <td><span className={styles.scope}>Toàn khu nuôi</span></td><td>{assignment(area)}</td></tr>
           {area.barns.map(barn => <tr key={barn.id}><th scope="row" className={styles.barnName}>{barn.name}</th>
             <td><span className={barn.inherited ? styles.inherited : styles.custom}>{barn.inherited ? 'Kế thừa từ khu' : 'Phân công riêng'}</span></td>
