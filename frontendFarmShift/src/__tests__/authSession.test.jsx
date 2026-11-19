@@ -4,11 +4,18 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { getProfile } from '../services/userService';
 import { getAuthToken } from '../utils/authStorage';
+import {
+  AI_SESSIONS_STORAGE_KEY,
+  AI_ACTIVE_SESSION_STORAGE_KEY,
+  AI_LEGACY_HISTORY_KEY,
+  AI_CHAT_OPEN_KEY,
+  AI_CHAT_OWNER_KEY,
+} from '../utils/aiChatStorage';
 
 vi.mock('../services/userService', () => ({ getProfile: vi.fn() }));
 
-const token = (exp = Math.floor(Date.now() / 1000) + 3600) =>
-  `e30.${btoa(JSON.stringify({ sub: 'owner@farm.test', roles: ['ROLE_FARM_OWNER'], exp }))}.signature`;
+const token = (exp = Math.floor(Date.now() / 1000) + 3600, sub = 'owner@farm.test') =>
+  `e30.${btoa(JSON.stringify({ sub, roles: ['ROLE_FARM_OWNER'], exp }))}.signature`;
 
 const Session = () => {
   const { user, loading, logout } = useAuth();
@@ -78,5 +85,65 @@ describe('shared authentication session', () => {
     });
     await act(async () => { resolveProfile({ fullName: 'Owner' }); });
     await waitFor(() => expect(screen.getByText('signed out')).toBeTruthy());
+  });
+
+  it('wipes all AI chat sessionStorage keys on logout, cross-tab token change, and fresh login', async () => {
+    const seedChatKeys = (owner) => {
+      sessionStorage.setItem(AI_CHAT_OWNER_KEY, owner);
+      sessionStorage.setItem(AI_SESSIONS_STORAGE_KEY, JSON.stringify({ ownerScope: owner, sessions: [{ id: 's1', messages: [] }] }));
+      sessionStorage.setItem(AI_ACTIVE_SESSION_STORAGE_KEY, 's1');
+      sessionStorage.setItem(AI_LEGACY_HISTORY_KEY, JSON.stringify([{ id: 1, text: 'secret' }]));
+      sessionStorage.setItem(AI_CHAT_OPEN_KEY, 'true');
+      localStorage.setItem('farmshift_user_role', 'ROLE_FARM_OWNER');
+    };
+
+    // 1. Explicit logout wipes all AI chat keys
+    localStorage.setItem('token', token());
+    seedChatKeys('owner@farm.test');
+    const view1 = render(<AuthProvider><Session /></AuthProvider>);
+    await screen.findByText('owner@farm.test');
+    fireEvent.click(screen.getByText('Logout'));
+    expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_ACTIVE_SESSION_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_LEGACY_HISTORY_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_CHAT_OPEN_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBeNull();
+    expect(localStorage.getItem('farmshift_user_role')).toBeNull();
+    view1.unmount();
+
+    // 2. Cross-tab account switch via storage event wipes old user's AI chat keys
+    localStorage.setItem('token', token());
+    seedChatKeys('owner@farm.test');
+    const view2 = render(<AuthProvider><Session /></AuthProvider>);
+    await screen.findByText('owner@farm.test');
+    act(() => {
+      localStorage.setItem('token', token(Math.floor(Date.now() / 1000) + 3600, 'worker@farm.test'));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'token', storageArea: localStorage }));
+    });
+    expect(await screen.findByText('worker@farm.test')).toBeTruthy();
+    expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBeNull();
+    view2.unmount();
+
+    // 3. Calling login() directly wipes stale AI chat keys before activating new user
+    const LoginProbe = () => {
+      const { user, login } = useAuth();
+      return (
+        <>
+          <span>{user?.email || 'none'}</span>
+          <button onClick={() => login(token(Math.floor(Date.now() / 1000) + 3600, 'accountant@farm.test'), 'accountant@farm.test', 'ROLE_ACCOUNTANT')}>
+            SwitchLogin
+          </button>
+        </>
+      );
+    };
+    seedChatKeys('owner@farm.test');
+    render(<AuthProvider><LoginProbe /></AuthProvider>);
+    await act(async () => {
+      fireEvent.click(screen.getByText('SwitchLogin'));
+    });
+    expect(await screen.findByText('accountant@farm.test')).toBeTruthy();
+    expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 // src/services/dataCache.js
 // Centralized Smart Client-Side Data Cache Engine for FarmShift
 // Supports RAM (Map) + sessionStorage, in-flight deduplication, and cross-module invalidation matrix.
+import { clearAiChatStorage } from '../utils/aiChatStorage';
 
 export const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const STORAGE_PREFIX = 'farmshift_cache:';
@@ -656,6 +657,7 @@ export class DataCache {
   clearAll() {
     this.memoryCache.clear();
     this.inFlightPromises.clear();
+    this.currentScope = null;
     try {
       if (typeof window !== 'undefined' && window.sessionStorage) {
         const keysToRemove = [];
@@ -670,6 +672,7 @@ export class DataCache {
     } catch {
       // Ignore
     }
+    clearAiChatStorage();
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('farmshift:cache-cleared'));
     }
