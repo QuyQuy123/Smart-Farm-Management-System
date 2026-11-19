@@ -33,7 +33,7 @@ const ROLE_LABELS = {
 };
 
 const ROUTE_LABELS = [
-  ['/dashboard', 'Tổng quan'],
+  ['/dashboard', 'Bảng tin'],
   ['/today-tasks', 'Việc hôm nay'],
   ['/barns', 'Chuồng nuôi'],
   ['/areas', 'Khu nuôi'],
@@ -93,7 +93,6 @@ const generateMessageId = () => `msg_${Date.now()}_${++nextMsgId}`;
 let nextSessionSeq = 0;
 const SESSIONS_STORAGE_KEY = 'farmshift_ai_sessions_v1';
 const ACTIVE_SESSION_STORAGE_KEY = 'farmshift_ai_active_session_id';
-const LEGACY_HISTORY_KEY = 'farmshift_ai_chat_history';
 
 const formatCurrentTime = () => {
   const now = new Date();
@@ -333,8 +332,14 @@ export const FormattedBotText = ({ text }) => {
   );
 };
 
-export const AIChatbot = ({ userRole: propRole, role: legacyRole }) => {
+export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) => {
   const userRole = propRole || legacyRole || (typeof localStorage !== 'undefined' ? localStorage.getItem('farmshift_user_role') : null);
+  const userScope = String(userEmail || userRole || 'default').trim().toLowerCase() || 'default';
+  const isDefaultScope = userScope === 'default';
+  const openStorageKey = isDefaultScope ? 'farmshift_ai_chat_open' : `farmshift_ai_chat_open::${userScope}`;
+  const sessionsStorageKey = isDefaultScope ? SESSIONS_STORAGE_KEY : `${SESSIONS_STORAGE_KEY}::${userScope}`;
+  const activeSessionStorageKey = isDefaultScope ? ACTIVE_SESSION_STORAGE_KEY : `${ACTIVE_SESSION_STORAGE_KEY}::${userScope}`;
+
   const fallbackCards = useMemo(() => {
     const raw = (userRole && ROLE_SUGGESTIONS[userRole]) ? ROLE_SUGGESTIONS[userRole] : SUGGESTIONS;
     return raw.map((item, idx) => ({
@@ -353,28 +358,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole }) => {
   const location = useLocation();
   const confirmInFlightRef = useRef(new Set());
 
-  // Restore previous open/closed status from sessionStorage across routes & tabs
-  const [isOpen, setIsOpen] = useState(() => {
+  const readScopedSessions = useCallback((sKey, allowLegacyFallback = false) => {
     try {
-      return sessionStorage.getItem('farmshift_ai_chat_open') === 'true';
-    } catch (_e) {
-      return false;
-    }
-  });
-
-  // Sync isOpen state to sessionStorage
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('farmshift_ai_chat_open', String(isOpen));
-    } catch (_e) {
-      // ignore
-    }
-  }, [isOpen]);
-
-  // Restore multi-session conversations & active session from sessionStorage
-  const [sessions, setSessions] = useState(() => {
-    try {
-      const savedSessions = sessionStorage.getItem(SESSIONS_STORAGE_KEY);
+      const savedSessions = sessionStorage.getItem(sKey);
       if (savedSessions) {
         const parsed = JSON.parse(savedSessions);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -387,22 +373,49 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole }) => {
           }));
         }
       }
-      const legacySaved = sessionStorage.getItem(LEGACY_HISTORY_KEY);
-      if (legacySaved) {
-        const parsedLegacy = JSON.parse(legacySaved);
-        if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-          return [createSessionObject(1, parsedLegacy)];
+      if (allowLegacyFallback) {
+        const legacySaved = sessionStorage.getItem('farmshift_ai_chat_history');
+        if (legacySaved) {
+          const parsedLegacy = JSON.parse(legacySaved);
+          if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
+            return [createSessionObject(1, parsedLegacy)];
+          }
         }
       }
     } catch (_e) {
       // ignore
     }
     return [createSessionObject(1, [INITIAL_MESSAGE])];
+  }, []);
+
+  // Track which userScope owns the current in-memory chat state so switching accounts never writes old messages into the new user's storage key
+  const stateScopeRef = useRef(userScope);
+
+  // Restore previous open/closed status from user-scoped sessionStorage across routes & tabs
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem(openStorageKey) === 'true';
+    } catch (_e) {
+      return false;
+    }
   });
+
+  // Sync isOpen state to user-scoped sessionStorage
+  useEffect(() => {
+    if (stateScopeRef.current !== userScope) return;
+    try {
+      sessionStorage.setItem(openStorageKey, String(isOpen));
+    } catch (_e) {
+      // ignore
+    }
+  }, [isOpen, openStorageKey, userScope]);
+
+  // Restore multi-session conversations & active session from user-scoped sessionStorage
+  const [sessions, setSessions] = useState(() => readScopedSessions(sessionsStorageKey, isDefaultScope));
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
     try {
-      const savedActive = sessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+      const savedActive = sessionStorage.getItem(activeSessionStorageKey);
       if (savedActive) return savedActive;
     } catch (_e) {
       // ignore
@@ -412,6 +425,15 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole }) => {
 
   const [isSessionListOpen, setIsSessionListOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Sync Side-Drawer layout offset on root element so fixed drawer never hides Dashboard KPIs
+  useEffect(() => {
+    const active = Boolean(isOpen && isExpanded);
+    document.documentElement.classList.toggle('farmshift-ai-drawer-open', active);
+    return () => {
+      document.documentElement.classList.remove('farmshift-ai-drawer-open');
+    };
+  }, [isOpen, isExpanded]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const effectiveSessionId = activeSession?.id;
@@ -523,22 +545,41 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole }) => {
       .replace(/\bkhu\s+mía(?:\s+thịt)?\b/giu, 'Khu Mía Thịt');
   };
 
-  // Persist multi-session conversations & active session across views in sessionStorage
+  // Persist multi-session conversations & active session per userScope in sessionStorage
   useEffect(() => {
+    if (stateScopeRef.current !== userScope) return;
     try {
       if (sessions.length > 0) {
-        sessionStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+        sessionStorage.setItem(sessionsStorageKey, JSON.stringify(sessions));
       }
       if (effectiveSessionId) {
-        sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, effectiveSessionId);
-      }
-      if (messages.length > 0) {
-        sessionStorage.setItem(LEGACY_HISTORY_KEY, JSON.stringify(messages));
+        sessionStorage.setItem(activeSessionStorageKey, effectiveSessionId);
       }
     } catch (_e) {
       // ignore
     }
-  }, [sessions, effectiveSessionId, messages]);
+  }, [sessions, effectiveSessionId, sessionsStorageKey, activeSessionStorageKey, userScope]);
+
+  useEffect(() => {
+    if (stateScopeRef.current === userScope) return;
+    stateScopeRef.current = userScope;
+    suggestionsReqRef.current += 1;
+    const scoped = readScopedSessions(sessionsStorageKey, isDefaultScope);
+    setSessions(scoped);
+    try {
+      const savedActive = sessionStorage.getItem(activeSessionStorageKey);
+      setActiveSessionId(savedActive || scoped[0]?.id);
+      setIsOpen(sessionStorage.getItem(openStorageKey) === 'true');
+    } catch (_e) {
+      setActiveSessionId(scoped[0]?.id);
+      setIsOpen(false);
+    }
+    setLiveSuggestions(null);
+    setLiveMeta(null);
+    setIsExpanded(false);
+    setIsSessionListOpen(false);
+    setInput('');
+  }, [userScope, isDefaultScope, sessionsStorageKey, activeSessionStorageKey, openStorageKey, readScopedSessions]);
 
   // Dọn dẹp media streams, Web Audio VAD và Web Speech API khi unmount
   useEffect(() => {
@@ -599,7 +640,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole }) => {
   useEffect(() => {
     if (!isOpen) return;
     fetchSuggestions(false);
-  }, [isOpen, location.pathname, userRole, fetchSuggestions]);
+  }, [isOpen, location.pathname, userRole, userScope, fetchSuggestions]);
 
   useRealtimeRefresh(
     ['/ai/suggestions', '/today-tasks', '/journal', '/inventory-items', '/purchases', '/debts', '/barns', '/cycles'],
@@ -623,19 +664,36 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole }) => {
   }, [isTyping]);
 
   // Helper điền prompt mẫu & bôi đen chỗ '...' để điền số lượng nhanh
+  const pendingSelectionRef = useRef(null);
   const applyPromptTemplate = useCallback((promptText) => {
     const text = String(promptText || '');
+    const idx = text.indexOf('...');
+    pendingSelectionRef.current = idx !== -1
+      ? { text, start: idx, end: idx + 3 }
+      : { text, start: text.length, end: text.length };
     setInput(text);
     setTimeout(() => {
       const el = inputRef.current;
-      if (!el) return;
+      const pending = pendingSelectionRef.current;
+      if (!el || !pending || el.value !== pending.text) return;
       el.focus();
-      const idx = text.indexOf('...');
-      if (idx !== -1 && typeof el.setSelectionRange === 'function') {
-        el.setSelectionRange(idx, idx + 3);
+      if (typeof el.setSelectionRange === 'function') {
+        el.setSelectionRange(pending.start, pending.end);
       }
+      pendingSelectionRef.current = null;
     }, 0);
   }, []);
+
+  useEffect(() => {
+    const pending = pendingSelectionRef.current;
+    const el = inputRef.current;
+    if (!pending || !el || input !== pending.text || el.value !== pending.text) return;
+    el.focus();
+    if (typeof el.setSelectionRange === 'function') {
+      el.setSelectionRange(pending.start, pending.end);
+    }
+    pendingSelectionRef.current = null;
+  }, [input]);
 
   const handleSuggestionClick = (card) => {
     if (!card?.prompt) return;

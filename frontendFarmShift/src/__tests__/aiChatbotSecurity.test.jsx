@@ -226,5 +226,42 @@ describe('AI Chatbot Cryptographic Signing & Security Guard UI', () => {
     expect(chatWindow.className).toMatch(/chatWindowExpanded/);
     fireEvent.click(expandBtn);
     expect(chatWindow.className).not.toMatch(/chatWindowExpanded/);
+    expect(document.documentElement.classList.contains('farmshift-ai-drawer-open')).toBe(false);
+  });
+
+  it('isolates chat sessions and resets suggestions when switching userEmail/userRole (SEC-SESSION) and syncs drawer root class', async () => {
+    aiAssistantService.sendAssistantMessage.mockResolvedValueOnce({
+      reply: 'Lãi lỗ bảo mật của Chủ trại: +120.000.000 VNĐ',
+      actionType: 'QUERY_FARM_STATUS',
+      executed: false
+    });
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AIChatbot userRole="ROLE_FARM_OWNER" userEmail="owner@farmshift.local" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    const input = await screen.findByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Tóm tắt lãi lỗ' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Lãi lỗ bảo mật của Chủ trại/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('expand-chat-btn'));
+    expect(document.documentElement.classList.contains('farmshift-ai-drawer-open')).toBe(true);
+
+    // Switch active user to Worker -> previous Owner session & expanded drawer must NOT leak
+    rerender(
+      <MemoryRouter initialEntries={['/today-tasks']}>
+        <AIChatbot userRole="ROLE_FARM_WORKER" userEmail="worker@farmshift.local" />
+      </MemoryRouter>
+    );
+
+    expect(document.documentElement.classList.contains('farmshift-ai-drawer-open')).toBe(false);
+    expect(screen.queryByText(/Lãi lỗ bảo mật của Chủ trại/i)).not.toBeInTheDocument();
   });
 });

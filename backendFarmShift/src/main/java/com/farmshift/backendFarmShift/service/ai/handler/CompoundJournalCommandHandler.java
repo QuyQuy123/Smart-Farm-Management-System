@@ -7,6 +7,7 @@ import com.farmshift.backendFarmShift.repository.*;
 import com.farmshift.backendFarmShift.service.CycleService;
 import com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer;
 import com.farmshift.backendFarmShift.service.WorkAssignmentService;
+import com.farmshift.backendFarmShift.service.ai.AiRbacPolicy;
 import com.farmshift.backendFarmShift.service.ai.AssistantCommandHandler;
 import com.farmshift.backendFarmShift.service.ai.AssistantExecutionContext;
 import lombok.RequiredArgsConstructor;
@@ -90,6 +91,9 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
     @Override
     @Transactional
     public AiAssistantResponse handle(AssistantExecutionContext context) {
+        if (context.isAccountant() && !context.isOwner()) {
+            return AiRbacPolicy.createAccountantForbiddenResponse();
+        }
         if (Boolean.TRUE.equals(context.getConfirmAction())) {
             return executeConfirmedCompound(context);
         }
@@ -646,10 +650,12 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
     }
 
     private String extractFeedName(String text, String fallback) {
-        String lower = text.toLowerCase(Locale.ROOT);
-        if (lower.contains("cp 511") || lower.contains("cám cp")) return "CP 511";
-        if (lower.contains("higro 02") || lower.contains("cám số 2")) return "Higro 02";
-        if (lower.contains("higro 01") || lower.contains("cám số 1") || lower.contains("higro")) return "Higro 01";
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(text).toLowerCase(Locale.ROOT);
+        if (norm.contains("cargill 1502") || norm.contains("1502") || norm.contains("cargill")) return "Cám Gà vỗ béo Cargill 1502";
+        if (norm.contains("higro 510") || norm.contains("510")) return "Cám Gà choai Higro 510";
+        if (norm.contains("cp 511") || norm.contains("cam cp") || norm.contains("511")) return "Cám Gà con CP 511";
+        if (norm.contains("higro 02") || norm.contains("cam so 2")) return "Higro 02";
+        if (norm.contains("higro 01") || norm.contains("cam so 1") || norm.contains("higro")) return "Higro 01";
         return fallback;
     }
 

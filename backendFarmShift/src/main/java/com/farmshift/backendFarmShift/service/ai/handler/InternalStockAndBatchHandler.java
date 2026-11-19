@@ -8,11 +8,13 @@ import com.farmshift.backendFarmShift.repository.*;
 import com.farmshift.backendFarmShift.service.CycleService;
 import com.farmshift.backendFarmShift.service.InternalStockService;
 import com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer;
+import com.farmshift.backendFarmShift.service.WorkAssignmentService;
 import com.farmshift.backendFarmShift.service.ai.AiRbacPolicy;
 import com.farmshift.backendFarmShift.service.ai.AssistantCommandHandler;
 import com.farmshift.backendFarmShift.service.ai.AssistantExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,12 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
     private final InternalStockCategoryRepository internalStockCategoryRepository;
     private final InternalStockService internalStockService;
 
+    @Autowired(required = false)
+    private WorkAssignmentService workAssignmentService;
+
+    @Autowired(required = false)
+    private BarnRepository barnRepository;
+
     private static final DateTimeFormatter BATCH_CODE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm");
     private static final NumberFormat CURRENCY_FORMAT = NumberFormat.getInstance(new Locale("vi", "VN"));
 
@@ -63,8 +71,11 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         if (msg == null || msg.isBlank()) return false;
         String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase();
 
-        // 1. Batch price inquiry signals
-        boolean isBatchQuery = (norm.contains("ton kho") || norm.contains("trong kho") || norm.contains("kiem tra ton"))
+        // 1. Batch price inquiry signals (exclude low-stock threshold alerts which route to QUERY_FARM_STATUS)
+        boolean isLowStockAlert = norm.contains("sap het") || norm.contains("sap can")
+                || norm.contains("ton thap") || norm.contains("duoi ");
+        boolean isBatchQuery = !isLowStockAlert
+                && (norm.contains("ton kho") || norm.contains("trong kho") || norm.contains("kiem tra ton"))
                 && (norm.contains("gia") || norm.contains("dot") || norm.contains("chi tiet") || norm.contains("lo") || norm.contains("bao nhieu"));
 
         // 2. Internal movement signals (only EXPORT & TRANSFER)
@@ -100,40 +111,68 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         String msg = context.getMessage();
         boolean canSeeFinance = !context.isWorker();
 
-        // Identify product keyword (e.g. "Higro 01", "CP 511", "thuốc")
         List<InventoryItem> allItems = inventoryRepository.findAll();
-        String searchTarget = extractSearchTarget(msg);
+        if (context.isWorker() && workAssignmentService != null && barnRepository != null) {
+            Set<Long> allowedBarnIds = workAssignmentService.barnIdsOf(context.getUsername());
+            if (!allowedBarnIds.isEmpty()) {
+                Set<Long> allowedAreaIds = new HashSet<>();
+                for (Barn b : barnRepository.findAll()) {
+                    if (allowedBarnIds.contains(b.getId()) && b.getArea() != null && b.getArea().getId() != null) {
+                        allowedAreaIds.add(b.getArea().getId());
+                    }
+                }
+                Set<Long> allowedWarehouseIds = new HashSet<>();
+                for (Long areaId : allowedAreaIds) {
+                    warehouseRepository.findAllByArea_Id(areaId).forEach(w -> allowedWarehouseIds.add(w.getId()));
+                }
+                if (!allowedWarehouseIds.isEmpty()) {
+                    allItems = allItems.stream()
+                            .filter(i -> i.getWarehouse() != null && allowedWarehouseIds.contains(i.getWarehouse().getId()))
+                            .toList();
+                }
+            }
+        }
+
+        String searchTarget = extractSearchTarget(msg, allItems);
+        String targetNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(searchTarget).toLowerCase(Locale.ROOT).trim();
 
         List<InventoryItem> matchedItems = allItems.stream()
                 .filter(item -> {
-                    if (item.getProduct() == null) return false;
-                    String pName = item.getProduct().getName().toLowerCase();
-                    if (searchTarget.isBlank()) return true;
-                    return pName.contains(searchTarget.toLowerCase());
+                    if (item.getProduct() == null || item.getProduct().getName() == null) return false;
+                    if (targetNorm.isBlank()) return true;
+                    String pNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(item.getProduct().getName()).toLowerCase(Locale.ROOT);
+                    return pNorm.contains(targetNorm);
                 })
                 .sorted(Comparator.comparing(InventoryItem::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
 
         if (matchedItems.isEmpty()) {
             return AiAssistantResponse.builder()
-                    .reply("📦 Hiện không tìm thấy thông tin tồn kho cho mặt hàng **" + (searchTarget.isBlank() ? "yêu cầu" : searchTarget) + "** trong hệ thống.")
+                    .reply("📦 Hiện không tìm thấy thông tin tồn kho cho mặt hàng **" + (searchTarget.isBlank() ? "yêu cầu" : searchTarget) + "** trong phạm vi kho được phép.")
                     .actionType("QUERY_STOCK_BATCH")
                     .executed(true)
                     .build();
         }
 
-        // Calculate total stock & weighted average price
         BigDecimal totalStock = BigDecimal.ZERO;
         BigDecimal totalValue = BigDecimal.ZERO;
-        String productName = matchedItems.get(0).getProduct().getName();
-        String unitName = matchedItems.get(0).getUnit() != null ? matchedItems.get(0).getUnit().getName() : "Bao";
+        Set<String> distinctProducts = new LinkedHashSet<>();
+        Set<String> distinctUnits = new LinkedHashSet<>();
 
         for (InventoryItem item : matchedItems) {
+            distinctProducts.add(item.getProduct().getName());
+            String rowUnit = item.getUnit() != null ? item.getUnit().getName() : "đơn vị";
+            distinctUnits.add(rowUnit);
             BigDecimal stock = item.getStock() != null ? item.getStock() : BigDecimal.ZERO;
             BigDecimal price = item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO;
             totalStock = totalStock.add(stock);
             totalValue = totalValue.add(stock.multiply(price));
         }
+
+        String headerTitle = distinctProducts.size() == 1
+                ? distinctProducts.iterator().next()
+                : (searchTarget.isBlank() ? "Tất cả vật tư kho" : searchTarget);
+        String singleUnit = distinctUnits.size() == 1 ? distinctUnits.iterator().next() : null;
 
         BigDecimal weightedAvgPrice = BigDecimal.ZERO;
         if (totalStock.compareTo(BigDecimal.ZERO) > 0) {
@@ -142,13 +181,14 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
 
         StringBuilder sb = new StringBuilder();
         if (canSeeFinance) {
-            sb.append("📦 **Báo cáo tồn kho & chi tiết lô giá nhập: ").append(productName).append("**\n\n");
+            sb.append("📦 **Báo cáo tồn kho & chi tiết lô giá nhập: ").append(headerTitle).append("**\n\n");
             sb.append("| Mặt hàng | Mã lô (#date-time) | Tồn kho | Đơn giá nhập |\n");
             sb.append("| :--- | :--- | :--- | :--- |\n");
 
             for (InventoryItem item : matchedItems) {
                 String batchCode = formatBatchCode(item);
-                String stockStr = formatQty(item.getStock()) + " " + unitName;
+                String rowUnit = item.getUnit() != null ? item.getUnit().getName() : "đơn vị";
+                String stockStr = formatQty(item.getStock()) + " " + rowUnit;
                 String priceStr = CURRENCY_FORMAT.format(item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO) + " VNĐ";
                 sb.append("| ").append(item.getProduct().getName())
                         .append(" | `").append(batchCode).append("`")
@@ -156,23 +196,30 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
                         .append(" | ").append(priceStr).append(" |\n");
             }
 
-            sb.append("\n- **Tổng tồn kho:** ").append(formatQty(totalStock)).append(" ").append(unitName);
-            sb.append("\n- **Giá TB (Bình quân gia quyền):** ").append(CURRENCY_FORMAT.format(weightedAvgPrice)).append(" VNĐ/").append(unitName);
+            if (singleUnit != null) {
+                sb.append("\n- **Tổng tồn kho:** ").append(formatQty(totalStock)).append(" ").append(singleUnit);
+                sb.append("\n- **Giá TB (Bình quân gia quyền):** ").append(CURRENCY_FORMAT.format(weightedAvgPrice)).append(" VNĐ/").append(singleUnit);
+            } else {
+                sb.append("\n- **Tổng số lô hiển thị:** ").append(matchedItems.size()).append(" lô");
+            }
         } else {
             // ROLE_FARM_WORKER: Price columns COMPLETELY MASKED/STRIPPED
-            sb.append("📦 **Báo cáo tồn kho theo lô: ").append(productName).append("**\n\n");
+            sb.append("📦 **Báo cáo tồn kho theo lô: ").append(headerTitle).append("**\n\n");
             sb.append("| Mặt hàng | Mã lô (#date-time) | Tồn kho khả dụng |\n");
             sb.append("| :--- | :--- | :--- |\n");
 
             for (InventoryItem item : matchedItems) {
                 String batchCode = formatBatchCode(item);
-                String stockStr = formatQty(item.getStock()) + " " + unitName;
+                String rowUnit = item.getUnit() != null ? item.getUnit().getName() : "đơn vị";
+                String stockStr = formatQty(item.getStock()) + " " + rowUnit;
                 sb.append("| ").append(item.getProduct().getName())
                         .append(" | `").append(batchCode).append("`")
                         .append(" | ").append(stockStr).append(" |\n");
             }
 
-            sb.append("\n- **Tổng tồn kho:** ").append(formatQty(totalStock)).append(" ").append(unitName);
+            if (singleUnit != null) {
+                sb.append("\n- **Tổng tồn kho:** ").append(formatQty(totalStock)).append(" ").append(singleUnit);
+            }
             sb.append("\n*(Thông tin đơn giá và tổng tiền được bảo mật theo phân quyền công nhân)*");
         }
 
@@ -383,21 +430,46 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         return qty.stripTrailingZeros().toPlainString();
     }
 
-    private String extractSearchTarget(String text) {
-        String lower = text.toLowerCase();
-        if (lower.contains("higro 01")) return "Higro 01";
-        if (lower.contains("higro 02")) return "Higro 02";
-        if (lower.contains("cp 511")) return "CP 511";
-        if (lower.contains("cam")) return "Cám";
-        if (lower.contains("thuoc")) return "Thuốc";
+    private String extractSearchTarget(String text, List<InventoryItem> allItems) {
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(text).toLowerCase(Locale.ROOT);
+        if (allItems != null) {
+            String bestName = null;
+            for (InventoryItem it : allItems) {
+                if (it.getProduct() == null || it.getProduct().getName() == null) continue;
+                String pName = it.getProduct().getName();
+                String pNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(pName).toLowerCase(Locale.ROOT);
+                if (norm.contains(pNorm) && (bestName == null || pName.length() > bestName.length())) {
+                    bestName = pName;
+                }
+            }
+            if (bestName != null) return bestName;
+        }
+        if (norm.contains("cargill 1502") || norm.contains("1502") || norm.contains("cargill")) return "Cargill 1502";
+        if (norm.contains("higro 510") || norm.contains("510")) return "Higro 510";
+        if (norm.contains("higro 01")) return "Higro 01";
+        if (norm.contains("higro 02")) return "Higro 02";
+        if (norm.contains("cp 511") || norm.contains("511")) return "CP 511";
+        if (norm.contains("h5n1")) return "H5N1";
+        if (norm.contains("lasota")) return "Lasota";
+        if (norm.contains("gumboro")) return "Gumboro";
+        if (norm.contains("marek")) return "Marek";
+        if (norm.contains("bio-zyme") || norm.contains("biozyme") || norm.contains("men tieu hoa")) return "Bio-Zyme";
+        if (norm.contains("han-coc") || norm.contains("toltrazuril")) return "Han-Coc";
+        if (norm.contains("bkc")) return "BKC";
+        if (norm.contains("vitamin") || norm.contains("dien giai")) return "Vitamin";
+        if (norm.contains("cam")) return "Cám";
+        if (norm.contains("vac xin") || norm.contains("vac-xin")) return "Vắc-xin";
+        if (norm.contains("thuoc")) return "Thuốc";
         return "";
     }
 
     private String extractFeedName(String text, String fallback) {
-        String lower = text.toLowerCase();
-        if (lower.contains("higro 01") || lower.contains("cám số 1")) return "Cám Higro 01";
-        if (lower.contains("higro 02") || lower.contains("cám số 2")) return "Cám Higro 02";
-        if (lower.contains("cp 511")) return "Cám CP 511";
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(text).toLowerCase(Locale.ROOT);
+        if (norm.contains("cargill 1502") || norm.contains("1502") || norm.contains("cargill")) return "Cám Gà vỗ béo Cargill 1502";
+        if (norm.contains("higro 510") || norm.contains("510")) return "Cám Gà choai Higro 510";
+        if (norm.contains("higro 01") || norm.contains("cam so 1")) return "Cám Higro 01";
+        if (norm.contains("higro 02") || norm.contains("cam so 2")) return "Cám Higro 02";
+        if (norm.contains("cp 511") || norm.contains("511")) return "Cám Gà con CP 511";
         return fallback;
     }
 
@@ -472,10 +544,11 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
     }
 
     private ProductCategory resolveProductCategory(String name) {
+        String normTarget = VietnameseSpeechNormalizer.removeVietnameseDiacritics(name).toLowerCase(Locale.ROOT);
         List<ProductCategory> all = productCategoryRepository.findAll();
         for (ProductCategory p : all) {
-            if (p.getName().equalsIgnoreCase(name) || name.toLowerCase().contains(p.getName().toLowerCase())
-                    || p.getName().toLowerCase().contains(name.toLowerCase())) {
+            String pNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(p.getName()).toLowerCase(Locale.ROOT);
+            if (p.getName().equalsIgnoreCase(name) || normTarget.contains(pNorm) || pNorm.contains(normTarget)) {
                 return p;
             }
         }

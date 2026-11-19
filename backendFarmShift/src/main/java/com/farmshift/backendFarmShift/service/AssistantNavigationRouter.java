@@ -78,6 +78,7 @@ public final class AssistantNavigationRouter {
     /** Các cụm cho thấy đây là truy vấn / thao tác dữ liệu, không phải điều hướng thuần. */
     private static final List<String> NON_NAVIGATION_SIGNALS = List.of(
             "ton kho", "tinh trang", "cong no", "con bao nhieu", "bao nhieu", "nhiet do",
+            "cua toi", "cua minh", "qua gio", "chua lam", "hom nay co gi",
             "kho tho", "kho khe", "phan sap", "phan trang", "cau trung", "ngap",
             "sua ", "doi ", "cap nhat", "thanh toan", "tra no", "huy ", "xoa ", "tao ", "them ",
             "chuyen dan", "tach dan", "nhap kho", "xac nhan", "hoan thanh", "xong viec");

@@ -241,7 +241,9 @@ public class AiSuggestionService {
 
         List<PurchaseInvoice> activeInvoices = purchaseInvoiceRepository.findByStockStatusNot("Đã hủy");
         List<PurchaseInvoice> pendingImport = activeInvoices.stream()
-                .filter(inv -> !"Đã nhập kho".equalsIgnoreCase(inv.getStockStatus()))
+                .filter(inv -> inv.getFlock() == null
+                        && !"Đã nhập kho".equalsIgnoreCase(inv.getStockStatus())
+                        && !"Đã nhập chuồng".equalsIgnoreCase(inv.getStockStatus()))
                 .toList();
 
         if (!pendingImport.isEmpty()) {
@@ -446,7 +448,9 @@ public class AiSuggestionService {
         // 5. Pending import invoices & supplier payables
         List<PurchaseInvoice> activeInvoices = purchaseInvoiceRepository.findByStockStatusNot("Đã hủy");
         long unimportedCount = activeInvoices.stream()
-                .filter(inv -> !"Đã nhập kho".equalsIgnoreCase(inv.getStockStatus()))
+                .filter(inv -> inv.getFlock() == null
+                        && !"Đã nhập kho".equalsIgnoreCase(inv.getStockStatus())
+                        && !"Đã nhập chuồng".equalsIgnoreCase(inv.getStockStatus()))
                 .count();
         if (unimportedCount > 0) {
             cards.add(SuggestionCard.builder()
@@ -784,7 +788,19 @@ public class AiSuggestionService {
 
         List<SuggestionCard> list = new ArrayList<>(deduped.values());
         list.sort(Comparator.comparingInt(SuggestionCard::getPriorityScore).reversed());
-        return list.size() <= MAX_SUGGESTIONS ? list : List.copyOf(list.subList(0, MAX_SUGGESTIONS));
+        if (list.size() <= MAX_SUGGESTIONS) {
+            return list;
+        }
+        List<SuggestionCard> top = new ArrayList<>(list.subList(0, MAX_SUGGESTIONS));
+        boolean hasTemplateCard = top.stream().anyMatch(c -> !c.isAutoSend());
+        if (!hasTemplateCard) {
+            list.stream()
+                    .skip(MAX_SUGGESTIONS)
+                    .filter(c -> !c.isAutoSend())
+                    .findFirst()
+                    .ifPresent(templateCard -> top.set(MAX_SUGGESTIONS - 1, templateCard));
+        }
+        return List.copyOf(top);
     }
 
     private boolean matchesRouteContext(String currentRoute, String targetRoute) {
@@ -825,7 +841,7 @@ public class AiSuggestionService {
 
     private static String resolveRouteLabel(String normalizedRoute) {
         return switch (normalizedRoute) {
-            case "/dashboard" -> "Tổng quan";
+            case "/dashboard" -> "Bảng tin";
             case "/today-tasks" -> "Việc hôm nay";
             case "/barns" -> "Chuồng nuôi";
             case "/areas" -> "Khu nuôi";

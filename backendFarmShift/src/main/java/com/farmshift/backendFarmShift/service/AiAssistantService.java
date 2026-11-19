@@ -19,6 +19,8 @@ import com.farmshift.backendFarmShift.dto.request.SupplierRequest;
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
 import com.farmshift.backendFarmShift.dto.response.CycleDetailResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleMetrics;
+import com.farmshift.backendFarmShift.dto.response.DebtSummaryResponse;
+import com.farmshift.backendFarmShift.dto.response.WorkBoard;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
@@ -47,6 +49,7 @@ import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -101,6 +104,12 @@ public class AiAssistantService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private WorkAssignmentService workAssignmentService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DebtService debtService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SalesOrderRepository salesOrderRepository;
 
     @Value("${ai-service.internal-token:${AI_INTERNAL_TOKEN:farmshift-local-ai-token}}")
     private String internalAiToken = "farmshift-local-ai-token";
@@ -162,6 +171,7 @@ public class AiAssistantService {
     public AiAssistantResponse processRequest(AiAssistantRequest request, String username, Collection<? extends GrantedAuthority> authorities) {
         String actor = username != null && !username.isBlank() ? username : "anonymous";
         boolean isWorker = isWorkerOnly(authorities);
+        boolean isAccountant = isAccountantOnly(authorities);
         String role = resolvePrimaryRole(authorities, isWorker);
         String sessionId = request.getSessionId() != null && !request.getSessionId().isBlank()
                 ? request.getSessionId().trim()
@@ -194,6 +204,15 @@ public class AiAssistantService {
                 effectivePayload = verification.canonicalPayload();
             }
 
+            if (effectivePayload != null) {
+                String actionType = effectivePayload.get("actionType") != null
+                        ? String.valueOf(effectivePayload.get("actionType"))
+                        : "";
+                if (!AiRbacPolicy.isAllowedForRole(role, actionType)) {
+                    return isWorker ? AiRbacPolicy.createForbiddenResponse() : AiRbacPolicy.createAccountantForbiddenResponse();
+                }
+            }
+
             if (commandDispatcher != null && effectivePayload != null) {
                 AssistantExecutionContext confirmCtx = AssistantExecutionContext.builder()
                         .pendingActionPayload(effectivePayload)
@@ -211,7 +230,7 @@ public class AiAssistantService {
                             request.getMessage(), request.getMessage(), request.getCurrentRoute());
                 }
             }
-            AiAssistantResponse confirmed = executeConfirmedPayload(effectivePayload, actor, isWorker);
+            AiAssistantResponse confirmed = executeConfirmedPayload(effectivePayload, actor, isWorker, isAccountant);
             return finalizeResponse(confirmed, actor, role, isWorker, sessionKey, sessionId,
                     request.getMessage(), request.getMessage(), request.getCurrentRoute());
         }
@@ -255,9 +274,15 @@ public class AiAssistantService {
             autoExecute = true;
             message = DIRECT_CONFIRM.matcher(message).replaceAll(" ").replaceAll("\\s+", " ").trim();
         }
-        Env env = new Env(actor, isWorker, autoExecute);
+        Env env = new Env(actor, isWorker, isAccountant, autoExecute);
         List<Map<String, String>> history = request.getHistory() != null ? request.getHistory() : Collections.emptyList();
         Map<String, Object> ctx = resolveContext(sessionKey, request.getLastActionContext(), history);
+
+        String preNorm = normalizeText(message);
+        if (isWorker && isWorkerForbiddenFinancialOrAdminQuery(preNorm)) {
+            return finalizeResponse(AiRbacPolicy.createForbiddenResponse(), actor, role, true, sessionKey, sessionId,
+                    rawMessage, message, request.getCurrentRoute());
+        }
 
         if (commandDispatcher != null) {
             AssistantExecutionContext execCtx = AssistantExecutionContext.builder()
@@ -304,7 +329,7 @@ public class AiAssistantService {
         }
 
         // GIAI ĐOẠN 2b: luật tạo mới & tra cứu nghiệp vụ + trí nhớ hội thoại trong phiên
-        AiAssistantResponse ruleResult = evaluateRuleEngine(message, request.getCurrentRoute(), actor, isWorker, autoExecute, ctx, history);
+        AiAssistantResponse ruleResult = evaluateRuleEngine(message, request.getCurrentRoute(), actor, isWorker, isAccountant, autoExecute, ctx, history);
         if (ruleResult != null) {
             return finalizeResponse(ruleResult, actor, role, isWorker, sessionKey, sessionId,
                     rawMessage, message, request.getCurrentRoute());
@@ -574,7 +599,37 @@ public class AiAssistantService {
         return !privileged;
     }
 
-    private record Env(String user, boolean worker, boolean auto) {
+    private static boolean isAccountantOnly(Collection<? extends GrantedAuthority> authorities) {
+        if (authorities == null) return false;
+        boolean hasOwner = authorities.stream().anyMatch(a -> {
+            String role = a.getAuthority() == null ? "" : a.getAuthority().toUpperCase(Locale.ROOT);
+            return role.equals("ROLE_FARM_OWNER") || role.equals("ROLE_ADMIN");
+        });
+        if (hasOwner) return false;
+        return authorities.stream().anyMatch(a -> {
+            String role = a.getAuthority() == null ? "" : a.getAuthority().toUpperCase(Locale.ROOT);
+            return role.equals("ROLE_ACCOUNTANT");
+        });
+    }
+
+    private static boolean isWorkerForbiddenFinancialOrAdminQuery(String norm) {
+        if (norm == null || norm.isBlank()) return false;
+        if (norm.contains("xoa hoa don") || norm.contains("huy hoa don") || norm.contains("xoa don") || norm.contains("xoa chuong")) {
+            return true;
+        }
+        if (norm.contains("doanh thu") || norm.contains("lai lo") || norm.contains("loi nhuan") || norm.contains("cong no")) {
+            return true;
+        }
+        boolean asksMoney = norm.contains("gia ") || norm.contains("don gia") || norm.contains("gia von")
+                || norm.contains("tong tien") || norm.contains("bao nhieu tien") || norm.contains("thanh tien");
+        boolean asksInventoryQty = norm.contains("ton kho") || norm.contains("trong kho") || norm.contains("kiem tra ton");
+        return asksMoney && !asksInventoryQty;
+    }
+
+    private record Env(String user, boolean worker, boolean accountant, boolean auto) {
+        Env(String user, boolean worker, boolean auto) {
+            this(user, worker, false, auto);
+        }
     }
 
     public static final Set<String> WORKER_BLOCKED_ACTIONS = Set.of(
@@ -775,6 +830,9 @@ public class AiAssistantService {
             if (env.worker()) {
                 return workerBlocked("UPDATE_BARN_INFO");
             }
+            if (env.accountant()) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             if ((norm.contains("muc tieu can") || norm.contains("trong luong muc tieu"))
                     && !norm.contains("suc chua") && !norm.contains("dien tich") && !norm.contains("ten")) {
                 return AiAssistantResponse.builder()
@@ -788,7 +846,7 @@ public class AiAssistantService {
                 barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
             }
             if (barn == null) {
-                return barnNotFoundResponse(norm);
+                return barnNotFoundResponse(norm, env.user(), env.worker());
             }
 
             Map<String, Object> payload = new LinkedHashMap<>();
@@ -1060,9 +1118,12 @@ public class AiAssistantService {
         }
 
         // 6. TRANSFER_FLOCK (Tách / Chuyển đàn giữa các chuồng)
-        if (norm.contains("chuyen dan") || norm.contains("tach dan") || (norm.contains("chuyen") && (norm.contains("con ga") || norm.contains("con") || norm.contains("dan")) && norm.contains("sang"))) {
+        if (norm.contains("chuyen dan") || norm.contains("tach dan") || (norm.contains("chuyen") && !norm.contains("bao cam") && !norm.contains("tu kho") && (norm.contains("con ga") || norm.contains("con") || norm.contains("dan")) && norm.contains("sang"))) {
             if (env.worker()) {
                 return workerBlocked("TRANSFER_FLOCK");
+            }
+            if (env.accountant()) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
             }
             Matcher matcher = Pattern.compile("(?:tu\\s+)?([a-z0-9\\s]+?)\\s+sang\\s+([a-z0-9\\s]+)").matcher(norm);
             Barn sourceBarn = null;
@@ -1119,13 +1180,16 @@ public class AiAssistantService {
         }
 
         // 7. START_OR_CLOSE_CYCLE (Bắt đầu hoặc kết thúc lứa)
-        if (norm.contains("mo lua") || norm.contains("bat dau lua") || norm.contains("khai bao lua") || norm.contains("ket thuc lua") || norm.contains("dong lua")) {
+        if (norm.contains("mo lua") || norm.contains("bat dau lua") || norm.contains("khai bao lua") || norm.contains("ket thuc lua") || norm.contains("dong lua") || norm.contains("chot lua")) {
             if (env.worker()) {
                 return workerBlocked("START_OR_CLOSE_CYCLE");
             }
+            if (env.accountant()) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             Barn barn = resolveBarn(norm, message, currentRoute);
             if (barn != null) {
-                boolean isClose = norm.contains("ket thuc") || norm.contains("dong");
+                boolean isClose = norm.contains("ket thuc") || norm.contains("dong") || norm.contains("chot");
                 if (isClose) {
                     Optional<FarmingCycle> actCycle = cycleRepository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE);
                     if (actCycle.isPresent()) {
@@ -1160,6 +1224,9 @@ public class AiAssistantService {
         // 8. LOG_OR_UPDATE_FEED (Sửa lượng cám đã ghi hoặc bù trừ sai sót)
         boolean hasUpdateSignal = norm.contains("sua") || norm.contains("doi") || norm.contains("nham") || norm.contains("thanh") || norm.contains("lai");
         if (hasUpdateSignal && (norm.contains("cam") || norm.contains("cho an") || "LOG_FEED".equals(ctx.get("lastIntent")) || "LOG_OR_UPDATE_FEED".equals(ctx.get("lastIntent")))) {
+            if (env.accountant()) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             Barn barn = resolveBarn(norm, message, currentRoute);
             if (barn == null && ctx.get("barnId") != null) {
                 barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
@@ -1218,6 +1285,9 @@ public class AiAssistantService {
 
         // 9. LOG_OR_UPDATE_WEIGHT (Sửa cân mẫu)
         if (hasUpdateSignal && (norm.contains("can") || norm.contains("trong luong") || norm.contains("can mau") || "LOG_WEIGHT".equals(ctx.get("lastIntent")) || "LOG_OR_UPDATE_WEIGHT".equals(ctx.get("lastIntent")))) {
+            if (env.accountant()) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             Barn barn = resolveBarn(norm, message, currentRoute);
             if (barn == null && ctx.get("barnId") != null) {
                 barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
@@ -1278,6 +1348,9 @@ public class AiAssistantService {
         boolean isMovementUpdate = hasUpdateSignal && (norm.contains("hao hut") || norm.contains("chet") || norm.contains("loai thai") || norm.contains("xuat ban") || norm.contains("thu hoach")
                 || "LOG_MORTALITY".equals(ctx.get("lastIntent")) || "LOG_OR_UPDATE_MORTALITY".equals(ctx.get("lastIntent")));
         if (isMovementUpdate) {
+            if (env.accountant()) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             Barn barn = resolveBarn(norm, message, currentRoute);
             if (barn == null && ctx.get("barnId") != null) {
                 barn = barnRepository.findById(Long.valueOf(String.valueOf(ctx.get("barnId")))).orElse(null);
@@ -1381,12 +1454,28 @@ public class AiAssistantService {
             Map<String, Object> ctx,
             List<Map<String, String>> history
     ) {
+        return evaluateRuleEngine(message, currentRoute, username, isWorker, false, autoExecute, ctx, history);
+    }
+
+    private AiAssistantResponse evaluateRuleEngine(
+            String message,
+            String currentRoute,
+            String username,
+            boolean isWorker,
+            boolean isAccountant,
+            boolean autoExecute,
+            Map<String, Object> ctx,
+            List<Map<String, String>> history
+    ) {
         String norm = normalizeText(message);
         String effectiveRoute = resolveEffectiveRouteWithSessionMemory(norm, currentRoute, ctx);
 
         // 0. Session Memory Recall, Conversational Acknowledgments ("uh", "ok", "cảm ơn") & Elliptical Follow-ups ("thế còn Nhà A2?")
         AiAssistantResponse followUp = evaluateConversationalFollowUp(norm, message, effectiveRoute, currentRoute, username, isWorker, autoExecute, ctx, history);
         if (followUp != null) {
+            if (isAccountant && "COMPLETE_DAILY_TASKS".equals(followUp.getActionType())) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             return followUp;
         }
 
@@ -1414,15 +1503,43 @@ public class AiAssistantService {
         // 2. Stage-Aware FCR & ADG Diagnostic Query
         if ((norm.contains("fcr") || norm.contains("danh gia") || norm.contains("phan tich") || norm.contains("ton cam") || norm.contains("hieu qua"))
                 && (norm.contains("fcr") || norm.contains("chuong") || norm.contains("dan") || norm.contains("cam") || norm.contains("adg"))) {
-            String fcrRoute = (norm.contains("toan trai") || norm.contains("tat ca") || norm.contains("cac chuong")) ? currentRoute : effectiveRoute;
+            String fcrRoute = (norm.contains("chuong nao") || norm.contains("toan trai") || norm.contains("tat ca") || norm.contains("cac chuong"))
+                    ? null : effectiveRoute;
             AiAssistantResponse fcrDiag = handleFcrAndFlockDiagnosticQuery(norm, message, fcrRoute, username, isWorker);
             if (fcrDiag != null) {
                 return fcrDiag;
             }
         }
 
-        // 2b. QUERY_FARM_STATUS (Tra cứu tồn kho, tình trạng chuồng, công nợ)
-        if (norm.contains("ton kho") || norm.contains("tinh trang") || norm.contains("cong no") || norm.contains("con bao nhieu") || norm.contains("nhiet do") || norm.contains("the nao")) {
+        // 2a. Read-only Today Tasks & Overdue Summary (before navigation & completion mutations)
+        boolean wantsCompleteTasks = norm.contains("lam xong") || norm.contains("hoan thanh")
+                || norm.contains("tich xong") || norm.contains("tich viec")
+                || norm.contains("xong het") || norm.matches(".*\\bda\\s+(?:lam\\s+)?xong.*");
+        boolean asksTodayTasksSummary = !wantsCompleteTasks && (norm.contains("viec qua gio")
+                || norm.contains("qua gio hom nay")
+                || norm.contains("tre han hom nay")
+                || ((norm.contains("viec hom nay") || norm.contains("cong viec hom nay")
+                        || norm.contains("hom nay toi") || norm.contains("hom nay co viec"))
+                    && (norm.startsWith("xem") || norm.contains("cua toi") || norm.contains("cua minh")
+                        || norm.contains("tong hop") || norm.contains("bao nhieu") || norm.contains("chua lam")
+                        || norm.contains("co nhung") || norm.contains("kiem tra") || norm.contains("liet ke")
+                        || norm.contains("danh sach"))));
+        if (asksTodayTasksSummary) {
+            AiAssistantResponse tasksSummary = handleTodayTasksSummaryQuery(norm, message, effectiveRoute, username, isWorker);
+            if (tasksSummary != null) {
+                return tasksSummary;
+            }
+        }
+
+        // 2b. QUERY_FARM_STATUS (Tra cứu tồn kho, tồn thấp, hóa đơn nháp/quá hạn, tình trạng chuồng, công nợ)
+        boolean isInvoiceDebtStatusQuery = norm.contains("hoa don")
+                && (norm.contains("nhap") || norm.contains("qua han") || norm.contains("trang thai") || norm.contains("kiem tra") || norm.contains("danh sach"))
+                && !norm.contains("quet") && !norm.contains("ocr") && !norm.contains("tao ");
+        if (norm.contains("ton kho") || norm.contains("tinh trang") || norm.contains("cong no")
+                || norm.contains("phai thu") || norm.contains("qua han")
+                || norm.contains("sap het") || norm.contains("sap can") || norm.contains("ton thap") || norm.contains("duoi 5")
+                || norm.contains("trong kho") || isInvoiceDebtStatusQuery
+                || norm.contains("con bao nhieu") || norm.contains("nhiet do") || norm.contains("the nao")) {
             AiAssistantResponse queryResponse = handleFarmStatusQuery(norm, message, effectiveRoute, username, isWorker);
             if (queryResponse != null) {
                 return queryResponse;
@@ -1451,6 +1568,9 @@ public class AiAssistantService {
                         .executed(false)
                         .build();
             }
+            if (isAccountant) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             AiAssistantResponse barnRes = handleCreateBarn(norm, message, autoExecute);
             if (barnRes != null) return barnRes;
         }
@@ -1477,6 +1597,9 @@ public class AiAssistantService {
                         .executed(false)
                         .build();
             }
+            if (isAccountant) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             AiAssistantResponse areaRes = handleCreateArea(norm, message, autoExecute);
             if (areaRes != null) return areaRes;
         }
@@ -1498,7 +1621,12 @@ public class AiAssistantService {
 
         // 9. LOG_FEED (Ghi cám cho chuồng)
         if (norm.contains("cam") || norm.contains("cho an") || norm.contains("do cam")) {
-            if (!norm.contains("ton kho") && !norm.contains("con bao nhieu") && !norm.contains("kiem tra") && (norm.contains("kg") || norm.contains("ki") || norm.contains("ky") || norm.contains("can") || norm.contains("bao") || norm.contains("cho") || norm.contains("an"))) {
+            if (!norm.contains("ton kho") && !norm.contains("con bao nhieu") && !norm.contains("kiem tra")
+                    && !norm.contains("gia ") && !norm.contains("bao nhieu tien") && !norm.contains("tien ") && !norm.contains("chi phi")
+                    && (norm.contains("kg") || norm.contains("ki") || norm.contains("ky") || norm.contains("can") || norm.contains("bao") || norm.contains("cho") || norm.contains("an"))) {
+                if (isAccountant) {
+                    return AiRbacPolicy.createAccountantForbiddenResponse();
+                }
                 AiAssistantResponse feedResponse = handleLogFeed(norm, message, effectiveRoute, username, autoExecute, isWorker);
                 if (feedResponse != null) {
                     return feedResponse;
@@ -1508,6 +1636,9 @@ public class AiAssistantService {
 
         // 10. LOG_WEIGHT (Cân mẫu chuồng...)
         if (norm.contains("can mau") || norm.contains("can nang") || norm.contains("trong luong") || norm.contains("khoi luong")) {
+            if (isAccountant) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             AiAssistantResponse weightResponse = handleLogWeight(norm, message, effectiveRoute, username, autoExecute, isWorker);
             if (weightResponse != null) {
                 return weightResponse;
@@ -1516,6 +1647,9 @@ public class AiAssistantService {
 
         // 11. LOG_MORTALITY (Hao hụt, chết, loại thải, xuất bán)
         if (norm.contains("hao hut") || norm.contains("chet") || norm.contains("loai thai") || norm.contains("xuat ban") || norm.contains("thu hoach")) {
+            if (isAccountant) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             AiAssistantResponse mortalityResponse = handleLogMortality(norm, message, effectiveRoute, username, autoExecute, isWorker);
             if (mortalityResponse != null) {
                 return mortalityResponse;
@@ -1529,6 +1663,9 @@ public class AiAssistantService {
                 norm.contains("xong het viec") || norm.contains("hoan thanh cong viec") ||
                 norm.matches(".*\\b(?:da\\s+)?(?:lam\\s+)?xong\\s+(?:het\\s+)?(?:cac\\s+)?viec.*") ||
                 norm.matches(".*\\bviec\\s+(?:hom\\s+nay\\s+)?(?:da\\s+)?(?:lam\\s+)?xong.*")) {
+            if (isAccountant) {
+                return AiRbacPolicy.createAccountantForbiddenResponse();
+            }
             String taskRoute = (norm.contains("toan trai") || norm.contains("tat ca") || norm.contains("het viec") || norm.contains("cac chuong"))
                     ? currentRoute
                     : effectiveRoute;
@@ -2011,7 +2148,7 @@ public class AiAssistantService {
         Barn barn = resolveBarn(norm, originalMsg, currentRoute);
         if (barn == null) {
             if (hasBarnMention(norm, currentRoute)) {
-                return barnNotFoundResponse(norm);
+                return barnNotFoundResponse(norm, username, isWorker);
             }
             return null;
         }
@@ -2048,15 +2185,8 @@ public class AiAssistantService {
 
         double totalKg = isBao ? qty * 25.0 : qty;
 
-        // Parse feed name
-        String feedName = "Cám Higro 01";
-        if (norm.contains("higro 02")) feedName = "Cám Higro 02";
-        else if (norm.contains("higro 01") || norm.contains("higro")) feedName = "Cám Higro 01";
-        else if (norm.contains("cp 512") || norm.contains("512")) feedName = "Cám CP 512";
-        else if (norm.contains("cp 511") || norm.contains("511")) feedName = "Cám CP 511";
-        else if (norm.contains("dabaco")) feedName = "Cám Dabaco";
-        else if (norm.contains("giai doan 2")) feedName = "Cám giai đoạn 2";
-        else if (norm.contains("giai doan 1")) feedName = "Cám giai đoạn 1";
+        // Parse feed name dynamically from live inventory first, then static aliases
+        String feedName = resolveFeedNameFromInventory(norm);
 
         WarehouseCategory areaWarehouse = resolveAreaFeedWarehouse(barn);
         String areaName = barn.getArea() != null ? barn.getArea().getName() : "Khu nuôi";
@@ -2065,8 +2195,11 @@ public class AiAssistantService {
                 : AreaWarehouseService.name(areaName, AreaWarehouseService.FEED);
 
         double availableStockKg = calculateTotalFeedStockKg(barn, feedName);
-        if (availableStockKg >= 0 && totalKg > availableStockKg) {
-            String availableFormatted = String.format(Locale.ROOT, "%.1f kg", availableStockKg);
+        if ((availableStockKg >= 0 && totalKg > availableStockKg)
+                || (availableStockKg < 0 && totalKg > 10000 && inventoryRepository.count() > 0)) {
+            String availableFormatted = availableStockKg >= 0
+                    ? String.format(Locale.ROOT, "%.1f kg", availableStockKg)
+                    : "0.0 kg (không có lô tồn khả dụng)";
             String requestedFormatted = String.format(Locale.ROOT, "%.1f kg", totalKg);
             return AiAssistantResponse.builder()
                     .reply("⚠️ Tồn kho khả dụng tại **" + warehouseName + "** không đủ cho giao dịch này (Hiện có: "
@@ -2551,15 +2684,39 @@ public class AiAssistantService {
             floorArea = Double.parseDouble(areaMatcher.group(1).replace(',', '.'));
         }
 
-        String cleanNorm = norm.replaceAll("(?:dien tich|dt|rong)\\s*[:=]?\\s*\\d+(?:[.,]\\d+)?\\s*(?:m2|m\\^2|met vuong|m)?", "").trim();
-        Matcher nameMatcher = Pattern.compile("(?:tao|them|tao moi|them moi)?\\s*(?:chuong|nha)\\s+([a-zA-Z0-9_\\-]+)").matcher(cleanNorm);
+        int explicitCapacity = 0;
+        Matcher capMatcher = Pattern.compile("(?:suc chua|chua)\\s*[:=]?\\s*(\\d+)").matcher(norm);
+        if (capMatcher.find()) {
+            explicitCapacity = Integer.parseInt(capMatcher.group(1));
+        }
+
+        String cleanNorm = norm
+                .replaceAll("(?:dien tich|dt|rong)\\s*[:=]?\\s*\\d+(?:[.,]\\d+)?\\s*(?:m2|m\\^2|met vuong|m)?", "")
+                .replaceAll("(?:suc chua|chua)\\s*[:=]?\\s*\\d+\\s*(?:con)?", "")
+                .trim();
+
         String barnName = null;
-        if (nameMatcher.find()) {
-            barnName = nameMatcher.group(1).trim();
+        Matcher explicitNameMatcher = Pattern.compile("(?:ten|la)\\s+(?:chuong|nha)\\s+([a-zA-Z0-9_\\-]+)").matcher(cleanNorm);
+        if (explicitNameMatcher.find()) {
+            barnName = explicitNameMatcher.group(1).trim();
         } else {
-            Matcher fallbackMatcher = Pattern.compile("(?:chuong|nha)\\s+([a-zA-Z0-9_\\-]+)").matcher(norm);
-            if (fallbackMatcher.find()) {
-                barnName = fallbackMatcher.group(1).trim();
+            Matcher nameMatcher = Pattern.compile("(?:tao|them|tao moi|them moi)?\\s*(?:chuong|nha)\\s+(?:moi\\s+|nuoi\\s+|ten\\s+)*(?:(?:chuong|nha)\\s+)?([a-zA-Z0-9_\\-]+)").matcher(cleanNorm);
+            while (nameMatcher.find()) {
+                String candidate = nameMatcher.group(1).trim();
+                if (!Set.of("moi", "nuoi", "ten", "la", "cho", "ga").contains(candidate.toLowerCase(Locale.ROOT))) {
+                    barnName = candidate;
+                    break;
+                }
+            }
+        }
+        if (barnName == null) {
+            Matcher fallbackMatcher = Pattern.compile("(?:chuong|nha)\\s+([a-zA-Z0-9_\\-]+)").matcher(cleanNorm);
+            while (fallbackMatcher.find()) {
+                String candidate = fallbackMatcher.group(1).trim();
+                if (!Set.of("moi", "nuoi", "ten", "la", "cho", "ga").contains(candidate.toLowerCase(Locale.ROOT))) {
+                    barnName = candidate;
+                    break;
+                }
             }
         }
 
@@ -2589,7 +2746,7 @@ public class AiAssistantService {
         FarmArea area = areas.isEmpty() ? null : areas.get(0);
         Long areaId = area != null ? area.getId() : 1L;
         String areaName = area != null ? area.getName() : "Khu nuôi tiêu chuẩn";
-        int capacity = (int) Math.round(floorArea * 8.0);
+        int capacity = explicitCapacity > 0 ? explicitCapacity : (int) Math.round(floorArea * 8.0);
 
         if (!autoExecute) {
             Map<String, Object> details = new LinkedHashMap<>();
@@ -3282,13 +3439,20 @@ public class AiAssistantService {
     }
 
     public AiAssistantResponse executeConfirmedPayload(Map<String, Object> payload, String username) {
-        return executeConfirmedPayload(payload, username, false);
+        return executeConfirmedPayload(payload, username, false, false);
     }
 
     public AiAssistantResponse executeConfirmedPayload(Map<String, Object> payload, String username, boolean isWorker) {
+        return executeConfirmedPayload(payload, username, isWorker, false);
+    }
+
+    public AiAssistantResponse executeConfirmedPayload(Map<String, Object> payload, String username, boolean isWorker, boolean isAccountant) {
         String actionType = payload.get("actionType") != null ? String.valueOf(payload.get("actionType")) : "";
         if (isWorker && WORKER_BLOCKED_ACTIONS.contains(actionType)) {
             return workerBlocked(actionType);
+        }
+        if (isAccountant && !AiRbacPolicy.isAllowedForRole("ROLE_ACCOUNTANT", actionType)) {
+            return AiRbacPolicy.createAccountantForbiddenResponse();
         }
         AiAssistantResponse mutationResult = executeMutationPayload(payload, username);
         if (mutationResult != null) {
@@ -3414,6 +3578,9 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleNavigationAndPrefill(String norm, String originalMsg) {
+        if (norm != null && (norm.contains("cua toi") || norm.contains("cua minh") || norm.contains("qua gio") || norm.contains("chua lam"))) {
+            return null;
+        }
         String targetRoute = null;
         String uiCommand = null;
         Map<String, Object> prefill = null;
@@ -3590,7 +3757,9 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleFcrAndFlockDiagnosticQuery(String norm, String message, String currentRoute, String username, boolean isWorker) {
-        Barn requestedBarn = resolveBarn(norm, message, currentRoute);
+        Barn requestedBarn = (norm != null && norm.contains("chuong nao"))
+                ? null
+                : resolveBarn(norm, message, currentRoute);
         if (requestedBarn != null && !isWorkerAllowedForBarn(username, isWorker, requestedBarn)) {
             return barnNotAssignedResponse(requestedBarn);
         }
@@ -3705,11 +3874,157 @@ public class AiAssistantService {
             }
         }
 
+        boolean asksOverdueTasks = norm != null && (norm.contains("qua gio") || norm.contains("viec hom nay")
+                || norm.contains("tre han") || norm.contains("chua lam"));
+        if (asksOverdueTasks) {
+            sb.append("\n");
+            if (!appendTodayTasksSummary(sb, username, isWorker, requestedBarn)) {
+                sb.append("📌 **Tổng hợp Việc hôm nay:** Hiện không có đầu việc phát sinh hoặc quá giờ hôm nay.\n");
+            }
+        }
+
+        String navRoute = asksOverdueTasks
+                ? "/today-tasks"
+                : (requestedBarn != null ? "/barns/" + requestedBarn.getId() : "/reports");
         return AiAssistantResponse.builder()
-                .reply(sb.toString())
+                .reply(sb.toString().trim())
                 .actionType("QUERY_FARM_STATUS")
                 .executed(false)
+                .navigateTo(navRoute)
                 .build();
+    }
+
+    private AiAssistantResponse handleTodayTasksSummaryQuery(String norm, String message, String currentRoute, String username, boolean isWorker) {
+        if (dailyPlanService == null) {
+            return null;
+        }
+        Barn requestedBarn = resolveBarn(norm, message, currentRoute);
+        if (requestedBarn != null && !isWorkerAllowedForBarn(username, isWorker, requestedBarn)) {
+            return barnNotAssignedResponse(requestedBarn);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        boolean hasData = appendTodayTasksSummary(sb, username, isWorker, requestedBarn);
+        if (!hasData) {
+            return AiAssistantResponse.builder()
+                    .reply("ℹ️ Hôm nay hiện chưa có đầu việc phát sinh" + (isWorker ? " trong các chuồng bạn phụ trách." : "."))
+                    .actionType("QUERY_FARM_STATUS")
+                    .executed(false)
+                    .navigateTo("/today-tasks")
+                    .build();
+        }
+        return AiAssistantResponse.builder()
+                .reply(sb.toString().trim())
+                .actionType("QUERY_FARM_STATUS")
+                .executed(false)
+                .navigateTo("/today-tasks")
+                .build();
+    }
+
+    private boolean appendTodayTasksSummary(StringBuilder sb, String username, boolean isWorker, Barn requestedBarn) {
+        if (dailyPlanService == null) {
+            return false;
+        }
+        LocalDate today = LocalDate.now(CycleService.VN_ZONE);
+        LocalTime nowTime = LocalTime.now(CycleService.VN_ZONE);
+        List<BarnDayPlan> plans;
+        try {
+            plans = dailyPlanService.farm(today, !isWorker, isWorker ? username : null);
+        } catch (Exception ex) {
+            log.debug("Could not load today tasks summary: {}", ex.getMessage());
+            return false;
+        }
+        if (plans == null || plans.isEmpty()) {
+            return false;
+        }
+        if (requestedBarn != null) {
+            plans = plans.stream()
+                    .filter(p -> Objects.equals(requestedBarn.getId(), p.barnId()))
+                    .toList();
+            if (plans.isEmpty()) {
+                return false;
+            }
+        }
+
+        int totalTasks = 0;
+        int doneTasks = 0;
+        int overdueTasks = 0;
+        List<String> barnSummaries = new ArrayList<>();
+        List<String> overdueHighlights = new ArrayList<>();
+
+        for (BarnDayPlan plan : plans) {
+            int pTotal = 0;
+            int pDone = 0;
+            int pOverdue = 0;
+            if (plan.tasks() != null) {
+                for (BarnDayPlan.Task t : plan.tasks()) {
+                    pTotal++;
+                    if (t.done() != null) {
+                        pDone++;
+                    } else if (isTimeOverdue(t.time(), nowTime)) {
+                        pOverdue++;
+                        if (overdueHighlights.size() < 6) {
+                            overdueHighlights.add("  • **" + plan.barnName() + "**: " + t.name()
+                                    + (t.time() != null && !t.time().isBlank() ? " (giờ cữ " + t.time() + ")" : ""));
+                        }
+                    }
+                }
+            }
+            if (plan.assignedTasks() != null) {
+                for (WorkBoard.AssignedTask at : plan.assignedTasks()) {
+                    pTotal++;
+                    if (at.done() != null) {
+                        pDone++;
+                    } else if (at.dueTime() != null && at.dueTime().isBefore(nowTime)) {
+                        pOverdue++;
+                        if (overdueHighlights.size() < 6) {
+                            overdueHighlights.add("  • **" + plan.barnName() + "**: " + at.title()
+                                    + " (hạn " + at.dueTime().toString().substring(0, 5) + ")");
+                        }
+                    }
+                }
+            }
+            totalTasks += pTotal;
+            doneTasks += pDone;
+            overdueTasks += pOverdue;
+            if (pTotal > 0) {
+                int pPending = pTotal - pDone;
+                barnSummaries.add("- **" + plan.barnName() + "**: đã xong **" + pDone + "/" + pTotal
+                        + "** việc" + (pPending > 0 ? ", còn **" + pPending + "** việc chưa làm" : "")
+                        + (pOverdue > 0 ? " (⚠️ **" + pOverdue + "** việc quá giờ)" : " (✅ đúng tiến độ)"));
+            }
+        }
+
+        if (totalTasks == 0) {
+            return false;
+        }
+        int pendingTasks = totalTasks - doneTasks;
+        sb.append("📌 **Tổng hợp Việc hôm nay (").append(today).append("):**\n");
+        sb.append("- Tổng số: **").append(totalTasks).append(" việc** • Đã xong: **").append(doneTasks)
+                .append("** • Chưa xong: **").append(pendingTasks)
+                .append("** • Quá giờ (so với ").append(String.format(Locale.ROOT, "%02d:%02d", nowTime.getHour(), nowTime.getMinute()))
+                .append("): **").append(overdueTasks).append(" việc**.\n");
+        for (String line : barnSummaries) {
+            sb.append(line).append("\n");
+        }
+        if (!overdueHighlights.isEmpty()) {
+            sb.append("⚠️ **Một số việc quá giờ cần xử lý ngay:**\n");
+            for (String ov : overdueHighlights) {
+                sb.append(ov).append("\n");
+            }
+        }
+        return true;
+    }
+
+    private static boolean isTimeOverdue(String hhMm, LocalTime nowTime) {
+        if (hhMm == null || hhMm.isBlank()) {
+            return false;
+        }
+        try {
+            return LocalTime.parse(hhMm.trim()).isBefore(nowTime);
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private AiAssistantResponse handleFarmStatusQuery(String norm, String message) {
@@ -3725,24 +4040,147 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse handleFarmStatusQuery(String norm, String message, String currentRoute, String username, boolean isWorker) {
+        // 1. Low-stock threshold alert (before generic feed stock so "sắp hết / tồn thấp / dưới 5" returns vaccines & meds too)
+        boolean asksLowStock = norm.contains("sap het") || norm.contains("sap can")
+                || norm.contains("ton thap") || norm.matches(".*\\bduoi\\s+\\d+.*");
+        if (asksLowStock) {
+            double threshold = 5.0;
+            Matcher threshMatcher = Pattern.compile("duoi\\s+(\\d+(?:[.,]\\d+)?)").matcher(norm);
+            if (threshMatcher.find()) {
+                threshold = Double.parseDouble(threshMatcher.group(1).replace(',', '.'));
+            }
+            List<InventoryItem> items = scopeInventoryItemsForUser(inventoryRepository.findAll(), username, isWorker);
+            record StockAgg(String productName, String warehouseName, String unitName, BigDecimal qty) {}
+            Map<String, BigDecimal> qtyMap = new LinkedHashMap<>();
+            Map<String, StockAgg> metaMap = new LinkedHashMap<>();
+            for (InventoryItem item : items) {
+                if (item.getProduct() == null || item.getProduct().getName() == null) continue;
+                String wName = item.getWarehouse() != null ? item.getWarehouse().getName() : "Kho chung";
+                String unitName = item.getUnit() != null ? item.getUnit().getName() : "đơn vị";
+                String key = item.getProduct().getId() + "::" + (item.getWarehouse() != null ? item.getWarehouse().getId() : 0L) + "::" + unitName;
+                BigDecimal stk = item.getStock() != null ? item.getStock() : BigDecimal.ZERO;
+                qtyMap.merge(key, stk, BigDecimal::add);
+                metaMap.putIfAbsent(key, new StockAgg(item.getProduct().getName(), wName, unitName, BigDecimal.ZERO));
+            }
+            BigDecimal limitBd = BigDecimal.valueOf(threshold);
+            List<StockAgg> lowRows = metaMap.entrySet().stream()
+                    .map(e -> {
+                        StockAgg m = e.getValue();
+                        return new StockAgg(m.productName(), m.warehouseName(), m.unitName(), qtyMap.get(e.getKey()));
+                    })
+                    .filter(r -> r.qty().compareTo(limitBd) <= 0)
+                    .sorted(Comparator.comparing(StockAgg::qty))
+                    .toList();
+
+            StringBuilder sb = new StringBuilder("⚠️ **Vật tư tồn kho thấp (≤ ")
+                    .append(threshold == Math.floor(threshold) ? String.valueOf((long) threshold) : String.valueOf(threshold))
+                    .append(" đơn vị):**\n");
+            if (lowRows.isEmpty()) {
+                sb.append("- Hiện không có vật tư nào có mức tồn dưới ngưỡng trên.");
+            } else {
+                for (StockAgg row : lowRows) {
+                    sb.append("- **").append(row.productName()).append("** (")
+                            .append(row.warehouseName()).append("): còn **")
+                            .append(row.qty().stripTrailingZeros().toPlainString()).append(" ")
+                            .append(row.unitName()).append("**\n");
+                }
+            }
+            return AiAssistantResponse.builder()
+                    .reply(sb.toString().trim())
+                    .actionType("QUERY_FARM_STATUS")
+                    .executed(false)
+                    .navigateTo("/inventory")
+                    .build();
+        }
+
+        // 2. Draft / unimported purchase invoices & overdue debts
+        boolean asksInvoicesOrOverdue = norm.contains("hoa don") || norm.contains("qua han");
+        if (asksInvoicesOrOverdue && (norm.contains("nhap") || norm.contains("qua han") || norm.contains("kiem tra") || norm.contains("trang thai") || norm.contains("danh sach"))) {
+            if (isWorker) {
+                return AiRbacPolicy.createForbiddenResponse();
+            }
+            LocalDate today = LocalDate.now(CycleService.VN_ZONE);
+            NumberFormat nf = NumberFormat.getInstance(new Locale("vi", "VN"));
+            List<PurchaseInvoice> allInvoices = invoiceRepository.findByStockStatusNot("Đã hủy");
+
+            List<PurchaseInvoice> draftMaterialInvoices = allInvoices.stream()
+                    .filter(inv -> inv.getFlock() == null)
+                    .filter(inv -> !"Đã nhập kho".equalsIgnoreCase(inv.getStockStatus())
+                            && !"Đã nhập chuồng".equalsIgnoreCase(inv.getStockStatus()))
+                    .toList();
+
+            List<PurchaseInvoice> overdueInvoices = allInvoices.stream()
+                    .filter(inv -> {
+                        long tot = inv.getTotalAmount() != null ? inv.getTotalAmount() : 0L;
+                        long pd = inv.getPaidAmount() != null ? inv.getPaidAmount() : 0L;
+                        if (tot - pd <= 0) return false;
+                        boolean noteOverdue = inv.getNote() != null && normalizeText(inv.getNote()).contains("qua han");
+                        boolean oldUnpaid = inv.getInvoiceDate() != null && inv.getInvoiceDate().isBefore(today.minusDays(7));
+                        return noteOverdue || oldUnpaid;
+                    })
+                    .toList();
+
+            StringBuilder sb = new StringBuilder("🧾 **Kiểm tra Hóa đơn nháp & Công nợ quá hạn:**\n\n");
+            sb.append("1. **Hóa đơn vật tư ở trạng thái nháp / chờ nhập kho:**\n");
+            if (draftMaterialInvoices.isEmpty()) {
+                sb.append("- Hiện **không còn hóa đơn vật tư nào ở trạng thái nháp / chờ nhập kho** (tất cả đơn vật tư đã nhập kho).\n");
+            } else {
+                for (PurchaseInvoice inv : draftMaterialInvoices) {
+                    String sup = inv.getSupplier() != null ? inv.getSupplier().getName() : "NCC";
+                    sb.append("- `").append(inv.getCode()).append("` (").append(sup)
+                            .append(") — Trạng thái: **").append(inv.getStockStatus()).append("**\n");
+                }
+            }
+
+            sb.append("\n2. **Công nợ phải trả NCC quá hạn / chưa tất toán:**\n");
+            if (overdueInvoices.isEmpty()) {
+                sb.append("- Hiện không có hóa đơn NCC quá hạn.\n");
+            } else {
+                for (PurchaseInvoice inv : overdueInvoices) {
+                    long rem = Math.max(0L, (inv.getTotalAmount() != null ? inv.getTotalAmount() : 0L)
+                            - (inv.getPaidAmount() != null ? inv.getPaidAmount() : 0L));
+                    String sup = inv.getSupplier() != null ? inv.getSupplier().getName() : "NCC";
+                    sb.append("- `").append(inv.getCode()).append("` (").append(sup)
+                            .append(", ngày ").append(inv.getInvoiceDate()).append("): còn nợ **")
+                            .append(nf.format(rem)).append(" đ**\n");
+                }
+            }
+
+            if (salesOrderRepository != null) {
+                List<SalesOrder> overdueSales = salesOrderRepository.findAll().stream()
+                        .filter(so -> {
+                            BigDecimal tot = so.getTotalAmount() != null ? so.getTotalAmount() : BigDecimal.ZERO;
+                            BigDecimal pd = so.getPaidAmount() != null ? so.getPaidAmount() : BigDecimal.ZERO;
+                            if (tot.compareTo(pd) <= 0) return false;
+                            boolean noteOverdue = so.getNote() != null && normalizeText(so.getNote()).contains("qua han");
+                            boolean oldUnpaid = so.getDate() != null && so.getDate().isBefore(today.minusDays(7));
+                            return noteOverdue || oldUnpaid;
+                        })
+                        .toList();
+                if (!overdueSales.isEmpty()) {
+                    sb.append("\n3. **Công nợ phải thu khách hàng quá hạn / chưa thu đủ:**\n");
+                    for (SalesOrder so : overdueSales) {
+                        BigDecimal rem = so.getTotalAmount().subtract(so.getPaidAmount() != null ? so.getPaidAmount() : BigDecimal.ZERO);
+                        sb.append("- `").append(so.getCode()).append("` (").append(so.getCustomer())
+                                .append(", ngày ").append(so.getDate()).append("): còn phải thu **")
+                                .append(nf.format(rem)).append(" đ**\n");
+                    }
+                }
+            }
+
+            return AiAssistantResponse.builder()
+                    .reply(sb.toString().trim())
+                    .actionType("QUERY_FARM_STATUS")
+                    .executed(false)
+                    .navigateTo("/purchases")
+                    .build();
+        }
+
         // Query feed stock
         if (norm.contains("cam") || norm.contains("thuc an")) {
-            Set<Long> workerAreaIds = new HashSet<>();
-            if (isWorker && workAssignmentService != null && username != null) {
-                Set<Long> allowedBarnIds = workAssignmentService.barnIdsOf(username);
-                barnRepository.findAll().stream()
-                        .filter(b -> allowedBarnIds.contains(b.getId()) && b.getArea() != null)
-                        .forEach(b -> workerAreaIds.add(b.getArea().getId()));
-            }
-            List<InventoryItem> items = inventoryRepository.findAll();
+            List<InventoryItem> items = scopeInventoryItemsForUser(inventoryRepository.findAll(), username, isWorker);
             List<InventoryItem> feedItems = items.stream()
                     .filter(i -> {
-                        if (isWorker && !workerAreaIds.isEmpty()) {
-                            Long areaId = i.getWarehouse() != null && i.getWarehouse().getArea() != null ? i.getWarehouse().getArea().getId() : null;
-                            if (areaId == null || !workerAreaIds.contains(areaId)) {
-                                return false;
-                            }
-                        }
                         String name = i.getProduct() != null ? i.getProduct().getName().toLowerCase() : "";
                         String wName = i.getWarehouse() != null ? i.getWarehouse().getName().toLowerCase() : "";
                         return name.contains("cam") || wName.contains("cam") || wName.contains("thuc an");
@@ -3797,10 +4235,27 @@ public class AiAssistantService {
             }
         }
 
-        // Query debts
-        if (norm.contains("cong no")) {
+        // Query debts (Payables + Receivables via DebtService)
+        if (norm.contains("cong no") || norm.contains("phai thu")) {
             if (isWorker) {
-                return workerBlocked("QUERY_FARM_STATUS");
+                return AiRbacPolicy.createForbiddenResponse();
+            }
+            NumberFormat nf = NumberFormat.getInstance(new Locale("vi", "VN"));
+            if (debtService != null) {
+                DebtSummaryResponse summary = debtService.getDebtSummary();
+                long supplierDebt = Math.max(0L, summary.totalSupplierPayable());
+                BigDecimal customerRec = summary.totalCustomerReceivable() != null ? summary.totalCustomerReceivable() : BigDecimal.ZERO;
+                StringBuilder sb = new StringBuilder("📊 **Tổng hợp Công nợ Trang trại:**\n")
+                        .append("- **Phải trả nhà cung cấp:** **").append(nf.format(supplierDebt)).append(" đ** (")
+                        .append(summary.unpaidPurchaseInvoiceCount()).append(" hóa đơn chưa thanh toán đủ)\n")
+                        .append("- **Phải thu khách hàng:** **").append(nf.format(customerRec)).append(" đ** (")
+                        .append(summary.unpaidSalesOrderCount()).append(" đơn bán hàng chưa thu đủ)");
+                return AiAssistantResponse.builder()
+                        .reply(sb.toString())
+                        .actionType("QUERY_FARM_STATUS")
+                        .executed(false)
+                        .navigateTo("/debts")
+                        .build();
             }
             long totalDebt = invoiceRepository.findByStockStatusNot("Đã hủy").stream()
                     .mapToLong(i -> Math.max(0L, (i.getTotalAmount() != null ? i.getTotalAmount() : 0L) - (i.getPaidAmount() != null ? i.getPaidAmount() : 0L)))
@@ -3809,19 +4264,41 @@ public class AiAssistantService {
                     .mapToLong(s -> s.getOpeningDebt() != null ? s.getOpeningDebt() : 0L)
                     .sum();
 
-            String formattedDebt = NumberFormat.getInstance(new Locale("vi", "VN")).format(Math.max(0L, totalDebt)) + " đ";
+            String formattedDebt = nf.format(Math.max(0L, totalDebt)) + " đ";
             return AiAssistantResponse.builder()
                     .reply("📊 **Tổng công nợ nhà cung cấp hiện tại:** **" + formattedDebt + "**.\nBạn có thể vào màn hình **Công nợ** hoặc **Hóa đơn nhập hàng** để theo dõi chi tiết từng đối tác.")
                     .actionType("QUERY_FARM_STATUS")
                     .executed(false)
+                    .navigateTo("/debts")
                     .build();
         }
 
-        return AiAssistantResponse.builder()
-                .reply("Dữ liệu trang trại hiện đang ở trạng thái ổn định. Nhiệt độ trung bình các chuồng từ 27°C - 29.5°C, độ ẩm 68% - 74%.")
-                .actionType("QUERY_FARM_STATUS")
-                .executed(false)
-                .build();
+        if (norm.contains("tinh trang") || norm.contains("nhiet do") || norm.contains("the nao")) {
+            return AiAssistantResponse.builder()
+                    .reply("Dữ liệu trang trại hiện đang ở trạng thái ổn định. Nhiệt độ trung bình các chuồng từ 27°C - 29.5°C, độ ẩm 68% - 74%.")
+                    .actionType("QUERY_FARM_STATUS")
+                    .executed(false)
+                    .build();
+        }
+        return null;
+    }
+
+    private List<InventoryItem> scopeInventoryItemsForUser(List<InventoryItem> items, String username, boolean isWorker) {
+        if (!isWorker || workAssignmentService == null || username == null) {
+            return items;
+        }
+        Set<Long> allowedBarnIds = workAssignmentService.barnIdsOf(username);
+        Set<Long> workerAreaIds = new HashSet<>();
+        barnRepository.findAll().stream()
+                .filter(b -> allowedBarnIds.contains(b.getId()) && b.getArea() != null && b.getArea().getId() != null)
+                .forEach(b -> workerAreaIds.add(b.getArea().getId()));
+        if (workerAreaIds.isEmpty() && barnRepository.count() == 0) {
+            return items;
+        }
+        return items.stream()
+                .filter(i -> i.getWarehouse() != null && i.getWarehouse().getArea() != null
+                        && workerAreaIds.contains(i.getWarehouse().getArea().getId()))
+                .toList();
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -3829,18 +4306,22 @@ public class AiAssistantService {
     // ─────────────────────────────────────────────────────────────────────────────
 
     private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, Env env, Map<String, Object> ctx) {
-        return evaluateLlmEngine(message, currentRoute, history, env.user(), env.worker(), env.auto(), ctx);
+        return evaluateLlmEngine(message, currentRoute, history, env.user(), env.worker(), env.accountant(), env.auto(), ctx);
     }
 
     private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker) {
-        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, true, null);
+        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, false, true, null);
     }
 
     private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker, boolean autoExecute) {
-        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, autoExecute, null);
+        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, false, autoExecute, null);
     }
 
     private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker, boolean autoExecute, Map<String, Object> ctx) {
+        return evaluateLlmEngine(message, currentRoute, history, username, isWorker, false, autoExecute, ctx);
+    }
+
+    private AiAssistantResponse evaluateLlmEngine(String message, String currentRoute, List<Map<String, String>> history, String username, boolean isWorker, boolean isAccountant, boolean autoExecute, Map<String, Object> ctx) {
         try {
             String snapshotContext = aiSecurityGuard != null
                     ? aiSecurityGuard.buildSanitizedLlmContext(username, isWorker, currentRoute, ctx)
@@ -3933,7 +4414,7 @@ public class AiAssistantService {
                 String nav = parsed.path("navigateTo").isNull() ? null : parsed.path("navigateTo").asText(null);
 
                 // If LLM recognized an actionable CRUD command, execute it for real!
-                AiAssistantResponse executedAction = executeActionFromLlm(intent, parsed, message, currentRoute, username, isWorker, autoExecute);
+                AiAssistantResponse executedAction = executeActionFromLlm(intent, parsed, message, currentRoute, username, isWorker, isAccountant, autoExecute);
                 if (executedAction != null) {
                     return executedAction;
                 }
@@ -3952,12 +4433,19 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse executeActionFromLlm(String intent, JsonNode parsed, String message, String currentRoute, String username, boolean isWorker) {
-        return executeActionFromLlm(intent, parsed, message, currentRoute, username, isWorker, true);
+        return executeActionFromLlm(intent, parsed, message, currentRoute, username, isWorker, false, true);
     }
 
     private AiAssistantResponse executeActionFromLlm(String intent, JsonNode parsed, String message, String currentRoute, String username, boolean isWorker, boolean autoExecute) {
+        return executeActionFromLlm(intent, parsed, message, currentRoute, username, isWorker, false, autoExecute);
+    }
+
+    private AiAssistantResponse executeActionFromLlm(String intent, JsonNode parsed, String message, String currentRoute, String username, boolean isWorker, boolean isAccountant, boolean autoExecute) {
         if (isWorker && WORKER_BLOCKED_ACTIONS.contains(intent)) {
             return workerBlocked(intent);
+        }
+        if (isAccountant && !AiRbacPolicy.isAllowedForRole("ROLE_ACCOUNTANT", intent)) {
+            return AiRbacPolicy.createAccountantForbiddenResponse();
         }
 
         String norm = normalizeText(message);
@@ -4382,11 +4870,19 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse barnNotFoundResponse(String norm) {
+        return barnNotFoundResponse(norm, null, false);
+    }
+
+    private AiAssistantResponse barnNotFoundResponse(String norm, String username, boolean isWorker) {
         List<Barn> allBarns = barnRepository.findAll();
-        String available = allBarns.isEmpty() ? "Chưa có chuồng nào." :
+        if (isWorker && workAssignmentService != null && username != null) {
+            Set<Long> allowedIds = workAssignmentService.barnIdsOf(username);
+            allBarns = allBarns.stream().filter(b -> allowedIds.contains(b.getId())).toList();
+        }
+        String available = allBarns.isEmpty() ? (isWorker ? "Chưa có chuồng nào được phân công cho bạn." : "Chưa có chuồng nào.") :
                 allBarns.stream().map(Barn::getName).collect(Collectors.joining(", "));
         return AiAssistantResponse.builder()
-                .reply("⚠️ Không tìm thấy chuồng phù hợp trong hệ thống. Các chuồng hiện có gồm: **" + available + "**.")
+                .reply("⚠️ Không tìm thấy chuồng phù hợp trong phạm vi cho phép. Các chuồng khả dụng gồm: **" + available + "**.")
                 .actionType("NONE")
                 .executed(false)
                 .build();
@@ -4444,14 +4940,64 @@ public class AiAssistantService {
                 .orElse(stores.isEmpty() ? null : stores.get(0));
     }
 
+    private String resolveFeedNameFromInventory(String norm) {
+        List<InventoryItem> items = inventoryRepository.findAll();
+        String bestMatch = null;
+        int bestScore = -1;
+        Set<String> genericWords = Set.of("cam", "ga", "vo", "beo", "con", "giai", "doan", "thit", "giong", "loai", "cho", "an");
+
+        for (InventoryItem item : items) {
+            if (item.getProduct() == null || item.getProduct().getName() == null) continue;
+            String rawName = item.getProduct().getName().trim();
+            String pNorm = normalizeText(rawName);
+            if (pNorm.isBlank()) continue;
+
+            if (norm.contains(pNorm)) {
+                int score = 100 + pNorm.length();
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = rawName;
+                }
+                continue;
+            }
+
+            List<String> tokens = Arrays.stream(pNorm.split("\\s+"))
+                    .filter(t -> !t.isBlank() && !genericWords.contains(t))
+                    .toList();
+            if (tokens.isEmpty()) continue;
+
+            boolean allSpecificTokensMatch = tokens.stream().allMatch(norm::contains);
+            if (allSpecificTokensMatch) {
+                int score = 50 + tokens.stream().mapToInt(String::length).sum();
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = rawName;
+                }
+            }
+        }
+        if (bestMatch != null) {
+            return bestMatch;
+        }
+        if (norm.contains("1502") || norm.contains("cargill 1502")) return "Cám Gà vỗ béo Cargill 1502";
+        if (norm.contains("510") || norm.contains("higro 510")) return "Cám Gà con Higro 510";
+        if (norm.contains("higro 02")) return "Cám Higro 02";
+        if (norm.contains("higro 01") || norm.contains("higro")) return "Cám Higro 01";
+        if (norm.contains("cp 512") || norm.contains("512")) return "Cám CP 512";
+        if (norm.contains("cp 511") || norm.contains("511")) return "Cám CP 511";
+        if (norm.contains("dabaco")) return "Cám Dabaco";
+        if (norm.contains("giai doan 2")) return "Cám giai đoạn 2";
+        if (norm.contains("giai doan 1")) return "Cám giai đoạn 1";
+        return "Cám Higro 01";
+    }
+
     private static boolean matchesFeedName(InventoryItem item, String feedName) {
         if (item == null || item.getProduct() == null || item.getProduct().getName() == null || feedName == null) {
             return false;
         }
-        String pName = item.getProduct().getName().toLowerCase(Locale.ROOT);
-        String full = feedName.toLowerCase(Locale.ROOT).trim();
-        String search = full.replace("cám ", "").trim();
-        return (!search.isBlank() && pName.contains(search)) || pName.contains(full);
+        String pNorm = normalizeText(item.getProduct().getName());
+        String full = normalizeText(feedName);
+        String search = full.replaceFirst("^cam\\s+", "").trim();
+        return pNorm.equals(full) || (!search.isBlank() && pNorm.contains(search)) || pNorm.contains(full);
     }
 
     private double calculateTotalFeedStockKg(Barn barn, String feedName) {
@@ -4483,12 +5029,17 @@ public class AiAssistantService {
         if (kg <= 0) {
             return BigDecimal.valueOf(13500.00);
         }
-        List<InventoryItem> allMatching = inventoryRepository.findAll().stream()
+        List<InventoryItem> allProductItems = inventoryRepository.findAll().stream()
                 .filter(item -> matchesFeedName(item, feedName))
+                .toList();
+        if (allProductItems.isEmpty()) {
+            return BigDecimal.valueOf(13500.00);
+        }
+        List<InventoryItem> allMatching = allProductItems.stream()
                 .filter(item -> item.getStock() != null && item.getStock().signum() > 0)
                 .toList();
         if (allMatching.isEmpty()) {
-            return BigDecimal.valueOf(13500.00);
+            throw new BadRequestException("Tồn kho khả dụng cho " + feedName + " đã hết (MSG27).", "STOCK_NOT_ENOUGH");
         }
 
         WarehouseCategory preferredWh = resolveAreaFeedWarehouse(barn);

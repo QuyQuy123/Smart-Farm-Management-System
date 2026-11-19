@@ -812,7 +812,7 @@ export const FarmShiftLayout = ({
             )}
 
             {/* Floating AI Assistant FAB (DESIGN.md Pill CTA) */}
-            <AIChatbot userRole={user?.role} />
+            <AIChatbot key={user?.email || user?.role || 'anon'} userRole={user?.role} userEmail={user?.email} />
         </div>
     );
 };

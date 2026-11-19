@@ -44,6 +44,23 @@ const getInitialUser = () => {
   return null;
 };
 
+export const clearAiChatStorage = () => {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const toRemove = [];
+      for (let i = 0; i < sessionStorage.length; i += 1) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith('farmshift_ai_')) {
+          toRemove.push(k);
+        }
+      }
+      toRemove.forEach((k) => sessionStorage.removeItem(k));
+    }
+  } catch (_e) {
+    // ignore
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(getInitialUser);
   const [loading, setLoading] = useState(() => Boolean(getAuthToken()));
@@ -53,6 +70,7 @@ export const AuthProvider = ({ children }) => {
     realtimeSocket.disconnect(true);
     clearAuthToken();
     dataCache.clearAll();
+    clearAiChatStorage();
     sessionStorage.removeItem('demo_mode');
     setUser(null);
     setActiveToken(null);
@@ -123,6 +141,7 @@ export const AuthProvider = ({ children }) => {
   }, [activeToken, logout]);
 
   const login = async (token, email, role) => {
+    clearAiChatStorage();
     setAuthToken(token);
     sessionStorage.removeItem('demo_mode');
     setUser({ email, role });
