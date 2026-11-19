@@ -4,11 +4,13 @@ import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
 import com.farmshift.backendFarmShift.dto.response.ReportSummaryResponse;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
+import com.farmshift.backendFarmShift.service.CycleService;
 import com.farmshift.backendFarmShift.service.ReportService;
 import com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer;
 import com.farmshift.backendFarmShift.service.WorkAssignmentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +19,8 @@ import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -78,6 +82,19 @@ public class AiSecurityGuard {
             "spring.datasource.password"
     );
 
+    private static final Pattern PRIVILEGE_ESCALATION_REGEX = Pattern.compile(
+            "(?i)(?:"
+                    + "\\bbo\\s+qua\\b.{0,30}\\b(?:chi\\s+dan|huong\\s+dan|quy\\s+tac|nguyen\\s+tac|menh\\s+lenh)\\b"
+                    + "|\\b(?:ignore|disregard|forget)\\b.{0,30}\\b(?:instructions?|rules?|prompts?)\\b"
+                    + "|\\b(?:tu\\s+gio|bay\\s+gio|dong\\s+vai|gia\\s+lam|hoa\\s+than|hay\\s+la|act\\s+as|you\\s+are\\s+now)\\b.{0,30}\\b(?:admin|quan\\s+tri|chu\\s+trai|chu\\s+trang\\s+trai|root|system|debug|developer)\\b"
+                    + "|\\b(?:che\\s+do|mode)\\s*(?:debug|admin|developer|god|root)\\b"
+                    + ")"
+    );
+
+    private static final Pattern EXTRACTION_REGEX = Pattern.compile(
+            "(?i)(?:in\\s+ra|hien\\s+thi|xuat\\s+ra|cho\\s+xem|tiet\\s+lo|dump|reveal|print|show)\\b.{0,35}\\b(?:system\\s*prompt|cau\\s+hinh\\s+goc|json\\s+ngu\\s+canh|jwt[_\\s]?secret|api[_\\s]?key|database\\s+password|mat\\s+khau)\\b"
+    );
+
     private static final Pattern CODE_INJECTION_PATTERN = Pattern.compile(
             "(?i)(?:\\b(?:drop\\s+table|truncate\\s+table|delete\\s+from|union\\s+select)\\b|<\\s*script\\b)"
     );
@@ -99,6 +116,9 @@ public class AiSecurityGuard {
     private final ReportService reportService;
     private final ObjectMapper objectMapper;
     private final byte[] hmacSecretBytes;
+
+    @Autowired(required = false)
+    private FarmingCycleRepository cycleRepository;
 
     private final ConcurrentHashMap<String, SignedPendingAction> pendingStore = new ConcurrentHashMap<>();
 
@@ -168,6 +188,15 @@ public class AiSecurityGuard {
             }
         }
 
+        if (PRIVILEGE_ESCALATION_REGEX.matcher(norm).find()) {
+            log.warn("AI Prompt Injection / Role Escalation (regex) blocked! user={} isWorker={}", username, isWorker);
+            return AiAssistantResponse.builder()
+                    .reply("⛔ Yêu cầu vi phạm chính sách bảo mật (cố gắng vượt quyền hoặc ghi đè hướng dẫn hệ thống). " + AiRbacPolicy.MSG60)
+                    .actionType("SECURITY_BLOCKED")
+                    .executed(false)
+                    .build();
+        }
+
         for (String pattern : EXTRACTION_PATTERNS) {
             if (norm.contains(pattern)) {
                 log.warn("AI System Prompt / Secret Extraction blocked! user={} pattern='{}'", username, pattern);
@@ -177,6 +206,15 @@ public class AiSecurityGuard {
                         .executed(false)
                         .build();
             }
+        }
+
+        if (EXTRACTION_REGEX.matcher(norm).find()) {
+            log.warn("AI System Prompt / Secret Extraction (regex) blocked! user={}", username);
+            return AiAssistantResponse.builder()
+                    .reply("⛔ Hệ thống không thể cung cấp cấu hình nội bộ, system prompt hoặc khóa bảo mật.")
+                    .actionType("SECURITY_BLOCKED")
+                    .executed(false)
+                    .build();
         }
 
         if (CODE_INJECTION_PATTERN.matcher(rawMessage).find() || CODE_INJECTION_PATTERN.matcher(norm).find()) {
@@ -211,14 +249,33 @@ public class AiSecurityGuard {
                 ? allBarns.stream().filter(b -> allowedBarnIds.contains(b.getId())).toList()
                 : allBarns;
 
+        LocalDate today = LocalDate.now(CycleService.VN_ZONE);
+        Map<Long, Integer> activeAgeByBarnId = new HashMap<>();
+        if (cycleRepository != null) {
+            for (FarmingCycle c : cycleRepository.findAllByStatus(CycleStatus.ACTIVE)) {
+                if (c.getBarn() != null && c.getBarn().getId() != null) {
+                    LocalDate refDate = c.getHatchDate() != null ? c.getHatchDate() : c.getStartDate();
+                    if (refDate != null) {
+                        int age = Math.max(1, (int) ChronoUnit.DAYS.between(refDate, today) + 1 + (c.getHatchDate() == null ? c.getCarriedDays() : 0));
+                        activeAgeByBarnId.put(c.getBarn().getId(), age);
+                    }
+                }
+            }
+        }
+
         String barnSummary = visibleBarns.stream()
-                .map(b -> String.format("{id:%d, name:'%s', area:'%s', status:'%s', currentQty:%d, capacity:%d}",
-                        b.getId(),
-                        b.getName(),
-                        b.getArea() != null ? b.getArea().getName() : "",
-                        b.getStatus(),
-                        b.getCurrentQuantity(),
-                        b.getCapacity()))
+                .map(b -> {
+                    Integer age = activeAgeByBarnId.get(b.getId());
+                    String agePart = age != null ? (", activeCycleAgeDays:" + age) : "";
+                    return String.format("{id:%d, name:'%s', area:'%s', status:'%s', currentQty:%d, capacity:%d%s}",
+                            b.getId(),
+                            b.getName(),
+                            b.getArea() != null ? b.getArea().getName() : "",
+                            b.getStatus(),
+                            b.getCurrentQuantity(),
+                            b.getCapacity(),
+                            agePart);
+                })
                 .collect(Collectors.joining(", "));
 
         Set<Long> visibleAreaIds = visibleBarns.stream()
@@ -270,7 +327,7 @@ public class AiSecurityGuard {
             sb.append("Ngữ cảnh thao tác trước đó: ").append(safeLastCtx).append("\n");
         }
 
-        sb.append("Live Database Snapshot:\n");
+        sb.append("Live Database Snapshot (Ngày hiện tại VN: ").append(today).append("):\n");
         sb.append("- Chuồng nuôi được phép truy cập (Barns): [").append(barnSummary).append("]\n");
         sb.append("- Vật tư kho (Inventory): [").append(inventorySummary).append("]\n");
 

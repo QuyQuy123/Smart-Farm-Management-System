@@ -177,10 +177,10 @@ function GrowthChart({ growth }) {
           const path = g.points.map((p, i) => `${i ? 'L' : 'M'}${X(p.ageDays)},${Y(Number(p.avgWeightKg))}`).join('');
           return <g key={g.barnId} opacity={dim ? 0.18 : 1} data-barn={g.barnName}>
             {g.points.length > 1 && <path d={path} fill="none" stroke={g.color} strokeWidth={focus === g.barnId ? 3 : 2} strokeLinejoin="round" />}
-            {g.points.map(p => {
+            {g.points.map((p, idx) => {
               const show = () => setTip({ x: (X(p.ageDays) / GW) * 100, y: Y(Number(p.avgWeightKg)) - 10, title: `${g.barnName} · ngày tuổi ${p.ageDays}`,
                 lines: [`${num(p.avgWeightKg, 3)} kg/con`, formatDay(p.date)] });
-              return <g key={`${p.ageDays}-${p.date}`} onMouseEnter={show} onFocus={show} tabIndex={0}>
+              return <g key={`${p.ageDays}-${p.date}-${idx}`} onMouseEnter={show} onFocus={show} tabIndex={0}>
                 <circle cx={X(p.ageDays)} cy={Y(Number(p.avgWeightKg))} r="10" fill="transparent" />
                 <circle cx={X(p.ageDays)} cy={Y(Number(p.avgWeightKg))} r="4" fill={g.color} stroke="#fff" strokeWidth="1.5" />
               </g>;

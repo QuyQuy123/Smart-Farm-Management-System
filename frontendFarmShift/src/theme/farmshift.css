@@ -67,6 +67,13 @@
   --fs-header-height: 70px;
   --fs-sidebar-width: 272px;
   --fs-sidebar-collapsed-width: 72px;
+  --fs-ai-drawer-width: 0px;
+}
+
+@media (min-width: 1100px) {
+  :root.farmshift-ai-drawer-open {
+    --fs-ai-drawer-width: 440px;
+  }
 }
 
 /* Base resets & typography */
@@ -154,8 +161,9 @@ h6 {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
+  right: var(--fs-ai-drawer-width);
   height: var(--fs-header-height);
+  transition: right 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   background-color: var(--color-canvas);
   color: var(--color-ink);
   border-bottom: 1px solid var(--color-hairline);
@@ -612,13 +620,15 @@ h6 {
 .farmgo-main {
   margin-top: var(--fs-header-height);
   margin-left: var(--fs-sidebar-width);
+  margin-right: var(--fs-ai-drawer-width);
   flex: 1 1 0%;
   min-width: 0;
-  width: calc(100% - var(--fs-sidebar-width));
-  max-width: calc(100% - var(--fs-sidebar-width));
+  width: calc(100% - var(--fs-sidebar-width) - var(--fs-ai-drawer-width));
+  max-width: calc(100% - var(--fs-sidebar-width) - var(--fs-ai-drawer-width));
   padding: 28px 36px 80px 36px;
   min-height: calc(100vh - var(--fs-header-height));
   transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-right 0.22s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
     max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
@@ -629,8 +639,8 @@ h6 {
 .farmshift-main.collapsed,
 .farmgo-main.collapsed {
   margin-left: var(--fs-sidebar-collapsed-width);
-  width: calc(100% - var(--fs-sidebar-collapsed-width));
-  max-width: calc(100% - var(--fs-sidebar-collapsed-width));
+  width: calc(100% - var(--fs-sidebar-collapsed-width) - var(--fs-ai-drawer-width));
+  max-width: calc(100% - var(--fs-sidebar-collapsed-width) - var(--fs-ai-drawer-width));
 }
 
 /* ── Content Header & Breadcrumbs ────────────────────────── */
@@ -1462,14 +1472,14 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
   .farmshift-main,
   .farmgo-main {
     padding: 32px 48px 90px 48px;
-    width: calc(100vw - var(--fs-sidebar-width));
-    max-width: calc(100vw - var(--fs-sidebar-width));
+    width: calc(100vw - var(--fs-sidebar-width) - var(--fs-ai-drawer-width));
+    max-width: calc(100vw - var(--fs-sidebar-width) - var(--fs-ai-drawer-width));
   }
 
   .farmshift-main.collapsed,
   .farmgo-main.collapsed {
-    width: calc(100vw - var(--fs-sidebar-collapsed-width));
-    max-width: calc(100vw - var(--fs-sidebar-collapsed-width));
+    width: calc(100vw - var(--fs-sidebar-collapsed-width) - var(--fs-ai-drawer-width));
+    max-width: calc(100vw - var(--fs-sidebar-collapsed-width) - var(--fs-ai-drawer-width));
   }
 
   .farmshift-shortcuts,

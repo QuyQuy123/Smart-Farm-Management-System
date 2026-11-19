@@ -321,7 +321,7 @@ public class AiSuggestionIntegrationTest {
                             .with(user("empty-" + role + "@farm.test").authorities(new SimpleGrantedAuthority(role))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.role").value(role))
-                    .andExpect(jsonPath("$.routeLabel").value("Tổng quan"))
+                    .andExpect(jsonPath("$.routeLabel").value("Bảng tin"))
                     .andReturn()
                     .getResponse()
                     .getContentAsString();

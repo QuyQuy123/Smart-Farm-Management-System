@@ -142,7 +142,7 @@ describe('AI Chatbox Live Suggestions, UX Overhaul & Dashboard Ask-AI Integratio
     aiAssistantService.getAiSuggestions.mockResolvedValue({
       role: 'ROLE_FARM_OWNER',
       roleLabel: 'Chủ trại',
-      routeLabel: 'Tổng quan',
+      routeLabel: 'Bảng tin',
       inputPlaceholder: 'Hỏi hoặc ra lệnh: FCR, lãi lỗ...',
       suggestions: [],
     });
@@ -187,7 +187,7 @@ describe('AI Chatbox Live Suggestions, UX Overhaul & Dashboard Ask-AI Integratio
     aiAssistantService.getAiSuggestions.mockResolvedValue({
       role: 'ROLE_FARM_OWNER',
       roleLabel: 'Chủ trại',
-      routeLabel: 'Tổng quan',
+      routeLabel: 'Bảng tin',
       inputPlaceholder: 'Hỏi hoặc ra lệnh: FCR...',
       suggestions: [],
     });

@@ -11,6 +11,7 @@ import java.util.Set;
 public final class AiRbacPolicy {
 
     public static final String MSG60 = "Tài khoản Công nhân không có quyền thực hiện thao tác tài chính hoặc xóa dữ liệu này.";
+    public static final String MSG_ACCOUNTANT_FORBIDDEN = "Tài khoản Kế toán không có quyền thực hiện thao tác quản trị chuồng trại, lứa nuôi hoặc ghi nhật ký trực tiếp này. Vui lòng liên hệ Chủ trang trại.";
 
     private static final Set<String> FORBIDDEN_FOR_WORKER = Set.of(
             "LOG_EXPENSE",
@@ -44,6 +45,32 @@ public final class AiRbacPolicy {
             "HARVEST"
     );
 
+    private static final Set<String> FORBIDDEN_FOR_ACCOUNTANT = Set.of(
+            "CREATE_BARN",
+            "CREATE_BARN_OR_AREA",
+            "CREATE_AREA",
+            "DELETE_BARN",
+            "UPDATE_BARN_CAPACITY",
+            "UPDATE_BARN_INFO",
+            "START_CYCLE",
+            "CLOSE_CYCLE",
+            "START_OR_CLOSE_CYCLE",
+            "TRANSFER_FLOCK",
+            "COMPLETE_DAILY_TASKS",
+            "LOG_FEED",
+            "COMPOUND_LOG_FEED",
+            "UPDATE_FEED",
+            "LOG_OR_UPDATE_FEED",
+            "LOG_WEIGHT",
+            "COMPOUND_LOG_WEIGHT",
+            "UPDATE_WEIGHT",
+            "LOG_OR_UPDATE_WEIGHT",
+            "LOG_MORTALITY",
+            "COMPOUND_LOG_MORTALITY",
+            "UPDATE_MORTALITY",
+            "LOG_OR_UPDATE_MORTALITY"
+    );
+
     private AiRbacPolicy() {
     }
 
@@ -57,9 +84,31 @@ public final class AiRbacPolicy {
         return !FORBIDDEN_FOR_WORKER.contains(actionType.toUpperCase());
     }
 
+    public static boolean isAllowedForRole(String role, String actionType) {
+        if (actionType == null) {
+            return true;
+        }
+        String upperAction = actionType.toUpperCase();
+        if ("ROLE_FARM_WORKER".equalsIgnoreCase(role)) {
+            return !FORBIDDEN_FOR_WORKER.contains(upperAction);
+        }
+        if ("ROLE_ACCOUNTANT".equalsIgnoreCase(role)) {
+            return !FORBIDDEN_FOR_ACCOUNTANT.contains(upperAction);
+        }
+        return true;
+    }
+
     public static AiAssistantResponse createForbiddenResponse() {
         return AiAssistantResponse.builder()
                 .reply(MSG60)
+                .actionType("RBAC_BLOCKED")
+                .executed(false)
+                .build();
+    }
+
+    public static AiAssistantResponse createAccountantForbiddenResponse() {
+        return AiAssistantResponse.builder()
+                .reply(MSG_ACCOUNTANT_FORBIDDEN)
                 .actionType("RBAC_BLOCKED")
                 .executed(false)
                 .build();

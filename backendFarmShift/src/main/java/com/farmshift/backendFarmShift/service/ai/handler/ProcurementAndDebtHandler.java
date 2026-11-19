@@ -1,11 +1,15 @@
 package com.farmshift.backendFarmShift.service.ai.handler;
 
 import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
+import com.farmshift.backendFarmShift.dto.response.DebtSummaryResponse;
 import com.farmshift.backendFarmShift.dto.response.ReportSummaryResponse;
 import com.farmshift.backendFarmShift.entity.PurchaseInvoice;
+import com.farmshift.backendFarmShift.entity.SalesOrder;
 import com.farmshift.backendFarmShift.entity.Supplier;
 import com.farmshift.backendFarmShift.repository.PurchaseInvoiceRepository;
+import com.farmshift.backendFarmShift.repository.SalesOrderRepository;
 import com.farmshift.backendFarmShift.repository.SupplierRepository;
+import com.farmshift.backendFarmShift.service.DebtService;
 import com.farmshift.backendFarmShift.service.ReportService;
 import com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer;
 import com.farmshift.backendFarmShift.service.ai.AiRbacPolicy;
@@ -23,7 +27,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Handles Procurement, Supplier Debt (openingDebt + unpaid PurchaseInvoices), and Financial/WIP report queries.
+ * Handles Procurement, Supplier Debt, Customer Receivables, and Financial/WIP report queries.
  * Strict RBAC: Workers are blocked from debt payments or viewing financial debt/profit/WIP totals (MSG60).
  */
 @Slf4j
@@ -41,6 +45,12 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
     @Autowired(required = false)
     private ReportService reportService;
 
+    @Autowired(required = false)
+    private DebtService debtService;
+
+    @Autowired(required = false)
+    private SalesOrderRepository salesOrderRepository;
+
     @Override
     public int getOrder() {
         return 40;
@@ -55,10 +65,13 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
         boolean isSupplierDebt = (norm.contains("cong no") || norm.contains("no nha cung cap") || norm.contains("tra no") || norm.contains("thanh toan no"))
                 && (norm.contains("nha cung cap") || norm.contains("dabaco") || norm.contains("cargill") || norm.contains("cp") || norm.contains("hanvet") || norm.contains("bao nhieu"));
 
+        boolean isCustomerReceivable = norm.contains("phai thu")
+                || ((norm.contains("cong no") || norm.contains("no ")) && (norm.contains("khach hang") || norm.contains("khach")));
+
         boolean isProfitOrWip = norm.contains("lai lo") || norm.contains("loi nhuan") || norm.contains("chi phi do dang")
                 || norm.contains("do dang") || norm.contains("wip");
 
-        return isSupplierDebt || isProfitOrWip;
+        return isSupplierDebt || isCustomerReceivable || isProfitOrWip;
     }
 
     @Override
@@ -68,7 +81,11 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
 
         if (norm.contains("lai lo") || norm.contains("loi nhuan") || norm.contains("chi phi do dang")
                 || norm.contains("do dang") || norm.contains("wip")) {
-            return handleProfitAndWipQuery(context);
+            return handleProfitAndWipQuery(context, norm);
+        }
+
+        if (norm.contains("phai thu") || ((norm.contains("cong no") || norm.contains("no ")) && (norm.contains("khach hang") || norm.contains("khach")))) {
+            return handleCustomerReceivablesQuery(context);
         }
 
         boolean isPayment = norm.contains("tra no") || norm.contains("thanh toan no") || norm.contains("thanh toan");
@@ -114,7 +131,60 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
         return null;
     }
 
-    private AiAssistantResponse handleProfitAndWipQuery(AssistantExecutionContext context) {
+    private AiAssistantResponse handleCustomerReceivablesQuery(AssistantExecutionContext context) {
+        if (context.isWorker()) {
+            return AiRbacPolicy.createForbiddenResponse();
+        }
+        if (debtService == null) {
+            return null;
+        }
+        DebtSummaryResponse summary = debtService.getDebtSummary();
+        BigDecimal totalReceivable = summary.totalCustomerReceivable() != null ? summary.totalCustomerReceivable() : BigDecimal.ZERO;
+
+        StringBuilder sb = new StringBuilder("💰 **Tổng hợp Công nợ Phải thu Khách hàng:**\n")
+                .append("- **Tổng phải thu hiện tại:** **")
+                .append(CURRENCY_FORMAT.format(totalReceivable)).append(" VNĐ** (")
+                .append(summary.unpaidCustomerCount()).append(" khách hàng / ")
+                .append(summary.unpaidSalesOrderCount()).append(" đơn bán hàng chưa thu đủ).\n");
+
+        if (summary.customerReceivables() != null) {
+            for (DebtSummaryResponse.CustomerDebtRow row : summary.customerReceivables()) {
+                if (row.remainingDebt() != null && row.remainingDebt().signum() > 0) {
+                    sb.append("- **").append(row.customerName()).append(":** còn nợ **")
+                            .append(CURRENCY_FORMAT.format(row.remainingDebt())).append(" VNĐ** (")
+                            .append(row.openOrderCount()).append(" đơn chưa tất toán)\n");
+                }
+            }
+        }
+        if (salesOrderRepository != null) {
+            List<SalesOrder> unpaidOrders = salesOrderRepository.findAll().stream()
+                    .filter(o -> {
+                        BigDecimal tot = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
+                        BigDecimal pd = o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO;
+                        return tot.compareTo(pd) > 0;
+                    })
+                    .toList();
+            if (!unpaidOrders.isEmpty()) {
+                sb.append("\n**Chi tiết đơn bán còn công nợ:**\n");
+                for (SalesOrder o : unpaidOrders) {
+                    BigDecimal remain = o.getTotalAmount().subtract(o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO);
+                    boolean overdue = o.getNote() != null && VietnameseSpeechNormalizer.removeVietnameseDiacritics(o.getNote()).toLowerCase(Locale.ROOT).contains("qua han");
+                    sb.append("- `").append(o.getCode()).append("` (").append(o.getCustomer()).append("): **")
+                            .append(CURRENCY_FORMAT.format(remain)).append(" VNĐ**")
+                            .append(overdue ? " ⚠️ **QUÁ HẠN**" : "").append("\n");
+                }
+            }
+        }
+
+        return AiAssistantResponse.builder()
+                .reply(sb.toString().trim())
+                .actionType("QUERY_CUSTOMER_DEBT")
+                .executed(true)
+                .navigateTo("/sales")
+                .build();
+    }
+
+    private AiAssistantResponse handleProfitAndWipQuery(AssistantExecutionContext context, String norm) {
         if (context.isWorker()) {
             return AiRbacPolicy.createForbiddenResponse();
         }
@@ -138,14 +208,40 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
         BigDecimal totalRevenue = fs.totalRevenue() != null ? fs.totalRevenue() : BigDecimal.ZERO;
         BigDecimal totalCost = fs.totalCost() != null ? fs.totalCost() : BigDecimal.ZERO;
 
-        String reply = "📊 **Tổng hợp Tài chính & Chi phí dở dang (8 Tab Báo cáo):**\n"
-                + "- **Lãi/Lỗ đã chốt (lứa `CLOSED` - " + fs.closedCycles() + " lứa):** **" + CURRENCY_FORMAT.format(realized) + " VNĐ**\n"
-                + "- **Chi phí dở dang đang nuôi (WIP `ACTIVE` - " + fs.activeBarns() + " chuồng):** **" + CURRENCY_FORMAT.format(wipCost) + " VNĐ**\n"
-                + "- **Doanh thu tạm thu lứa đang nuôi (WIP):** **" + CURRENCY_FORMAT.format(wipRevenue) + " VNĐ**\n"
-                + "- **Tổng doanh thu / Tổng chi phí lũy kế:** " + CURRENCY_FORMAT.format(totalRevenue) + " VNĐ / " + CURRENCY_FORMAT.format(totalCost) + " VNĐ.";
+        StringBuilder sb = new StringBuilder("📊 **Tổng hợp Tài chính & Chi phí dở dang (8 Tab Báo cáo):**\n")
+                .append("- **Lãi/Lỗ đã chốt (lứa `CLOSED` - ").append(fs.closedCycles()).append(" lứa):** **").append(CURRENCY_FORMAT.format(realized)).append(" VNĐ**\n")
+                .append("- **Chi phí dở dang đang nuôi (WIP `ACTIVE` - ").append(fs.activeBarns()).append(" chuồng):** **").append(CURRENCY_FORMAT.format(wipCost)).append(" VNĐ**\n")
+                .append("- **Doanh thu tạm thu lứa đang nuôi (WIP):** **").append(CURRENCY_FORMAT.format(wipRevenue)).append(" VNĐ**\n")
+                .append("- **Tổng doanh thu / Tổng chi phí lũy kế:** ").append(CURRENCY_FORMAT.format(totalRevenue)).append(" VNĐ / ").append(CURRENCY_FORMAT.format(totalCost)).append(" VNĐ.");
+
+        boolean asksDebt = norm != null && (norm.contains("cong no") || norm.contains("den han") || norm.contains("qua han")
+                || norm.contains("phai tra") || norm.contains("phai thu") || norm.contains("no ncc"));
+        if (asksDebt && debtService != null) {
+            DebtSummaryResponse debt = debtService.getDebtSummary();
+            sb.append("\n\n💳 **Công nợ hiện tại & đến hạn:**\n")
+                    .append("- **Công nợ phải trả NCC:** **").append(CURRENCY_FORMAT.format(debt.totalSupplierPayable())).append(" VNĐ** (")
+                    .append(debt.unpaidPurchaseInvoiceCount()).append(" hóa đơn chưa thanh toán đủ)\n");
+            if (invoiceRepository != null) {
+                for (PurchaseInvoice inv : invoiceRepository.findByStockStatusNot("Đã hủy")) {
+                    long tot = inv.getTotalAmount() != null ? inv.getTotalAmount() : 0L;
+                    long pd = inv.getPaidAmount() != null ? inv.getPaidAmount() : 0L;
+                    long rem = Math.max(0L, tot - pd);
+                    if (rem > 0) {
+                        String sup = inv.getSupplier() != null ? inv.getSupplier().getName() : "NCC";
+                        boolean overdue = inv.getNote() != null && VietnameseSpeechNormalizer.removeVietnameseDiacritics(inv.getNote()).toLowerCase(Locale.ROOT).contains("qua han");
+                        sb.append("  • `").append(inv.getCode()).append("` (").append(sup).append("): còn **")
+                                .append(CURRENCY_FORMAT.format(rem)).append(" VNĐ**")
+                                .append(overdue ? " ⚠️ **QUÁ HẠN**" : "").append("\n");
+                    }
+                }
+            }
+            BigDecimal rec = debt.totalCustomerReceivable() != null ? debt.totalCustomerReceivable() : BigDecimal.ZERO;
+            sb.append("- **Công nợ phải thu khách hàng:** **").append(CURRENCY_FORMAT.format(rec)).append(" VNĐ** (")
+                    .append(debt.unpaidSalesOrderCount()).append(" đơn bán chưa thu đủ)");
+        }
 
         return AiAssistantResponse.builder()
-                .reply(reply)
+                .reply(sb.toString().trim())
                 .actionType("QUERY_FARM_STATUS")
                 .executed(true)
                 .navigateTo("/reports")

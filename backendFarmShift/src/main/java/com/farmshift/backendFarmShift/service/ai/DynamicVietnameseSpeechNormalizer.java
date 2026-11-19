@@ -40,6 +40,7 @@ public class DynamicVietnameseSpeechNormalizer {
     private static final double FUZZY_SIMILARITY_THRESHOLD = 0.78;
     private static final Pattern PUNCT_WRAP = Pattern.compile("^([\\p{Punct}]*)(.*?)([\\p{Punct}]*)$");
     private static final Pattern DIGIT_SEQ_PATTERN = Pattern.compile("\\d+");
+    private static final Pattern ALNUM_CODE_PATTERN = Pattern.compile("\\b[a-z]{1,4}\\d+\\b");
 
     private static final Set<String> STOP_ENTITY_KEYS = Set.of(
             "cam", "thuoc", "nha", "chuong", "kho", "khu", "ga", "bao", "con", "kg", "vac xin"
@@ -347,6 +348,7 @@ public class DynamicVietnameseSpeechNormalizer {
         String firstPlain = normalizeEntityKey(words[startIdx]);
         String lastPlain = normalizeEntityKey(words[startIdx + spanLen - 1]);
         List<String> candDigits = extractDigitSignature(plainCandidate);
+        List<String> candCodes = extractCodeTokens(plainCandidate);
         String compactCandidate = plainCandidate.replace(" ", "");
 
         String bestCanonical = null;
@@ -367,6 +369,10 @@ public class DynamicVietnameseSpeechNormalizer {
             }
             if ((!candDigits.isEmpty() || !entry.digitSignature().isEmpty())
                     && !candDigits.equals(entry.digitSignature())) {
+                continue;
+            }
+            List<String> entryCodes = extractCodeTokens(entry.plain());
+            if ((!candCodes.isEmpty() || !entryCodes.isEmpty()) && !candCodes.equals(entryCodes)) {
                 continue;
             }
 
@@ -429,6 +435,18 @@ public class DynamicVietnameseSpeechNormalizer {
             sig.add(trimmed);
         }
         return sig;
+    }
+
+    private static List<String> extractCodeTokens(String plain) {
+        if (plain == null || plain.isBlank()) {
+            return List.of();
+        }
+        List<String> codes = new ArrayList<>();
+        Matcher m = ALNUM_CODE_PATTERN.matcher(plain.toLowerCase(Locale.ROOT));
+        while (m.find()) {
+            codes.add(m.group());
+        }
+        return codes;
     }
 
     private static double similarity(String a, String b) {
