@@ -37,7 +37,12 @@ import java.util.Locale;
 public class ProcurementAndDebtHandler implements AssistantCommandHandler {
 
     private final SupplierRepository supplierRepository;
-    private static final NumberFormat CURRENCY_FORMAT = NumberFormat.getInstance(Locale.forLanguageTag("vi-VN"));
+    private static final ThreadLocal<NumberFormat> CURRENCY_FORMAT =
+            ThreadLocal.withInitial(() -> NumberFormat.getInstance(Locale.forLanguageTag("vi-VN")));
+
+    private static String formatCurrency(Object value) {
+        return CURRENCY_FORMAT.get().format(value);
+    }
 
     @Autowired(required = false)
     private PurchaseInvoiceRepository invoiceRepository;
@@ -119,9 +124,9 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
 
             return AiAssistantResponse.builder()
                     .reply("📊 Hiện tại tổng công nợ đối với nhà cung cấp **" + targetSupplier.getName() + "** là **"
-                            + CURRENCY_FORMAT.format(totalDebt) + " VNĐ** (nợ đầu kỳ: "
-                            + CURRENCY_FORMAT.format(opening) + " VNĐ, nợ hóa đơn chưa thanh toán: "
-                            + CURRENCY_FORMAT.format(invoiceDebt) + " VNĐ).")
+                            + formatCurrency(totalDebt) + " VNĐ** (nợ đầu kỳ: "
+                            + formatCurrency(opening) + " VNĐ, nợ hóa đơn chưa thanh toán: "
+                            + formatCurrency(invoiceDebt) + " VNĐ).")
                     .actionType("QUERY_SUPPLIER_DEBT")
                     .executed(true)
                     .navigateTo("/purchases")
@@ -143,7 +148,7 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
 
         StringBuilder sb = new StringBuilder("💰 **Tổng hợp Công nợ Phải thu Khách hàng:**\n")
                 .append("- **Tổng phải thu hiện tại:** **")
-                .append(CURRENCY_FORMAT.format(totalReceivable)).append(" VNĐ** (")
+                .append(formatCurrency(totalReceivable)).append(" VNĐ** (")
                 .append(summary.unpaidCustomerCount()).append(" khách hàng / ")
                 .append(summary.unpaidSalesOrderCount()).append(" đơn bán hàng chưa thu đủ).\n");
 
@@ -151,7 +156,7 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
             for (DebtSummaryResponse.CustomerDebtRow row : summary.customerReceivables()) {
                 if (row.remainingDebt() != null && row.remainingDebt().signum() > 0) {
                     sb.append("- **").append(row.customerName()).append(":** còn nợ **")
-                            .append(CURRENCY_FORMAT.format(row.remainingDebt())).append(" VNĐ** (")
+                            .append(formatCurrency(row.remainingDebt())).append(" VNĐ** (")
                             .append(row.openOrderCount()).append(" đơn chưa tất toán)\n");
                 }
             }
@@ -170,7 +175,7 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
                     BigDecimal remain = o.getTotalAmount().subtract(o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO);
                     boolean overdue = o.getNote() != null && VietnameseSpeechNormalizer.removeVietnameseDiacritics(o.getNote()).toLowerCase(Locale.ROOT).contains("qua han");
                     sb.append("- `").append(o.getCode()).append("` (").append(o.getCustomer()).append("): **")
-                            .append(CURRENCY_FORMAT.format(remain)).append(" VNĐ**")
+                            .append(formatCurrency(remain)).append(" VNĐ**")
                             .append(overdue ? " ⚠️ **QUÁ HẠN**" : "").append("\n");
                 }
             }
@@ -209,17 +214,17 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
         BigDecimal totalCost = fs.totalCost() != null ? fs.totalCost() : BigDecimal.ZERO;
 
         StringBuilder sb = new StringBuilder("📊 **Tổng hợp Tài chính & Chi phí dở dang (8 Tab Báo cáo):**\n")
-                .append("- **Lãi/Lỗ đã chốt (lứa `CLOSED` - ").append(fs.closedCycles()).append(" lứa):** **").append(CURRENCY_FORMAT.format(realized)).append(" VNĐ**\n")
-                .append("- **Chi phí dở dang đang nuôi (WIP `ACTIVE` - ").append(fs.activeBarns()).append(" chuồng):** **").append(CURRENCY_FORMAT.format(wipCost)).append(" VNĐ**\n")
-                .append("- **Doanh thu tạm thu lứa đang nuôi (WIP):** **").append(CURRENCY_FORMAT.format(wipRevenue)).append(" VNĐ**\n")
-                .append("- **Tổng doanh thu / Tổng chi phí lũy kế:** ").append(CURRENCY_FORMAT.format(totalRevenue)).append(" VNĐ / ").append(CURRENCY_FORMAT.format(totalCost)).append(" VNĐ.");
+                .append("- **Lãi/Lỗ đã chốt (lứa `CLOSED` - ").append(fs.closedCycles()).append(" lứa):** **").append(formatCurrency(realized)).append(" VNĐ**\n")
+                .append("- **Chi phí dở dang đang nuôi (WIP `ACTIVE` - ").append(fs.activeBarns()).append(" chuồng):** **").append(formatCurrency(wipCost)).append(" VNĐ**\n")
+                .append("- **Doanh thu tạm thu lứa đang nuôi (WIP):** **").append(formatCurrency(wipRevenue)).append(" VNĐ**\n")
+                .append("- **Tổng doanh thu / Tổng chi phí lũy kế:** ").append(formatCurrency(totalRevenue)).append(" VNĐ / ").append(formatCurrency(totalCost)).append(" VNĐ.");
 
         boolean asksDebt = norm != null && (norm.contains("cong no") || norm.contains("den han") || norm.contains("qua han")
                 || norm.contains("phai tra") || norm.contains("phai thu") || norm.contains("no ncc"));
         if (asksDebt && debtService != null) {
             DebtSummaryResponse debt = debtService.getDebtSummary();
             sb.append("\n\n💳 **Công nợ hiện tại & đến hạn:**\n")
-                    .append("- **Công nợ phải trả NCC:** **").append(CURRENCY_FORMAT.format(debt.totalSupplierPayable())).append(" VNĐ** (")
+                    .append("- **Công nợ phải trả NCC:** **").append(formatCurrency(debt.totalSupplierPayable())).append(" VNĐ** (")
                     .append(debt.unpaidPurchaseInvoiceCount()).append(" hóa đơn chưa thanh toán đủ)\n");
             if (invoiceRepository != null) {
                 for (PurchaseInvoice inv : invoiceRepository.findByStockStatusNot("Đã hủy")) {
@@ -230,13 +235,13 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
                         String sup = inv.getSupplier() != null ? inv.getSupplier().getName() : "NCC";
                         boolean overdue = inv.getNote() != null && VietnameseSpeechNormalizer.removeVietnameseDiacritics(inv.getNote()).toLowerCase(Locale.ROOT).contains("qua han");
                         sb.append("  • `").append(inv.getCode()).append("` (").append(sup).append("): còn **")
-                                .append(CURRENCY_FORMAT.format(rem)).append(" VNĐ**")
+                                .append(formatCurrency(rem)).append(" VNĐ**")
                                 .append(overdue ? " ⚠️ **QUÁ HẠN**" : "").append("\n");
                     }
                 }
             }
             BigDecimal rec = debt.totalCustomerReceivable() != null ? debt.totalCustomerReceivable() : BigDecimal.ZERO;
-            sb.append("- **Công nợ phải thu khách hàng:** **").append(CURRENCY_FORMAT.format(rec)).append(" VNĐ** (")
+            sb.append("- **Công nợ phải thu khách hàng:** **").append(formatCurrency(rec)).append(" VNĐ** (")
                     .append(debt.unpaidSalesOrderCount()).append(" đơn bán chưa thu đủ)");
         }
 

@@ -97,8 +97,6 @@ let nextMsgId = 100;
 const generateMessageId = () => `msg_${Date.now()}_${++nextMsgId}`;
 
 let nextSessionSeq = 0;
-const SESSIONS_STORAGE_KEY = 'farmshift_ai_sessions_v1';
-const ACTIVE_SESSION_STORAGE_KEY = 'farmshift_ai_active_session_id';
 
 const formatCurrentTime = () => {
   const now = new Date();
@@ -338,13 +336,12 @@ export const FormattedBotText = ({ text }) => {
   );
 };
 
-export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) => {
+export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: propUserScope, userEmail }) => {
   const userRole = propRole || legacyRole || (typeof localStorage !== 'undefined' ? localStorage.getItem('farmshift_user_role') : null);
-  const userScope = String(userEmail || userRole || 'default').trim().toLowerCase() || 'default';
-  const isDefaultScope = userScope === 'default';
-  const openStorageKey = isDefaultScope ? 'farmshift_ai_chat_open' : `farmshift_ai_chat_open::${userScope}`;
-  const sessionsStorageKey = isDefaultScope ? SESSIONS_STORAGE_KEY : `${SESSIONS_STORAGE_KEY}::${userScope}`;
-  const activeSessionStorageKey = isDefaultScope ? ACTIVE_SESSION_STORAGE_KEY : `${ACTIVE_SESSION_STORAGE_KEY}::${userScope}`;
+  const ownerScope = useMemo(
+    () => resolveAiChatOwnerScope(propUserScope || userEmail),
+    [propUserScope, userEmail]
+  );
 
   const fallbackCards = useMemo(() => {
     const raw = (userRole && ROLE_SUGGESTIONS[userRole]) ? ROLE_SUGGESTIONS[userRole] : SUGGESTIONS;
@@ -364,73 +361,25 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
   const location = useLocation();
   const confirmInFlightRef = useRef(new Set());
   const ownerScopeRef = useRef(ownerScope);
+  const sessionEpochRef = useRef(0);
   const mountedRef = useRef(true);
   const suppressPersistRef = useRef(false);
 
-  const readScopedSessions = useCallback((sKey, allowLegacyFallback = false) => {
-    try {
-      const savedSessions = sessionStorage.getItem(sKey);
-      if (savedSessions) {
-        const parsed = JSON.parse(savedSessions);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((s, idx) => ({
-            ...s,
-            id: s.id || `session_restored_${idx + 1}`,
-            title: s.title || `Phiên #${idx + 1}`,
-            messages: Array.isArray(s.messages) && s.messages.length > 0 ? s.messages : [INITIAL_MESSAGE],
-            lastActionContext: s.lastActionContext || null
-          }));
-        }
-      }
-      if (allowLegacyFallback) {
-        const legacySaved = sessionStorage.getItem('farmshift_ai_chat_history');
-        if (legacySaved) {
-          const parsedLegacy = JSON.parse(legacySaved);
-          if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-            return [createSessionObject(1, parsedLegacy)];
-          }
-        }
-      }
-    } catch (_e) {
-      // ignore
-    }
-    return [createSessionObject(1, [INITIAL_MESSAGE])];
-  }, []);
-
-  // Track which userScope owns the current in-memory chat state so switching accounts never writes old messages into the new user's storage key
-  const stateScopeRef = useRef(userScope);
+  const initialChatStateRef = useRef(null);
+  if (!initialChatStateRef.current) {
+    initialChatStateRef.current = loadAiChatState(ownerScope, createSessionObject, INITIAL_MESSAGE);
+  }
 
   // Restore previous open/closed status from user-scoped sessionStorage across routes & tabs
-  const [isOpen, setIsOpen] = useState(() => {
-    try {
-      return sessionStorage.getItem(openStorageKey) === 'true';
-    } catch (_e) {
-      return false;
-    }
-  });
-
-  // Sync isOpen state to user-scoped sessionStorage
-  useEffect(() => {
-    if (stateScopeRef.current !== userScope) return;
-    try {
-      sessionStorage.setItem(openStorageKey, String(isOpen));
-    } catch (_e) {
-      // ignore
-    }
-  }, [isOpen, openStorageKey, userScope]);
+  const [isOpen, setIsOpenState] = useState(() => initialChatStateRef.current.isOpen);
+  const setIsOpen = useCallback((updater) => {
+    suppressPersistRef.current = false;
+    setIsOpenState(updater);
+  }, []);
 
   // Restore multi-session conversations & active session from user-scoped sessionStorage
-  const [sessions, setSessions] = useState(() => readScopedSessions(sessionsStorageKey, isDefaultScope));
-
-  const [activeSessionId, setActiveSessionId] = useState(() => {
-    try {
-      const savedActive = sessionStorage.getItem(activeSessionStorageKey);
-      if (savedActive) return savedActive;
-    } catch (_e) {
-      // ignore
-    }
-    return sessions[0]?.id;
-  });
+  const [sessions, setSessions] = useState(() => initialChatStateRef.current.sessions);
+  const [activeSessionId, setActiveSessionId] = useState(() => initialChatStateRef.current.activeSessionId);
 
   const [isSessionListOpen, setIsSessionListOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -554,41 +503,94 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
       .replace(/\bkhu\s+mía(?:\s+thịt)?\b/giu, 'Khu Mía Thịt');
   };
 
-  // Persist multi-session conversations & active session per userScope in sessionStorage
-  useEffect(() => {
-    if (stateScopeRef.current !== userScope) return;
-    try {
-      if (sessions.length > 0) {
-        sessionStorage.setItem(sessionsStorageKey, JSON.stringify(sessions));
-      }
-      if (effectiveSessionId) {
-        sessionStorage.setItem(activeSessionStorageKey, effectiveSessionId);
-      }
-    } catch (_e) {
-      // ignore
+  const resetInMemoryChatState = useCallback(({ suppressPersist = false } = {}) => {
+    suppressPersistRef.current = suppressPersist;
+    sessionEpochRef.current += 1;
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch (_e) { /* ignore */ }
     }
-  }, [sessions, effectiveSessionId, sessionsStorageKey, activeSessionStorageKey, userScope]);
-
-  useEffect(() => {
-    if (stateScopeRef.current === userScope) return;
-    stateScopeRef.current = userScope;
+    if (voiceRecorderRef.current) {
+      try { voiceRecorderRef.current.cancel(); } catch (_e) { /* ignore */ }
+      voiceRecorderRef.current = null;
+    }
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
+    }
+    const fresh = createSessionObject(1, [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]);
+    confirmInFlightRef.current.clear();
     suggestionsReqRef.current += 1;
-    const scoped = readScopedSessions(sessionsStorageKey, isDefaultScope);
-    setSessions(scoped);
-    try {
-      const savedActive = sessionStorage.getItem(activeSessionStorageKey);
-      setActiveSessionId(savedActive || scoped[0]?.id);
-      setIsOpen(sessionStorage.getItem(openStorageKey) === 'true');
-    } catch (_e) {
-      setActiveSessionId(scoped[0]?.id);
-      setIsOpen(false);
-    }
+    setSessions([fresh]);
+    setActiveSessionId(fresh.id);
+    setIsOpenState(false);
+    setIsSessionListOpen(false);
+    setIsExpanded(false);
+    setInput('');
+    setIsTyping(false);
     setLiveSuggestions(null);
     setLiveMeta(null);
-    setIsExpanded(false);
+    setSuggestionsLoading(false);
+    setIsListening(false);
+    setIsTranscribing(false);
+    setVoiceNotice('');
+    setVoiceRms(0);
+    setRecordingSeconds(0);
+    setVoiceCorrections([]);
+    setVoiceConfidence(null);
+    setSpeakingMsgId(null);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Immediately clear in-memory chat history & block re-persisting on logout / 401
+  useEffect(() => {
+    const handleReset = () => resetInMemoryChatState({ suppressPersist: true });
+    window.addEventListener(AI_CHAT_RESET_EVENT, handleReset);
+    window.addEventListener('unauthorized', handleReset);
+    return () => {
+      window.removeEventListener(AI_CHAT_RESET_EVENT, handleReset);
+      window.removeEventListener('unauthorized', handleReset);
+    };
+  }, [resetInMemoryChatState]);
+
+  // Persist user-scoped multi-session conversations & open state across routes
+  // Guard against writing previous account's in-memory sessions when ownerScope changes in-place
+  useEffect(() => {
+    if (suppressPersistRef.current || ownerScopeRef.current !== ownerScope) return;
+    saveAiChatState(ownerScope, {
+      sessions,
+      activeSessionId: effectiveSessionId,
+      isOpen,
+    });
+  }, [ownerScope, sessions, effectiveSessionId, isOpen]);
+
+  // Reload strictly scoped state whenever user identity changes in-place without key remount
+  useEffect(() => {
+    if (ownerScopeRef.current === ownerScope) return;
+    ownerScopeRef.current = ownerScope;
+    sessionEpochRef.current += 1;
+    suppressPersistRef.current = false;
+    confirmInFlightRef.current.clear();
+    suggestionsReqRef.current += 1;
+    const nextState = loadAiChatState(ownerScope, createSessionObject, INITIAL_MESSAGE);
+    setSessions(nextState.sessions);
+    setActiveSessionId(nextState.activeSessionId);
+    setIsOpenState(nextState.isOpen);
     setIsSessionListOpen(false);
+    setIsExpanded(false);
     setInput('');
-  }, [userScope, isDefaultScope, sessionsStorageKey, activeSessionStorageKey, openStorageKey, readScopedSessions]);
+    setIsTyping(false);
+    setLiveSuggestions(null);
+    setLiveMeta(null);
+    setSuggestionsLoading(false);
+    setVoiceNotice('');
+    setVoiceCorrections([]);
+    setVoiceConfidence(null);
+  }, [ownerScope]);
 
   // Dọn dẹp media streams, Web Audio VAD và Web Speech API khi unmount
   useEffect(() => {
@@ -622,6 +624,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
 
     const reqId = ++suggestionsReqRef.current;
     const reqOwnerScope = ownerScopeRef.current;
+    const reqEpoch = sessionEpochRef.current;
     setSuggestionsLoading(true);
     try {
       const data = await fetcher(
@@ -631,6 +634,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
       if (
         !mountedRef.current ||
         ownerScopeRef.current !== reqOwnerScope ||
+        sessionEpochRef.current !== reqEpoch ||
         reqId !== suggestionsReqRef.current ||
         !data
       ) {
@@ -648,7 +652,12 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
     } catch (_err) {
       // Giữ fallback cards nếu backend chưa sẵn sàng
     } finally {
-      if (mountedRef.current && ownerScopeRef.current === reqOwnerScope && reqId === suggestionsReqRef.current) {
+      if (
+        mountedRef.current &&
+        ownerScopeRef.current === reqOwnerScope &&
+        sessionEpochRef.current === reqEpoch &&
+        reqId === suggestionsReqRef.current
+      ) {
         setSuggestionsLoading(false);
       }
     }
@@ -657,7 +666,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
   useEffect(() => {
     if (!isOpen) return;
     fetchSuggestions(false);
-  }, [isOpen, location.pathname, userRole, userScope, fetchSuggestions]);
+  }, [isOpen, location.pathname, userRole, ownerScope, fetchSuggestions]);
 
   useRealtimeRefresh(
     ['/ai/suggestions', '/today-tasks', '/journal', '/inventory-items', '/purchases', '/debts', '/barns', '/cycles'],
@@ -743,7 +752,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
 
     window.addEventListener('keydown', handleGlobalShortcut);
     return () => window.removeEventListener('keydown', handleGlobalShortcut);
-  }, []);
+  }, [setIsOpen]);
 
   // Sự kiện mở nhanh AI từ Dashboard ("Hỏi AI") hoặc màn hình khác
   useEffect(() => {
@@ -778,7 +787,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
       window.removeEventListener('farmshift:open-ai-chat', handleOpenAiChat);
       window.removeEventListener('farmshift:ai-action', handleAiActionCache);
     };
-  }, [applyPromptTemplate, fetchSuggestions]);
+  }, [applyPromptTemplate, fetchSuggestions, setIsOpen]);
 
   // Đóng box chat khi bấm ra ngoài (ở chế độ popover) hoặc nhấn phím Escape
   useEffect(() => {
@@ -817,7 +826,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, isExpanded]);
+  }, [isOpen, isExpanded, setIsOpen]);
 
   useEffect(() => {
     if (isOpen && endOfMessagesRef.current) {
@@ -895,6 +904,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
 
     suppressPersistRef.current = false;
     const requestOwnerScope = ownerScopeRef.current;
+    const requestEpoch = sessionEpochRef.current;
 
     // Dừng thu âm nếu đang bật
     if (isListening) {
@@ -960,7 +970,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         autoExecute: false
       });
 
-      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope) {
+      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope || sessionEpochRef.current !== requestEpoch) {
         return;
       }
 
@@ -1001,7 +1011,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         navigate(response.navigateTo);
       }
     } catch (error) {
-      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope) {
+      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope || sessionEpochRef.current !== requestEpoch) {
         return;
       }
       console.warn('Lỗi kết nối Trợ lý AI, sử dụng câu trả lời dự phòng:', error);
@@ -1017,7 +1027,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         }
       ]);
     } finally {
-      if (mountedRef.current && ownerScopeRef.current === requestOwnerScope) {
+      if (mountedRef.current && ownerScopeRef.current === requestOwnerScope && sessionEpochRef.current === requestEpoch) {
         setIsTyping(false);
       }
     }
@@ -1033,6 +1043,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
     if (confirmInFlightRef.current.has(msgId)) return;
     suppressPersistRef.current = false;
     const requestOwnerScope = ownerScopeRef.current;
+    const requestEpoch = sessionEpochRef.current;
     confirmInFlightRef.current.add(msgId);
     updateSessionMessages(targetSessionId, prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'confirming' } : m));
     try {
@@ -1050,7 +1061,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         lastActionContext: sessionContext || undefined
       });
 
-      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope) {
+      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope || sessionEpochRef.current !== requestEpoch) {
         return;
       }
 
@@ -1085,7 +1096,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         navigate(response.navigateTo);
       }
     } catch (err) {
-      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope) {
+      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope || sessionEpochRef.current !== requestEpoch) {
         return;
       }
       console.warn('Lỗi khi xác nhận thao tác:', err);

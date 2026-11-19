@@ -279,7 +279,7 @@ public class AiAssistantService {
         Map<String, Object> ctx = resolveContext(sessionKey, request.getLastActionContext(), history);
 
         String preNorm = normalizeText(message);
-        if (isWorker && isWorkerForbiddenFinancialOrAdminQuery(preNorm)) {
+        if (isWorker && isWorkerForbiddenFinancialOrAdminQuery(rawMessage, preNorm)) {
             return finalizeResponse(AiRbacPolicy.createForbiddenResponse(), actor, role, true, sessionKey, sessionId,
                     rawMessage, message, request.getCurrentRoute());
         }
@@ -612,7 +612,14 @@ public class AiAssistantService {
         });
     }
 
-    private static boolean isWorkerForbiddenFinancialOrAdminQuery(String norm) {
+    private static final Pattern WORKER_EXPLICIT_PRICE_PATTERN = Pattern.compile(
+            "\\bgia\\s+(?:\\d|mot\\b|bao\\b|kg\\b|can\\b|thuoc\\b|vac[\\s-]?xin\\b|cam\\b|hien\\s+tai\\b|con\\s+giong\\b|ban\\b|nhap\\b|von\\b|tien\\b|thanh\\b|bao\\s+nhieu\\b)"
+    );
+    private static final Pattern WORKER_PRICE_HOW_MUCH_PATTERN = Pattern.compile(
+            "\\bgia\\b.{0,45}\\bbao\\s+nhieu\\b"
+    );
+
+    private static boolean isWorkerForbiddenFinancialOrAdminQuery(String rawMessage, String norm) {
         if (norm == null || norm.isBlank()) return false;
         if (norm.contains("xoa hoa don") || norm.contains("huy hoa don") || norm.contains("xoa don") || norm.contains("xoa chuong")) {
             return true;
@@ -620,8 +627,35 @@ public class AiAssistantService {
         if (norm.contains("doanh thu") || norm.contains("lai lo") || norm.contains("loi nhuan") || norm.contains("cong no")) {
             return true;
         }
-        boolean asksMoney = norm.contains("gia ") || norm.contains("don gia") || norm.contains("gia von")
-                || norm.contains("tong tien") || norm.contains("bao nhieu tien") || norm.contains("thanh tien");
+        String scrubbed = norm
+                .replaceAll("\\bdanh\\s+gia\\b", " ")
+                .replaceAll("\\btham\\s+gia\\b", " ");
+        String rawLower = rawMessage != null ? rawMessage.toLowerCase(Locale.forLanguageTag("vi-VN")) : "";
+        if (rawLower.contains("gia cầm")) {
+            scrubbed = scrubbed.replaceAll("\\bgia\\s+cam\\b", " ");
+        } else if (!rawLower.contains("giá") && !rawLower.contains("cám")) {
+            boolean feedOrPriceCtx = scrubbed.contains("bao nhieu")
+                    || scrubbed.contains("higro")
+                    || scrubbed.contains("cargill")
+                    || scrubbed.contains("cp ")
+                    || scrubbed.contains("dabaco");
+            if (!feedOrPriceCtx) {
+                scrubbed = scrubbed.replaceAll("\\bgia\\s+cam\\b", " ");
+            }
+        }
+        boolean asksMoney = scrubbed.contains("don gia")
+                || scrubbed.contains("gia von")
+                || scrubbed.contains("gia nhap")
+                || scrubbed.contains("gia ban")
+                || scrubbed.contains("gia tien")
+                || scrubbed.contains("gia thanh")
+                || scrubbed.contains("bang gia")
+                || scrubbed.contains("bao gia")
+                || scrubbed.contains("tong tien")
+                || scrubbed.contains("bao nhieu tien")
+                || scrubbed.contains("thanh tien")
+                || WORKER_EXPLICIT_PRICE_PATTERN.matcher(scrubbed).find()
+                || WORKER_PRICE_HOW_MUCH_PATTERN.matcher(scrubbed).find();
         boolean asksInventoryQty = norm.contains("ton kho") || norm.contains("trong kho") || norm.contains("kiem tra ton");
         return asksMoney && !asksInventoryQty;
     }

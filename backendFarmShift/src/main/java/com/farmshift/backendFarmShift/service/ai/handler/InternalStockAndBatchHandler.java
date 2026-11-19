@@ -53,7 +53,12 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
     private BarnRepository barnRepository;
 
     private static final DateTimeFormatter BATCH_CODE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm");
-    private static final NumberFormat CURRENCY_FORMAT = NumberFormat.getInstance(new Locale("vi", "VN"));
+    private static final ThreadLocal<NumberFormat> CURRENCY_FORMAT =
+            ThreadLocal.withInitial(() -> NumberFormat.getInstance(Locale.forLanguageTag("vi-VN")));
+
+    private static String formatCurrency(Object value) {
+        return CURRENCY_FORMAT.get().format(value);
+    }
 
     @Override
     public int getOrder() {
@@ -113,23 +118,45 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
 
         List<InventoryItem> allItems = inventoryRepository.findAll();
         if (context.isWorker() && workAssignmentService != null && barnRepository != null) {
+            List<WarehouseCategory> allWarehouses = warehouseRepository.findAllWithAreasForReport();
+            Set<Long> areaBoundWarehouseIds = new HashSet<>();
+            for (WarehouseCategory w : allWarehouses) {
+                if (w.getArea() != null || (w.getAreas() != null && !w.getAreas().isEmpty())) {
+                    areaBoundWarehouseIds.add(w.getId());
+                }
+            }
+
             Set<Long> allowedBarnIds = workAssignmentService.barnIdsOf(context.getUsername());
+            Set<Long> allowedAreaIds = new HashSet<>();
             if (!allowedBarnIds.isEmpty()) {
-                Set<Long> allowedAreaIds = new HashSet<>();
                 for (Barn b : barnRepository.findAll()) {
                     if (allowedBarnIds.contains(b.getId()) && b.getArea() != null && b.getArea().getId() != null) {
                         allowedAreaIds.add(b.getArea().getId());
                     }
                 }
-                Set<Long> allowedWarehouseIds = new HashSet<>();
-                for (Long areaId : allowedAreaIds) {
-                    warehouseRepository.findAllByArea_Id(areaId).forEach(w -> allowedWarehouseIds.add(w.getId()));
+            }
+
+            Set<Long> allowedWarehouseIds = new HashSet<>();
+            if (!allowedAreaIds.isEmpty()) {
+                for (WarehouseCategory w : allWarehouses) {
+                    boolean matchesPrimary = w.getArea() != null && allowedAreaIds.contains(w.getArea().getId());
+                    boolean matchesMulti = w.getAreas() != null && w.getAreas().stream()
+                            .anyMatch(a -> a != null && allowedAreaIds.contains(a.getId()));
+                    if (matchesPrimary || matchesMulti) {
+                        allowedWarehouseIds.add(w.getId());
+                    }
                 }
-                if (!allowedWarehouseIds.isEmpty()) {
-                    allItems = allItems.stream()
-                            .filter(i -> i.getWarehouse() != null && allowedWarehouseIds.contains(i.getWarehouse().getId()))
-                            .toList();
-                }
+            }
+
+            if (!allowedWarehouseIds.isEmpty()) {
+                allItems = allItems.stream()
+                        .filter(i -> i.getWarehouse() != null && allowedWarehouseIds.contains(i.getWarehouse().getId()))
+                        .toList();
+            } else {
+                // Fail-closed for area-bound warehouses when worker has no assigned barns or area warehouses
+                allItems = allItems.stream()
+                        .filter(i -> i.getWarehouse() != null && !areaBoundWarehouseIds.contains(i.getWarehouse().getId()))
+                        .toList();
             }
         }
 
@@ -189,7 +216,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
                 String batchCode = formatBatchCode(item);
                 String rowUnit = item.getUnit() != null ? item.getUnit().getName() : "đơn vị";
                 String stockStr = formatQty(item.getStock()) + " " + rowUnit;
-                String priceStr = CURRENCY_FORMAT.format(item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO) + " VNĐ";
+                String priceStr = formatCurrency(item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO) + " VNĐ";
                 sb.append("| ").append(item.getProduct().getName())
                         .append(" | `").append(batchCode).append("`")
                         .append(" | ").append(stockStr)
@@ -198,7 +225,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
 
             if (singleUnit != null) {
                 sb.append("\n- **Tổng tồn kho:** ").append(formatQty(totalStock)).append(" ").append(singleUnit);
-                sb.append("\n- **Giá TB (Bình quân gia quyền):** ").append(CURRENCY_FORMAT.format(weightedAvgPrice)).append(" VNĐ/").append(singleUnit);
+                sb.append("\n- **Giá TB (Bình quân gia quyền):** ").append(formatCurrency(weightedAvgPrice)).append(" VNĐ/").append(singleUnit);
             } else {
                 sb.append("\n- **Tổng số lô hiển thị:** ").append(matchedItems.size()).append(" lô");
             }

@@ -512,17 +512,66 @@ class AiAssistantSecurityAndDomainTest {
         // 3. Worker asking unit price of feed must return RBAC_BLOCKED (MSG60), NOT LOG_FEED (TC-3.4a)
         RequestPostProcessor workerAuth = user("worker-price@farm.test")
                 .authorities(new SimpleGrantedAuthority(RoleNames.FARM_WORKER));
-        mvc.perform(post(ASSISTANT_API)
+        for (String pricePrompt : List.of(
+                "Giá 1 bao cám Higro hiện tại bao nhiêu tiền?",
+                "Giá cám Higro 01 bao nhiêu?"
+        )) {
+            mvc.perform(post(ASSISTANT_API)
+                    .with(workerAuth)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(Map.of(
+                            "message", pricePrompt,
+                            "autoExecute", false
+                    ))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.executed").value(false))
+                    .andExpect(jsonPath("$.requiresConfirmation").value(false))
+                    .andExpect(jsonPath("$.actionType").value("RBAC_BLOCKED"));
+        }
+
+        // 4. Legitimate worker queries containing "đánh giá" or "gia cầm" must NOT be false-positively blocked
+        for (String validPrompt : List.of(
+                "Đánh giá FCR chuồng Nhà A1",
+                "Gia cầm thở khò khè điều trị thế nào?"
+        )) {
+            mvc.perform(post(ASSISTANT_API)
+                    .with(workerAuth)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(Map.of(
+                            "message", validPrompt,
+                            "autoExecute", false
+                    ))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.actionType").value(org.hamcrest.Matchers.not("RBAC_BLOCKED")));
+        }
+
+        // 5. Unassigned worker querying stock batch must NOT leak area-bound warehouse inventory (fail-closed)
+        ProductCategory restrictedFeed = new ProductCategory();
+        restrictedFeed.setName("Cám Restricted Khu A");
+        restrictedFeed.setNameKey("cam restricted khu a");
+        restrictedFeed.setWarehouse(areaAFeedWarehouse);
+        restrictedFeed = productRepository.saveAndFlush(restrictedFeed);
+
+        InventoryItem restrictedLot = new InventoryItem();
+        restrictedLot.setWarehouse(areaAFeedWarehouse);
+        restrictedLot.setProduct(restrictedFeed);
+        restrictedLot.setPrice(new BigDecimal("320000"));
+        restrictedLot.setStock(new BigDecimal("40"));
+        inventoryRepository.saveAndFlush(restrictedLot);
+
+        String unassignedStockJson = mvc.perform(post(ASSISTANT_API)
                 .with(workerAuth)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                        "message", "Giá 1 bao cám Higro hiện tại bao nhiêu tiền?",
-                        "autoExecute", false
+                        "message", "Trong kho còn bao nhiêu bao cám Restricted Khu A, chi tiết từng đợt?"
                 ))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.executed").value(false))
-                .andExpect(jsonPath("$.requiresConfirmation").value(false))
-                .andExpect(jsonPath("$.actionType").value("RBAC_BLOCKED"));
+                .andExpect(jsonPath("$.actionType").value("QUERY_STOCK_BATCH"))
+                .andReturn().getResponse().getContentAsString();
+        String unassignedReply = mapper.readTree(unassignedStockJson).path("reply").asText();
+        assertFalse(unassignedReply.contains("320,000"), "Unassigned worker must not see prices");
+        assertTrue(unassignedReply.contains("không tìm thấy"),
+                "Unassigned worker must not receive area-bound warehouse lots: " + unassignedReply);
     }
 
     @Test
