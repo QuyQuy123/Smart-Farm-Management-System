@@ -7,6 +7,7 @@ import com.farmshift.backendFarmShift.entity.Supplier;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.repository.ProductCategoryRepository;
 import com.farmshift.backendFarmShift.repository.SupplierRepository;
+import com.farmshift.backendFarmShift.service.CycleService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +22,7 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 
 /**
- * Extracts a draft purchase invoice from an uploaded invoice image / PDF using RapidOCR (PaddleOCR),
+ * Extracts a draft purchase invoice from an uploaded invoice image / PDF using aiServiceFarmShift (OpenCV + Vision LLM),
  * then matches the result against existing suppliers and product categories.
  * The output is only a draft (MSG30) – the user must review it before saving.
  */
@@ -38,8 +39,6 @@ public class PurchaseOcrService {
             "jpeg", "image/jpeg",
             "png", "image/png",
             "webp", "image/webp",
-            "heic", "image/heic",
-            "heif", "image/heif",
             "pdf", "application/pdf"
     );
 
@@ -150,7 +149,7 @@ public class PurchaseOcrService {
                 matched != null ? matched.getId() : null,
                 matched != null ? matched.getName() : name,
                 "0300645678",
-                LocalDate.now(),
+                LocalDate.now(CycleService.VN_ZONE),
                 "HD-CP-2026-9921",
                 List.of(
                         new PurchaseInvoiceItemRequest(null, "Cám Gà úm Higro 01", 50.0, "Bao (25kg)", 345000L, 0.0),
@@ -162,7 +161,7 @@ public class PurchaseOcrService {
                 "Thanh toán hoàn tất",
                 37350000L,
                 96.8,
-                "Trích xuất tự động OpenAI gpt-5.6-sol từ hóa đơn mẫu C.P. Việt Nam",
+                "Dữ liệu hóa đơn mẫu C.P. Việt Nam",
                 List.of(),
                 "MSG30"
         );
@@ -188,7 +187,7 @@ public class PurchaseOcrService {
             if (mime != null) return mime;
         }
         throw new BadRequestException(
-                "Định dạng tệp không được hỗ trợ. Vui lòng chọn ảnh JPG, PNG, WEBP, HEIC hoặc tệp PDF.",
+                "Định dạng tệp không được hỗ trợ. Vui lòng chọn ảnh JPG, PNG, WEBP hoặc tệp PDF.",
                 "OCR_UNSUPPORTED_FILE"
         );
     }

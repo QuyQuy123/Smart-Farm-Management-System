@@ -1,15 +1,91 @@
 // src/components/AIChatbot/AIChatbot.jsx
 // Trợ lý Giọng nói & AI FarmShift (Actionable Voice Assistant & System Automation)
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles, X, Send, RotateCcw, Plus, History, Trash2,
-  Maximize2, Minimize2, Mic, MicOff, ShieldCheck,
-  Zap, ExternalLink, Volume2, VolumeX, Check, AlertCircle
+  PanelRightOpen, PanelRightClose, Mic, MicOff, ShieldCheck,
+  Zap, ExternalLink, Volume2, VolumeX, Check, AlertCircle,
+  ArrowUpRight, PenLine
 } from 'lucide-react';
-import { transcribeAudio, sendAssistantMessage } from '../../services/aiAssistantService';
+import * as aiAssistantService from '../../services/aiAssistantService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { createAdaptiveVoiceRecorder, NO_SPEECH_HINT, VAD_CONFIG } from '../../utils/audioRecorder';
 import farmLogo from '../../assets/logo_Farm.png';
 import styles from './AIChatbot.module.css';
+
+const { transcribeAudio, sendAssistantMessage } = aiAssistantService;
+
+const resolveGetSuggestionsFn = () => {
+  try {
+    return typeof aiAssistantService?.getAiSuggestions === 'function'
+      ? aiAssistantService.getAiSuggestions
+      : null;
+  } catch (_e) {
+    return null;
+  }
+};
+
+const ROLE_LABELS = {
+  ROLE_FARM_WORKER: 'Công nhân',
+  ROLE_ACCOUNTANT: 'Kế toán',
+  ROLE_FARM_OWNER: 'Chủ trại',
+};
+
+const ROUTE_LABELS = [
+  ['/dashboard', 'Tổng quan'],
+  ['/today-tasks', 'Việc hôm nay'],
+  ['/barns', 'Chuồng nuôi'],
+  ['/areas', 'Khu nuôi'],
+  ['/journal', 'Nhật ký nuôi'],
+  ['/inventory', 'Tồn kho'],
+  ['/internal-stock', 'Xuất nhập kho'],
+  ['/transfers', 'Xuất nhập kho'],
+  ['/purchases', 'Hóa đơn & Mua hàng'],
+  ['/sales', 'Xuất bán'],
+  ['/reports', 'Báo cáo'],
+  ['/iot', 'Môi trường IoT'],
+  ['/general-settings', 'Thiết lập'],
+  ['/catalog-settings', 'Thiết lập'],
+  ['/breeding-settings', 'Thiết lập'],
+  ['/account', 'Tài khoản'],
+];
+
+const resolveLocalRouteLabel = (pathname) => {
+  const path = String(pathname || '/dashboard').toLowerCase();
+  const matched = ROUTE_LABELS.find(([prefix]) => path === prefix || path.startsWith(`${prefix}/`));
+  return matched ? matched[1] : 'Trang trại';
+};
+
+const resolveRoleDefaultPlaceholder = (role) => {
+  if (role === 'ROLE_FARM_WORKER') {
+    return 'Hỏi hoặc ra lệnh: ghi cám, cân mẫu, hao hụt, việc hôm nay...';
+  }
+  if (role === 'ROLE_ACCOUNTANT') {
+    return 'Hỏi hoặc ra lệnh: nhập kho, công nợ NCC, tồn kho, chuyển kho...';
+  }
+  return 'Hỏi hoặc ra lệnh: ghi cám Nhà A1, cân mẫu, FCR, công nợ...';
+};
+
+const getDeepLinkLabel = (route) => {
+  const path = String(route || '').split('?')[0].toLowerCase();
+  if (path.startsWith('/today-tasks')) return 'Mở Việc hôm nay';
+  if (path.startsWith('/journal')) return 'Mở Nhật ký nuôi';
+  if (path.startsWith('/purchases')) return 'Mở Hóa đơn & Mua hàng';
+  if (path.startsWith('/inventory')) return 'Mở Tồn kho';
+  if (path.startsWith('/internal-stock') || path.startsWith('/transfers')) return 'Mở Xuất nhập kho';
+  if (path.startsWith('/reports')) return 'Mở Báo cáo';
+  if (path.startsWith('/barns')) return 'Mở Chuồng nuôi';
+  if (path.startsWith('/sales')) return 'Mở Xuất bán';
+  if (path.startsWith('/iot')) return 'Mở Môi trường IoT';
+  return 'Xem tại màn hình đích';
+};
+
+const THINKING_STEPS = [
+  'Đang kiểm tra dữ liệu chuồng & kho...',
+  'Đang phân tích chỉ số thực tế...',
+  'Đang tổng hợp câu trả lời...',
+];
 
 let nextMsgId = 100;
 const generateMessageId = () => `msg_${Date.now()}_${++nextMsgId}`;
@@ -28,6 +104,13 @@ const formatSessionTitle = (text) => {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (!clean) return 'Phiên mới';
   return clean.length > 26 ? `${clean.slice(0, 26)}…` : clean;
+};
+
+const formatRecordingClock = (seconds) => {
+  const s = Math.max(0, Number(seconds) || 0);
+  const mins = Math.floor(s / 60);
+  const secs = s % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
 const INITIAL_MESSAGE = {
@@ -250,9 +333,22 @@ export const FormattedBotText = ({ text }) => {
   );
 };
 
-export const AIChatbot = ({ userRole: propRole }) => {
-  const userRole = propRole || (typeof localStorage !== 'undefined' ? localStorage.getItem('farmshift_user_role') : null);
-  const activeSuggestions = (userRole && ROLE_SUGGESTIONS[userRole]) ? ROLE_SUGGESTIONS[userRole] : SUGGESTIONS;
+export const AIChatbot = ({ userRole: propRole, role: legacyRole }) => {
+  const userRole = propRole || legacyRole || (typeof localStorage !== 'undefined' ? localStorage.getItem('farmshift_user_role') : null);
+  const fallbackCards = useMemo(() => {
+    const raw = (userRole && ROLE_SUGGESTIONS[userRole]) ? ROLE_SUGGESTIONS[userRole] : SUGGESTIONS;
+    return raw.map((item, idx) => ({
+      id: `fallback_${userRole || 'default'}_${idx}`,
+      category: idx === 0 ? 'ACTION' : 'INSIGHT',
+      badge: idx === 0 ? 'Thao tác' : 'Gợi ý',
+      title: item.label,
+      subtitle: item.query,
+      prompt: item.query,
+      autoSend: true,
+      targetRoute: '/dashboard',
+      priorityScore: 50 - idx,
+    }));
+  }, [userRole]);
   const navigate = useNavigate();
   const location = useLocation();
   const confirmInFlightRef = useRef(new Set());
@@ -356,8 +452,24 @@ export const AIChatbot = ({ userRole: propRole }) => {
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [thinkingIndex, setThinkingIndex] = useState(0);
+  const [liveSuggestions, setLiveSuggestions] = useState(null);
+  const [liveMeta, setLiveMeta] = useState(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState('');
+  const [voiceRms, setVoiceRms] = useState(0);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [voiceCorrections, setVoiceCorrections] = useState([]);
+  const [voiceConfidence, setVoiceConfidence] = useState(null);
+  const [handsFreeMode, setHandsFreeMode] = useState(() => {
+    try {
+      return localStorage.getItem('farmshift_ai_hands_free') !== 'false';
+    } catch (_e) {
+      return true;
+    }
+  });
 
   // TTS Voice Synthesis States
   const [isAutoSpeakEnabled] = useState(() => {
@@ -371,12 +483,16 @@ export const AIChatbot = ({ userRole: propRole }) => {
 
   const chatWindowRef = useRef(null);
   const chatButtonRef = useRef(null);
+  const inputRef = useRef(null);
   const endOfMessagesRef = useRef(null);
   const recognitionRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const streamRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const voiceRecorderRef = useRef(null);
+  const stopRequestedBeforeReadyRef = useRef(false);
   const interimTranscriptRef = useRef('');
+  const handsFreeModeRef = useRef(handsFreeMode);
+  const suggestionsReqRef = useRef(0);
+  const sendQueryRef = useRef(null);
+  handsFreeModeRef.current = handsFreeMode;
 
   const normalizeWebSpeechText = (raw) => {
     if (!raw) return '';
@@ -424,17 +540,15 @@ export const AIChatbot = ({ userRole: propRole }) => {
     }
   }, [sessions, effectiveSessionId, messages]);
 
-  // Dọn dẹp media streams và Web Speech API khi unmount
+  // Dọn dẹp media streams, Web Audio VAD và Web Speech API khi unmount
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch (_e) { /* ignore */ }
       }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        try { mediaRecorderRef.current.stop(); } catch (_e) { /* ignore */ }
-      }
-      if (streamRef.current) {
-        try { streamRef.current.getTracks().forEach(track => track.stop()); } catch (_e) { /* ignore */ }
+      if (voiceRecorderRef.current) {
+        try { voiceRecorderRef.current.cancel(); } catch (_e) { /* ignore */ }
+        voiceRecorderRef.current = null;
       }
       if ('speechSynthesis' in window) {
         try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
@@ -451,11 +565,152 @@ export const AIChatbot = ({ userRole: propRole }) => {
     }
   }, [isOpen]);
 
-  // Đóng box chat khi bấm ra ngoài hoặc nhấn phím Escape
+  // ── Nạp & làm mới Gợi ý Sống (Live Role & Route Suggestions) ──
+  const fetchSuggestions = useCallback(async (forceRefresh = false) => {
+    const fetcher = resolveGetSuggestionsFn();
+    if (!fetcher) return;
+
+    const reqId = ++suggestionsReqRef.current;
+    setSuggestionsLoading(true);
+    try {
+      const data = await fetcher(
+        location.pathname,
+        forceRefresh ? { forceRefresh: true } : {}
+      );
+      if (reqId !== suggestionsReqRef.current || !data) return;
+      setLiveMeta({
+        role: data.role,
+        roleLabel: data.roleLabel,
+        routeLabel: data.routeLabel,
+        inputPlaceholder: data.inputPlaceholder,
+      });
+      if (Array.isArray(data.suggestions)) {
+        setLiveSuggestions(data.suggestions);
+      }
+    } catch (_err) {
+      // Giữ fallback cards nếu backend chưa sẵn sàng
+    } finally {
+      if (reqId === suggestionsReqRef.current) {
+        setSuggestionsLoading(false);
+      }
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchSuggestions(false);
+  }, [isOpen, location.pathname, userRole, fetchSuggestions]);
+
+  useRealtimeRefresh(
+    ['/ai/suggestions', '/today-tasks', '/journal', '/inventory-items', '/purchases', '/debts', '/barns', '/cycles'],
+    () => fetchSuggestions(true),
+    {
+      enabled: isOpen && Boolean(resolveGetSuggestionsFn()),
+      skipLocalApiMutation: false,
+    }
+  );
+
+  // Cycle contextual thinking steps while assistant is reasoning
+  useEffect(() => {
+    if (!isTyping) {
+      setThinkingIndex(0);
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      setThinkingIndex(prev => (prev + 1) % THINKING_STEPS.length);
+    }, 1400);
+    return () => clearInterval(timer);
+  }, [isTyping]);
+
+  // Helper điền prompt mẫu & bôi đen chỗ '...' để điền số lượng nhanh
+  const applyPromptTemplate = useCallback((promptText) => {
+    const text = String(promptText || '');
+    setInput(text);
+    setTimeout(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      const idx = text.indexOf('...');
+      if (idx !== -1 && typeof el.setSelectionRange === 'function') {
+        el.setSelectionRange(idx, idx + 3);
+      }
+    }, 0);
+  }, []);
+
+  const handleSuggestionClick = (card) => {
+    if (!card?.prompt) return;
+    if (card.autoSend === false) {
+      applyPromptTemplate(card.prompt);
+    } else {
+      sendQuery(card.prompt);
+    }
+  };
+
+  // Phím tắt toàn cục Ctrl + J / Cmd + J để bật/tắt AI Chatbox
+  useEffect(() => {
+    const handleGlobalShortcut = (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      if (String(event.key || '').toLowerCase() !== 'j') return;
+      const active = document.activeElement;
+      const isEditable = Boolean(
+        active && (
+          active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.tagName === 'SELECT' ||
+          active.isContentEditable
+        )
+      );
+      const insideChatbot = Boolean(active && chatWindowRef.current?.contains(active));
+      if (isEditable && !insideChatbot) return;
+      event.preventDefault();
+      setIsOpen(prev => !prev);
+    };
+
+    window.addEventListener('keydown', handleGlobalShortcut);
+    return () => window.removeEventListener('keydown', handleGlobalShortcut);
+  }, []);
+
+  // Sự kiện mở nhanh AI từ Dashboard ("Hỏi AI") hoặc màn hình khác
+  useEffect(() => {
+    const handleOpenAiChat = (event) => {
+      const detail = event?.detail || {};
+      setIsOpen(true);
+      if (detail.prompt && String(detail.prompt).trim()) {
+        if (detail.autoSend) {
+          setTimeout(() => {
+            sendQueryRef.current?.(detail.prompt);
+          }, 0);
+        } else {
+          applyPromptTemplate(detail.prompt);
+        }
+      } else {
+        setTimeout(() => inputRef.current?.focus(), 0);
+      }
+    };
+
+    const handleAiActionCache = (event) => {
+      const detail = event?.detail;
+      if (!detail) return;
+      const isMutation = Boolean(detail.executed || detail.uiCommand === 'REFRESH_DATA');
+      if (isMutation) {
+        fetchSuggestions(true);
+      }
+    };
+
+    window.addEventListener('farmshift:open-ai-chat', handleOpenAiChat);
+    window.addEventListener('farmshift:ai-action', handleAiActionCache);
+    return () => {
+      window.removeEventListener('farmshift:open-ai-chat', handleOpenAiChat);
+      window.removeEventListener('farmshift:ai-action', handleAiActionCache);
+    };
+  }, [applyPromptTemplate, fetchSuggestions]);
+
+  // Đóng box chat khi bấm ra ngoài (ở chế độ popover) hoặc nhấn phím Escape
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (event) => {
+      if (isExpanded) return;
       // Nếu bấm bên trong cửa sổ chat hoặc nút launcher thì không đóng
       if (
         chatWindowRef.current?.contains(event.target) ||
@@ -487,7 +742,7 @@ export const AIChatbot = ({ userRole: propRole }) => {
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, isExpanded]);
 
   useEffect(() => {
     if (isOpen && endOfMessagesRef.current) {
@@ -765,62 +1020,142 @@ export const AIChatbot = ({ userRole: propRole }) => {
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m));
   };
 
-  // ── Trình Thu âm Thông minh (MediaRecorder + Web Speech API song song) ──
+  const toggleHandsFreeMode = () => {
+    setHandsFreeMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('farmshift_ai_hands_free', String(next));
+      } catch (_e) { /* ignore */ }
+      return next;
+    });
+  };
+
+  // ── Trình Thu âm Thông minh (Web Audio VAD + MediaRecorder + Hybrid Confidence Routing) ──
   const startListening = async () => {
     setIsListening(true);
-    setVoiceNotice('🎙️ Đang nghe... Bấm lần nữa để gửi');
-    audioChunksRef.current = [];
+    setIsTranscribing(false);
+    setVoiceRms(0);
+    setRecordingSeconds(0);
+    setVoiceCorrections([]);
+    setVoiceConfidence(null);
+    stopRequestedBeforeReadyRef.current = false;
     interimTranscriptRef.current = '';
+    setVoiceNotice(
+      handsFreeModeRef.current
+        ? '🎙️ Đang nghe... (tự gửi khi ngừng nói)'
+        : '🎙️ Đang nghe... Bấm lần nữa để kết thúc'
+    );
 
-    // Khởi tạo MediaRecorder
+    // Khởi tạo Adaptive Voice Recorder (Android WebM / iOS MP4-M4A + VAD hiệu chuẩn nhiễu)
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorderHandle = await createAdaptiveVoiceRecorder({
+        onLevel: (rms) => setVoiceRms(rms),
+        onTick: (sec) => setRecordingSeconds(sec),
+        onRejected: (_reason, hint) => {
+          if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch (_e) { /* ignore */ }
+          }
+          voiceRecorderRef.current = null;
+          setIsListening(false);
+          setIsTranscribing(false);
+          setVoiceRms(0);
+          setRecordingSeconds(0);
+          setVoiceNotice(hint || NO_SPEECH_HINT);
+        },
+        onError: () => {
+          voiceRecorderRef.current = null;
+          setIsListening(false);
+          setIsTranscribing(false);
+          setVoiceRms(0);
+          setRecordingSeconds(0);
+          setVoiceNotice('⚠️ Không thể thu âm từ micro. Vui lòng thử lại.');
+        },
+        onComplete: async ({ blob, filename }) => {
+          if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch (_e) { /* ignore */ }
+          }
+          voiceRecorderRef.current = null;
+          setIsListening(false);
+          setVoiceRms(0);
+          setRecordingSeconds(0);
 
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
+          const fallbackText = normalizeWebSpeechText(interimTranscriptRef.current);
 
-      recorder.onstop = async () => {
-        // Dọn dẹp tracks microphone
-        stream.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
+          if (blob && blob.size > 0) {
+            setIsTranscribing(true);
+            setVoiceNotice('⚡ Đang chuyển giọng nói thành văn bản...');
+            try {
+              const sttResult = await transcribeAudio(blob, filename);
+              setIsTranscribing(false);
 
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        let recognizedText = normalizeWebSpeechText(interimTranscriptRef.current);
+              if (sttResult?.rejectedReason) {
+                const rejectMsg = sttResult.rejectedReason === 'SECURITY_BLOCKED'
+                  ? '⛔ Nội dung giọng nói vi phạm chính sách bảo mật và đã bị chặn.'
+                  : NO_SPEECH_HINT;
+                setVoiceNotice(rejectMsg);
+                setVoiceCorrections([]);
+                setVoiceConfidence(null);
+                return;
+              }
 
-        // Thử gửi audioBlob lên Groq Whisper STT
-        if (audioBlob.size > 0) {
-          setVoiceNotice('⚡ Đang xử lý giọng nói qua Groq Whisper...');
-          try {
-            const sttResult = await transcribeAudio(audioBlob);
-            if (!sttResult.fallback && sttResult.text && sttResult.text.trim()) {
-              recognizedText = sttResult.text.trim();
+              const finalText = (!sttResult?.fallback
+                ? (sttResult?.normalizedText || sttResult?.text || '')
+                : (sttResult?.text || fallbackText || '')
+              ).trim();
+
+              if (!finalText) {
+                setVoiceNotice(fallbackText ? '' : NO_SPEECH_HINT);
+                if (fallbackText) {
+                  sendQuery(fallbackText);
+                }
+                return;
+              }
+
+              const confidence = typeof sttResult?.confidence === 'number' ? sttResult.confidence : 1.0;
+              const autoSubmitEligible = sttResult?.autoSubmitEligible !== false && confidence >= 0.82;
+
+              if (autoSubmitEligible && handsFreeModeRef.current) {
+                setVoiceNotice('');
+                setVoiceCorrections([]);
+                setVoiceConfidence(null);
+                sendQuery(finalText);
+              } else {
+                setInput(finalText);
+                setVoiceConfidence(confidence);
+                setVoiceCorrections(Array.isArray(sttResult?.corrections) ? sttResult.corrections : []);
+                setVoiceNotice(
+                  confidence < 0.82
+                    ? `📝 Độ tự tin nhận diện (${Math.round(confidence * 100)}%) — kiểm tra nhanh rồi bấm Gửi.`
+                    : '📝 Đã điền câu lệnh — kiểm tra nhanh rồi bấm Gửi.'
+                );
+              }
+              return;
+            } catch (sttErr) {
+              console.warn('Groq Whisper STT thất bại, dùng văn bản Web Speech API:', sttErr);
+              setIsTranscribing(false);
             }
-          } catch (sttErr) {
-            console.warn('Groq Whisper STT thất bại, dùng văn bản Web Speech API:', sttErr);
+          }
+
+          setIsTranscribing(false);
+          setVoiceNotice('');
+          if (fallbackText && fallbackText.trim()) {
+            sendQuery(fallbackText.trim());
           }
         }
+      });
 
-        setIsListening(false);
-        setVoiceNotice('');
-
-        if (recognizedText && recognizedText.trim()) {
-          sendQuery(recognizedText.trim());
-        }
-      };
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
+      if (stopRequestedBeforeReadyRef.current) {
+        recorderHandle.cancel();
+        return;
+      }
+      voiceRecorderRef.current = recorderHandle;
     } catch (mediaErr) {
-      console.warn('Không thể truy cập Micro qua MediaRecorder:', mediaErr);
+      console.warn('Không thể truy cập Micro qua AdaptiveRecorder:', mediaErr);
+      setIsListening(false);
+      setVoiceNotice('⚠️ Vui lòng cấp quyền Micro trên trình duyệt để sử dụng.');
     }
 
-    // Chạy song song Web Speech API để hiển thị live preview và làm fallback
+    // Chạy song song Web Speech API để hiển thị live preview và làm fallback khi offline
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       try {
@@ -828,11 +1163,6 @@ export const AIChatbot = ({ userRole: propRole }) => {
         recognition.lang = 'vi-VN';
         recognition.continuous = false;
         recognition.interimResults = true;
-
-        recognition.onstart = () => {
-          setIsListening(true);
-          setVoiceNotice('🎙️ Đang nghe... Bấm lần nữa để gửi');
-        };
 
         recognition.onresult = (event) => {
           let transcript = '';
@@ -850,13 +1180,12 @@ export const AIChatbot = ({ userRole: propRole }) => {
           console.warn('Speech recognition error:', event.error);
           if (event.error === 'not-allowed') {
             setVoiceNotice('⚠️ Vui lòng cấp quyền Micro trên trình duyệt để sử dụng.');
-            setTimeout(() => setVoiceNotice(''), 4000);
           }
         };
 
         recognition.onend = () => {
-          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            try { mediaRecorderRef.current.stop(); } catch (_e) { /* ignore */ }
+          if (voiceRecorderRef.current && !handsFreeModeRef.current) {
+            voiceRecorderRef.current.stop('manual');
           }
         };
 
@@ -865,25 +1194,24 @@ export const AIChatbot = ({ userRole: propRole }) => {
       } catch (e) {
         console.warn('Lỗi khởi tạo Web Speech API:', e);
       }
-    } else {
-      setIsListening(true);
-      setVoiceNotice('🎙️ Đang thu âm... Bấm lần nữa để gửi');
     }
   };
 
   const stopListening = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      try { mediaRecorderRef.current.stop(); } catch (_e) { /* ignore */ }
-    }
-    if (streamRef.current) {
-      try { streamRef.current.getTracks().forEach(track => track.stop()); } catch (_e) { /* ignore */ }
-      streamRef.current = null;
+    stopRequestedBeforeReadyRef.current = true;
+    const hasActiveRecorder = Boolean(voiceRecorderRef.current);
+    if (voiceRecorderRef.current) {
+      voiceRecorderRef.current.stop('manual');
     }
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch (_e) { /* ignore */ }
     }
     setIsListening(false);
-    setVoiceNotice('');
+    setVoiceRms(0);
+    setRecordingSeconds(0);
+    if (!hasActiveRecorder && !isTranscribing) {
+      setVoiceNotice('');
+    }
   };
 
   const toggleListening = () => {
@@ -895,8 +1223,20 @@ export const AIChatbot = ({ userRole: propRole }) => {
   };
 
   const handleSend = () => {
+    setVoiceCorrections([]);
+    setVoiceConfidence(null);
+    setVoiceNotice('');
     sendQuery(input);
   };
+
+  sendQueryRef.current = sendQuery;
+
+  const displayedSuggestions = (Array.isArray(liveSuggestions) && liveSuggestions.length > 0)
+    ? liveSuggestions
+    : fallbackCards;
+  const contextRouteLabel = liveMeta?.routeLabel || resolveLocalRouteLabel(location.pathname);
+  const contextRoleLabel = liveMeta?.roleLabel || ROLE_LABELS[userRole] || 'Trợ lý';
+  const effectivePlaceholder = liveMeta?.inputPlaceholder || resolveRoleDefaultPlaceholder(userRole);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -976,6 +1316,11 @@ export const AIChatbot = ({ userRole: propRole }) => {
                   <span>Trợ lý AI FarmShift</span>
                   <Sparkles size={14} color="#f59e0b" />
                 </div>
+                <div className={styles.contextPill} data-testid="ai-context-pill">
+                  <span>{contextRouteLabel}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{contextRoleLabel}</span>
+                </div>
               </div>
             </div>
 
@@ -1008,11 +1353,20 @@ export const AIChatbot = ({ userRole: propRole }) => {
               <button
                 type="button"
                 className={styles.iconBtn}
-                title={isExpanded ? 'Thu về kích thước chuẩn' : 'Phóng to cửa sổ chat'}
+                title={isExpanded ? 'Thu về cửa sổ nổi' : 'Ghim thành ngăn bên phải (Side-Drawer)'}
                 data-testid="expand-chat-btn"
                 onClick={() => setIsExpanded(prev => !prev)}
               >
-                {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                {isExpanded ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+              </button>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                title="Đóng cửa sổ chat (Esc)"
+                data-testid="close-chat-btn"
+                onClick={() => setIsOpen(false)}
+              >
+                <X size={16} />
               </button>
             </div>
           </div>
@@ -1060,10 +1414,10 @@ export const AIChatbot = ({ userRole: propRole }) => {
           {/* ── Message Stream ── */}
           <div className={styles.messages}>
             {messages.map(msg => (
-              <div
-                key={msg.id}
-                className={`${styles.messageRow} ${msg.type === 'user' ? styles.messageRowUser : styles.messageRowBot}`}
-              >
+              <React.Fragment key={msg.id}>
+                <div
+                  className={`${styles.messageRow} ${msg.type === 'user' ? styles.messageRowUser : styles.messageRowBot}`}
+                >
                 {msg.type === 'bot' && (
                   <div className={styles.botIconSmall}>
                     <img src={farmLogo} alt="FarmShift AI" className={styles.botLogoSmall} />
@@ -1197,6 +1551,19 @@ export const AIChatbot = ({ userRole: propRole }) => {
                     </div>
                   )}
 
+                  {/* ── Deep-link pill cho phản hồi hỏi đáp có màn hình liên quan ── */}
+                  {msg.type === 'bot' && msg.navigateTo && !(msg.executed && msg.actionSummary) && (
+                    <button
+                      type="button"
+                      className={styles.botDeepLinkBtn}
+                      data-testid="bot-deeplink-btn"
+                      onClick={() => navigate(msg.navigateTo)}
+                    >
+                      <span>{getDeepLinkLabel(msg.navigateTo)}</span>
+                      <ExternalLink size={12} />
+                    </button>
+                  )}
+
                   {/* ── Message Footer: Time and Speaker button for Bot ── */}
                   <div className={styles.messageFooter}>
                     {msg.type === 'bot' && 'speechSynthesis' in window ? (
@@ -1213,26 +1580,56 @@ export const AIChatbot = ({ userRole: propRole }) => {
                     ) : <span />}
                     <div className={styles.messageTime}>{msg.time}</div>
                   </div>
+                </div>
+              </div>
 
-                  {msg.showChips && (
-                    <div className={styles.chipsContainer}>
-                      <span className={styles.chipsLabel}>Thao tác & câu hỏi gợi ý nhanh:</span>
-                      <div className={styles.chipsList}>
-                        {activeSuggestions.map((item, idx) => (
+              {msg.showChips && (
+                <div className={styles.suggestionsSection} data-testid="live-suggestions-container">
+                  <div className={styles.suggestionsHeaderRow}>
+                    <span className={styles.suggestionsLabel}>Gợi ý thông minh theo tình hình trại:</span>
+                  </div>
+                  {suggestionsLoading && !liveSuggestions ? (
+                    <div className={styles.suggestionsList} data-testid="suggestions-skeleton">
+                      <div className={styles.suggestionSkeleton} />
+                      <div className={styles.suggestionSkeleton} />
+                      <div className={styles.suggestionSkeleton} />
+                    </div>
+                  ) : (
+                    <div className={styles.suggestionsList}>
+                      {displayedSuggestions.map((card, idx) => {
+                        const category = card.category || 'INSIGHT';
+                        const catStyle = styles[`suggestion${category}`] || styles.suggestionINSIGHT;
+                        const badgeStyle = styles[`badge${category}`] || styles.badgeINSIGHT;
+                        return (
                           <button
-                            key={idx}
+                            key={card.id || idx}
                             type="button"
-                            className={styles.chip}
-                            onClick={() => sendQuery(item.query)}
+                            className={`${styles.suggestionCard} ${catStyle}`}
+                            data-testid="live-suggestion-card"
+                            data-category={category}
+                            data-autosend={String(card.autoSend !== false)}
+                            onClick={() => handleSuggestionClick(card)}
                           >
-                            {item.label}
+                            <div className={styles.suggestionCardTop}>
+                              <span className={`${styles.suggestionBadge} ${badgeStyle}`}>
+                                {card.badge || 'Gợi ý'}
+                              </span>
+                              <span className={styles.suggestionCueIcon} aria-hidden="true">
+                                {card.autoSend === false ? <PenLine size={13} /> : <ArrowUpRight size={13} />}
+                              </span>
+                            </div>
+                            <div className={styles.suggestionCardTitle}>{card.title}</div>
+                            {card.subtitle && (
+                              <div className={styles.suggestionCardSub}>{card.subtitle}</div>
+                            )}
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-              </div>
+              )}
+              </React.Fragment>
             ))}
 
             {isTyping && (
@@ -1247,7 +1644,7 @@ export const AIChatbot = ({ userRole: propRole }) => {
                       <span className={styles.dot} />
                       <span className={styles.dot} />
                     </div>
-                    <span>Trợ lý AI đang xử lý thao tác trên dữ liệu trại...</span>
+                    <span data-testid="ai-thinking-status">{THINKING_STEPS[thinkingIndex]}</span>
                   </div>
                 </div>
               </div>
@@ -1258,29 +1655,69 @@ export const AIChatbot = ({ userRole: propRole }) => {
           {/* ── Input Box ── */}
           <div className={styles.inputArea}>
             {/* Listening Wave Banner */}
-            {isListening && (
+            {(isListening || isTranscribing) && (
               <div className={styles.listeningBanner} data-testid="listening-banner">
                 <div className={styles.soundWave}>
-                  <span className={styles.soundBar} />
-                  <span className={styles.soundBar} />
-                  <span className={styles.soundBar} />
-                  <span className={styles.soundBar} />
+                  {[0.8, 1.4, 1.0, 1.25].map((mult, idx) => {
+                    const liveScale = isListening && voiceRms > 0
+                      ? Math.min(1.6, Math.max(0.35, voiceRms * 12 * mult))
+                      : undefined;
+                    return (
+                      <span
+                        key={idx}
+                        className={styles.soundBar}
+                        style={liveScale ? { transform: `scaleY(${liveScale})` } : undefined}
+                      />
+                    );
+                  })}
                 </div>
-                <span>{voiceNotice || 'Đang lắng nghe... Bấm lần nữa để gửi'}</span>
+                <span className={styles.voiceStatusText}>
+                  {voiceNotice || 'Đang nghe... (tự gửi khi ngừng nói)'}
+                </span>
+                {isListening && (
+                  <span className={styles.voiceTimer} data-testid="voice-recording-timer">
+                    {formatRecordingClock(recordingSeconds)} / {formatRecordingClock(Math.floor(VAD_CONFIG.maxRecordingMs / 1000))}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className={`${styles.handsFreeBtn} ${handsFreeMode ? styles.handsFreeBtnActive : ''}`}
+                  data-testid="hands-free-toggle-btn"
+                  onClick={toggleHandsFreeMode}
+                  title={handsFreeMode ? 'Tắt chế độ tự gửi khi ngừng nói' : 'Bật chế độ tự gửi khi ngừng nói'}
+                >
+                  {handsFreeMode ? 'Tự gửi: Bật' : 'Tự gửi: Tắt'}
+                </button>
               </div>
             )}
 
-            {voiceNotice && !isListening && (
-              <div className={styles.voiceNoticeBanner}>
-                {voiceNotice}
+            {voiceNotice && !isListening && !isTranscribing && (
+              <div className={styles.voiceNoticeBanner} data-testid="voice-notice-banner">
+                <span>{voiceNotice}</span>
+                {voiceConfidence !== null && voiceConfidence < 0.82 && (
+                  <span className={styles.confidencePill} data-testid="voice-confidence-pill">
+                    Tin cậy {Math.round(voiceConfidence * 100)}%
+                  </span>
+                )}
+              </div>
+            )}
+
+            {voiceCorrections.length > 0 && !isListening && (
+              <div className={styles.voiceCorrectionsBanner} data-testid="voice-corrections-banner">
+                {voiceCorrections.map((c, idx) => (
+                  <span key={`${c.from}-${c.to}-${idx}`} className={styles.correctionChip}>
+                    Đã chuẩn hóa: &quot;{c.from}&quot; → &quot;{c.to}&quot;
+                  </span>
+                ))}
               </div>
             )}
 
             <div className={styles.inputRow}>
               <input
+                ref={inputRef}
                 type="text"
                 className={styles.input}
-                placeholder={isListening ? 'Đang nhận diện giọng nói...' : 'Hỏi hoặc ra lệnh: ghi cám Nhà A1, cân mẫu, nhập kho...'}
+                placeholder={isListening ? 'Đang nhận diện giọng nói...' : effectivePlaceholder}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}

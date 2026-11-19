@@ -34,7 +34,7 @@ public class SalesWeightVisionClient {
             body.write(document.bytes());
             body.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
             var reqBuilder = HttpRequest.newBuilder(URI.create(baseUrl + "/api/ocr/extract-weight-slip"))
-                    .timeout(Duration.ofSeconds(90)).header("Content-Type", "multipart/form-data; boundary=" + boundary);
+                    .timeout(Duration.ofSeconds(80)).header("Content-Type", "multipart/form-data; boundary=" + boundary);
             if (internalAiToken != null && !internalAiToken.isBlank()) {
                 reqBuilder.header("X-Internal-AI-Token", internalAiToken);
             }

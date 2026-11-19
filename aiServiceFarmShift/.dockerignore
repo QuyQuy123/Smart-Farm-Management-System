@@ -10,4 +10,7 @@ __pycache__/
 !.env.example
 .git/
 *.log
-
+tests/
+docker-compose.yml
+README.md
+*.md

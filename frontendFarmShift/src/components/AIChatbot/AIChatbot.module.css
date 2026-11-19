@@ -80,10 +80,19 @@
 }
 
 .chatWindowExpanded {
-  width: 640px;
-  height: 740px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 104px);
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 440px;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  margin-bottom: 0;
+  border-radius: 0;
+  border-left: 1px solid #cbd5e1;
+  box-shadow: -8px 0 32px rgba(15, 23, 42, 0.14);
+  z-index: 10000;
 }
 
 @keyframes chat-pop-up {
@@ -161,6 +170,8 @@
 .headerText {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .headerTitle {
@@ -171,6 +182,19 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.contextPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #0f766e;
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .headerActions {
@@ -223,6 +247,7 @@
 
 .messageRowBot {
   justify-content: flex-start;
+  align-items: flex-start;
 }
 
 .botIconSmall {
@@ -234,7 +259,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-bottom: 2px;
+  margin-top: 2px;
+  margin-bottom: 0;
   box-shadow: 0 2px 6px rgba(1, 151, 136, 0.15);
   border: 1px solid #bbf7d0;
   padding: 2px;
@@ -431,8 +457,10 @@
 
 /* ── Voice-to-Text Microphone & Wave Animations ── */
 .micBtn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   border-radius: 50%;
   border: 1px solid #cbd5e1;
   background: #ffffff;
@@ -443,6 +471,7 @@
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
+  margin-right: 4px;
 }
 
 .micBtn:hover {
@@ -478,26 +507,94 @@
 .listeningBanner {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
   border-radius: 10px;
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #b91c1c;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
   animation: fadeIn 0.2s ease;
 }
 
+.voiceStatusText {
+  flex: 1;
+  min-width: 120px;
+}
+
+.voiceTimer {
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.handsFreeBtn {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.handsFreeBtnActive {
+  border-color: #0d9488;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
 .voiceNoticeBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 12px;
   border-radius: 8px;
   background: #fffbeb;
   border: 1px solid #fde68a;
   color: #b45309;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   animation: fadeIn 0.2s ease;
+}
+
+.confidencePill {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.voiceCorrectionsBanner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 2px 2px;
+}
+
+.correctionChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
 .soundWave {
@@ -1100,6 +1197,164 @@
 .sessionDeleteBtn:hover {
   background: #fee2e2;
   color: #dc2626;
+}
+
+/* ── Live Structured Suggestion Cards & Skeletons ────────── */
+.suggestionsSection {
+  margin-left: 38px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestionsHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.suggestionsLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.suggestionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.suggestionCard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left-width: 3px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.suggestionCard:hover {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(1, 151, 136, 0.08);
+}
+
+.suggestionURGENT { border-left-color: #ef4444; }
+.suggestionALERT { border-left-color: #f59e0b; }
+.suggestionACTION { border-left-color: #019788; }
+.suggestionINSIGHT { border-left-color: #0284c7; }
+
+.suggestionCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.suggestionBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.badgeURGENT { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.badgeALERT { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+.badgeACTION { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.badgeINSIGHT { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+
+.suggestionCueIcon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.suggestionCard:hover .suggestionCueIcon {
+  color: #019788;
+}
+
+.suggestionCardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.suggestionCardSub {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.suggestionSkeleton {
+  height: 54px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmerSkeleton 1.2s infinite linear;
+  border: 1px solid #e2e8f0;
+}
+
+@keyframes shimmerSkeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Deep-Link Navigation Pill in Bot Replies ───────────── */
+.botDeepLinkBtn {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.botDeepLinkBtn:hover {
+  background: #ccfbf1;
+  border-color: #2dd4bf;
+  color: #0f4a43;
+}
+
+@media (max-width: 768px) {
+  .chatWindowExpanded {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-left: none;
+  }
+
+  .suggestionsSection {
+    margin-left: 0;
+  }
+
+  .micBtn {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    margin-right: 6px;
+  }
 }
 
 

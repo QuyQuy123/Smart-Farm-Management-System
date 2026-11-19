@@ -1,9 +1,14 @@
 package com.farmshift.backendFarmShift.repository;
 
 import com.farmshift.backendFarmShift.entity.ProductCategory;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 public interface ProductCategoryRepository extends JpaRepository<ProductCategory, Long> {
+    @EntityGraph(attributePaths = "warehouse")
+    List<ProductCategory> findAllWithWarehouseBy();
     @org.springframework.data.jpa.repository.Query("select count(p) from ProductCategory p where lower(trim(p.specification)) = lower(:unitName)")
     long countByUnitName(@org.springframework.data.repository.query.Param("unitName") String unitName);
 

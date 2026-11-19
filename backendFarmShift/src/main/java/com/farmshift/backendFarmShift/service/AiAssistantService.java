@@ -153,8 +153,8 @@ public class AiAssistantService {
         this.aiServiceUrl = aiServiceUrl != null ? aiServiceUrl.strip().replaceAll("/+$", "") : "";
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(2));
-        requestFactory.setReadTimeout(Duration.ofSeconds(25));
+        requestFactory.setConnectTimeout(Duration.ofSeconds(3));
+        requestFactory.setReadTimeout(Duration.ofSeconds(26));
         this.restTemplate = new RestTemplate(requestFactory);
     }
 

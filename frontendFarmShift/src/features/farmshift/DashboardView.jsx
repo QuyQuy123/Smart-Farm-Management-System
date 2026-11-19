@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Coins, HeartCrack, Info, ListChecks, Syringe, Truck,
-  Users, Wheat, Pill, Flag, RefreshCw, Map as MapIcon, PackageOpen,
+  Users, Wheat, Pill, Flag, RefreshCw, Map as MapIcon, PackageOpen, Sparkles,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { listBarns } from '../../services/farmAreaService';
@@ -34,6 +34,15 @@ const splitAlert = alert => {
 };
 /** Hết hàng / thiếu cho hôm nay / còn đủ mấy ngày theo lượng dùng của phiếu việc hôm nay. */
 const restockText = item => Number(item.stock) <= 0 ? 'Hết hàng' : item.daysLeft === 0 ? 'Thiếu hôm nay' : `Đủ ${item.daysLeft} ngày`;
+
+const buildAlertAiPrompt = alert => {
+  const title = String(alert?.title || '').trim();
+  const detail = String(alert?.detail || '').trim();
+  if (alert?.type === 'DEBT') return `Kiểm tra chi tiết công nợ nhà cung cấp: ${title}${detail ? ` (${detail})` : ''}`;
+  if (alert?.type === 'OVERDUE') return `Hướng dẫn và hỗ trợ xử lý cảnh báo: ${title}${detail ? ` (${detail})` : ''}`;
+  if (alert?.type === 'LOSS') return `Phân tích nguyên nhân và hướng xử lý sự cố: ${title}${detail ? ` (${detail})` : ''}`;
+  return `Phân tích và đề xuất xử lý vấn đề: ${title}${detail ? ` (${detail})` : ''}`;
+};
 
 /**
  * Bảng tin: trả lời nhanh "hôm nay trại có ổn không, việc gì cần xử lý". Số liệu thật từ /api/dashboard;
@@ -118,7 +127,21 @@ export const DashboardView = () => {
                       {badge && <b className={styles.badge}>{badge}</b>}
                       {link && <ChevronRight size={16} className={styles.chevron} />}</>;
                     return <li key={`${alert.type}-${alert.barnId}-${index}`} className={styles[`alert_${alert.level}`]}>
-                      {link ? <Link to={link}>{body}</Link> : <div>{body}</div>}
+                      <div className={styles.alertRow}>
+                        {link ? <Link to={link} className={styles.alertMain}>{body}</Link> : <div className={styles.alertMain}>{body}</div>}
+                        <button
+                          type="button"
+                          className={styles.askAiBtn}
+                          data-testid="dashboard-alert-ask-ai"
+                          title="Hỏi Trợ lý AI về cảnh báo này"
+                          onClick={() => window.dispatchEvent(new CustomEvent('farmshift:open-ai-chat', {
+                            detail: { prompt: buildAlertAiPrompt(alert), autoSend: true },
+                          }))}
+                        >
+                          <Sparkles size={13} aria-hidden="true" />
+                          <span>Hỏi AI</span>
+                        </button>
+                      </div>
                     </li>;
                   })}</ul>}
               </div>

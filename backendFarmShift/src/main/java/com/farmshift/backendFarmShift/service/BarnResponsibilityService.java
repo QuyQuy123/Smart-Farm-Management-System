@@ -26,6 +26,9 @@ public class BarnResponsibilityService {
     private final WorkTaskRepository tasks;
     private final WarehouseCategoryRepository warehouses;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.beans.factory.ObjectProvider<com.farmshift.backendFarmShift.service.ai.VoiceContextPromptBuilder> voiceContextPromptBuilder;
+
     public BarnResponsibilities settings() {
         Map<Long, List<BarnWorker>> direct = directLinks();
         Map<Long, List<Barn>> byArea = barns.findAllByOrderByCreatedAtAscIdAsc().stream()
@@ -139,6 +142,7 @@ public class BarnResponsibilityService {
         barn.setWorkersOverride(true);
         barns.save(barn);
         links.flush();
+        evictVoiceContextCache();
         return chosen.stream().map(BarnResponsibilityService::ref).toList();
     }
 
@@ -149,6 +153,7 @@ public class BarnResponsibilityService {
         links.deleteAllByBarnId(barnId);
         barn.setWorkersOverride(false);
         barns.save(barn);
+        evictVoiceContextCache();
     }
 
     @Transactional
@@ -164,6 +169,7 @@ public class BarnResponsibilityService {
         area.getWorkers().clear();
         area.getWorkers().addAll(chosen);
         areas.save(area);
+        evictVoiceContextCache();
     }
 
     private List<Account> validate(List<Long> ids) {
@@ -209,6 +215,16 @@ public class BarnResponsibilityService {
         area.getWorkers().clear();
         area.getWorkers().addAll(chosen);
         areas.save(area);
+        evictVoiceContextCache();
+    }
+
+    private void evictVoiceContextCache() {
+        if (voiceContextPromptBuilder != null) {
+            var builder = voiceContextPromptBuilder.getIfAvailable();
+            if (builder != null) {
+                builder.evictLexiconCache();
+            }
+        }
     }
 
     private void guardRemoval(Barn barn, List<Account> current, List<Account> chosen) {

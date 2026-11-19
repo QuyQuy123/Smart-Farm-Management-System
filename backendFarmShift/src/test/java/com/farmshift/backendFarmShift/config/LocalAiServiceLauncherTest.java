@@ -57,6 +57,38 @@ HTTPServer(('127.0.0.1',port), Handler).serve_forever()
   finally { launcher.stop(); }
   assertFalse(launcher.healthy());
  }
+ @Test void propagatesInternalAiTokenToChildEnvironment() throws Exception {
+  Files.writeString(directory.resolve("main.py"), "# test-only entry point");
+  Path module = directory.resolve("uvicorn"); Files.createDirectories(module); Files.writeString(module.resolve("__init__.py"), "");
+  Path tokenOut = directory.resolve("captured-token.txt");
+  Files.writeString(module.resolve("__main__.py"), """
+import os, sys
+from pathlib import Path
+from http.server import HTTPServer, BaseHTTPRequestHandler
+Path(r'%s').write_text(os.environ.get('AI_INTERNAL_TOKEN', ''), encoding='utf-8')
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        data=b'{"status":"healthy","ocr_engine":"test"}'
+        self.send_response(200); self.end_headers(); self.wfile.write(data)
+port=int(sys.argv[sys.argv.index('--port')+1])
+HTTPServer(('127.0.0.1',port), Handler).serve_forever()
+""".formatted(tokenOut.toAbsolutePath().toString()));
+  int port;
+  try (var socket = new java.net.ServerSocket(0)) { port = socket.getLocalPort(); }
+  boolean pythonWorking = false;
+  try {
+      Process p = new ProcessBuilder(LocalAiServiceLauncher.resolvePython(directory, ""), "--version").start();
+      pythonWorking = p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) && p.exitValue() == 0;
+  } catch (Exception ignored) {}
+  org.junit.jupiter.api.Assumptions.assumeTrue(pythonWorking, "Python runtime is not functional on this host");
+
+  var launcher = new LocalAiServiceLauncher(new ObjectMapper(), "http://127.0.0.1:" + port, directory.toString(), "", 10, "custom-internal-token-99");
+  try {
+   launcher.start();
+   assertTrue(launcher.healthy());
+   assertEquals("custom-internal-token-99", Files.readString(tokenOut));
+  } finally { launcher.stop(); }
+ }
  @Test void neverLaunchesForARemoteEndpoint() {
   var launcher = new LocalAiServiceLauncher(new ObjectMapper(), "https://example.invalid", directory.toString(), "nonexistent-python", 1);
   launcher.start(); launcher.stop();
