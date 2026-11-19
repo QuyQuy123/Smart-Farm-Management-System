@@ -25,6 +25,9 @@ public class InventoryItemService {
     private final FarmingProgramStepRepository programSteps;
     private final DailyTaskLogRepository taskLogs;
     private final PurchaseInvoiceItemRepository purchaseItems;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer speechNormalizer;
     /** warehouseId null: mọi hàng hóa của mọi kho (dùng khi gắn hàng hóa vào chương trình nuôi). */
     public List<InventoryItemResponse> list(Long warehouseId) { return list(warehouseId, false, true); }
     public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts) { return list(warehouseId, includeReceipts, true); }
@@ -88,7 +91,11 @@ public class InventoryItemService {
         item.setWarehouse(warehouse); item.setProduct(product); item.setPrice(request.price()); item.setImageUrl(image == null || image.isEmpty() ? null : image);
         item.setUnit(unit);
         item.setBrand(request.brandId() == null ? null : brands.findById(request.brandId()).orElseThrow(() -> new ResourceNotFoundException("Nhãn hiệu đã chọn không tồn tại.")));
-        try { return response(repository.saveAndFlush(item)); }
+        try {
+            InventoryItemResponse saved = response(repository.saveAndFlush(item));
+            if (speechNormalizer != null) speechNormalizer.evictLexiconCache();
+            return saved;
+        }
         catch (DataIntegrityViolationException exception) { throw duplicate(); }
     }
     private ConflictException duplicate() { return new ConflictException("Hàng hóa này đã có trong kho.", "INVENTORY_DUPLICATE", "productId"); }

@@ -20,6 +20,9 @@ public class AssistantExecutionContext {
     private List<Map<String, String>> history = new ArrayList<>();
     private Map<String, Object> lastActionContext;
     private Map<String, Object> pendingActionPayload;
+    private String actionId;
+    private String actionToken;
+    private String sessionId;
     private Boolean confirmAction;
 
     public boolean isWorker() {

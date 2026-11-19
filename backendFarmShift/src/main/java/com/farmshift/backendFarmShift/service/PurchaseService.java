@@ -35,6 +35,9 @@ public class PurchaseService {
     private final MeasurementUnitRepository measurementUnitRepository;
     private final PurchasePaymentRepository paymentRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer speechNormalizer;
+
     public List<PurchaseInvoiceResponse> list(String search, String paymentStatus) {
         return invoiceRepository.searchInvoices(search, paymentStatus).stream().map(this::toResponse).toList();
     }
@@ -394,6 +397,9 @@ public class PurchaseService {
             inventoryItem.setPurchaseInvoiceItemId(item.getId());
 
             inventoryRepository.save(inventoryItem);
+        }
+        if (speechNormalizer != null) {
+            speechNormalizer.evictLexiconCache();
         }
     }
 

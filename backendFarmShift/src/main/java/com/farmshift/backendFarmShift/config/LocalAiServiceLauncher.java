@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
@@ -25,15 +26,26 @@ public class LocalAiServiceLauncher {
     private final Path directory;
     private final String python;
     private final int timeoutSeconds;
+    private final String internalAiToken;
     private final ObjectMapper mapper;
     private Process ownedProcess;
     private boolean closing;
 
     public LocalAiServiceLauncher(ObjectMapper mapper,
+            String url,
+            String configuredDirectory,
+            String configuredPython,
+            int timeoutSeconds) {
+        this(mapper, url, configuredDirectory, configuredPython, timeoutSeconds, "farmshift-local-ai-token");
+    }
+
+    @Autowired
+    public LocalAiServiceLauncher(ObjectMapper mapper,
             @Value("${ai-service.url:http://localhost:8000}") String url,
             @Value("${ai-service.autostart.directory:}") String configuredDirectory,
             @Value("${ai-service.autostart.python:}") String configuredPython,
-            @Value("${ai-service.autostart.timeout-seconds:45}") int timeoutSeconds) {
+            @Value("${ai-service.autostart.timeout-seconds:45}") int timeoutSeconds,
+            @Value("${ai-service.internal-token:${AI_INTERNAL_TOKEN:farmshift-local-ai-token}}") String internalAiToken) {
         this.mapper = mapper;
         this.endpoint = URI.create(url.replaceAll("/+$", ""));
         Path cwd = Path.of(System.getProperty("user.dir")).toAbsolutePath();
@@ -41,6 +53,7 @@ public class LocalAiServiceLauncher {
         this.directory = (configuredDirectory.isBlank() ? inferred : Path.of(configuredDirectory)).toAbsolutePath().normalize();
         this.python = resolvePython(directory, configuredPython);
         this.timeoutSeconds = Math.max(1, Math.min(timeoutSeconds, 300));
+        this.internalAiToken = internalAiToken != null ? internalAiToken.strip() : "";
     }
 
     static String resolvePython(Path directory, String configured) {
@@ -87,6 +100,9 @@ public class LocalAiServiceLauncher {
                         .directory(directory.toFile()).redirectErrorStream(true)
                         .redirectOutput(ProcessBuilder.Redirect.appendTo(logDirectory.resolve("ai-service.log").toFile()));
                 builder.environment().put("PYTHONUNBUFFERED", "1");
+                if (!internalAiToken.isBlank()) {
+                    builder.environment().put("AI_INTERNAL_TOKEN", internalAiToken);
+                }
                 ownedProcess = builder.start();
                 log.info("Starting local AI service; logs: {}", logDirectory.resolve("ai-service.log"));
             } catch (Exception ex) {

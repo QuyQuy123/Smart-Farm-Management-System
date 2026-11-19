@@ -1,5 +1,6 @@
 package com.farmshift.backendFarmShift;
 
+import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.service.ocr.AiServiceVisionClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,8 +15,8 @@ public class AiServiceVisionClientTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void testEmergencyFallbackWhenAiServiceIsOffline() {
-        // Point to an unreachable mock port
+    void testOfflineAiServiceThrowsWithoutFabricatingInvoice() {
+        // Point to an unreachable mock port — must never fabricate fake invoice data
         AiServiceVisionClient client = new AiServiceVisionClient(
                 mapper,
                 "http://localhost:59999"
@@ -23,14 +24,11 @@ public class AiServiceVisionClientTest {
 
         assertFalse(client.isConfigured());
 
-        JsonNode result = client.extractJson("Extract invoice", new byte[]{1, 2, 3}, "image/png", Map.of());
-
-        assertNotNull(result);
-        assertTrue(result.path("isInvoice").asBoolean());
-        assertEquals("Công ty CP Chăn nuôi C.P. Việt Nam", result.path("supplierName").asText());
-        assertEquals("HD-CP-2026-9921", result.path("referenceCode").asText());
-        assertTrue(result.path("items").size() >= 2);
-        assertTrue(result.path("engine").asText().contains("Fallback"));
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> client.extractJson("Extract invoice", new byte[]{1, 2, 3}, "image/png", Map.of())
+        );
+        assertEquals("AI_SERVICE_ERROR", ex.getErrorCode());
     }
 
     @Test

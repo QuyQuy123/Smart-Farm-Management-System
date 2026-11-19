@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - path: .env
         required: false
@@ -12,6 +12,7 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - DEBUG=true
+      - AI_INTERNAL_TOKEN=${AI_INTERNAL_TOKEN:-farmshift-local-ai-token}
       - WATCHFILES_FORCE_POLLING=true
     volumes:
       - .:/app
@@ -26,4 +27,10 @@ services:
       --reload-exclude ".venv/*"
       --reload-exclude "__pycache__/*"
       --reload-exclude "*.pyc"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped

@@ -5,6 +5,7 @@ import com.farmshift.backendFarmShift.dto.request.InternalStockVoucherItemReques
 import com.farmshift.backendFarmShift.dto.request.InternalStockVoucherRequest;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
+import com.farmshift.backendFarmShift.service.CycleService;
 import com.farmshift.backendFarmShift.service.InternalStockService;
 import com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer;
 import com.farmshift.backendFarmShift.service.ai.AiRbacPolicy;
@@ -179,7 +180,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
                 .reply(sb.toString())
                 .actionType("QUERY_STOCK_BATCH")
                 .executed(true)
-                .navigateTo("/inventory")
+                .navigateTo(canSeeFinance ? "/inventory" : "/today-tasks")
                 .build();
     }
 
@@ -245,7 +246,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         }
 
         // Prepare Confirmation Card
-        String batchCode = sourceItem != null ? formatBatchCode(sourceItem) : "#" + LocalDateTime.now().format(BATCH_CODE_FORMATTER);
+        String batchCode = sourceItem != null ? formatBatchCode(sourceItem) : "#" + LocalDateTime.now(CycleService.VN_ZONE).format(BATCH_CODE_FORMATTER);
         double stockBefore = sourceItem != null && sourceItem.getStock() != null ? sourceItem.getStock().doubleValue() : 50.0;
         double stockAfter = Math.max(0.0, stockBefore - qtyBags);
 
@@ -312,12 +313,20 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
             cat = internalStockCategoryRepository.save(cat);
         }
 
+        BigDecimal unitPrice = BigDecimal.valueOf(310000.0);
+        if (invItemId != null) {
+            unitPrice = inventoryRepository.findById(invItemId)
+                    .map(InventoryItem::getPrice)
+                    .filter(Objects::nonNull)
+                    .orElse(unitPrice);
+        }
+
         InternalStockVoucherItemRequest itemReq = new InternalStockVoucherItemRequest(
                 productId,
                 invItemId,
                 null,
                 BigDecimal.valueOf(quantity),
-                BigDecimal.valueOf(310000.0),
+                unitPrice,
                 "Thực hiện qua Trợ lý AI"
         );
 
@@ -327,7 +336,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
                 sourceWhId,
                 targetWhId,
                 null,
-                LocalDate.now(),
+                LocalDate.now(CycleService.VN_ZONE),
                 "Tạo tự động qua Trợ lý Giọng nói FarmShift AI",
                 null,
                 List.of(itemReq)
@@ -339,7 +348,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
             summary.put("title", "Đã lập phiếu " + categoryName + ": " + voucher.code());
             summary.put("voucherCode", voucher.code());
             summary.put("detail", categoryName + " " + quantity + " bao " + productName);
-            summary.put("timestamp", LocalDateTime.now().toString());
+            summary.put("timestamp", LocalDateTime.now(CycleService.VN_ZONE).toString());
 
             return AiAssistantResponse.builder()
                     .reply("✅ Đã tạo thành công phiếu **" + categoryName + "** (Mã: `" + voucher.code() + "`). Số lượng tồn kho các kho đã được cập nhật đồng bộ.")

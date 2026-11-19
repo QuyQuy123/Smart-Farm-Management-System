@@ -2,11 +2,13 @@ package com.farmshift.backendFarmShift.controller;
 
 import com.farmshift.backendFarmShift.dto.AiAssistantRequest;
 import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
+import com.farmshift.backendFarmShift.dto.AiSuggestionResponse;
 import com.farmshift.backendFarmShift.dto.SpeechTranscribeResponse;
 import com.farmshift.backendFarmShift.service.AiAssistantService;
 import com.farmshift.backendFarmShift.service.GroqWhisperService;
 import com.farmshift.backendFarmShift.service.RealtimeSyncService;
 import com.farmshift.backendFarmShift.service.ai.AiRateLimiter;
+import com.farmshift.backendFarmShift.service.ai.AiSuggestionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -26,29 +31,125 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class AiAssistantController {
 
+    private static final long MAX_VOICE_BYTES = 10L * 1024L * 1024L;
+    private static final Set<String> ALLOWED_AUDIO_MIMES = Set.of(
+            "audio/webm", "audio/mp4", "audio/mpeg", "audio/mp3",
+            "audio/ogg", "audio/wav", "audio/x-wav", "audio/wave",
+            "audio/x-m4a", "audio/m4a", "audio/aac"
+    );
+    private static final Set<String> ALLOWED_AUDIO_EXTS = Set.of(
+            ".webm", ".mp4", ".m4a", ".ogg", ".wav", ".mp3", ".aac"
+    );
+
     private final GroqWhisperService whisperService;
     private final AiAssistantService assistantService;
     private final AiRateLimiter rateLimiter;
     private final RealtimeSyncService realtimeSyncService;
+    private final AiSuggestionService suggestionService;
 
-    @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<SpeechTranscribeResponse> transcribe(@RequestParam(value = "file", required = false) MultipartFile file,
-                                                               Authentication authentication) {
+    @GetMapping("/suggestions")
+    public ResponseEntity<AiSuggestionResponse> getSuggestions(
+            @RequestParam(value = "route", required = false) String route,
+            Authentication authentication
+    ) {
+        String username = authentication != null ? authentication.getName() : "anonymous";
+        var authorities = authentication != null ? authentication.getAuthorities() : null;
+        return ResponseEntity.ok(suggestionService.getSuggestions(username, authorities, route));
+    }
+
+    @PostMapping(value = {"/transcribe", "/voice/transcribe"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<SpeechTranscribeResponse> transcribe(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            Authentication authentication) {
         String username = authentication != null ? authentication.getName() : "anonymous";
         if (!rateLimiter.tryAcquireTranscribe(username)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(SpeechTranscribeResponse.builder()
                             .text("⚠️ Quá nhiều yêu cầu nhận diện giọng nói trong thời gian ngắn (tối đa 20 yêu cầu/phút). Vui lòng thử lại sau giây lát.")
+                            .rawText("")
+                            .normalizedText("")
+                            .confidence(0.0)
+                            .autoSubmitEligible(false)
+                            .rejectedReason("RATE_LIMIT_EXCEEDED")
+                            .corrections(List.of())
+                            .segmentsFiltered(0)
                             .fallback(true)
                             .durationMs(0L)
                             .build());
         }
 
-        SpeechTranscribeResponse response = whisperService.transcribe(file);
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(SpeechTranscribeResponse.builder()
+                            .text("")
+                            .rawText("")
+                            .normalizedText("")
+                            .confidence(0.0)
+                            .autoSubmitEligible(false)
+                            .rejectedReason("EMPTY_AUDIO")
+                            .corrections(List.of())
+                            .segmentsFiltered(0)
+                            .provider("VALIDATION_GUARD")
+                            .fallback(false)
+                            .durationMs(0L)
+                            .build());
+        }
+
+        if (file.getSize() > MAX_VOICE_BYTES) {
+            return ResponseEntity.badRequest()
+                    .body(SpeechTranscribeResponse.builder()
+                            .text("")
+                            .rawText("")
+                            .normalizedText("")
+                            .confidence(0.0)
+                            .autoSubmitEligible(false)
+                            .rejectedReason("FILE_TOO_LARGE")
+                            .corrections(List.of())
+                            .segmentsFiltered(0)
+                            .provider("VALIDATION_GUARD")
+                            .fallback(false)
+                            .durationMs(0L)
+                            .build());
+        }
+
+        if (!isAllowedAudioMime(file.getContentType(), file.getOriginalFilename())) {
+            return ResponseEntity.badRequest()
+                    .body(SpeechTranscribeResponse.builder()
+                            .text("")
+                            .rawText("")
+                            .normalizedText("")
+                            .confidence(0.0)
+                            .autoSubmitEligible(false)
+                            .rejectedReason("INVALID_AUDIO_MIME")
+                            .corrections(List.of())
+                            .segmentsFiltered(0)
+                            .provider("VALIDATION_GUARD")
+                            .fallback(false)
+                            .durationMs(0L)
+                            .build());
+        }
+
+        var authorities = authentication != null ? authentication.getAuthorities() : null;
+        SpeechTranscribeResponse response = whisperService.transcribe(file, username, authorities);
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/assistant")
+    private static boolean isAllowedAudioMime(String contentType, String originalFilename) {
+        if (contentType == null || contentType.isBlank()) {
+            return false;
+        }
+        String baseMime = contentType.split(";")[0].trim().toLowerCase(Locale.ROOT);
+        if (ALLOWED_AUDIO_MIMES.contains(baseMime)) {
+            return true;
+        }
+        if ("application/octet-stream".equals(baseMime) && originalFilename != null) {
+            String lowerName = originalFilename.trim().toLowerCase(Locale.ROOT);
+            return ALLOWED_AUDIO_EXTS.stream().anyMatch(lowerName::endsWith);
+        }
+        return false;
+    }
+
+    @PostMapping({"/assistant", "/chat"})
     public ResponseEntity<AiAssistantResponse> handleAssistantRequest(
             @Valid @RequestBody AiAssistantRequest request,
             @RequestHeader(value = "X-Client-Id", required = false) String clientId,
@@ -70,7 +171,20 @@ public class AiAssistantController {
         if (response.isExecuted()) {
             realtimeSyncService.broadcastDataChange("/all", "AI", username, clientId);
         }
+        if (response.getActionType() != null && response.getActionType().startsWith("SECURITY_TOKEN_")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        }
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/confirm")
+    public ResponseEntity<AiAssistantResponse> confirmAssistantAction(
+            @Valid @RequestBody AiAssistantRequest request,
+            @RequestHeader(value = "X-Client-Id", required = false) String clientId,
+            Authentication authentication
+    ) {
+        request.setConfirmAction(true);
+        return handleAssistantRequest(request, clientId, authentication);
     }
 
     @PostMapping(value = "/assistant/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

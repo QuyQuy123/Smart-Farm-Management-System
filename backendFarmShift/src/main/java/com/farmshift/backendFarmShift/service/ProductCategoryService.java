@@ -24,6 +24,9 @@ public class ProductCategoryService {
     private final com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouseRepository;
     private final com.farmshift.backendFarmShift.repository.InternalStockVoucherItemRepository internalStockVoucherItemRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer speechNormalizer;
+
     public List<ProductCategoryResponse> list() {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
     }
@@ -71,7 +74,9 @@ public class ProductCategoryService {
         category.setWarehouse(warehouseRepository.findById(request.warehouseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Kho đã chọn không tồn tại. Vui lòng chọn lại.")));
         try {
-            return response(repository.saveAndFlush(category));
+            ProductCategoryResponse saved = response(repository.saveAndFlush(category));
+            if (speechNormalizer != null) speechNormalizer.evictLexiconCache();
+            return saved;
         } catch (DataIntegrityViolationException exception) {
             throw duplicateName();
         }
