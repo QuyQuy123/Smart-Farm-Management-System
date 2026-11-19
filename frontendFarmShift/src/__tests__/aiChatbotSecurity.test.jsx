@@ -3,8 +3,17 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { act } from '@testing-library/react';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import * as aiAssistantService from '../services/aiAssistantService';
+import {
+  clearAiChatStorage,
+  AI_SESSIONS_STORAGE_KEY,
+  AI_ACTIVE_SESSION_STORAGE_KEY,
+  AI_LEGACY_HISTORY_KEY,
+  AI_CHAT_OPEN_KEY,
+  AI_CHAT_OWNER_KEY,
+} from '../utils/aiChatStorage';
 
 vi.mock('../services/aiAssistantService', () => ({
   sendAssistantMessage: vi.fn(),
@@ -263,5 +272,146 @@ describe('AI Chatbot Cryptographic Signing & Security Guard UI', () => {
 
     expect(document.documentElement.classList.contains('farmshift-ai-drawer-open')).toBe(false);
     expect(screen.queryByText(/Lãi lỗ bảo mật của Chủ trại/i)).not.toBeInTheDocument();
+  });
+
+  it('wipes Owner chat sessions on clearAiChatStorage (logout) so Worker cannot read them after login', async () => {
+    aiAssistantService.sendAssistantMessage.mockResolvedValueOnce({
+      reply: 'Doanh thu tháng này là 500 triệu đ và công nợ còn 45 triệu đ.',
+      actionType: 'QUERY_FARM_STATUS',
+      executed: false,
+    });
+
+    const ownerView = render(
+      <MemoryRouter initialEntries={['/reports']}>
+        <AIChatbot key="owner@farm.vn" userRole="ROLE_FARM_OWNER" userScope="owner@farm.vn" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    const input = await screen.findByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Xem báo cáo lãi lỗ và công nợ' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Doanh thu tháng này là 500 triệu đ/i)).toBeInTheDocument();
+    });
+
+    expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBe('owner@farm.vn');
+    expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toContain('500 triệu đ');
+
+    // Simulate logout wiping storage and notifying mounted chatbot
+    act(() => {
+      clearAiChatStorage();
+    });
+
+    expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_ACTIVE_SESSION_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_CHAT_OPEN_KEY)).toBeNull();
+    expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBeNull();
+    expect(screen.queryByText(/Doanh thu tháng này là 500 triệu đ/i)).not.toBeInTheDocument();
+
+    ownerView.unmount();
+
+    // Ensure logout reset did not re-write storage keys on unmount
+    expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toBeNull();
+
+    // Worker logs in on the same browser tab
+    render(
+      <MemoryRouter initialEntries={['/today-tasks']}>
+        <AIChatbot key="worker@farm.vn" userRole="ROLE_FARM_WORKER" userScope="worker@farm.vn" />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByTestId('ai-chat-window')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    expect(screen.queryByText(/Doanh thu tháng này là 500 triệu đ/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Xem báo cáo lãi lỗ và công nợ/i)).not.toBeInTheDocument();
+    expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBe('worker@farm.vn');
+  });
+
+  it('fail-closes and purges mismatched or untagged legacy chat storage when a different account mounts', async () => {
+    // Case A: Direct cross-account mount when sessionStorage still holds Owner's scoped sessions
+    sessionStorage.setItem(AI_CHAT_OWNER_KEY, 'owner@farm.vn');
+    sessionStorage.setItem(AI_CHAT_OPEN_KEY, 'true');
+    sessionStorage.setItem(
+      AI_SESSIONS_STORAGE_KEY,
+      JSON.stringify({
+        ownerScope: 'owner@farm.vn',
+        sessions: [
+          {
+            id: 'session_secret_owner',
+            title: 'Bí mật công nợ',
+            messages: [{ id: 10, type: 'bot', text: 'Công nợ bí mật 999 triệu', time: '09:00' }],
+          },
+        ],
+      })
+    );
+
+    const viewA = render(
+      <MemoryRouter initialEntries={['/today-tasks']}>
+        <AIChatbot key="worker@farm.vn" userRole="ROLE_FARM_WORKER" userScope="worker@farm.vn" />
+      </MemoryRouter>
+    );
+
+    // Must NOT restore Owner's open state or secret message
+    expect(screen.queryByTestId('ai-chat-window')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    expect(screen.queryByText(/Công nợ bí mật 999 triệu/i)).not.toBeInTheDocument();
+    expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBe('worker@farm.vn');
+    viewA.unmount();
+
+    // Case B: Untagged legacy history key must NOT load into an authenticated user's chatbox
+    sessionStorage.clear();
+    sessionStorage.setItem(
+      AI_LEGACY_HISTORY_KEY,
+      JSON.stringify([{ id: 11, type: 'bot', text: 'Lịch sử cũ chưa gắn owner', time: '08:00' }])
+    );
+
+    render(
+      <MemoryRouter initialEntries={['/today-tasks']}>
+        <AIChatbot key="worker@farm.vn" userRole="ROLE_FARM_WORKER" userScope="worker@farm.vn" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    expect(screen.queryByText(/Lịch sử cũ chưa gắn owner/i)).not.toBeInTheDocument();
+    expect(sessionStorage.getItem(AI_LEGACY_HISTORY_KEY)).toBeNull();
+  });
+
+  it('drops in-flight assistant response from previous account if logout occurs before completion', async () => {
+    let resolveInFlight;
+    aiAssistantService.sendAssistantMessage.mockImplementation(
+      () => new Promise((resolve) => { resolveInFlight = resolve; })
+    );
+
+    render(
+      <MemoryRouter initialEntries={['/reports']}>
+        <AIChatbot key="owner@farm.vn" userRole="ROLE_FARM_OWNER" userScope="owner@farm.vn" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    const input = await screen.findByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Xem doanh thu mật' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    expect(aiAssistantService.sendAssistantMessage).toHaveBeenCalledTimes(1);
+
+    // User logs out while request is still in flight
+    act(() => {
+      clearAiChatStorage();
+    });
+
+    // Late response resolves after logout
+    await act(async () => {
+      resolveInFlight({
+        reply: 'Dữ liệu mật của Chủ trại: 800 triệu đ',
+        actionType: 'QUERY_FARM_STATUS',
+        executed: false,
+      });
+    });
+
+    expect(screen.queryByText(/Dữ liệu mật của Chủ trại: 800 triệu đ/i)).not.toBeInTheDocument();
+    expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toBeNull();
   });
 });

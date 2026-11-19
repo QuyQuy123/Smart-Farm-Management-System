@@ -11,6 +11,12 @@ import {
 import * as aiAssistantService from '../../services/aiAssistantService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { createAdaptiveVoiceRecorder, NO_SPEECH_HINT, VAD_CONFIG } from '../../utils/audioRecorder';
+import {
+  resolveAiChatOwnerScope,
+  loadAiChatState,
+  saveAiChatState,
+  AI_CHAT_RESET_EVENT,
+} from '../../utils/aiChatStorage';
 import farmLogo from '../../assets/logo_Farm.png';
 import styles from './AIChatbot.module.css';
 
@@ -357,6 +363,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
   const navigate = useNavigate();
   const location = useLocation();
   const confirmInFlightRef = useRef(new Set());
+  const ownerScopeRef = useRef(ownerScope);
+  const mountedRef = useRef(true);
+  const suppressPersistRef = useRef(false);
 
   const readScopedSessions = useCallback((sKey, allowLegacyFallback = false) => {
     try {
@@ -612,13 +621,21 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
     if (!fetcher) return;
 
     const reqId = ++suggestionsReqRef.current;
+    const reqOwnerScope = ownerScopeRef.current;
     setSuggestionsLoading(true);
     try {
       const data = await fetcher(
         location.pathname,
         forceRefresh ? { forceRefresh: true } : {}
       );
-      if (reqId !== suggestionsReqRef.current || !data) return;
+      if (
+        !mountedRef.current ||
+        ownerScopeRef.current !== reqOwnerScope ||
+        reqId !== suggestionsReqRef.current ||
+        !data
+      ) {
+        return;
+      }
       setLiveMeta({
         role: data.role,
         roleLabel: data.roleLabel,
@@ -631,7 +648,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
     } catch (_err) {
       // Giữ fallback cards nếu backend chưa sẵn sàng
     } finally {
-      if (reqId === suggestionsReqRef.current) {
+      if (mountedRef.current && ownerScopeRef.current === reqOwnerScope && reqId === suggestionsReqRef.current) {
         setSuggestionsLoading(false);
       }
     }
@@ -876,6 +893,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
     const textToSend = (queryText || '').trim();
     if (!textToSend) return;
 
+    suppressPersistRef.current = false;
+    const requestOwnerScope = ownerScopeRef.current;
+
     // Dừng thu âm nếu đang bật
     if (isListening) {
       stopListening();
@@ -940,6 +960,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         autoExecute: false
       });
 
+      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope) {
+        return;
+      }
+
       if (response.actionContext) {
         setSessionActionContext(targetSessionId, response.actionContext);
       } else if (response.actionSummary) {
@@ -977,6 +1001,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         navigate(response.navigateTo);
       }
     } catch (error) {
+      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope) {
+        return;
+      }
       console.warn('Lỗi kết nối Trợ lý AI, sử dụng câu trả lời dự phòng:', error);
       updateSessionMessages(targetSessionId, prev => [
         ...prev,
@@ -990,7 +1017,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         }
       ]);
     } finally {
-      setIsTyping(false);
+      if (mountedRef.current && ownerScopeRef.current === requestOwnerScope) {
+        setIsTyping(false);
+      }
     }
   };
 
@@ -1002,6 +1031,8 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
     sessionContext = lastActionContext
   ) => {
     if (confirmInFlightRef.current.has(msgId)) return;
+    suppressPersistRef.current = false;
+    const requestOwnerScope = ownerScopeRef.current;
     confirmInFlightRef.current.add(msgId);
     updateSessionMessages(targetSessionId, prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'confirming' } : m));
     try {
@@ -1018,6 +1049,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         currentRoute: location.pathname,
         lastActionContext: sessionContext || undefined
       });
+
+      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope) {
+        return;
+      }
 
       if (response.actionContext) {
         setSessionActionContext(targetSessionId, response.actionContext);
@@ -1050,6 +1085,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
         navigate(response.navigateTo);
       }
     } catch (err) {
+      if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope) {
+        return;
+      }
       console.warn('Lỗi khi xác nhận thao tác:', err);
       const backendMsg = err.response?.data?.reply || err.response?.data?.message || err.message || 'Không thể thực hiện thao tác. Vui lòng kiểm tra lại.';
       const textToShow = backendMsg.startsWith('⚠️') ? backendMsg : `⚠️ ${backendMsg}`;
@@ -1316,6 +1354,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
   };
 
   const handleCreateNewSession = () => {
+    suppressPersistRef.current = false;
     stopVoiceAndAudio();
     const hasConversation = messages.some(m => m.type === 'user');
     const fresh = createSessionObject(
@@ -1332,6 +1371,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
   };
 
   const handleSwitchSession = (sessionId) => {
+    suppressPersistRef.current = false;
     stopVoiceAndAudio();
     setActiveSessionId(sessionId);
     setIsSessionListOpen(false);
@@ -1339,6 +1379,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userEmail }) =
 
   const handleDeleteSession = (sessionId, event) => {
     event.stopPropagation();
+    suppressPersistRef.current = false;
     stopVoiceAndAudio();
     setSessions(prev => {
       const remaining = prev.filter(s => s.id !== sessionId);
