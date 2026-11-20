@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics } from '../../services/esp32MqttService';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Camera, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Plus, Search, Trash2, Warehouse } from 'lucide-react';
@@ -8,6 +8,8 @@ import { useOptionalNotification } from '../../context/NotificationContext';
 import { dispatchBarnIotAlert } from '../../services/webPushClient';
 import { apiErrorMessage } from './farmAreaOptions';
 import { Dialog } from './FarmAreaDialogs';
+import { api } from '../../utils/api';
+import { IotEventLog } from './IotEventLog';
 import { IotEnvironment } from './IotEnvironment';
 import { PhoneCamera } from './PhoneCamera';
 import styles from './IotView.module.css';
@@ -46,6 +48,7 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
         <select id="iot-type" className="farmshift-form-control" value={form.type} onChange={event => set('type', event.target.value)}>
           {Object.entries(TYPES).map(([value, type]) => <option key={value} value={value}>{type.label}</option>)}
         </select>
+        {!device && <>
         <label htmlFor="iot-relay">Relay ESP32</label>
         <select id="iot-relay" className="farmshift-form-control" value={form.relay ?? ''} onChange={event => set('relay', Number(event.target.value) || null)}>
           <option value="">Chưa gán</option>
@@ -55,8 +58,13 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
         <label htmlFor="iot-power">Công suất (kW, không bắt buộc)</label>
         <input id="iot-power" className="farmshift-form-control" type="number" min="0" step="0.01" value={form.power} onChange={event => set('power', event.target.value)} />
         <small>Chọn relay theo dây đang nối trên ESP32.</small>
-        <label><input type="checkbox" checked={Boolean(form.automatic)} disabled={!form.relay}
-          onChange={event => set('automatic', event.target.checked)} /> Điều khiển tự động</label>
+        </>}
+        <div className={styles.automaticControl}>
+          <label htmlFor="iot-automatic">Điều khiển tự động</label>
+          <button id="iot-automatic" type="button" role="switch" aria-checked={Boolean(form.automatic)}
+            className={styles.toggle} disabled={!form.relay}
+            onClick={() => set('automatic', !form.automatic)}><span /></button>
+        </div>
         {form.automatic && form.type === 'LIGHT' && <>
           <label htmlFor="iot-on-time">Giờ bật (giờ Việt Nam)</label>
           <input id="iot-on-time" className="farmshift-form-control" type="time" required value={form.onTime ?? '18:00'} onChange={event => set('onTime', event.target.value)} />
@@ -67,9 +75,9 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
           <label htmlFor="iot-temperature">Bật khi nhiệt độ vượt (°C)</label>
           <input id="iot-temperature" className="farmshift-form-control" type="number" required step="0.1"
             value={form.threshold ?? (form.type === 'FAN' ? 40 : 42)} onChange={event => set('threshold', event.target.value)} />
-          <small>Tính theo trung bình hai cảm biến. Tắt khi giảm xuống thấp hơn ngưỡng ít nhất 1 °C.</small>
+          {form.type !== 'FAN' && <small>Tính theo trung bình hai cảm biến. Tắt khi giảm xuống thấp hơn ngưỡng ít nhất 1 °C.</small>}
         </>}
-        {form.automatic && <small>Tự động chỉ chạy khi đang mở chi tiết chuồng này và có kết nối phần cứng.</small>}
+        {form.automatic && form.type !== 'FAN' && <small>Tự động chỉ chạy khi đang mở chi tiết chuồng này và có kết nối phần cứng.</small>}
       </div>
       <footer className={styles.dialogFooter}>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={onClose}>Bỏ qua</button>
@@ -105,6 +113,48 @@ export function IotView() {
   }, []);
   const barn = data.barns.find(item => String(item.id) === barnId);
   const mqtt = useRef(null);
+  const latestReadings = useRef({});
+  const [eventRevision, setEventRevision] = useState(0);
+  const [logError, setLogError] = useState('');
+  const [failedEvents, setFailedEvents] = useState([]);
+  const [retryingLogs, setRetryingLogs] = useState(false);
+  async function retryEventLogs() {
+    setRetryingLogs(true);
+    const attempted = new Set(failedEvents.map(entry => entry.event.id));
+    const remaining = [];
+    for (const entry of failedEvents) {
+      try { await api.post(`/barns/${entry.barnId}/iot-events`, entry.event); }
+      catch { remaining.push(entry); }
+    }
+    setFailedEvents(current => [...current.filter(entry => !attempted.has(entry.event.id)), ...remaining]);
+    setRetryingLogs(false);
+    setLogError(remaining.length ? 'Vẫn chưa lưu được một số nhật ký. Vui lòng thử lại.' : '');
+    setEventRevision(value => value + 1);
+  }
+  const publishDevice = useCallback(async (device, enabled, mode = 'MANUAL') => {
+    const occurredAt = new Date().toISOString();
+    const temperature = sensor => {
+      const point = latestReadings.current[sensor];
+      return point && !point.retained && Date.now() - point.time <= 15000 ? point.value : null;
+    };
+    const event = enabled && ['FAN', 'WATER'].includes(device.type) ? {
+      id: crypto.randomUUID(), deviceName: device.name, deviceType: device.type,
+      relay: device.relay, mode, occurredAt,
+      temperature1: temperature('temp1'), temperature3: temperature('temp3'),
+    } : null;
+    const targetBarn = barnId;
+    await mqtt.current.publishRelay(device.relay, enabled ? 'ON' : 'OFF');
+    if (event) {
+      try {
+        await api.post(`/barns/${targetBarn}/iot-events`, event);
+        setLogError('');
+        setEventRevision(value => value + 1);
+      } catch {
+        setFailedEvents(current => [...current, { barnId: targetBarn, event }]);
+        setLogError('Đã gửi lệnh bật nhưng chưa lưu được nhật ký. Kiểm tra kết nối máy chủ.');
+      }
+    }
+  }, [barnId]);
   const autoCommands = useRef(new Map());
   const [automationTime, setAutomationTime] = useState(Date.now);
   const [connection, setConnection] = useState('disconnected');
@@ -127,11 +177,31 @@ export function IotView() {
   useEffect(() => {
     if (!hasBarn) return;
     let cancelled = false;
+    latestReadings.current = {};
+    setSensorReadings({});
+    setLiveTemperatures([]);
+    const refresh = setInterval(() => {
+      const time = Date.now();
+      const entries = Object.entries(latestReadings.current);
+      setSensorReadings(Object.fromEntries(entries.map(([key, point]) => [key, point.value])));
+      const points = entries.filter(([key, point]) => key.startsWith('temp') && !point.retained && time - point.time <= 15000)
+        .map(([sensor, point]) => ({ sensor, time: point.time, value: point.value }));
+      setLiveTemperatures(current => [...current.filter(point => point.time >= time - 60000
+        && !points.some(next => next.sensor === point.sensor && next.time === point.time)), ...points]);
+      setTemperatureHistory(current => {
+        const additions = points.filter(point => {
+          const last = current.findLast(item => item.sensor === point.sensor);
+          return !last || point.time - last.time >= 5 * 60000;
+        });
+        return additions.length ? [...current.filter(point => point.time >= time - 7 * 86400000), ...additions] : current;
+      });
+    }, 3000);
     connectEsp32({
       onConnection: status => {
         if (cancelled) return;
         setConnection(status);
         if (status !== 'connected') {
+          latestReadings.current = {};
           autoCommands.current.clear();
           setRelayStates({});
           setSensorReadings({});
@@ -143,21 +213,7 @@ export function IotView() {
         const value = payload.trim();
         const sensor = ['temp1', 'humi1', 'temp3', 'humi3'].find(key => topic === `${ESP32_TOPIC_PREFIX}/${key}`);
         if (sensor && value && Number.isFinite(Number(value))) {
-          setSensorReadings(current => ({ ...current, [sensor]: Number(value) }));
-          if (sensor.startsWith('temp') && !retained) {
-            const time = Date.now();
-            setLiveTemperatures(current => {
-              const second = Math.floor(time / 1000);
-              return [...current.filter(point => point.time >= time - 60_000
-                && !(point.sensor === sensor && Math.floor(point.time / 1000) === second)),
-              { sensor, time, value: Number(value) }];
-            });
-            setTemperatureHistory(current => {
-              const last = current.findLast(point => point.sensor === sensor);
-              if (last && time - last.time < 5 * 60000) return current;
-              return [...current.filter(point => point.time >= time - 7 * 86400000), { sensor, time, value: Number(value) }];
-            });
-          }
+          latestReadings.current[sensor] = { value: Number(value), time: Date.now(), retained: Boolean(retained) };
         }
         const relay = relayStatusTopics.indexOf(topic) + 1;
         const state = payload.trim();
@@ -172,14 +228,16 @@ export function IotView() {
     }).catch(() => { if (!cancelled) setMqttError('Không thể khởi tạo kết nối thiết bị phần cứng.'); });
     return () => {
       cancelled = true;
+      clearInterval(refresh);
+      latestReadings.current = {};
       mqtt.current?.disconnect();
       mqtt.current = null;
     };
-  }, [hasBarn]);
+  }, [hasBarn, barnId]);
   async function send(devices, enabled) {
     if (connection !== 'connected' || !mqtt.current) return;
     setMqttError('');
-    const results = await Promise.allSettled(devices.map(device => mqtt.current.publishRelay(device.relay, enabled ? 'ON' : 'OFF')));
+    const results = await Promise.allSettled(devices.filter(device => relayStates[device.relay] !== enabled).map(device => publishDevice(device, enabled)));
     if (results.some(result => result.status === 'rejected')) setMqttError('Không gửi được một số lệnh đến thiết bị phần cứng. Kiểm tra trạng thái từng relay trước khi thử lại.');
   }
   const devices = devicesByBarn[barnId] ?? defaultDevices();
@@ -194,7 +252,7 @@ export function IotView() {
 
   useEffect(() => {
     if (!barn || connection !== 'connected' || !mqtt.current || !automaticEnabled) return;
-    const now = Date.now();
+    const now = automationTime;
     const localTime = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(now);
@@ -244,11 +302,11 @@ export function IotView() {
       const pending = autoCommands.current.get(key);
       if (pending?.desired === desired && now - pending.time < 10_000) continue;
       autoCommands.current.set(key, { desired, time: now });
-      mqtt.current.publishRelay(device.relay, desired ? 'ON' : 'OFF').catch(() => {
+      publishDevice(device, desired, 'AUTO').catch(() => {
         setMqttError('Không gửi được lệnh tự động đến thiết bị phần cứng.');
       });
     }
-  }, [automaticEnabled, automationTime, barn, barnId, connection, devices, liveTemperatures, relayStates, sensorReadings]);
+  }, [automaticEnabled, automationTime, barn, barnId, connection, devices, liveTemperatures, relayStates, sensorReadings, notification, publishDevice]);
 
   function manuallyControl(targets, enabled) {
     const ids = new Set(targets.map(device => device.id));
@@ -272,6 +330,9 @@ export function IotView() {
               <div className={styles.monitoring}>
                 <PhoneCamera key={barn.id} barn={barn}><CameraScreen barnName={barn.name} /></PhoneCamera>
                 <IotEnvironment key={`environment:${barn.id}`} barnName={barn.name} readings={sensorReadings} connected={connection === 'connected'} history={temperatureHistory} liveHistory={liveTemperatures} />
+                <IotEventLog key={`events:${barn.id}`} barnId={barn.id} revision={eventRevision} />
+                {logError && <p role="alert">{logError}</p>}
+                {failedEvents.length > 0 && <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={retryingLogs} onClick={retryEventLogs}>Lưu lại {failedEvents.length} nhật ký chưa lưu</button>}
               </div>
               <section className={styles.controls} aria-label={`Thiết bị ${barn.name}`}>
                 <header><div><h3>Điều khiển thiết bị</h3><p>{connection === 'connected' ? 'Đã kết nối thiết bị phần cứng' : connection === 'connecting' ? 'Đang kết nối thiết bị phần cứng…' : 'Thiết bị phần cứng chưa kết nối'}</p></div>

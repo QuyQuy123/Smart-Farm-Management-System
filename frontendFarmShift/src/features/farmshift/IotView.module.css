@@ -120,6 +120,8 @@
 .deviceGroup > article { margin: 8px 0 0; background: #fff; }
 .form { padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; }
 .form label { font-size: 14px; }
+.automaticControl { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 0; }
+.automaticControl .toggle:disabled { opacity: .5; cursor: not-allowed; }
 .form label span { color: #bf3535; }
 .form small { color: #7b8e84; }
 .dialogFooter { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #f7faf8; border-top: 1px solid #e6eeea; }
@@ -127,3 +129,6 @@
 @media (max-width: 1200px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .detail { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .overviewHeading { align-items: stretch; flex-direction: column; gap: 16px; } .search { min-width: 0; } .grid { grid-template-columns: 1fr; } .stats { gap: 16px; } .stats > span:last-child { margin-left: 0; } .detailHeading { flex-wrap: wrap; gap: 14px; } .device { padding: 14px; } .deviceTop { gap: 9px; } .controls > header { flex-wrap: wrap; } .device h4 { font-size: 14px; } }
 @media (prefers-reduced-motion: reduce) { .device, .toggle, .toggle span { transition: none; } }
+
+.eventTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.eventTable th, .eventTable td { padding: 12px; text-align: left; border-bottom: 1px solid #e6ece8; min-width: 110px; }
