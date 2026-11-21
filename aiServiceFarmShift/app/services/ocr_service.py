@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import logging
+import re
 from typing import Any, List, Optional, Tuple
 
 import httpx
@@ -54,7 +55,14 @@ INVOICE_VISION_PROMPT = (
     '  "confidence": 98.5,\n'
     '  "warnings": []\n'
     "}\n"
-    "LƯU Ý: Nếu tệp không phải hóa đơn/phiếu nhập hàng, đặt isInvoice=false và items=[]. "
+    "LƯU Ý PHÂN LOẠI NGHIÊM NGẶT (CHỈ NHẬN CHỨNG TỪ NHẬP HÀNG):\n"
+    "- CHỈ đặt isInvoice=true cho hóa đơn / phiếu nhập hàng trang trại MUA VÀO (cám, thức ăn chăn nuôi, thuốc thú y, vắc-xin, chế phẩm, vật tư, thiết bị, con giống). "
+    "Lưu ý tại Việt Nam, hóa đơn do nhà cung cấp / đại lý thức ăn hoặc thuốc thú y xuất cho trang trại thường có tiêu đề \"HÓA ĐƠN BÁN HÀNG\", \"HÓA ĐƠN GTGT\" hoặc \"PHIẾU XUẤT KHO\" — nếu mặt hàng là cám/thuốc/vắc-xin/vật tư/con giống thì BẮT BUỘC đặt isInvoice=true và bóc tách đầy đủ!\n"
+    "- BẮT BUỘC đặt isInvoice=false, items=[] và thêm cảnh báo "
+    '"Chứng từ này là phiếu cân / chứng từ xuất bán gà, không phải hóa đơn nhập hàng. Vui lòng quét ở mục Quản lý bán hàng." '
+    "nếu chứng từ là Phiếu cân xuất bán gà thịt / Phiếu cân gà (có lượt cân, số lồng, cân tổng, trừ bì, cân thực tế) "
+    "hoặc Hóa đơn / Phiếu xuất bán gà thịt, gia cầm thương phẩm, trứng từ trang trại bán ra cho khách mua / thương lái.\n"
+    "- Nếu không phải hóa đơn/phiếu nhập hàng, đặt isInvoice=false và items=[]. "
     "Không thêm văn bản giải thích nào ngoài chuỗi JSON."
 )
 
@@ -71,8 +79,24 @@ def _strip_markdown_fences(content: str) -> str:
 
 
 def _safe_non_negative_float(value: Any, default: Optional[float] = None) -> Optional[float]:
-    if value is None or value == "":
+    if value is None or value == "" or isinstance(value, bool):
         return default
+    if isinstance(value, str):
+        cleaned = re.sub(r"[^\d.,+-]", "", value.strip())
+        if not cleaned or cleaned in ("+", "-", ".", ","):
+            return default
+        if "." in cleaned and "," in cleaned:
+            if cleaned.rfind(",") > cleaned.rfind("."):
+                cleaned = cleaned.replace(".", "").replace(",", ".")
+            else:
+                cleaned = cleaned.replace(",", "")
+        elif cleaned.count(",") > 1 or re.fullmatch(r"-?\d{1,3},\d{3}", cleaned):
+            cleaned = cleaned.replace(",", "")
+        elif "," in cleaned:
+            cleaned = cleaned.replace(",", ".")
+        elif cleaned.count(".") > 1 or re.fullmatch(r"-?\d{1,3}\.\d{3}", cleaned):
+            cleaned = cleaned.replace(".", "")
+        value = cleaned
     try:
         num = float(value)
     except (TypeError, ValueError):

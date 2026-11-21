@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 public interface WorkTaskRepository extends JpaRepository<WorkTask, Long> {
@@ -15,6 +16,14 @@ public interface WorkTaskRepository extends JpaRepository<WorkTask, Long> {
             where t.startDate <= :date and t.endDate >= :date
             order by case when t.dueTime is null then 1 else 0 end, t.dueTime, t.id""")
     List<WorkTask> findActiveOn(@Param("date") LocalDate date);
+
+    @Query("""
+            select t from WorkTask t join fetch t.assignee join fetch t.barn
+            where t.barn.id in :barnIds and t.startDate <= :to and t.endDate >= :from
+            order by case when t.dueTime is null then 1 else 0 end, t.dueTime, t.id""")
+    List<WorkTask> findActiveInRangeForBarns(@Param("barnIds") Collection<Long> barnIds,
+                                             @Param("from") LocalDate from,
+                                             @Param("to") LocalDate to);
 
     @Query("""
             select t from WorkTask t join fetch t.assignee

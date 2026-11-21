@@ -14,6 +14,42 @@ import java.util.*;
 public class DailyStockSources {
     private final WarehouseCategoryRepository warehouses;
     private final InventoryItemRepository inventory;
+    private final FarmAreaRepository areas;
+
+    public Map<Long, Set<Long>> preloadBarnStoreIds(Collection<FarmingCycle> cycles) {
+        Map<Long, Set<Long>> result = new HashMap<>();
+        if (cycles == null || cycles.isEmpty()) {
+            return result;
+        }
+        Map<Long, Set<Long>> areaStoreIds = new HashMap<>();
+        for (WarehouseCategory warehouse : warehouses.findAllWithAreasForReport()) {
+            if (warehouse.getArea() != null && warehouse.getArea().getId() != null) {
+                areaStoreIds.computeIfAbsent(warehouse.getArea().getId(), ignored -> new HashSet<>())
+                        .add(warehouse.getId());
+            }
+            if (warehouse.getAreas() != null) {
+                for (FarmArea linkedArea : warehouse.getAreas()) {
+                    if (linkedArea != null && linkedArea.getId() != null) {
+                        areaStoreIds.computeIfAbsent(linkedArea.getId(), ignored -> new HashSet<>())
+                                .add(warehouse.getId());
+                    }
+                }
+            }
+        }
+        // Include same-transaction join rows from L1 cache as well.
+        for (Object[] pair : areas.findAreaWarehousePairs()) {
+            if (pair != null && pair.length >= 2 && pair[0] instanceof Long areaId && pair[1] instanceof Long warehouseId) {
+                areaStoreIds.computeIfAbsent(areaId, ignored -> new HashSet<>()).add(warehouseId);
+            }
+        }
+        for (FarmingCycle cycle : cycles) {
+            if (cycle.getBarn() != null && cycle.getBarn().getArea() != null) {
+                Long areaId = cycle.getBarn().getArea().getId();
+                result.put(cycle.getBarn().getId(), areaStoreIds.getOrDefault(areaId, Set.of()));
+            }
+        }
+        return result;
+    }
 
     public List<List<InventoryItem>> resolve(FarmingCycle cycle, FarmingProgramStep step, String workerEmail) {
         return resolve(cycle, step, workerEmail, null, null);

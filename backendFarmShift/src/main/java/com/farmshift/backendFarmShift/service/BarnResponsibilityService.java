@@ -96,6 +96,7 @@ public class BarnResponsibilityService {
     }
 
     public Map<Long, List<Account>> effectiveByBarn() {
+        areas.findAllWithWorkersByOrderByCreatedAtAscIdAsc();
         Map<Long, List<BarnWorker>> direct = directLinks();
         Map<Long, List<Account>> result = new LinkedHashMap<>();
         for (Barn barn : barns.findAllByOrderByCreatedAtAscIdAsc()) {

@@ -234,6 +234,229 @@ class WeightSlipOcrTests(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertEqual(200, ok_res.status_code)
 
+    async def test_sales_invoice_with_vietnamese_date_and_formatted_numbers(self):
+        response = MagicMock()
+        response.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            "```json\n"
+                            + json.dumps(
+                                {
+                                    "isWeightSlip": True,
+                                    "documentKind": "SALES_INVOICE",
+                                    "customer": "Bình Miền",
+                                    "address": "Thanh Sơn - Sông Công",
+                                    "referenceCode": "HD103172",
+                                    "date": "Ngày 21 tháng 08 năm 2026",
+                                    "quantity": None,
+                                    "totalWeight": "1.500",
+                                    "unitPrice": "1,150,000",
+                                    "totalAmount": "1.725.000",
+                                    "paidAmount": "0",
+                                    "status": None,
+                                    "weighings": [],
+                                }
+                            )
+                            + "\n```"
+                        )
+                    }
+                }
+            ]
+        }
+        client = AsyncMock()
+        client.post.return_value = response
+        with (
+            patch("app.services.weight_slip_ocr.settings.OPENAI_API_KEY", "test-only"),
+            patch("app.services.weight_slip_ocr.get_shared_http_client", return_value=None),
+            patch("app.services.weight_slip_ocr.httpx.AsyncClient") as factory,
+        ):
+            factory.return_value.__aenter__.return_value = client
+            result = await extract_weight_slip(self.image(), "image/png")
+            self.assertTrue(result["isWeightSlip"])
+            self.assertEqual("Bình Miền", result["customer"])
+            self.assertEqual("2026-08-21", result["date"])
+            self.assertEqual(1.5, result["totalWeight"])
+            self.assertEqual(1150000.0, result["unitPrice"])
+            self.assertEqual(1725000.0, result["totalAmount"])
+            self.assertEqual("DEBT", result["status"])
+
+        partial_resp = MagicMock()
+        partial_resp.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "isSalesDocument": True,
+                                "documentKind": "SALES_INVOICE",
+                                "customer": "Anh Tuấn",
+                                "totalWeight": 2150,
+                                "unitPrice": 78000,
+                                "totalAmount": 167700000,
+                                "paidAmount": "100.000.000",
+                                "status": "PAID",
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+        client.post.return_value = partial_resp
+        with (
+            patch("app.services.weight_slip_ocr.settings.OPENAI_API_KEY", "test-only"),
+            patch("app.services.weight_slip_ocr.get_shared_http_client", return_value=None),
+            patch("app.services.weight_slip_ocr.httpx.AsyncClient") as factory,
+        ):
+            factory.return_value.__aenter__.return_value = client
+            result_partial = await extract_weight_slip(self.image(), "image/png")
+            self.assertTrue(result_partial["isWeightSlip"])
+            self.assertEqual(100000000.0, result_partial["paidAmount"])
+            self.assertEqual("PARTIAL", result_partial["status"])
+
+    async def test_rejects_purchase_document_and_parses_vn_number_formats(self):
+        draft = WeightSlipDraft.model_validate(
+            {
+                "isWeightSlip": True,
+                "quantity": "100 con",
+                "totalWeight": "2.150,5",
+                "unitPrice": "78.000",
+                "status": "Đã thanh toán",
+            }
+        )
+        self.assertEqual(100, draft.quantity)
+        self.assertEqual(2150.5, draft.totalWeight)
+        self.assertEqual(78000.0, draft.unitPrice)
+        self.assertEqual("PAID", draft.status)
+
+        purchase_resp = MagicMock()
+        purchase_resp.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "isWeightSlip": False,
+                                "documentKind": "PURCHASE_DOCUMENT",
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+        client = AsyncMock()
+        client.post.return_value = purchase_resp
+        with (
+            patch("app.services.weight_slip_ocr.settings.OPENAI_API_KEY", "test-only"),
+            patch("app.services.weight_slip_ocr.get_shared_http_client", return_value=None),
+            patch("app.services.weight_slip_ocr.httpx.AsyncClient") as factory,
+        ):
+            factory.return_value.__aenter__.return_value = client
+            with self.assertRaises(HTTPException) as err:
+                await extract_weight_slip(self.image(), "image/png")
+            self.assertEqual(400, err.exception.status_code)
+            self.assertIn("Hóa đơn nhập hàng", err.exception.detail)
+
+    async def test_scales_truncated_unit_price_when_weight_times_scaled_price_matches_total(self):
+        response = MagicMock()
+        response.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "isSalesDocument": True,
+                                "documentKind": "SALES_INVOICE",
+                                "customer": "Anh Bình Miền",
+                                "totalWeight": 2150,
+                                "unitPrice": 78.0,
+                                "totalAmount": 167700000,
+                                "paidAmount": 100000000,
+                                "status": "PARTIAL",
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+        client = AsyncMock()
+        client.post.return_value = response
+        with (
+            patch("app.services.weight_slip_ocr.settings.OPENAI_API_KEY", "test-only"),
+            patch("app.services.weight_slip_ocr.get_shared_http_client", return_value=None),
+            patch("app.services.weight_slip_ocr.httpx.AsyncClient") as factory,
+        ):
+            factory.return_value.__aenter__.return_value = client
+            result = await extract_weight_slip(self.image(), "image/png")
+            self.assertEqual(78000.0, result["unitPrice"])
+            self.assertEqual([], result["warnings"])
+            self.assertEqual("PARTIAL", result["status"])
+
+    async def test_clears_duplicated_kg_quantity_on_sales_invoice_and_debt_paid_amount(self):
+        client = AsyncMock()
+        inv_resp = MagicMock()
+        inv_resp.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "isSalesDocument": True,
+                                "documentKind": "SALES_INVOICE",
+                                "customer": "Anh Bình Miền",
+                                "quantity": 2150,
+                                "totalWeight": 2150.0,
+                                "unitPrice": 78000.0,
+                                "totalAmount": 167700000.0,
+                                "paidAmount": 100000000.0,
+                                "status": "PARTIAL",
+                                "weighings": [],
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+        debt_slip_resp = MagicMock()
+        debt_slip_resp.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "isSalesDocument": True,
+                                "documentKind": "WEIGHT_SLIP",
+                                "customer": "Anh Tuấn",
+                                "quantity": 100,
+                                "totalWeight": 250.0,
+                                "unitPrice": 80000.0,
+                                "totalAmount": 20000000.0,
+                                "paidAmount": 20000000.0,
+                                "status": "DEBT",
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+        with (
+            patch("app.services.weight_slip_ocr.settings.OPENAI_API_KEY", "test-only"),
+            patch("app.services.weight_slip_ocr.get_shared_http_client", return_value=None),
+            patch("app.services.weight_slip_ocr.httpx.AsyncClient") as factory,
+        ):
+            factory.return_value.__aenter__.return_value = client
+
+            client.post.return_value = inv_resp
+            res_inv = await extract_weight_slip(self.image(), "image/png")
+            self.assertIsNone(res_inv["quantity"])
+            self.assertEqual(2150.0, res_inv["totalWeight"])
+
+            client.post.return_value = debt_slip_resp
+            res_debt = await extract_weight_slip(self.image(), "image/png")
+            self.assertEqual("DEBT", res_debt["status"])
+            self.assertIsNone(res_debt["paidAmount"])
+
 
 if __name__ == "__main__":
     unittest.main()

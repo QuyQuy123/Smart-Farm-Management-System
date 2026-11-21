@@ -58,10 +58,17 @@ public class PurchaseOcrService {
         JsonNode json = visionClient.extractJson("", bytes, mimeType, responseSchema());
 
         if (!json.path("isInvoice").asBoolean(true)) {
-            throw new BadRequestException(
-                    "Không nhận diện được hóa đơn / phiếu nhập hàng trong tệp đã tải lên. Vui lòng chọn đúng chứng từ.",
-                    "OCR_NOT_INVOICE"
-            );
+            String message = "Không nhận diện được hóa đơn / phiếu nhập hàng trong tệp đã tải lên. Vui lòng chọn đúng chứng từ.";
+            JsonNode warningsNode = json.path("warnings");
+            if (warningsNode.isArray()) {
+                for (JsonNode warning : warningsNode) {
+                    if (warning.isTextual() && !warning.asText().isBlank()) {
+                        message = warning.asText().strip();
+                        break;
+                    }
+                }
+            }
+            throw new BadRequestException(message, "OCR_NOT_INVOICE");
         }
 
         List<ProductCategory> categories = productCategoryRepository.findAll();

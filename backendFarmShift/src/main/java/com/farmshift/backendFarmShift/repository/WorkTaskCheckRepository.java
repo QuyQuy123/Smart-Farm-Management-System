@@ -16,6 +16,7 @@ public interface WorkTaskCheckRepository extends JpaRepository<WorkTaskCheck, Lo
     @EntityGraph(attributePaths = {"task", "task.barn", "task.barn.area"})
     List<WorkTaskCheck> findTop300ByCheckDateBetweenOrderByDoneAtDescIdDesc(LocalDate from, LocalDate to);
     List<WorkTaskCheck> findAllByTaskIdInAndCheckDate(Collection<Long> taskIds, LocalDate checkDate);
+    List<WorkTaskCheck> findAllByTaskIdInAndCheckDateBetween(Collection<Long> taskIds, LocalDate from, LocalDate to);
     Optional<WorkTaskCheck> findByTaskIdAndCheckDate(Long taskId, LocalDate checkDate);
     boolean existsByTaskIdAndCheckDate(Long taskId, LocalDate checkDate);
     boolean existsByTaskId(Long taskId);

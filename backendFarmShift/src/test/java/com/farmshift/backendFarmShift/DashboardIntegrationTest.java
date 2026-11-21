@@ -40,6 +40,8 @@ class DashboardIntegrationTest {
     @Autowired com.farmshift.backendFarmShift.repository.AccountRepository accounts;
     @Autowired com.farmshift.backendFarmShift.repository.RoleRepository roles;
     @Autowired com.farmshift.backendFarmShift.repository.InventoryItemRepository inventory;
+    @Autowired jakarta.persistence.EntityManagerFactory entityManagerFactory;
+    @Autowired jakarta.persistence.EntityManager entityManager;
     long barnA;
     long barnB;
     long workerId;
@@ -229,5 +231,26 @@ class DashboardIntegrationTest {
     void requiresLogin() throws Exception {
         mvc.perform(get("/api/dashboard").with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous()))
                 .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void dashboardExecutesBoundedBatchQueriesWithoutNPlusOne() {
+        entityManager.flush();
+        entityManager.clear();
+
+        org.hibernate.stat.Statistics stats = entityManagerFactory.unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        boolean wasEnabled = stats.isStatisticsEnabled();
+        stats.setStatisticsEnabled(true);
+        stats.clear();
+        try {
+            DashboardResponse response = dashboard.get(true, null, LocalTime.of(12, 0));
+            long queryCount = stats.getPrepareStatementCount();
+            assertTrue(response.barns().size() >= 2);
+            assertEquals(7, response.taskHistory().size());
+            assertTrue(response.kpis().liveQuantity() >= 1990);
+            assertTrue(queryCount <= 25, "Expected <= 25 SQL statements for Dashboard batch load, got " + queryCount);
+        } finally {
+            stats.setStatisticsEnabled(wasEnabled);
+        }
     }
 }

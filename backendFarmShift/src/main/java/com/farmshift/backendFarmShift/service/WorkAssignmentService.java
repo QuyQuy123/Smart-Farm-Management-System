@@ -169,12 +169,56 @@ public class WorkAssignmentService {
         return responsibilities.workersOf(barnId).stream().map(WorkAssignmentService::ref).toList();
     }
 
+    public Map<Long, List<WorkBoard.WorkerRef>> workersByBarn() {
+        Map<Long, List<WorkBoard.WorkerRef>> result = new LinkedHashMap<>();
+        responsibilities.effectiveByBarn().forEach((barnId, workers) ->
+                result.put(barnId, workers.stream().map(WorkAssignmentService::ref).toList()));
+        return result;
+    }
+
     /** Việc được giao của chuồng trong ngày; workerEmail khác null thì chỉ lấy việc của công nhân đó. */
     public List<WorkBoard.AssignedTask> tasksOf(Long barnId, LocalDate date, String workerEmail) {
         List<WorkTask> tasks = taskRepository.findActiveOnForBarn(barnId, date).stream()
                 .filter(task -> workerEmail == null || task.getAssignee().getEmail().equalsIgnoreCase(workerEmail)).toList();
         Map<Long, WorkTaskCheck> checks = checksFor(tasks, date);
         return tasks.stream().map(task -> response(task, checks.get(task.getId()))).toList();
+    }
+
+    public Map<Long, List<WorkBoard.AssignedTask>> tasksByBarn(Collection<Long> barnIds, LocalDate date, String workerEmail) {
+        if (date == null) return Map.of();
+        return tasksByBarnInRange(barnIds, date, date, workerEmail).getOrDefault(date, Map.of());
+    }
+
+    public Map<LocalDate, Map<Long, List<WorkBoard.AssignedTask>>> tasksByBarnInRange(
+            Collection<Long> barnIds, LocalDate from, LocalDate to, String workerEmail) {
+        if (barnIds == null || barnIds.isEmpty() || from == null || to == null || to.isBefore(from)) {
+            return Map.of();
+        }
+        List<WorkTask> tasks = taskRepository.findActiveInRangeForBarns(barnIds, from, to).stream()
+                .filter(task -> workerEmail == null || task.getAssignee().getEmail().equalsIgnoreCase(workerEmail))
+                .toList();
+        if (tasks.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> taskIds = tasks.stream().map(WorkTask::getId).toList();
+        Map<LocalDate, Map<Long, WorkTaskCheck>> checksByDate = new HashMap<>();
+        for (WorkTaskCheck check : checkRepository.findAllByTaskIdInAndCheckDateBetween(taskIds, from, to)) {
+            checksByDate.computeIfAbsent(check.getCheckDate(), ignored -> new HashMap<>())
+                    .put(check.getTask().getId(), check);
+        }
+        Map<LocalDate, Map<Long, List<WorkBoard.AssignedTask>>> result = new LinkedHashMap<>();
+        for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
+            Map<Long, WorkTaskCheck> dayChecks = checksByDate.getOrDefault(day, Map.of());
+            Map<Long, List<WorkBoard.AssignedTask>> byBarn = new HashMap<>();
+            for (WorkTask task : tasks) {
+                if (!day.isBefore(task.getStartDate()) && !day.isAfter(task.getEndDate())) {
+                    byBarn.computeIfAbsent(task.getBarn().getId(), ignored -> new ArrayList<>())
+                            .add(response(task, dayChecks.get(task.getId())));
+                }
+            }
+            result.put(day, byBarn);
+        }
+        return result;
     }
 
     // ---------------------------------------------------------------- helpers

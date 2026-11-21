@@ -49,7 +49,7 @@ public class SalesWeightVisionClient {
                 throw new BadRequestException(message);
             }
             var result = mapper.readTree(response.body());
-            if (!result.path("isWeightSlip").asBoolean(false)) throw new BadRequestException("Tệp không phải phiếu cân bán gà.");
+            if (!result.path("isWeightSlip").asBoolean(false)) throw new BadRequestException("Tệp không phải phiếu cân hoặc hóa đơn bán hàng.");
             return result;
         } catch (BadRequestException ex) { throw ex; }
         catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new BadRequestException("Đã ngắt xử lý phiếu cân."); }

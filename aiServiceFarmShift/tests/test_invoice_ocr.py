@@ -233,6 +233,56 @@ class InvoiceOcrTests(unittest.TestCase):
         self.assertEqual(155000.0, hanvet.vatAmount)
         self.assertEqual(3255000.0, hanvet.totalAmount)
 
+    def test_purchase_ocr_rejects_sales_weight_slip_and_parses_vn_numbers(self):
+        from app.services.ocr_service import INVOICE_VISION_PROMPT, _safe_non_negative_float
+
+        self.assertIn("Phiếu cân xuất bán gà thịt", INVOICE_VISION_PROMPT)
+        self.assertEqual(1150000.0, _safe_non_negative_float("1,150,000"))
+        self.assertEqual(345000.0, _safe_non_negative_float("345.000"))
+        self.assertEqual(2150.5, _safe_non_negative_float("2.150,5"))
+
+        client = TestClient(app)
+        headers = {"X-Internal-AI-Token": "test-ocr-token"}
+        with (
+            patch("app.api.router.settings.AI_INTERNAL_TOKEN", "test-ocr-token"),
+            patch("app.services.ocr_service.settings.OPENAI_API_KEY", "test-only"),
+            patch("app.services.ocr_service.settings.OCR_ENGINE", "hybrid"),
+            patch("app.services.ocr_service.get_shared_http_client", return_value=None),
+            patch("app.services.ocr_service.httpx.AsyncClient") as factory,
+        ):
+            slip_resp = MagicMock()
+            slip_resp.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "isInvoice": False,
+                                    "items": [],
+                                    "warnings": [
+                                        "Chứng từ này là phiếu cân / chứng từ xuất bán gà, không phải hóa đơn nhập hàng. Vui lòng quét ở mục Quản lý bán hàng."
+                                    ],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+            http_mock = AsyncMock()
+            http_mock.post.return_value = slip_resp
+            factory.return_value.__aenter__.return_value = http_mock
+
+            res = client.post(
+                "/api/ocr/extract-invoice",
+                files={"file": ("weight-slip.png", _make_png(), "image/png")},
+                headers=headers,
+            )
+            self.assertEqual(200, res.status_code)
+            body = res.json()
+            self.assertFalse(body["isInvoice"])
+            self.assertEqual([], body["items"])
+            self.assertTrue(any("Quản lý bán hàng" in w for w in body["warnings"]))
+
 
 if __name__ == "__main__":
     unittest.main()
