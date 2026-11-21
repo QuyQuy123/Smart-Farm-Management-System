@@ -5,6 +5,9 @@ export const AI_SESSIONS_STORAGE_KEY = 'farmshift_ai_sessions_v1';
 export const AI_ACTIVE_SESSION_STORAGE_KEY = 'farmshift_ai_active_session_id';
 export const AI_LEGACY_HISTORY_KEY = 'farmshift_ai_chat_history';
 export const AI_CHAT_OPEN_KEY = 'farmshift_ai_chat_open';
+export const AI_CHAT_EXPANDED_KEY = 'farmshift_ai_chat_expanded';
+export const AI_CHAT_SESSION_LIST_OPEN_KEY = 'farmshift_ai_chat_session_list_open';
+export const AI_CHAT_DRAFT_INPUT_KEY = 'farmshift_ai_chat_draft_input';
 export const AI_CHAT_OWNER_KEY = 'farmshift_ai_chat_owner';
 export const AI_CHAT_RESET_EVENT = 'farmshift:ai-chat-reset';
 
@@ -66,6 +69,9 @@ export const purgeAiChatStorageKeys = () => {
         AI_ACTIVE_SESSION_STORAGE_KEY,
         AI_LEGACY_HISTORY_KEY,
         AI_CHAT_OPEN_KEY,
+        AI_CHAT_EXPANDED_KEY,
+        AI_CHAT_SESSION_LIST_OPEN_KEY,
+        AI_CHAT_DRAFT_INPUT_KEY,
         AI_CHAT_OWNER_KEY,
       ]);
       for (let i = 0; i < window.sessionStorage.length; i += 1) {
@@ -125,6 +131,9 @@ export const loadAiChatState = (ownerScope, createSessionFn, initialMessage) => 
       sessions: [fresh],
       activeSessionId: fresh.id,
       isOpen: false,
+      isExpanded: false,
+      isSessionListOpen: false,
+      draftInput: '',
     };
   };
 
@@ -144,6 +153,9 @@ export const loadAiChatState = (ownerScope, createSessionFn, initialMessage) => 
     }
 
     const isOpen = window.sessionStorage.getItem(AI_CHAT_OPEN_KEY) === 'true';
+    const isExpanded = window.sessionStorage.getItem(AI_CHAT_EXPANDED_KEY) === 'true';
+    const isSessionListOpen = window.sessionStorage.getItem(AI_CHAT_SESSION_LIST_OPEN_KEY) === 'true';
+    const draftInput = window.sessionStorage.getItem(AI_CHAT_DRAFT_INPUT_KEY) || '';
     let restoredSessions = null;
 
     const savedSessionsRaw = window.sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY);
@@ -176,6 +188,9 @@ export const loadAiChatState = (ownerScope, createSessionFn, initialMessage) => 
       sessions,
       activeSessionId: hasSavedActive ? savedActive : sessions[0]?.id,
       isOpen,
+      isExpanded,
+      isSessionListOpen,
+      draftInput,
     };
   } catch {
     return buildFresh();
@@ -185,7 +200,7 @@ export const loadAiChatState = (ownerScope, createSessionFn, initialMessage) => 
 /**
  * Persists AI chat state tagged with ownerScope, removing legacy untagged history copies.
  */
-export const saveAiChatState = (ownerScope, { sessions, activeSessionId, isOpen }) => {
+export const saveAiChatState = (ownerScope, { sessions, activeSessionId, isOpen, isExpanded, isSessionListOpen, draftInput }) => {
   try {
     if (typeof window === 'undefined' || !window.sessionStorage) return;
     window.sessionStorage.setItem(AI_CHAT_OWNER_KEY, ownerScope);
@@ -199,6 +214,9 @@ export const saveAiChatState = (ownerScope, { sessions, activeSessionId, isOpen 
       window.sessionStorage.setItem(AI_ACTIVE_SESSION_STORAGE_KEY, activeSessionId);
     }
     window.sessionStorage.setItem(AI_CHAT_OPEN_KEY, String(Boolean(isOpen)));
+    window.sessionStorage.setItem(AI_CHAT_EXPANDED_KEY, String(Boolean(isExpanded)));
+    window.sessionStorage.setItem(AI_CHAT_SESSION_LIST_OPEN_KEY, String(Boolean(isSessionListOpen)));
+    window.sessionStorage.setItem(AI_CHAT_DRAFT_INPUT_KEY, typeof draftInput === 'string' ? draftInput : '');
     window.sessionStorage.removeItem(AI_LEGACY_HISTORY_KEY);
   } catch {
     // Ignore storage quota or serialization errors

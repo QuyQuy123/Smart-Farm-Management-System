@@ -294,10 +294,9 @@ describe('AI Chatbot Cryptographic Signing & Security Guard UI', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Doanh thu tháng này là 500 triệu đ/i)).toBeInTheDocument();
+      expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBe('owner@farm.vn');
+      expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toContain('500 triệu đ');
     });
-
-    expect(sessionStorage.getItem(AI_CHAT_OWNER_KEY)).toBe('owner@farm.vn');
-    expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toContain('500 triệu đ');
 
     // Simulate logout wiping storage and notifying mounted chatbot
     act(() => {

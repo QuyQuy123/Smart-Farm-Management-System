@@ -9,8 +9,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import com.farmshift.backendFarmShift.service.CycleService;
+
 /**
- * Tier 1: Pure Screen Navigation Command Handler (<5ms execution).
+ * Tier 1: Pure Screen Navigation Command Handler (<5ms execution, 0 LLM tokens).
  * Resolves natural language commands like "mở ghi nhật ký", "xem báo cáo", "qua kho hàng".
  */
 @Slf4j
@@ -40,11 +45,17 @@ public class NavigationCommandHandler implements AssistantCommandHandler {
             return null;
         }
 
+        Map<String, Object> navSummary = new LinkedHashMap<>();
+        navSummary.put("title", "⚡ Điều hướng tức thì (0 tốn token AI)");
+        navSummary.put("detail", "Định tuyến cục bộ sang " + route.label() + " (<5ms), bỏ qua hoàn toàn mô hình AI");
+        navSummary.put("timestamp", LocalDateTime.now(CycleService.VN_ZONE).toString());
+
         return AiAssistantResponse.builder()
-                .reply("🚀 Đang chuyển bạn sang màn hình **" + route.label() + "**.")
+                .reply("🚀 Đang chuyển bạn sang màn hình **" + route.label() + "** *(điều hướng cục bộ tức thì, 0 tốn token AI)*.")
                 .actionType("NAVIGATE_AND_PREFILL")
                 .executed(true)
                 .navigateTo(route.path())
+                .actionSummary(navSummary)
                 .build();
     }
 }

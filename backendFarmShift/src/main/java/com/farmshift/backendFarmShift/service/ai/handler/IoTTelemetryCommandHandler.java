@@ -40,6 +40,13 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
         if (msg == null || msg.isBlank()) return false;
         String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase();
 
+        boolean isBroodingGuideQuery = (norm.contains("um ga") || norm.contains("nhiet do um") || norm.contains("ga con"))
+                && !norm.contains("cam bien") && !norm.contains("do am")
+                && !norm.contains("chuong") && !norm.contains("nha ");
+        if (isBroodingGuideQuery) {
+            return false;
+        }
+
         return norm.contains("nhiet do") || norm.contains("do am") || norm.contains("cam bien") || norm.contains("thong gio");
     }
 

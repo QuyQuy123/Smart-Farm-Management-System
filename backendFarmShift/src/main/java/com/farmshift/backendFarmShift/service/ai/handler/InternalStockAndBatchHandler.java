@@ -65,6 +65,47 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         return 30;
     }
 
+    private static final Pattern WORD_BOUNDARY_HUY = Pattern.compile(
+            "\\b(?:xuat\\s+huy|xuat\\s+kho\\s+huy|tieu\\s+huy|huy\\s+lo|huy\\s+cam|huy\\s+hang|huy\\s+kho|bo\\s+di)\\b"
+    );
+    private static final Pattern EXCLUDED_HUY_COMPOUNDS = Pattern.compile("\\b(?:phat\\s+huy|huy\\s+dong|chi\\s+huy|huy\\s+chuong)\\b");
+    private static final Pattern TRANSFER_EXPLICIT_PATTERN = Pattern.compile(
+            "\\b(?:chuyen\\s+kho|dieu\\s+chuyen\\s+kho|xuat\\s+chuyen\\s+kho|xuat\\s+noi\\s+bo|phieu\\s+chuyen\\s+kho)\\b"
+                    + "|\\b(?:chuyen|dieu\\s+chuyen)\\b.{0,60}\\b(?:tu\\s+kho\\b.{0,45}\\bsang\\s+kho|kho\\b.{0,45}\\bsang\\s+kho)\\b"
+    );
+    private static final Pattern ARTICLE_FOOTER_OR_PROSE_PATTERN = Pattern.compile(
+            "(?:phat\\s+hanh\\s+lai\\s+thong\\s+tin|website\\s+nay|ban\\s+quyen\\s+thuoc\\s+ve|theo\\s+phong\\s+vien|ban\\s+bien\\s+tap|nguon\\s+tin|doc\\s+them\\s+tai|https?://|www\\.)"
+    );
+    private static final Set<String> KNOWN_PRODUCT_KEYWORDS = Set.of(
+            "higro", "cargill", "cp 511", "cp 512", "dabaco", "h5n1", "lasota", "gumboro",
+            "marek", "bio-zyme", "biozyme", "han-coc", "toltrazuril", "bkc", "doxycycline", "tylosin",
+            "enrofloxacin", "amoxicillin", "paracetamol", "gluco", "electrolytes"
+    );
+
+    private static boolean isLikelyPastedArticleOrNonCommand(String norm, String rawMessage) {
+        if (norm == null || norm.isBlank()) {
+            return true;
+        }
+        if (ARTICLE_FOOTER_OR_PROSE_PATTERN.matcher(norm).find()) {
+            return true;
+        }
+        boolean startsWithDirectStockVerb = norm.matches(
+                "^(?:xuat\\s+huy|xuat\\s+kho\\s+huy|tieu\\s+huy|huy\\s+lo|huy\\s+cam|huy\\s+hang|huy\\s+kho|chuyen\\s+kho|dieu\\s+chuyen|tao\\s+phieu\\s+(?:xuat|chuyen)|trong\\s+kho|kiem\\s+tra\\s+ton|ton\\s+kho).*"
+        );
+        return rawMessage != null && rawMessage.length() > 220 && !startsWithDirectStockVerb;
+    }
+
+    private static boolean isInternalStockMovementIntent(String norm) {
+        if (norm == null || norm.isBlank()) {
+            return false;
+        }
+        String scrubbed = EXCLUDED_HUY_COMPOUNDS.matcher(norm).replaceAll(" ");
+        boolean isDisposal = WORD_BOUNDARY_HUY.matcher(scrubbed).find()
+                || scrubbed.matches(".*\\bhuy\\s+\\d+(?:[.,]\\d+)?\\s*(?:bao|kg|ki|ky|lo|chai|goi|thung|don\\s+vi)\\b.*");
+        boolean isTransfer = TRANSFER_EXPLICIT_PATTERN.matcher(scrubbed).find();
+        return isDisposal || isTransfer;
+    }
+
     @Override
     public boolean canHandle(AssistantExecutionContext context) {
         if (Boolean.TRUE.equals(context.getConfirmAction())) {
@@ -74,7 +115,11 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
 
         String msg = context.getMessage();
         if (msg == null || msg.isBlank()) return false;
-        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase();
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase(Locale.ROOT);
+
+        if (isLikelyPastedArticleOrNonCommand(norm, msg)) {
+            return false;
+        }
 
         // 1. Batch price inquiry signals (exclude low-stock threshold alerts which route to QUERY_FARM_STATUS)
         boolean isLowStockAlert = norm.contains("sap het") || norm.contains("sap can")
@@ -83,10 +128,8 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
                 && (norm.contains("ton kho") || norm.contains("trong kho") || norm.contains("kiem tra ton"))
                 && (norm.contains("gia") || norm.contains("dot") || norm.contains("chi tiet") || norm.contains("lo") || norm.contains("bao nhieu"));
 
-        // 2. Internal movement signals (only EXPORT & TRANSFER)
-        boolean isMovement = norm.contains("xuat huy") || norm.contains("chuyen kho")
-                || norm.contains("phieu xuat huy") || norm.contains("phieu chuyen kho")
-                || (norm.contains("chuyen") && norm.contains("kho") && norm.contains("sang"));
+        // 2. Internal movement signals (only EXPORT & TRANSFER with strict word boundaries)
+        boolean isMovement = isInternalStockMovementIntent(norm);
 
         return isBatchQuery || isMovement;
     }
@@ -99,10 +142,9 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         }
 
         String msg = context.getMessage();
-        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase();
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase(Locale.ROOT);
 
-        if (norm.contains("xuat huy") || norm.contains("chuyen kho")
-                || (norm.contains("chuyen") && norm.contains("kho") && norm.contains("sang"))) {
+        if (isInternalStockMovementIntent(norm)) {
             return handleInternalMovement(context);
         } else {
             return handleBatchPriceInquiry(context);
@@ -263,11 +305,13 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
     // ─────────────────────────────────────────────────────────────
     private AiAssistantResponse handleInternalMovement(AssistantExecutionContext context) {
         String msg = context.getMessage();
-        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase();
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase(Locale.ROOT);
+        String scrubbed = EXCLUDED_HUY_COMPOUNDS.matcher(norm).replaceAll(" ");
 
         String movementType;
         String categoryName;
-        if (norm.contains("xuat huy") || norm.contains("tieu huy") || Pattern.compile("\\bhuy\\b").matcher(norm).find()) {
+        if (WORD_BOUNDARY_HUY.matcher(scrubbed).find()
+                || scrubbed.matches(".*\\bhuy\\s+\\d+(?:[.,]\\d+)?\\s*(?:bao|kg|ki|ky|lo|chai|goi|thung|don\\s+vi)\\b.*")) {
             movementType = "EXPORT";
             categoryName = "Xuất hủy";
         } else {
@@ -280,16 +324,21 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
             return AiRbacPolicy.createForbiddenResponse();
         }
 
-        // Resolve Warehouses
+        // Resolve Warehouses & Product & Quantity — ask for Clarification if incomplete/ambiguous
+        List<ProductCategory> allProducts = productCategoryRepository.findAll();
+        Double parsedQtyBags = extractQuantityBagsOrNull(msg);
+        boolean hasSpecificProduct = mentionsSpecificProduct(norm, allProducts);
+
+        if (parsedQtyBags == null || parsedQtyBags <= 0 || !hasSpecificProduct) {
+            return buildInternalMovementClarification(movementType, categoryName);
+        }
+
+        double qtyBags = parsedQtyBags;
         WarehouseCategory sourceWh = resolveWarehouse(msg, "Kho cám", true);
         WarehouseCategory targetWh = resolveWarehouse(msg, "Kho Khu B", false);
 
-        // Resolve Product & Quantity
-        String productName = extractFeedName(msg, "Higro 01");
-        double qtyBags = extractQuantityBags(msg);
-        if (qtyBags <= 0) qtyBags = 2.0;
-
-        ProductCategory product = resolveProductCategory(productName);
+        String productName = extractFeedName(msg, "Cám Higro 01");
+        ProductCategory product = resolveProductCategory(productName, allProducts);
         InventoryItem sourceItem = findSourceInventoryItem(sourceWh, product);
         if (sourceItem != null) {
             sourceWh = sourceItem.getWarehouse();
@@ -323,16 +372,21 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         String batchCode = sourceItem != null ? formatBatchCode(sourceItem) : "#" + LocalDateTime.now(CycleService.VN_ZONE).format(BATCH_CODE_FORMATTER);
         double stockBefore = sourceItem != null && sourceItem.getStock() != null ? sourceItem.getStock().doubleValue() : 50.0;
         double stockAfter = Math.max(0.0, stockBefore - qtyBags);
+        String qtyDisplay = formatQty(BigDecimal.valueOf(qtyBags));
+        String stockAfterDisplay = formatQty(BigDecimal.valueOf(stockAfter));
+        String unitLabel = (sourceItem != null && sourceItem.getUnit() != null && sourceItem.getUnit().getName() != null && !sourceItem.getUnit().getName().isBlank())
+                ? (sourceItem.getUnit().getName().toLowerCase(Locale.ROOT).contains("bao") ? "bao" : sourceItem.getUnit().getName())
+                : "bao";
 
         Map<String, Object> details = new LinkedHashMap<>();
-        details.put("Loại phiếu", categoryName + " (" + movementType + ")");
+        details.put("Loại phiếu", categoryName);
         if ("TRANSFER".equals(movementType)) {
             details.put("Kho xuất → Kho nhập", (sourceWh != null ? sourceWh.getName() : "Kho cám") + " → " + (targetWh != null ? targetWh.getName() : "Kho Khu B"));
         } else {
             details.put("Kho xuất", sourceWh != null ? sourceWh.getName() : "Kho cám");
         }
-        details.put("Mặt hàng & Lô áp dụng", (product != null ? product.getName() : productName) + " `" + batchCode + "` (" + qtyBags + " bao)");
-        details.put("Tồn kho sau thao tác", stockAfter + " bao (Giảm " + qtyBags + " bao)");
+        details.put("Mặt hàng & Lô áp dụng", (product != null ? product.getName() : productName) + " " + batchCode + " (" + qtyDisplay + " " + unitLabel + ")");
+        details.put("Tồn kho sau thao tác", stockAfterDisplay + " " + unitLabel + " (Giảm " + qtyDisplay + " " + unitLabel + ")");
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("actionType", "INTERNAL_STOCK_VOUCHER");
@@ -346,7 +400,7 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         payload.put("productName", product != null ? product.getName() : productName);
 
         return AiAssistantResponse.builder()
-                .reply("Bạn có muốn tạo phiếu **" + categoryName + "** cho **" + qtyBags + " bao " + (product != null ? product.getName() : productName) + "** không?")
+                .reply("Bạn có muốn tạo phiếu **" + categoryName + "** cho **" + qtyDisplay + " bao " + (product != null ? product.getName() : productName) + "** không?")
                 .actionType("INTERNAL_STOCK_VOUCHER")
                 .executed(false)
                 .requiresConfirmation(true)
@@ -497,32 +551,152 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         if (norm.contains("higro 01") || norm.contains("cam so 1")) return "Cám Higro 01";
         if (norm.contains("higro 02") || norm.contains("cam so 2")) return "Cám Higro 02";
         if (norm.contains("cp 511") || norm.contains("511")) return "Cám Gà con CP 511";
+        List<ProductCategory> allProducts = productCategoryRepository.findAll();
+        for (ProductCategory p : allProducts) {
+            if (p.getName() == null || p.getName().isBlank()) continue;
+            String pNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(p.getName()).toLowerCase(Locale.ROOT);
+            if (!pNorm.isBlank() && norm.contains(pNorm)) {
+                return p.getName();
+            }
+        }
         return fallback;
     }
 
-    private double extractQuantityBags(String text) {
-        // Match "X bao"
-        Matcher bagMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*bao").matcher(text);
-        if (bagMatcher.find()) {
+    private Double extractQuantityBagsOrNull(String text) {
+        if (text == null || text.isBlank()) return null;
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(text).toLowerCase(Locale.ROOT);
+        // Match "X bao / lo / chai / goi / thung"
+        Matcher unitMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:bao|lo|chai|goi|thung|don\\s+vi)\\b").matcher(norm);
+        if (unitMatcher.find()) {
             try {
-                return Double.parseDouble(bagMatcher.group(1).replace(",", "."));
+                return Double.parseDouble(unitMatcher.group(1).replace(",", "."));
             } catch (Exception ignored) {}
         }
-        // Match "Y kg" (where speech normalizer converted "N bao" to "N*25 kg")
-        Matcher kgMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:kg|cân)").matcher(text);
+        // Match "Y kg / ki / ky / can" (1 bao = 25kg)
+        Matcher kgMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:kg|ki|ky|can|kilogram)\\b").matcher(norm);
         if (kgMatcher.find()) {
             try {
                 double kg = Double.parseDouble(kgMatcher.group(1).replace(",", "."));
-                return kg / 25.0; // 1 bao = 25kg
+                return kg / 25.0;
             } catch (Exception ignored) {}
         }
-        Matcher m = Pattern.compile("(\\d+(?:[.,]\\d+)?)").matcher(text);
-        if (m.find()) {
+        // Only allow unitless number when it immediately follows the movement verb
+        Matcher verbNumMatcher = Pattern.compile("(?:xuat\\s+huy|tieu\\s+huy|chuyen\\s+kho|dieu\\s+chuyen)\\s+(\\d+(?:[.,]\\d+)?)\\b").matcher(norm);
+        if (verbNumMatcher.find()) {
             try {
-                return Double.parseDouble(m.group(1).replace(",", "."));
+                return Double.parseDouble(verbNumMatcher.group(1).replace(",", "."));
             } catch (Exception ignored) {}
         }
-        return 0.0;
+        return null;
+    }
+
+    private boolean mentionsSpecificProduct(String norm, List<ProductCategory> allProducts) {
+        if (norm == null || norm.isBlank()) return false;
+        for (String kw : KNOWN_PRODUCT_KEYWORDS) {
+            if (norm.contains(kw)) {
+                return true;
+            }
+        }
+        if (allProducts != null) {
+            for (ProductCategory p : allProducts) {
+                if (p.getName() == null || p.getName().isBlank()) continue;
+                String pNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(p.getName()).toLowerCase(Locale.ROOT).trim();
+                if (norm.contains(pNorm)) {
+                    return true;
+                }
+                for (String token : pNorm.split("\\s+")) {
+                    if (token.length() >= 3 && !Set.of("cam", "thuoc", "giong", "giai", "doan", "loai", "cho").contains(token)
+                            && norm.contains(token)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private AiAssistantResponse buildInternalMovementClarification(String movementType, String categoryName) {
+        List<InventoryItem> activeStock = inventoryRepository.findAll().stream()
+                .filter(i -> i.getStock() != null && i.getStock().signum() > 0 && i.getProduct() != null)
+                .toList();
+        List<WarehouseCategory> warehouses = warehouseRepository.findAll();
+
+        List<Map<String, Object>> options = new ArrayList<>();
+        if ("EXPORT".equals(movementType)) {
+            Set<String> seenProducts = new LinkedHashSet<>();
+            for (InventoryItem item : activeStock) {
+                String pName = item.getProduct().getName();
+                if (!seenProducts.add(pName)) continue;
+                String unitName = item.getUnit() != null ? item.getUnit().getName() : "bao";
+                String whName = item.getWarehouse() != null ? item.getWarehouse().getName() : "Kho hiện tại";
+                Map<String, Object> opt = new LinkedHashMap<>();
+                opt.put("badge", "Xuất hủy");
+                opt.put("label", "📦 Xuất hủy ... bao/đơn vị " + pName);
+                opt.put("description", "Đang tồn " + formatQty(item.getStock()) + " " + unitName + " tại " + whName);
+                opt.put("prompt", "Xuất hủy ... bao " + pName);
+                opt.put("autoSend", false);
+                options.add(opt);
+                if (options.size() >= 3) break;
+            }
+            if (options.isEmpty()) {
+                Map<String, Object> fallbackOpt = new LinkedHashMap<>();
+                fallbackOpt.put("badge", "Xuất hủy");
+                fallbackOpt.put("label", "📦 Tạo phiếu Xuất hủy (điền số lượng & tên vật tư)");
+                fallbackOpt.put("description", "Điền số bao và mặt hàng cần xuất hủy để AI lập thẻ xác nhận");
+                fallbackOpt.put("prompt", "Xuất hủy ... bao cám Higro 01");
+                fallbackOpt.put("autoSend", false);
+                options.add(fallbackOpt);
+            }
+        } else {
+            String sourceName = warehouses.size() >= 1 ? warehouses.get(0).getName() : "Kho Cám";
+            String targetName = warehouses.size() >= 2 ? warehouses.get(1).getName() : "Kho Khu B";
+            Set<String> seenProducts = new LinkedHashSet<>();
+            for (InventoryItem item : activeStock) {
+                String pName = item.getProduct().getName();
+                if (!seenProducts.add(pName)) continue;
+                String srcWh = item.getWarehouse() != null ? item.getWarehouse().getName() : sourceName;
+                String dstWh = warehouses.stream()
+                        .filter(w -> w.getName() != null && !w.getName().equalsIgnoreCase(srcWh))
+                        .map(WarehouseCategory::getName)
+                        .findFirst()
+                        .orElse(targetName);
+                String unitName = item.getUnit() != null ? item.getUnit().getName() : "bao";
+                Map<String, Object> opt = new LinkedHashMap<>();
+                opt.put("badge", "Chuyển kho");
+                opt.put("label", "🔄 Chuyển ... bao " + pName + " (" + srcWh + " → " + dstWh + ")");
+                opt.put("description", "Đang tồn " + formatQty(item.getStock()) + " " + unitName + " tại " + srcWh);
+                opt.put("prompt", "Chuyển ... bao " + pName + " từ " + srcWh + " sang " + dstWh);
+                opt.put("autoSend", false);
+                options.add(opt);
+                if (options.size() >= 3) break;
+            }
+            if (options.isEmpty()) {
+                Map<String, Object> fallbackOpt = new LinkedHashMap<>();
+                fallbackOpt.put("badge", "Chuyển kho");
+                fallbackOpt.put("label", "🔄 Tạo phiếu Chuyển kho (điền số lượng & tên vật tư)");
+                fallbackOpt.put("description", "Từ " + sourceName + " sang " + targetName);
+                fallbackOpt.put("prompt", "Chuyển ... bao cám Higro 02 từ " + sourceName + " sang " + targetName);
+                fallbackOpt.put("autoSend", false);
+                options.add(fallbackOpt);
+            }
+        }
+
+        Map<String, Object> inspectOpt = new LinkedHashMap<>();
+        inspectOpt.put("badge", "Xem tồn kho");
+        inspectOpt.put("label", "📊 Xem chi tiết tồn kho & từng lô hàng trước");
+        inspectOpt.put("description", "Kiểm tra số lượng tồn trước khi lập phiếu");
+        inspectOpt.put("prompt", "Kiểm tra tồn kho và chi tiết từng lô");
+        inspectOpt.put("autoSend", true);
+        options.add(inspectOpt);
+
+        return AiAssistantResponse.builder()
+                .reply("🤔 Bạn muốn lập phiếu **" + categoryName + "** nhưng câu lệnh chưa nêu rõ **mặt hàng hoặc số lượng cụ thể**.\n"
+                        + "Để tránh tạo nhầm phiếu kho, vui lòng chọn đúng mặt hàng bên dưới hoặc gõ rõ số lượng:")
+                .actionType("CLARIFICATION_REQUIRED")
+                .executed(false)
+                .requiresConfirmation(false)
+                .clarificationOptions(options)
+                .build();
     }
 
     private WarehouseCategory resolveWarehouse(String text, String defaultName, boolean isSource) {
@@ -570,9 +744,8 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         return isSource ? list.get(0) : (list.size() > 1 ? list.get(1) : list.get(0));
     }
 
-    private ProductCategory resolveProductCategory(String name) {
+    private ProductCategory resolveProductCategory(String name, List<ProductCategory> all) {
         String normTarget = VietnameseSpeechNormalizer.removeVietnameseDiacritics(name).toLowerCase(Locale.ROOT);
-        List<ProductCategory> all = productCategoryRepository.findAll();
         for (ProductCategory p : all) {
             String pNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(p.getName()).toLowerCase(Locale.ROOT);
             if (p.getName().equalsIgnoreCase(name) || normTarget.contains(pNorm) || pNorm.contains(normTarget)) {

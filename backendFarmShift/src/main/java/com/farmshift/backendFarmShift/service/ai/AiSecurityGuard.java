@@ -19,6 +19,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -41,6 +42,8 @@ public class AiSecurityGuard {
     public static final int MAX_PROMPT_LENGTH = 1000;
     public static final long ACTION_TOKEN_TTL_MS = 5L * 60L * 1000L;
     public static final int MAX_PENDING_ACTIONS = 1000;
+    public static final String OUT_OF_SCOPE_HUMAN_MEDICAL_REPLY =
+            "Tôi là Trợ lý AI chuyên về quản lý trang trại và thú y gia cầm FarmShift nên không thể tư vấn thuốc hay điều trị bệnh cho người. Bạn vui lòng liên hệ bác sĩ hoặc nhà thuốc để được hỗ trợ an toàn nhé.";
 
     private static final Set<String> TOKEN_META_KEYS = Set.of("actionId", "actionToken", "expiresAt");
     private static final Pattern SENSITIVE_CTX_KEY = Pattern.compile(
@@ -97,6 +100,93 @@ public class AiSecurityGuard {
 
     private static final Pattern CODE_INJECTION_PATTERN = Pattern.compile(
             "(?i)(?:\\b(?:drop\\s+table|truncate\\s+table|delete\\s+from|union\\s+select)\\b|<\\s*script\\b)"
+    );
+
+    private static final Pattern SOCIAL_ENGINEERING_PII_PATTERN = Pattern.compile(
+            "(?i)(?:"
+                    + "\\bquen\\s+(?:account|tai\\s+khoan|mat\\s+khau|nick)\\b"
+                    + "|\\b(?:dua|cho|gui|xem|lay|in\\s+ra)\\b.{0,35}\\bthong\\s+tin\\s+(?:tai\\s+khoan|account|ca\\s+nhan|ten\\s+tuoi)\\b"
+                    + "|\\btai\\s+khoan\\s+cua\\s+nguoi\\s+(?:khac|co\\s+so\\s+tien|giau|nhieu\\s+tien)\\b"
+                    + "|\\bthong\\s+tin\\s+(?:ten\\s+tuoi|ca\\s+nhan|mat\\s+khau)\\b.{0,40}\\b(?:tai\\s+khoan|account|nguoi|user|nhan\\s+vien)\\b"
+                    + "|\\btai\\s+khoan\\s+(?:hien\\s+tai\\s+)?cua\\s+(?:toi|minh)\\s+(?:hien\\s+)?con\\s+bao\\s+(?:nhieu\\s+)?tien\\b"
+                    + "|\\b(?:xoay\\s+tien|khan\\s+cap|tinh\\s+mang)\\b.{0,80}\\b(?:tai\\s+khoan|account|ten\\s+tuoi|so\\s+tien)\\b"
+                    + "|\\b(?:danh\\s+sach|toan\\s+bo)\\s+(?:tai\\s+khoan|account|mat\\s+khau|nguoi\\s+dung)\\b"
+                    + ")"
+    );
+
+    private static final Pattern POULTRY_LIVESTOCK_RAW_PATTERN = Pattern.compile(
+            "(?iu)(?<![\\p{L}])(?:gà|đàn\\s+gà|con\\s+gà|vịt|ngan|ngỗng|gia\\s+cầm|vật\\s+nuôi|chăn\\s+nuôi|thú\\s+y|gumboro|newcastle|coryza|cầu\\s+trùng|hen\\s+gà|crd)(?![\\p{L}])"
+    );
+
+    private static final Pattern POULTRY_LIVESTOCK_NORM_PATTERN = Pattern.compile(
+            "(?i)(?:"
+                    + "\\b(?:gia\\s+cam|vat\\s+nuoi|chan\\s+nuoi|thu\\s+y)\\b"
+                    + "|\\b(?:ga|vit|ngan|ngong)\\s+(?:bi|con|thit|de|trong|mai|choai|ta|ho|sot|u\\s+ru|bo\\s+an|kho\\s+khe|chet|om|di\\s+ngoai|tieu\\s+chay|uong\\s+thuoc)\\b"
+                    + "|\\b(?:dan|chuong|nha|benh|cam|thuoc\\s+cho)\\s+(?:ga|vit|gia\\s+cam|vat\\s+nuoi)\\b"
+                    + "|\\b(?:gumboro|newcastle|coryza|cau\\s+trung|hen\\s+ga|crd)\\b"
+                    + ")"
+    );
+
+    private static final Pattern POULTRY_ANIMAL_SUBJECT_RAW = Pattern.compile(
+            "(?iu)(?<![\\p{L}])(?:gà|đàn\\s+gà|con\\s+gà|vịt|ngan|ngỗng|gia\\s+cầm|vật\\s+nuôi)(?:\\s+(?:con|thịt|đẻ|trống|mái|choai|ta)){0,2}(?:(?:\\s+(?:nhà|chuồng|khu|lô|đàn|bên|trại|của)){0,2}(?:\\s+(?:tôi|mình|em|anh|chị|[a-d]\\d*|\\d+)){0,2})?\\s+(?:đang\\s+|hay\\s+)?(?:bị|mắc|sốt|ho|khò\\s+khè|ủ\\s+rũ|bỏ\\s+ăn|tiêu\\s+chảy|chết|uống\\s+thuốc)"
+    );
+
+    private static final Pattern POULTRY_ANIMAL_SUBJECT_NORM = Pattern.compile(
+            "(?i)\\b(?:ga|dan\\s+ga|con\\s+ga|vit|ngan|ngong|gia\\s+cam|vat\\s+nuoi)(?:\\s+(?:con|thit|de|trong|mai|choai|ta)){0,2}(?:(?:\\s+(?:nha|chuong|khu|lo|dan|ben|trai|cua)){0,2}(?:\\s+(?:toi|minh|em|anh|chi|[a-d]\\d*|\\d+)){0,2})?\\s+(?:dang\\s+|hay\\s+)?(?:bi|mac|sot|ho|kho\\s+khe|u\\s+ru|bo\\s+an|tieu\\s+chay|chet|uong\\s+thuoc)\\b"
+    );
+
+    private static final Pattern FARM_INVENTORY_CONTEXT_NORM = Pattern.compile(
+            "(?i)\\b(?:ton\\s+kho|trong\\s+kho|kiem\\s+tra\\s+ton|xuat\\s+huy|tieu\\s+huy|huy\\s+lo|chuyen\\s+kho|nhap\\s+kho|hoa\\s+don|don\\s+gia|gia\\s+nhap|nha\\s+cung\\s+cap)\\b"
+    );
+
+    private static final String HUMAN_SELF_SUBJECT_RAW =
+            "(?<!nhà )(?<!của )(?<!bên )(?<!trại )(?<!gà )(?<!vịt )(?<![\\p{L}])(?:tôi|mình|em|anh|chị|bản\\s+thân)|(?<![\\p{L}])(?:bố|mẹ|cha\\s+mẹ|ông\\s+bà|vợ|chồng|con\\s+(?:của\\s+)?(?:tôi|mình|em)|con\\s+(?:nhỏ|gái|trai)|cháu|bé|em\\s+bé|trẻ\\s+em|trẻ\\s+nhỏ|người\\s+lớn|người\\s+già|người\\s+bệnh|người\\s+nhà|bệnh\\s+nhân|công\\s+nhân|nhân\\s+viên|bà\\s+bầu|người)";
+
+    private static final String HUMAN_SELF_SUBJECT_NORM =
+            "(?<!nha )(?<!cua )(?<!ben )(?<!trai )(?<!ga )(?<!vit )\\b(?:toi|minh|em|anh|chi|ban\\s+than)|\\b(?:bo|me|cha\\s+me|ong\\s+ba|vo|chong|con\\s+(?:cua\\s+)?(?:toi|minh|em)|con\\s+(?:nho|gai|trai)|chau|be|em\\s+be|tre\\s+em|tre\\s+nho|nguoi\\s+lon|nguoi\\s+gia|nguoi\\s+benh|nguoi\\s+nha|benh\\s+nhan|cong\\s+nhan|nhan\\s+vien|ba\\s+bau|nguoi)";
+
+    private static final String HUMAN_ILLNESS_SYMPTOMS_RAW =
+            "(?:sốt(?:\\s+cao|\\s+xuất\\s+huyết|\\s+virus)?|cảm(?:\\s+cúm|\\s+lạnh|\\s+nắng)?|cúm|ho(?:\\s+khan|\\s+có\\s+đờm)?|viêm\\s+họng|viêm\\s+xoang|viêm\\s+amidan|viêm\\s+phế\\s+quản|đau\\s+đầu|nhức\\s+đầu|đau\\s+bụng|đau\\s+dạ\\s+dày|đau\\s+răng|đau\\s+họng|đau\\s+mắt|đau\\s+nhức|đau\\s+lưng|đau\\s+khớp|đau\\s+vai\\s+gáy|chóng\\s+mặt|buồn\\s+nôn|tiêu\\s+chảy|dị\\s+ứng|nổi\\s+mề\\s+đay|sổ\\s+mũi|ngạt\\s+mũi|mất\\s+ngủ|trúng\\s+gió|ốm)";
+
+    private static final String HUMAN_ILLNESS_SYMPTOMS_NORM =
+            "(?:sot(?:\\s+cao|\\s+xuat\\s+huyet|\\s+virus)?|cam(?:\\s+cum|\\s+lanh|\\s+nang)?|cum|ho(?:\\s+khan|\\s+co\\s+dom)?|viem\\s+hong|viem\\s+xoang|viem\\s+amidan|viem\\s+phe\\s+quan|dau\\s+dau|nhuc\\s+dau|dau\\s+bung|dau\\s+da\\s+day|dau\\s+rang|dau\\s+hong|dau\\s+mat|dau\\s+nhuc|dau\\s+lung|dau\\s+khop|dau\\s+vai\\s+gay|chong\\s+mat|buon\\s+non|tieu\\s+chay|di\\s+ung|noi\\s+me\\s+day|so\\s+mui|ngat\\s+mui|mat\\s+ngu|trung\\s+gio|om)";
+
+    private static final Pattern EXPLICIT_HUMAN_PATIENT_RAW = Pattern.compile(
+            "(?iu)(?:"
+                    + "(?:" + HUMAN_SELF_SUBJECT_RAW + ")\\s+(?:đang\\s+|hay\\s+|cũng\\s+|lại\\s+)?(?:bị|mắc|nhiễm)\\s+" + HUMAN_ILLNESS_SYMPTOMS_RAW + "(?![\\p{L}])"
+                    + "|(?:" + HUMAN_SELF_SUBJECT_RAW + ")\\s+(?:đau\\s+đầu|nhức\\s+đầu|đau\\s+bụng|đau\\s+dạ\\s+dày|đau\\s+răng|đau\\s+họng|đau\\s+mắt|sốt\\s+cao|hạ\\s+sốt|sổ\\s+mũi|ngạt\\s+mũi|nổi\\s+mề\\s+đay|ho\\s+khan)(?![\\p{L}])"
+                    + "|(?<![\\p{L}])(?:thuốc|kháng\\s+sinh|liều\\s+dùng|hạ\\s+sốt|giảm\\s+đau|chữa\\s+bệnh|điều\\s+trị|tư\\s+vấn\\s+(?:y\\s+tế|sức\\s+khỏe|bệnh)).{0,40}(?:cho\\s+người|người\\s+lớn|người\\s+già|trẻ\\s+em|trẻ\\s+nhỏ|em\\s+bé|cho\\s+bé|bà\\s+bầu|phụ\\s+nữ\\s+mang\\s+thai)(?![\\p{L}])"
+                    + "|(?<![\\p{L}])(?:nhiệt\\s+độ\\s+(?:cơ\\s+thể|người|trẻ|bé)|thân\\s+nhiệt).{0,45}(?:uống\\s+thuốc|thuốc\\s+gì|thuốc\\s+nào|hạ\\s+sốt|uống\\s+gì)(?![\\p{L}])"
+                    + ")"
+    );
+
+    private static final Pattern EXPLICIT_HUMAN_PATIENT_NORM = Pattern.compile(
+            "(?i)(?:"
+                    + "(?:" + HUMAN_SELF_SUBJECT_NORM + ")\\s+(?:dang\\s+|hay\\s+|cung\\s+|lai\\s+)?(?:bi|mac|nhiem)\\s+" + HUMAN_ILLNESS_SYMPTOMS_NORM + "\\b"
+                    + "|(?:" + HUMAN_SELF_SUBJECT_NORM + ")\\s+(?:dau\\s+dau|nhuc\\s+dau|dau\\s+bung|dau\\s+da\\s+day|dau\\s+rang|dau\\s+hong|dau\\s+mat|sot\\s+cao|ha\\s+sot|so\\s+mui|ngat\\s+mui|noi\\s+me\\s+day|ho\\s+khan)\\b"
+                    + "|\\b(?:thuoc|khang\\s+sinh|lieu\\s+dung|ha\\s+sot|giam\\s+dau|chua\\s+benh|dieu\\s+tri|tu\\s+van\\s+(?:y\\s+te|suc\\s+khoe|benh))\\b.{0,40}\\b(?:cho\\s+nguoi|nguoi\\s+lon|nguoi\\s+gia|tre\\s+em|tre\\s+nho|em\\s+be|cho\\s+be|ba\\s+bau|phu\\s+nu\\s+mang\\s+thai)\\b"
+                    + "|\\b(?:nhiet\\s+do\\s+(?:co\\s+the|nguoi|tre|be)|than\\s+nhiet)\\b.{0,45}\\b(?:uong\\s+thuoc|thuoc\\s+gi|thuoc\\s+nao|ha\\s+sot|uong\\s+gi)\\b"
+                    + ")"
+    );
+
+    private static final Pattern HUMAN_SYMPTOM_MEDICATION_RAW = Pattern.compile(
+            "(?iu)(?:"
+                    + "(?:bị\\s+sốt|hạ\\s+sốt|sốt\\s+cao|đau\\s+đầu|nhức\\s+đầu|đau\\s+bụng|đau\\s+răng|đau\\s+họng|đau\\s+mắt|viêm\\s+họng|viêm\\s+xoang|cảm\\s+cúm|cảm\\s+lạnh|bị\\s+cảm|sổ\\s+mũi|ngạt\\s+mũi|dị\\s+ứng|nổi\\s+mề\\s+đay|mất\\s+ngủ|đau\\s+dạ\\s+dày|ho\\s+khan|ho\\s+có\\s+đờm).{0,55}(?:uống\\s+thuốc|thuốc\\s+gì|thuốc\\s+nào|dùng\\s+thuốc|nhỏ\\s+thuốc|bôi\\s+thuốc|ngậm\\s+thuốc|kháng\\s+sinh|hạ\\s+sốt|giảm\\s+đau|trị|chữa|uống\\s+gì)"
+                    + "|(?:uống\\s+thuốc\\s+gì|uống\\s+thuốc\\s+nào|dùng\\s+thuốc\\s+gì|mua\\s+thuốc\\s+gì|thuốc\\s+gì|uống\\s+gì).{0,40}(?:bị\\s+sốt|hạ\\s+sốt|giảm\\s+đau|cảm\\s+cúm|hết\\s+sốt|đau\\s+đầu|đau\\s+bụng|đau\\s+dạ\\s+dày|viêm\\s+họng|đau\\s+họng|hết\\s+ho|dị\\s+ứng|mất\\s+ngủ)"
+                    + "|(?:thuốc\\s+hạ\\s+sốt|thuốc\\s+giảm\\s+đau|thuốc\\s+đau\\s+đầu|thuốc\\s+đau\\s+bụng|thuốc\\s+cảm\\s+cúm|thuốc\\s+viêm\\s+họng).{0,25}(?:nào|gì|tốt|an\\s+toàn|hiệu\\s+quả)"
+                    + ")"
+    );
+
+    private static final Pattern HUMAN_SYMPTOM_MEDICATION_NORM = Pattern.compile(
+            "(?i)(?:"
+                    + "\\b(?:bi\\s+sot|ha\\s+sot|sot\\s+cao|dau\\s+dau|nhuc\\s+dau|dau\\s+bung|dau\\s+rang|dau\\s+hong|dau\\s+mat|viem\\s+hong|viem\\s+xoang|cam\\s+cum|cam\\s+lanh|bi\\s+cam\\s+cum|so\\s+mui|ngat\\s+mui|di\\s+ung|noi\\s+me\\s+day|mat\\s+ngu|dau\\s+da\\s+day|ho\\s+khan|ho\\s+co\\s+dom)\\b.{0,55}\\b(?:uong\\s+thuoc|thuoc\\s+gi|thuoc\\s+nao|dung\\s+thuoc|nho\\s+thuoc|boi\\s+thuoc|ngam\\s+thuoc|khang\\s+sinh|ha\\s+sot|giam\\s+dau|tri|chua|uong\\s+gi)\\b"
+                    + "|\\b(?:uong\\s+thuoc\\s+gi|uong\\s+thuoc\\s+nao|dung\\s+thuoc\\s+gi|mua\\s+thuoc\\s+gi|thuoc\\s+gi|uong\\s+gi)\\b.{0,40}\\b(?:bi\\s+sot|ha\\s+sot|giam\\s+dau|cam\\s+cum|het\\s+sot|dau\\s+dau|dau\\s+bung|dau\\s+da\\s+day|viem\\s+hong|dau\\s+hong|het\\s+ho|di\\s+ung|mat\\s+ngu)\\b"
+                    + "|\\b(?:thuoc\\s+ha\\s+sot|thuoc\\s+giam\\s+dau|thuoc\\s+dau\\s+dau|thuoc\\s+dau\\s+bung|thuoc\\s+cam\\s+cum|thuoc\\s+viem\\s+hong)\\b.{0,25}\\b(?:nao|gi|tot|an\\s+toan|hieu\\s+qua)\\b"
+                    + ")"
+    );
+
+    private static final Pattern HUMAN_DRUG_MENTION_NORM = Pattern.compile(
+            "(?i)\\b(?:paracetamol|acetaminophen|ibuprofen|panadol|efferalgan|hapacol|tylenol|aspirin|naproxen|diclofenac|omeprazol|smecta|berberin|loratadine|cetirizine|augmentin|azithromycin)\\b"
     );
 
     private static final Pattern WORKER_CURRENCY_LEAK = Pattern.compile(
@@ -226,7 +316,105 @@ public class AiSecurityGuard {
                     .build();
         }
 
+        if (SOCIAL_ENGINEERING_PII_PATTERN.matcher(norm).find()) {
+            log.warn("AI Social Engineering / Account PII Extraction blocked! user={} isWorker={}", username, isWorker);
+            return AiAssistantResponse.builder()
+                    .reply("⛔ Yêu cầu truy xuất thông tin định danh tài khoản, mật khẩu, dữ liệu cá nhân (tên tuổi) hoặc số dư cá nhân không được phép theo chính sách bảo mật Zero-Trust của FarmShift.\n\n"
+                            + "Trợ lý AI chỉ hỗ trợ nghiệp vụ vận hành trang trại (nhật ký nuôi, kho hàng, báo cáo trại) trong đúng phạm vi phân quyền tài khoản đang đăng nhập.")
+                    .actionType("SECURITY_BLOCKED")
+                    .executed(false)
+                    .build();
+        }
+
         return null;
+    }
+
+    /**
+     * Domain Scope Guardrail (Layer 2 after AiSecurityGuard input firewall):
+     * Rejects human medical / personal drug prescription queries with OUT_OF_SCOPE_HUMAN_MEDICAL,
+     * while preserving poultry & livestock veterinary queries and farm inventory queries.
+     */
+    public AiAssistantResponse inspectDomainScope(String rawMessage, String username) {
+        AiAssistantResponse blocked = inspectHumanMedicalScope(rawMessage);
+        if (blocked != null) {
+            log.info("AI domain scope guardrail refused human medical query from user={}", username);
+        }
+        return blocked;
+    }
+
+    public static AiAssistantResponse inspectHumanMedicalScope(String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) {
+            return null;
+        }
+        String rawLower = Normalizer.normalize(rawMessage, Normalizer.Form.NFC)
+                .toLowerCase(Locale.forLanguageTag("vi-VN"))
+                .replaceAll("\\s+", " ")
+                .trim();
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(rawMessage)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        boolean hasPoultryAnimalSubject = POULTRY_ANIMAL_SUBJECT_RAW.matcher(rawLower).find()
+                || POULTRY_ANIMAL_SUBJECT_NORM.matcher(norm).find();
+        boolean hasExplicitHumanPatient = EXPLICIT_HUMAN_PATIENT_RAW.matcher(rawLower).find()
+                || EXPLICIT_HUMAN_PATIENT_NORM.matcher(norm).find();
+
+        if (hasExplicitHumanPatient && !hasPoultryAnimalSubject) {
+            return buildHumanMedicalRefusal();
+        }
+
+        boolean hasPoultryOrFarmEntity = POULTRY_LIVESTOCK_RAW_PATTERN.matcher(rawLower).find()
+                || POULTRY_LIVESTOCK_NORM_PATTERN.matcher(norm).find();
+        boolean hasInventoryOp = FARM_INVENTORY_CONTEXT_NORM.matcher(norm).find();
+
+        if (!hasPoultryOrFarmEntity && !hasInventoryOp) {
+            boolean hasHumanSymptomMed = HUMAN_SYMPTOM_MEDICATION_RAW.matcher(rawLower).find()
+                    || HUMAN_SYMPTOM_MEDICATION_NORM.matcher(norm).find();
+            boolean hasHumanDrugMention = HUMAN_DRUG_MENTION_NORM.matcher(norm).find();
+            if (hasHumanSymptomMed || hasHumanDrugMention) {
+                return buildHumanMedicalRefusal();
+            }
+        }
+
+        return null;
+    }
+
+    public static boolean isHumanDrugLeakFromLlm(String rawMessage, String llmReply) {
+        if (llmReply == null || llmReply.isBlank()) {
+            return false;
+        }
+        String replyNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(llmReply)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (!HUMAN_DRUG_MENTION_NORM.matcher(replyNorm).find()) {
+            return false;
+        }
+        if (rawMessage == null || rawMessage.isBlank()) {
+            return true;
+        }
+        String rawLower = Normalizer.normalize(rawMessage, Normalizer.Form.NFC)
+                .toLowerCase(Locale.forLanguageTag("vi-VN"))
+                .replaceAll("\\s+", " ")
+                .trim();
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(rawMessage)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
+                .trim();
+        boolean hasPoultryOrFarmEntity = POULTRY_LIVESTOCK_RAW_PATTERN.matcher(rawLower).find()
+                || POULTRY_LIVESTOCK_NORM_PATTERN.matcher(norm).find();
+        boolean hasInventoryOp = FARM_INVENTORY_CONTEXT_NORM.matcher(norm).find();
+        return !hasPoultryOrFarmEntity && !hasInventoryOp;
+    }
+
+    public static AiAssistantResponse buildHumanMedicalRefusal() {
+        return AiAssistantResponse.builder()
+                .reply(OUT_OF_SCOPE_HUMAN_MEDICAL_REPLY)
+                .actionType("OUT_OF_SCOPE_HUMAN_MEDICAL")
+                .executed(false)
+                .requiresConfirmation(false)
+                .build();
     }
 
     public String wrapUserQuery(String message) {
