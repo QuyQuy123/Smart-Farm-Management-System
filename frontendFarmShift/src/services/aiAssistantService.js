@@ -100,7 +100,7 @@ export const getAiSuggestions = async (route = window.location.pathname, options
 export const sendAssistantMessage = async ({
   message,
   currentRoute = window.location.pathname,
-  autoExecute = true,
+  autoExecute = false,
   history,
   confirmAction,
   pendingActionPayload,

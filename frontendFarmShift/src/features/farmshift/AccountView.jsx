@@ -185,28 +185,32 @@ export const validateAllPassword = (formData) => {
 export const AccountView = () => {
   const { user, updateUser } = useAuth();
   const { showToast } = useNotification();
+  const canManageStaff = !user?.role || user.role === 'ROLE_FARM_OWNER';
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const activeTab = ['staff', 'profile', 'security'].includes(requestedTab)
+  const allowedTabs = canManageStaff ? ['staff', 'profile', 'security'] : ['profile', 'security'];
+  const defaultTab = canManageStaff ? 'staff' : 'profile';
+  const activeTab = allowedTabs.includes(requestedTab)
     ? requestedTab
-    : 'staff';
+    : defaultTab;
   const setActiveTab = (tab) => {
+    if (!allowedTabs.includes(tab)) return;
     setSearchParams((params) => {
       const next = new URLSearchParams(params);
-      if (tab === 'staff') next.delete('tab');
+      if (tab === defaultTab) next.delete('tab');
       else next.set('tab', tab);
       return next;
     });
   };
 
   // Staff List State
-  const cachedStaff = dataCache.peek('/employees');
+  const cachedStaff = canManageStaff ? dataCache.peek('/employees') : null;
   const [staffList, setStaffList] = useState(() => {
     if (Array.isArray(cachedStaff)) return cachedStaff;
     if (Array.isArray(cachedStaff?.data)) return cachedStaff.data;
     return [];
   });
-  const [isLoadingStaff, setIsLoadingStaff] = useState(() => !cachedStaff);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(() => canManageStaff && !cachedStaff);
   const [staffRevision, setStaffRevision] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
@@ -357,6 +361,7 @@ export const AccountView = () => {
   };
 
   useEffect(() => {
+    if (!canManageStaff) return undefined;
     let isMounted = true;
     const controller = new AbortController();
     if (!dataCache.peek('/employees') || debouncedSearch || filterRole !== 'ALL' || filterStatus !== 'ALL') {
@@ -387,9 +392,9 @@ export const AccountView = () => {
       isMounted = false;
       controller.abort();
     };
-  }, [debouncedSearch, filterRole, filterStatus, staffRevision]);
+  }, [canManageStaff, debouncedSearch, filterRole, filterStatus, staffRevision]);
 
-  useRealtimeRefresh(['/employees', '/users', '/accounts'], () => setStaffRevision(r => r + 1));
+  useRealtimeRefresh(['/employees', '/users', '/accounts'], () => setStaffRevision(r => r + 1), { enabled: canManageStaff });
 
   // ── 1. Create Employee ──────────────────────────────────────────────────────
   const handleOpenAddModal = () => {
@@ -864,10 +869,10 @@ export const AccountView = () => {
 
   return (
     <FarmShiftLayout
-      pageTitle="Tài khoản & Nhân sự"
-      breadcrumbs={[{ label: 'Tài khoản' }]}
+      pageTitle={canManageStaff ? 'Tài khoản & Nhân sự' : 'Hồ sơ cá nhân'}
+      breadcrumbs={[{ label: canManageStaff ? 'Tài khoản' : 'Hồ sơ cá nhân' }]}
       actions={
-        activeTab === 'staff' && (
+        canManageStaff && activeTab === 'staff' && (
           <button
             className="farmshift-btn farmshift-btn-primary"
             onClick={handleOpenAddModal}
@@ -880,13 +885,15 @@ export const AccountView = () => {
       }
     >
       <div className="farmshift-tabs">
-        <button
-          className={`farmshift-tab-btn ${activeTab === 'staff' ? 'active' : ''}`}
-          onClick={() => setActiveTab('staff')}
-        >
-          <Users size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-          Danh sách nhân sự ({staffList.length})
-        </button>
+        {canManageStaff && (
+          <button
+            className={`farmshift-tab-btn ${activeTab === 'staff' ? 'active' : ''}`}
+            onClick={() => setActiveTab('staff')}
+          >
+            <Users size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+            Danh sách nhân sự ({staffList.length})
+          </button>
+        )}
         <button
           className={`farmshift-tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
           onClick={() => setActiveTab('profile')}
@@ -904,7 +911,7 @@ export const AccountView = () => {
       </div>
 
       {/* ── TAB 1: DANH SÁCH NHÂN SỰ ────────────────────────────────────────── */}
-      {activeTab === 'staff' && (
+      {canManageStaff && activeTab === 'staff' && (
         <div className="farmshift-card">
 
           {/* Toolbar: Search keyword & Filters */}

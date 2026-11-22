@@ -161,7 +161,7 @@ describe('Farm settings persistence', () => {
     expect(screen.getByText('5. Thiết bị IoT & Camera chuồng')).toBeInTheDocument();
     expect(screen.getByText('6. Báo cáo & Phân tích (8 Tab)')).toBeInTheDocument();
     expect(screen.getByText('7. Trợ lý AI, Giọng nói & OCR')).toBeInTheDocument();
-    expect(screen.getByText(/AiRbacPolicy chặn 16 lệnh/i)).toBeInTheDocument();
+    expect(screen.getByText(/AiRbacPolicy chặn 32 lệnh/i)).toBeInTheDocument();
   });
 
   it('persists notification preferences via PUT /api/push/preferences and retains state across tab switches via dataCache', async () => {

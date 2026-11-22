@@ -116,7 +116,7 @@ export const AppRouter = () => {
         <Route path="/batches" element={<ProtectedRoute allowedRoles={FARM_ROLES}><BarnsView /></ProtectedRoute>} />
         <Route path="/tasks" element={<ProtectedRoute allowedRoles={FARM_ROLES}><JournalView /></ProtectedRoute>} />
         <Route path="/iot" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><IotView /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><AccountView /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute allowedRoles={ALL_ROLES}><AccountView /></ProtectedRoute>} />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />

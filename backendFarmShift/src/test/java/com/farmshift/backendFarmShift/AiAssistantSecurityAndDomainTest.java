@@ -69,6 +69,7 @@ class AiAssistantSecurityAndDomainTest {
 
     @Autowired WorkAssignmentService workAssignmentService;
     @Autowired BarnService barnService;
+    @Autowired AiAssistantService aiAssistantService;
     @Autowired AiSecurityGuard aiSecurityGuard;
     @Autowired DynamicVietnameseSpeechNormalizer dynamicNormalizer;
     @Autowired AiRateLimiter rateLimiter;
@@ -1540,6 +1541,88 @@ class AiAssistantSecurityAndDomainTest {
                 .andReturn().getResponse().getContentAsString();
         String w12Reply = mapper.readTree(w12Json).path("reply").asText();
         assertFalse(w12Reply.contains("3000"), "Must NOT leak unassigned barn capacity: " + w12Reply);
+    }
+
+    @Test
+    void testPostReviewSecurityAndIntegrityFixes() throws Exception {
+        // 1. Vietnamese thousands-separator currency parsing ("350.000 đồng" -> 350000, NOT 350)
+        ProductCategory feedProd = new ProductCategory();
+        feedProd.setName("Cám Higro 01 Test");
+        feedProd.setNameKey("cam higro 01 test");
+        feedProd.setWarehouse(areaAFeedWarehouse);
+        feedProd = productRepository.saveAndFlush(feedProd);
+
+        InventoryItem lot1 = new InventoryItem();
+        lot1.setWarehouse(areaAFeedWarehouse);
+        lot1.setProduct(feedProd);
+        lot1.setPrice(new BigDecimal("310000"));
+        lot1.setStock(new BigDecimal("10"));
+        lot1 = inventoryRepository.saveAndFlush(lot1);
+
+        InventoryItem lot2 = new InventoryItem();
+        lot2.setWarehouse(areaAFeedWarehouse);
+        lot2.setProduct(feedProd);
+        lot2.setPrice(new BigDecimal("320000"));
+        lot2.setStock(new BigDecimal("10"));
+        lot2 = inventoryRepository.saveAndFlush(lot2);
+
+        String priceCardJson = mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Sửa giá Cám Higro 01 Test thành 350.000 đồng",
+                        "autoExecute", false
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.actionType").value("UPDATE_INVENTORY_ITEM"))
+                .andExpect(jsonPath("$.pendingAction.payload.price").value(350000.0))
+                .andReturn().getResponse().getContentAsString();
+        assertNotNull(priceCardJson);
+
+        // 2. Multi-lot FIFO insufficient stock refuses deduction cleanly without partial lot loss
+        long feedCountBefore = feedRepository.count();
+        mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Cho Nhà A1 ăn 30 kg Cám Higro 01 Test",
+                        "autoExecute", true
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.actionType").value("STOCK_INSUFFICIENT"));
+
+        assertEquals(0, new BigDecimal("10").compareTo(inventoryRepository.findById(lot1.getId()).orElseThrow().getStock()));
+        assertEquals(0, new BigDecimal("10").compareTo(inventoryRepository.findById(lot2.getId()).orElseThrow().getStock()));
+        assertEquals(feedCountBefore, feedRepository.count());
+
+        // 3. When allowClientAutoExecute=false (production default), client autoExecute=true must STILL require HMAC confirmation
+        org.springframework.test.util.ReflectionTestUtils.setField(aiAssistantService, "allowClientAutoExecute", false);
+        try {
+            mvc.perform(post(ASSISTANT_API)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(Map.of(
+                            "message", "Cho Nhà A1 ăn 5 kg Cám Higro 01 Test",
+                            "autoExecute", true
+                    ))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.executed").value(false))
+                    .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                    .andExpect(jsonPath("$.pendingAction.actionToken").isNotEmpty());
+            assertEquals(feedCountBefore, feedRepository.count());
+        } finally {
+            org.springframework.test.util.ReflectionTestUtils.setField(aiAssistantService, "allowClientAutoExecute", true);
+        }
+
+        // 4. Worker & Accountant navigating "mở thông báo" reach /notifications instead of blocked /general-settings
+        RequestPostProcessor workerAuth = user("worker-a@farm.test")
+                .authorities(new SimpleGrantedAuthority(RoleNames.FARM_WORKER));
+        mvc.perform(post(ASSISTANT_API)
+                .with(workerAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Mở thông báo cá nhân"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(true))
+                .andExpect(jsonPath("$.navigateTo").value("/notifications"));
     }
 
     private ResultActions postJson(String url, Object body) throws Exception {

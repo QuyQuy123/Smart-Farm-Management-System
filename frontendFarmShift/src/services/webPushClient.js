@@ -26,7 +26,9 @@ function resolveActiveEmail() {
     if (token) {
       const parts = token.split('.');
       if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1]));
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+        const payload = JSON.parse(atob(padded));
         if (payload?.sub || payload?.email) return payload.sub || payload.email;
       }
     }

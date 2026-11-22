@@ -634,7 +634,7 @@ public class AiSecurityGuard {
 
         Map<Long, Integer> activeAgeByBarnId = new HashMap<>();
         if (cycleRepository != null) {
-            for (FarmingCycle c : cycleRepository.findAllByStatus(CycleStatus.ACTIVE)) {
+            for (FarmingCycle c : cycleRepository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE)) {
                 if (c.getBarn() != null && c.getBarn().getId() != null) {
                     LocalDate refDate = c.getHatchDate() != null ? c.getHatchDate() : c.getStartDate();
                     if (refDate != null) {

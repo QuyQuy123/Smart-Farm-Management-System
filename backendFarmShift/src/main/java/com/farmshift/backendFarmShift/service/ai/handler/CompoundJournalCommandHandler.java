@@ -158,17 +158,32 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
             return null;
         }
 
-        // Pre-flight stock validation (MSG27)
-        double availableStockKg = calculateTotalFeedStockKg(defaultFeedName);
-        if (availableStockKg >= 0 && totalRequestedKg > availableStockKg) {
-            String availableFormatted = String.format(Locale.ROOT, "%.1f kg", availableStockKg);
-            String requestedFormatted = String.format(Locale.ROOT, "%.1f kg", totalRequestedKg);
-            return AiAssistantResponse.builder()
-                    .reply("⚠️ Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm (Hiện có: "
-                            + availableFormatted + ", Yêu cầu: " + requestedFormatted + "). Vui lòng kiểm tra lại.")
-                    .actionType("STOCK_INSUFFICIENT")
-                    .executed(false)
-                    .build();
+        // Pre-flight stock validation (MSG27) per feed & warehouse scope
+        Map<String, Double> groupedRequestedKg = new LinkedHashMap<>();
+        Map<String, Barn> groupedSampleBarn = new LinkedHashMap<>();
+        Map<String, String> groupedFeedName = new LinkedHashMap<>();
+        for (BarnFeedClause fc : feedClauses) {
+            WarehouseCategory wh = resolveAreaFeedWarehouse(fc.barn);
+            String scopeKey = (wh != null ? "WH_" + wh.getId() : (fc.barn.getArea() != null ? "AREA_" + fc.barn.getArea().getId() : "GLOBAL"))
+                    + "::" + fc.feedName.toLowerCase(Locale.ROOT);
+            groupedRequestedKg.merge(scopeKey, fc.kg, Double::sum);
+            groupedSampleBarn.putIfAbsent(scopeKey, fc.barn);
+            groupedFeedName.putIfAbsent(scopeKey, fc.feedName);
+        }
+        for (Map.Entry<String, Double> entry : groupedRequestedKg.entrySet()) {
+            String scopeKey = entry.getKey();
+            double groupRequested = entry.getValue();
+            double availableStockKg = calculateTotalFeedStockKg(groupedSampleBarn.get(scopeKey), groupedFeedName.get(scopeKey));
+            if (availableStockKg >= 0 && groupRequested > availableStockKg) {
+                String availableFormatted = String.format(Locale.ROOT, "%.1f kg", availableStockKg);
+                String requestedFormatted = String.format(Locale.ROOT, "%.1f kg", groupRequested);
+                return AiAssistantResponse.builder()
+                        .reply("⚠️ Tồn kho khả dụng không đủ cho **" + groupedFeedName.get(scopeKey) + "**. Giao dịch này sẽ làm cho số dư tồn kho bị âm (Hiện có: "
+                                + availableFormatted + ", Yêu cầu: " + requestedFormatted + "). Vui lòng kiểm tra lại.")
+                        .actionType("STOCK_INSUFFICIENT")
+                        .executed(false)
+                        .build();
+            }
         }
 
         if (!context.isAutoExecute()) {
@@ -220,37 +235,50 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
 
     private AiAssistantResponse commitCompoundFeed(List<BarnFeedClause> feedClauses, String username) {
         List<Map<String, Object>> summaryList = new ArrayList<>();
-        StringBuilder replyBuilder = new StringBuilder("✅ Đã ghi nhận nhật ký cám thành công cho ")
-                .append(feedClauses.size()).append(" chuồng: ");
-        double totalRequestedKg = 0.0;
+        List<String> savedParts = new ArrayList<>();
+        List<String> skippedBarns = new ArrayList<>();
+        BigDecimal totalRequestedKg = BigDecimal.ZERO;
         LocalDate today = LocalDate.now(CycleService.VN_ZONE);
 
-        for (int i = 0; i < feedClauses.size(); i++) {
-            BarnFeedClause fc = feedClauses.get(i);
+        for (BarnFeedClause fc : feedClauses) {
             Barn barn = fc.barn;
             double kg = fc.kg;
             String feedName = fc.feedName;
-            totalRequestedKg += kg;
 
             FarmingCycle cycle = cycleRepository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE)
                     .orElse(null);
 
-            if (cycle != null) {
-                BigDecimal unitPricePerKg = deductInventoryStockAtomic(barn, feedName, kg);
-
-                FeedRecord record = new FeedRecord();
-                record.setCycle(cycle);
-                record.setRecordDate(today);
-                record.setFeedName(feedName);
-                record.setQuantityKg(BigDecimal.valueOf(kg));
-                record.setUnitPrice(unitPricePerKg);
-                record.setNote("Ghi hàng loạt qua Trợ lý Giọng nói FarmShift AI");
-                record.setCreatedBy(username != null ? username : "Trợ lý AI");
-                feedRepository.save(record);
+            if (cycle == null) {
+                skippedBarns.add(barn.getName());
+                continue;
             }
 
-            if (i > 0) replyBuilder.append(", ");
-            replyBuilder.append("**").append(barn.getName()).append("** (").append(String.format(Locale.ROOT, "%.1f kg", kg)).append(")");
+            BigDecimal unitPricePerKg;
+            try {
+                unitPricePerKg = deductInventoryStockAtomic(barn, feedName, kg);
+            } catch (BadRequestException ex) {
+                if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                    org.springframework.transaction.interceptor.TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                }
+                return AiAssistantResponse.builder()
+                        .reply("⚠️ " + ex.getMessage())
+                        .actionType("STOCK_INSUFFICIENT")
+                        .executed(false)
+                        .build();
+            }
+
+            FeedRecord record = new FeedRecord();
+            record.setCycle(cycle);
+            record.setRecordDate(today);
+            record.setFeedName(feedName);
+            record.setQuantityKg(BigDecimal.valueOf(kg).setScale(3, RoundingMode.HALF_UP));
+            record.setUnitPrice(unitPricePerKg);
+            record.setNote("Ghi hàng loạt qua Trợ lý Giọng nói FarmShift AI");
+            record.setCreatedBy(username != null ? username : "Trợ lý AI");
+            feedRepository.save(record);
+
+            totalRequestedKg = totalRequestedKg.add(BigDecimal.valueOf(kg));
+            savedParts.add("**" + barn.getName() + "** (" + String.format(Locale.ROOT, "%.1f kg", kg) + ")");
 
             Map<String, Object> itemSummary = new LinkedHashMap<>();
             itemSummary.put("barnName", barn.getName());
@@ -259,11 +287,21 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
             summaryList.add(itemSummary);
         }
 
-        replyBuilder.append(". Hệ số FCR và kho cám đã được cập nhật đồng bộ.");
+        if (summaryList.isEmpty()) {
+            return validationErrorResponse("⚠️ Không có chuồng nào trong yêu cầu đang có lứa nuôi hoạt động (`ACTIVE`) để ghi nhận cám.");
+        }
+
+        StringBuilder replyBuilder = new StringBuilder("✅ Đã ghi nhận nhật ký cám thành công cho ")
+                .append(summaryList.size()).append(" chuồng: ")
+                .append(String.join(", ", savedParts))
+                .append(". Hệ số FCR và kho cám đã được cập nhật đồng bộ.");
+        if (!skippedBarns.isEmpty()) {
+            replyBuilder.append(" *(Bỏ qua chuồng chưa có lứa ACTIVE: ").append(String.join(", ", skippedBarns)).append(")*");
+        }
 
         Map<String, Object> actionSummary = new LinkedHashMap<>();
-        actionSummary.put("title", "Đã ghi nhận cám hàng loạt (" + feedClauses.size() + " chuồng)");
-        actionSummary.put("totalKg", String.valueOf(totalRequestedKg));
+        actionSummary.put("title", "Đã ghi nhận cám hàng loạt (" + summaryList.size() + " chuồng)");
+        actionSummary.put("totalKg", totalRequestedKg.stripTrailingZeros().toPlainString());
         actionSummary.put("items", summaryList);
         actionSummary.put("timestamp", LocalDateTime.now(CycleService.VN_ZONE).toString());
 
@@ -304,6 +342,10 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
                 return validationErrorResponse("⚠️ Số lượng hao hụt phải lớn hơn 0 (không được bằng 0 hoặc số âm). Vui lòng kiểm tra lại.");
             }
             int qty = parsedQty;
+            if (qty > barn.getCurrentQuantity()) {
+                return validationErrorResponse("⚠️ Số lượng hao hụt (**" + qty + " con**) vượt quá số gà hiện nuôi tại **"
+                        + barn.getName() + "** (" + barn.getCurrentQuantity() + " con, MSG25).");
+            }
 
             lossClauses.add(new BarnLossClause(barn, qty));
             totalLoss += qty;
@@ -355,43 +397,47 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
     }
 
     private AiAssistantResponse commitCompoundLoss(List<BarnLossClause> lossClauses, String username) {
-        StringBuilder replyBuilder = new StringBuilder("✅ Đã ghi nhận hao hụt thành công: ");
+        List<String> savedParts = new ArrayList<>();
+        List<String> skippedBarns = new ArrayList<>();
         List<Map<String, Object>> summaryList = new ArrayList<>();
         int totalLoss = 0;
         LocalDate today = LocalDate.now(CycleService.VN_ZONE);
 
-        for (int i = 0; i < lossClauses.size(); i++) {
-            BarnLossClause lc = lossClauses.get(i);
+        for (BarnLossClause lc : lossClauses) {
             Barn barn = lc.barn;
             int qty = lc.qty;
-            totalLoss += qty;
+            if (qty > barn.getCurrentQuantity()) {
+                return validationErrorResponse("⚠️ Số lượng hao hụt (**" + qty + " con**) vượt quá số gà hiện nuôi tại **"
+                        + barn.getName() + "** (" + barn.getCurrentQuantity() + " con, MSG25).");
+            }
 
             FarmingCycle cycle = cycleRepository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE).orElse(null);
-            if (cycle != null) {
-                List<Flock> flocks = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId());
-                Flock flock = flocks.stream().filter(f -> f.getStatus() == FlockStatus.ACTIVE).findFirst().orElse(null);
+            Flock flock = cycle == null ? null : flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId())
+                    .stream().filter(f -> f.getStatus() == FlockStatus.ACTIVE).findFirst().orElse(null);
 
-                if (flock != null) {
-                    FlockMovement movement = new FlockMovement();
-                    movement.setFlock(flock);
-                    movement.setType(FlockMovementType.DEATH);
-                    movement.setMovementDate(today);
-                    movement.setQuantity(qty);
-                    movement.setNote("Hao hụt ghi nhận hàng loạt qua Trợ lý AI");
-                    movement.setCreatedBy(username != null ? username : "Trợ lý AI");
-                    movementRepository.save(movement);
-
-                    flock.setQuantity(Math.max(0, flock.getQuantity() - qty));
-                    if (flock.getQuantity() == 0) flock.setStatus(FlockStatus.ARCHIVED);
-                    flockRepository.save(flock);
-                }
+            if (cycle == null || flock == null) {
+                skippedBarns.add(barn.getName());
+                continue;
             }
+
+            FlockMovement movement = new FlockMovement();
+            movement.setFlock(flock);
+            movement.setType(FlockMovementType.DEATH);
+            movement.setMovementDate(today);
+            movement.setQuantity(qty);
+            movement.setNote("Hao hụt ghi nhận hàng loạt qua Trợ lý AI");
+            movement.setCreatedBy(username != null ? username : "Trợ lý AI");
+            movementRepository.save(movement);
+
+            flock.setQuantity(Math.max(0, flock.getQuantity() - qty));
+            if (flock.getQuantity() == 0) flock.setStatus(FlockStatus.ARCHIVED);
+            flockRepository.save(flock);
 
             barn.setCurrentQuantity(Math.max(0, barn.getCurrentQuantity() - qty));
             barnRepository.save(barn);
 
-            if (i > 0) replyBuilder.append(", ");
-            replyBuilder.append(barn.getName()).append(" (").append(qty).append(" con)");
+            totalLoss += qty;
+            savedParts.add(barn.getName() + " (" + qty + " con)");
 
             Map<String, Object> itemMap = new LinkedHashMap<>();
             itemMap.put("barnName", barn.getName());
@@ -399,7 +445,16 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
             summaryList.add(itemMap);
         }
 
-        replyBuilder.append(". Đàn gà đã được cập nhật số lượng sống.");
+        if (summaryList.isEmpty()) {
+            return validationErrorResponse("⚠️ Không có chuồng nào đang có đàn/lứa nuôi hoạt động (`ACTIVE`) để ghi nhận hao hụt.");
+        }
+
+        StringBuilder replyBuilder = new StringBuilder("✅ Đã ghi nhận hao hụt thành công: ")
+                .append(String.join(", ", savedParts))
+                .append(". Đàn gà đã được cập nhật số lượng sống.");
+        if (!skippedBarns.isEmpty()) {
+            replyBuilder.append(" *(Bỏ qua chuồng chưa có đàn ACTIVE: ").append(String.join(", ", skippedBarns)).append(")*");
+        }
 
         Map<String, Object> actionSummary = new LinkedHashMap<>();
         actionSummary.put("title", "Đã ghi nhận hao hụt hàng loạt (" + totalLoss + " con)");
@@ -490,26 +545,27 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
     }
 
     private AiAssistantResponse commitCompoundWeight(List<BarnWeightClause> weightClauses, String username) {
-        StringBuilder replyBuilder = new StringBuilder("✅ Đã ghi nhận cân mẫu trọng lượng cho: ");
+        List<String> savedParts = new ArrayList<>();
+        List<String> skippedBarns = new ArrayList<>();
         List<Map<String, Object>> summaryList = new ArrayList<>();
         LocalDate today = LocalDate.now(CycleService.VN_ZONE);
 
-        for (int i = 0; i < weightClauses.size(); i++) {
-            BarnWeightClause wc = weightClauses.get(i);
+        for (BarnWeightClause wc : weightClauses) {
             FarmingCycle cycle = cycleRepository.findFirstByBarnIdAndStatus(wc.barn.getId(), CycleStatus.ACTIVE).orElse(null);
-            if (cycle != null) {
-                WeightSample ws = new WeightSample();
-                ws.setCycle(cycle);
-                ws.setSampleDate(today);
-                ws.setAvgWeightKg(BigDecimal.valueOf(wc.weight));
-                ws.setSampleSize(50);
-                ws.setNote("Cân mẫu ghi hàng loạt qua AI");
-                ws.setCreatedBy(username != null ? username : "Trợ lý AI");
-                weightRepository.save(ws);
+            if (cycle == null) {
+                skippedBarns.add(wc.barn.getName());
+                continue;
             }
+            WeightSample ws = new WeightSample();
+            ws.setCycle(cycle);
+            ws.setSampleDate(today);
+            ws.setAvgWeightKg(BigDecimal.valueOf(wc.weight));
+            ws.setSampleSize(50);
+            ws.setNote("Cân mẫu ghi hàng loạt qua AI");
+            ws.setCreatedBy(username != null ? username : "Trợ lý AI");
+            weightRepository.save(ws);
 
-            if (i > 0) replyBuilder.append(", ");
-            replyBuilder.append("**").append(wc.barn.getName()).append("** (").append(String.format(Locale.ROOT, "%.2f kg", wc.weight)).append(")");
+            savedParts.add("**" + wc.barn.getName() + "** (" + String.format(Locale.ROOT, "%.2f kg", wc.weight) + ")");
 
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("barnName", wc.barn.getName());
@@ -517,10 +573,19 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
             summaryList.add(map);
         }
 
-        replyBuilder.append(". Chỉ số tăng trọng ADG đã được tính toán.");
+        if (summaryList.isEmpty()) {
+            return validationErrorResponse("⚠️ Không có chuồng nào trong yêu cầu đang có lứa nuôi hoạt động (`ACTIVE`) để ghi cân mẫu.");
+        }
+
+        StringBuilder replyBuilder = new StringBuilder("✅ Đã ghi nhận cân mẫu trọng lượng cho: ")
+                .append(String.join(", ", savedParts))
+                .append(". Chỉ số tăng trọng ADG đã được tính toán.");
+        if (!skippedBarns.isEmpty()) {
+            replyBuilder.append(" *(Bỏ qua chuồng chưa có lứa ACTIVE: ").append(String.join(", ", skippedBarns)).append(")*");
+        }
 
         Map<String, Object> actionSummary = new LinkedHashMap<>();
-        actionSummary.put("title", "Cân mẫu hàng loạt (" + weightClauses.size() + " chuồng)");
+        actionSummary.put("title", "Cân mẫu hàng loạt (" + summaryList.size() + " chuồng)");
         actionSummary.put("items", summaryList);
         actionSummary.put("timestamp", LocalDateTime.now(CycleService.VN_ZONE).toString());
 
@@ -688,50 +753,78 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
         return fallback;
     }
 
-    private double calculateTotalFeedStockKg(String feedName) {
-        String search = feedName.toLowerCase(Locale.ROOT).replace("cám ", "").trim();
-        List<InventoryItem> items = inventoryRepository.findAll();
-        double totalKg = 0.0;
-        boolean found = false;
-
-        for (InventoryItem item : items) {
-            if (item.getProduct() != null) {
-                String pName = item.getProduct().getName().toLowerCase(Locale.ROOT);
-                if (pName.contains(search) || pName.contains(feedName.toLowerCase(Locale.ROOT))) {
-                    found = true;
-                    BigDecimal stock = item.getStock() != null ? item.getStock() : BigDecimal.ZERO;
-                    totalKg += stock.doubleValue() * kgFactor(item);
-                }
-            }
-        }
-        return found ? totalKg : -1.0;
-    }
-
-    private BigDecimal deductInventoryStockAtomic(Barn barn, String feedName, double kg) {
+    private List<InventoryItem> resolveScopedFeedLots(Barn barn, String feedName, boolean positiveStockOnly) {
         String search = feedName.toLowerCase(Locale.ROOT).replace("cám ", "").trim();
         WarehouseCategory preferredWh = resolveAreaFeedWarehouse(barn);
+        Long barnAreaId = barn != null && barn.getArea() != null ? barn.getArea().getId() : null;
 
-        List<InventoryItem> all = inventoryRepository.findAll();
-        List<InventoryItem> matching = all.stream()
-                .filter(item -> item.getProduct() != null && item.getStock() != null && item.getStock().signum() > 0)
+        List<InventoryItem> matching = inventoryRepository.findAll().stream()
+                .filter(item -> item.getProduct() != null && (!positiveStockOnly || (item.getStock() != null && item.getStock().signum() > 0)))
                 .filter(item -> {
                     String pName = item.getProduct().getName().toLowerCase(Locale.ROOT);
                     return pName.contains(search) || pName.contains(feedName.toLowerCase(Locale.ROOT));
                 })
-                .sorted(Comparator
-                        .comparing((InventoryItem i) -> (preferredWh != null && i.getWarehouse() != null
-                                && Objects.equals(preferredWh.getId(), i.getWarehouse().getId())) ? 0 : 1)
-                        .thenComparing(InventoryItem::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(InventoryItem::getId))
+                // Never pull stock from another farm area's dedicated warehouse
+                .filter(item -> barnAreaId == null
+                        || item.getWarehouse() == null
+                        || item.getWarehouse().getArea() == null
+                        || Objects.equals(item.getWarehouse().getArea().getId(), barnAreaId))
                 .toList();
 
-        if (matching.isEmpty()) {
+        if (preferredWh != null) {
+            List<InventoryItem> inAreaWh = matching.stream()
+                    .filter(i -> i.getWarehouse() != null && Objects.equals(preferredWh.getId(), i.getWarehouse().getId()))
+                    .toList();
+            if (!inAreaWh.isEmpty()) {
+                matching = inAreaWh;
+            }
+        }
+
+        return matching.stream()
+                .sorted(Comparator
+                        .comparing(InventoryItem::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(InventoryItem::getId))
+                .toList();
+    }
+
+    private double calculateTotalFeedStockKg(Barn barn, String feedName) {
+        List<InventoryItem> scoped = resolveScopedFeedLots(barn, feedName, false);
+        if (scoped.isEmpty()) {
+            return -1.0;
+        }
+        BigDecimal totalKg = BigDecimal.ZERO;
+        for (InventoryItem item : scoped) {
+            BigDecimal stock = item.getStock() != null ? item.getStock() : BigDecimal.ZERO;
+            BigDecimal factor = BigDecimal.valueOf(kgFactor(item));
+            totalKg = totalKg.add(stock.multiply(factor));
+        }
+        return totalKg.doubleValue();
+    }
+
+    private BigDecimal deductInventoryStockAtomic(Barn barn, String feedName, double kg) {
+        List<InventoryItem> allScoped = resolveScopedFeedLots(barn, feedName, false);
+        if (allScoped.isEmpty()) {
             return BigDecimal.valueOf(13500.00);
+        }
+        List<InventoryItem> matching = allScoped.stream()
+                .filter(item -> item.getStock() != null && item.getStock().signum() > 0)
+                .toList();
+        if (matching.isEmpty()) {
+            throw new BadRequestException("Tồn kho khả dụng cho " + feedName + " đã hết (MSG27).", "STOCK_NOT_ENOUGH");
         }
 
         BigDecimal remainingKg = BigDecimal.valueOf(kg);
+        BigDecimal totalAvailableKg = BigDecimal.ZERO;
+        for (InventoryItem lot : matching) {
+            totalAvailableKg = totalAvailableKg.add(lot.getStock().multiply(BigDecimal.valueOf(kgFactor(lot))));
+        }
+        if (totalAvailableKg.add(new BigDecimal("0.01")).compareTo(remainingKg) < 0) {
+            throw new BadRequestException("Tồn kho khả dụng không đủ cho " + feedName + " (MSG27).", "STOCK_NOT_ENOUGH");
+        }
+
         BigDecimal totalCost = BigDecimal.ZERO;
         BigDecimal totalDeductedKg = BigDecimal.ZERO;
+        List<Map.Entry<Long, BigDecimal>> deductedLots = new ArrayList<>();
 
         for (InventoryItem lot : matching) {
             if (remainingKg.signum() <= 0) break;
@@ -746,8 +839,12 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
 
             if (takeUnits.signum() <= 0) continue;
             if (inventoryRepository.takeStock(lot.getId(), takeUnits) != 1) {
+                for (Map.Entry<Long, BigDecimal> prev : deductedLots) {
+                    inventoryRepository.returnStock(prev.getKey(), prev.getValue());
+                }
                 throw new BadRequestException("Tồn kho khả dụng không đủ hoặc vừa thay đổi (MSG27).", "STOCK_NOT_ENOUGH");
             }
+            deductedLots.add(Map.entry(lot.getId(), takeUnits));
 
             BigDecimal lotPrice = lot.getPrice() != null ? lot.getPrice() : BigDecimal.ZERO;
             totalCost = totalCost.add(takeUnits.multiply(lotPrice));
@@ -756,6 +853,9 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
         }
 
         if (remainingKg.compareTo(new BigDecimal("0.01")) > 0) {
+            for (Map.Entry<Long, BigDecimal> prev : deductedLots) {
+                inventoryRepository.returnStock(prev.getKey(), prev.getValue());
+            }
             throw new BadRequestException("Tồn kho khả dụng không đủ cho " + feedName + " (MSG27).", "STOCK_NOT_ENOUGH");
         }
 

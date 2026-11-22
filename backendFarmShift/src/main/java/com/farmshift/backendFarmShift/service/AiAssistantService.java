@@ -37,10 +37,11 @@ import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.NestedTransactionNotSupportedException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
 
@@ -119,8 +120,17 @@ public class AiAssistantService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private SalesOrderRepository salesOrderRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DailyTaskLogRepository dailyTaskLogRepository;
+
+    private static final Locale VI_LOCALE = Locale.forLanguageTag("vi-VN");
+    private static final ThreadLocal<Boolean> OUTER_TX_NEW = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     @Value("${ai-service.internal-token:${AI_INTERNAL_TOKEN:farmshift-local-ai-token}}")
     private String internalAiToken = "farmshift-local-ai-token";
+
+    @Value("${ai-service.allow-client-auto-execute:false}")
+    private boolean allowClientAutoExecute = false;
 
     public AiAssistantService(
             BarnRepository barnRepository,
@@ -179,8 +189,25 @@ public class AiAssistantService {
         if (txManager == null) {
             return action.get();
         }
+        boolean prevNew = Boolean.TRUE.equals(OUTER_TX_NEW.get());
         TransactionTemplate template = new TransactionTemplate(txManager);
-        return template.execute(status -> action.get());
+        try {
+            return template.execute(status -> {
+                OUTER_TX_NEW.set(status.isNewTransaction());
+                T result = action.get();
+                // Prevent UnexpectedRollbackException (HTTP 500) when a caught inner @Transactional failure already tainted a newly created outer tx
+                if (status.isNewTransaction() && status.isRollbackOnly()) {
+                    status.setRollbackOnly();
+                }
+                return result;
+            });
+        } finally {
+            if (prevNew) {
+                OUTER_TX_NEW.set(Boolean.TRUE);
+            } else {
+                OUTER_TX_NEW.remove();
+            }
+        }
     }
 
     private <T> T executeInReadOnlyTx(java.util.function.Supplier<T> action) {
@@ -300,7 +327,7 @@ public class AiAssistantService {
                     rawMessage, rawMessage, request.getCurrentRoute()));
         }
 
-        boolean autoExecute = Boolean.TRUE.equals(request.getAutoExecute());
+        boolean autoExecute = allowClientAutoExecute && Boolean.TRUE.equals(request.getAutoExecute());
 
         // GIAI ĐOẠN 1: chuẩn hóa tiếng Việt đời thường & từ điển thực thể động
         String message = executeInReadOnlyTx(() -> dynamicNormalizer != null
@@ -512,7 +539,7 @@ public class AiAssistantService {
             "(?iu)(?<![\\p{L}])(?:xác\\s+nhận\\s+luôn|thực\\s+hiện\\s+luôn|chốt\\s+luôn|lưu\\s+luôn|làm\\s+luôn|luôn\\s+nhé|luôn\\s+nha|luôn\\s+đi)(?![\\p{L}])");
 
     private static String vn(Object number) {
-        return number == null ? "-" : NumberFormat.getInstance(new Locale("vi", "VN")).format(number);
+        return number == null ? "-" : NumberFormat.getInstance(VI_LOCALE).format(number);
     }
 
     private static String change(Object oldValue, Object newValue, String unit) {
@@ -851,8 +878,8 @@ public class AiAssistantService {
 
     private AiAssistantResponse workerBlocked(String actionType) {
         return AiAssistantResponse.builder()
-                .reply("⚠️ Tài khoản Công nhân không có quyền thực hiện thao tác này. Vui lòng liên hệ Kế toán hoặc Chủ trại.")
-                .actionType(actionType)
+                .reply("⚠️ Tài khoản Công nhân không có quyền thực hiện thao tác này (" + AiRbacPolicy.MSG60 + "). Vui lòng liên hệ Kế toán hoặc Chủ trại.")
+                .actionType("RBAC_BLOCKED")
                 .executed(false)
                 .build();
     }
@@ -1269,7 +1296,7 @@ public class AiAssistantService {
                     payload.put("amount", amount);
 
                     if (!env.auto()) {
-                        String moneyFormatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+                        String moneyFormatted = NumberFormat.getInstance(VI_LOCALE).format(amount) + " đ";
                         return AiAssistantResponse.builder()
                                 .reply("Bạn có muốn thanh toán **" + moneyFormatted + "** cho đơn hàng **" + inv.getCode() + "** không?")
                                 .actionType("PAY_PURCHASE_INVOICE")
@@ -1627,7 +1654,7 @@ public class AiAssistantService {
                 if (amount > 0) {
                     Map<String, Object> payload = Map.of("actionType", "UPDATE_EXPENSE", "barnId", barn.getId(), "amount", amount);
                     if (!env.auto()) {
-                        String formatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+                        String formatted = NumberFormat.getInstance(VI_LOCALE).format(amount) + " đ";
                         return AiAssistantResponse.builder()
                                 .reply("Bạn có muốn sửa lại chi phí cho **" + barn.getName() + "** thành **" + formatted + "** không?")
                                 .actionType("LOG_OR_UPDATE_EXPENSE")
@@ -2192,6 +2219,17 @@ public class AiAssistantService {
         return commitCompleteDailyTasksExecution(targetPlans, targetBarn, username, isWorker);
     }
 
+    private void confirmDailyTaskIsolated(Long cycleId, DailyTaskConfirmRequest confirmReq, String actor, boolean isAdminOrOwner, String workerUsername) {
+        if (txManager != null && Boolean.TRUE.equals(OUTER_TX_NEW.get())) {
+            TransactionTemplate requiresNew = new TransactionTemplate(txManager);
+            requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            requiresNew.executeWithoutResult(status ->
+                    dailyPlanService.confirm(cycleId, confirmReq, actor, isAdminOrOwner, workerUsername));
+            return;
+        }
+        dailyPlanService.confirm(cycleId, confirmReq, actor, isAdminOrOwner, workerUsername);
+    }
+
     private AiAssistantResponse commitCompleteDailyTasksExecution(List<BarnDayPlan> targetPlans, Barn targetBarn, String username) {
         return commitCompleteDailyTasksExecution(targetPlans, targetBarn, username, false);
     }
@@ -2218,7 +2256,7 @@ public class AiAssistantService {
                             null, // null = làm đúng định mức kế hoạch
                             "Xác nhận tự động qua Trợ lý FarmShift AI"
                     );
-                    dailyPlanService.confirm(
+                    confirmDailyTaskIsolated(
                             plan.cycleId(),
                             confirmReq,
                             username != null && !username.isBlank() ? username : "Trợ lý AI",
@@ -2329,7 +2367,7 @@ public class AiAssistantService {
             Map<String, Object> details = new LinkedHashMap<>();
             details.put("Mã hóa đơn", invoiceCode);
             details.put("Nhà cung cấp", supplierName);
-            details.put("Tổng tiền", NumberFormat.getInstance(new Locale("vi", "VN")).format(invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0) + " đ");
+            details.put("Tổng tiền", NumberFormat.getInstance(VI_LOCALE).format(invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0) + " đ");
             details.put("Hành động", "Xác nhận nhập kho & cộng số lượng vào tồn kho");
 
             Map<String, Object> payload = new LinkedHashMap<>();
@@ -2405,14 +2443,29 @@ public class AiAssistantService {
 
     private static Long extractSignedExplicitMoney(String norm) {
         if (norm == null || norm.isBlank()) return null;
-        Matcher m = Pattern.compile("(?<![\\p{L}\\d.])(-\\s*|\\bam\\s+)?(\\d+(?:[.,]\\d+)?)\\s*(?:dong|d|vnd|ngan|nghin|k|trieu|tr)\\b").matcher(norm);
+        Matcher m = Pattern.compile("(?<![\\p{L}\\d.])(-\\s*|\\bam\\s+)?(\\d{1,3}(?:\\.\\d{3})+|\\d+(?:[.,]\\d+)?)\\s*(dong|d|vnd|ngan|nghin|k|trieu|tr)\\b").matcher(norm);
         if (!m.find()) return null;
         if (m.group(1) != null && !m.group(1).isBlank()) {
             return -1L;
         }
         try {
-            double val = Double.parseDouble(m.group(2).replace(',', '.'));
-            return val <= 0 ? 0L : Math.round(val);
+            String rawNum = m.group(2);
+            String unit = m.group(3);
+            BigDecimal base;
+            if (rawNum.matches("\\d{1,3}(?:\\.\\d{3})+")) {
+                base = new BigDecimal(rawNum.replace(".", ""));
+            } else {
+                base = new BigDecimal(rawNum.replace(',', '.'));
+            }
+            if (base.signum() <= 0) {
+                return 0L;
+            }
+            BigDecimal multiplier = switch (unit) {
+                case "trieu", "tr" -> BigDecimal.valueOf(1_000_000L);
+                case "ngan", "nghin", "k" -> BigDecimal.valueOf(1_000L);
+                default -> BigDecimal.ONE;
+            };
+            return base.multiply(multiplier).setScale(0, RoundingMode.HALF_UP).longValue();
         } catch (Exception ignored) {
             return null;
         }
@@ -2642,6 +2695,9 @@ public class AiAssistantService {
         try {
             unitPricePerKg = deductInventoryStockAtomic(barn, feedName, totalKg);
         } catch (BadRequestException ex) {
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            }
             return AiAssistantResponse.builder()
                     .reply("⚠️ " + ex.getMessage())
                     .actionType("STOCK_INSUFFICIENT")
@@ -3011,7 +3067,7 @@ public class AiAssistantService {
         summary.put("timestamp", LocalDateTime.now(CycleService.VN_ZONE).toString());
 
         return AiAssistantResponse.builder()
-                .reply("✅ Đã ghi nhận " + actionLabel + " **" + qty + " con** (" + reason.toLowerCase() + ") tại **" + barn.getName() + "**. Số lượng gà hiện tại của chuồng còn **" + NumberFormat.getInstance(new Locale("vi", "VN")).format(barn.getCurrentQuantity()) + " con**.")
+                .reply("✅ Đã ghi nhận " + actionLabel + " **" + qty + " con** (" + reason.toLowerCase() + ") tại **" + barn.getName() + "**. Số lượng gà hiện tại của chuồng còn **" + NumberFormat.getInstance(VI_LOCALE).format(barn.getCurrentQuantity()) + " con**.")
                 .actionType("LOG_MORTALITY")
                 .executed(true)
                 .uiCommand("REFRESH_DATA")
@@ -3077,7 +3133,7 @@ public class AiAssistantService {
             amount = spokenMoney;
         }
 
-        String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+        String formattedMoney = NumberFormat.getInstance(VI_LOCALE).format(amount) + " đ";
 
         if (!autoExecute) {
             Map<String, Object> details = new LinkedHashMap<>();
@@ -3126,7 +3182,7 @@ public class AiAssistantService {
         expense.setCreatedBy(username != null && !username.isBlank() ? username : "Trợ lý AI");
         expenseRepository.saveAndFlush(expense);
 
-        String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+        String formattedMoney = NumberFormat.getInstance(VI_LOCALE).format(amount) + " đ";
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("title", "Đã ghi chi phí lứa nuôi");
         summary.put("barnName", barn.getName());
@@ -3546,7 +3602,7 @@ public class AiAssistantService {
                     item.setStock(stock);
                 }
                 InventoryItem saved = inventoryRepository.save(item);
-                String priceFormatted = saved.getPrice() != null ? NumberFormat.getInstance(new Locale("vi", "VN")).format(saved.getPrice()) + " đ" : "chưa đặt";
+                String priceFormatted = saved.getPrice() != null ? NumberFormat.getInstance(VI_LOCALE).format(saved.getPrice()) + " đ" : "chưa đặt";
                 Map<String, Object> summary = new LinkedHashMap<>();
                 summary.put("title", "Đã cập nhật vật tư: " + name);
                 summary.put("itemId", saved.getId());
@@ -3624,7 +3680,7 @@ public class AiAssistantService {
                     return AiAssistantResponse.builder().reply("⚠️ Số tiền thanh toán phải lớn hơn 0.").executed(false).build();
                 }
                 var updated = purchaseService.pay(invoice.getId(), new PurchasePaymentRequest(amount, "Thanh toán qua Trợ lý AI"));
-                String moneyFormatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+                String moneyFormatted = NumberFormat.getInstance(VI_LOCALE).format(amount) + " đ";
                 Map<String, Object> summary = new LinkedHashMap<>();
                 summary.put("title", "Đã thanh toán hóa đơn " + updated.code());
                 summary.put("invoiceCode", updated.code());
@@ -3752,6 +3808,13 @@ public class AiAssistantService {
                 if (record == null) {
                     return AiAssistantResponse.builder().reply("⚠️ Không tìm thấy nhật ký cám gần đây để sửa đổi.").executed(false).build();
                 }
+                if (dailyTaskLogRepository != null && record.getId() != null && dailyTaskLogRepository.existsByFeedRecordId(record.getId())) {
+                    return AiAssistantResponse.builder()
+                            .reply("⚠️ Nhật ký cám này được tạo từ phiếu **Việc hôm nay** (`RECORD_FROM_DAILY_PLAN`). Vui lòng hoàn tác tại màn hình Việc hôm nay để hệ thống hoàn kho đúng lô 1:1.")
+                            .actionType("VALIDATION_ERROR")
+                            .executed(false)
+                            .build();
+                }
                 double newKg = Double.parseDouble(String.valueOf(payload.get("newKg")));
                 if (newKg <= 0) {
                     return buildInvalidPositiveQtyResponse("Số lượng cám", newKg);
@@ -3764,6 +3827,9 @@ public class AiAssistantService {
                     try {
                         deductInventoryStockAtomic(b, fName, delta);
                     } catch (BadRequestException ex) {
+                        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                        }
                         return AiAssistantResponse.builder()
                                 .reply("⚠️ " + ex.getMessage())
                                 .actionType("STOCK_INSUFFICIENT")
@@ -3771,9 +3837,9 @@ public class AiAssistantService {
                                 .build();
                     }
                 } else if (delta < 0) {
-                    deductInventoryStock(fName, delta);
+                    restoreInventoryStockAtomic(b, fName, Math.abs(delta));
                 }
-                record.setQuantityKg(BigDecimal.valueOf(newKg));
+                record.setQuantityKg(BigDecimal.valueOf(newKg).setScale(3, RoundingMode.HALF_UP));
                 record.setNote(record.getNote() != null ? record.getNote() + " | Sửa qua AI" : "Sửa qua AI");
                 FeedRecord saved = feedRepository.save(record);
                 Map<String, Object> summary = new LinkedHashMap<>();
@@ -3918,7 +3984,7 @@ public class AiAssistantService {
                 }
                 expense.setAmount(BigDecimal.valueOf(amount));
                 CycleExpense saved = expenseRepository.save(expense);
-                String formatted = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+                String formatted = NumberFormat.getInstance(VI_LOCALE).format(amount) + " đ";
                 String catLabel = expenseCategoryLabel(saved.getCategory());
 
                 return AiAssistantResponse.builder()
@@ -4338,7 +4404,7 @@ public class AiAssistantService {
             return barnNotAssignedResponse(requestedBarn);
         }
 
-        List<FarmingCycle> activeCycles = cycleRepository.findAllByStatus(CycleStatus.ACTIVE);
+        List<FarmingCycle> activeCycles = cycleRepository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE);
         if (requestedBarn != null) {
             activeCycles = activeCycles.stream()
                     .filter(c -> c.getBarn() != null && requestedBarn.getId().equals(c.getBarn().getId()))
@@ -4417,7 +4483,16 @@ public class AiAssistantService {
             if (m.avgWeightKg() != null) {
                 sb.append(" • Trọng lượng TB: **").append(m.avgWeightKg().setScale(2, RoundingMode.HALF_UP)).append(" kg/con**");
                 if (age > 0) {
-                    BigDecimal adgGrams = m.avgWeightKg()
+                    BigDecimal initialWeightKg = flocks.stream()
+                            .filter(f -> f.getImportAvgWeight() != null && f.getImportAvgWeight().signum() > 0)
+                            .map(Flock::getImportAvgWeight)
+                            .findFirst()
+                            .orElse(new BigDecimal("0.04"));
+                    BigDecimal weightGainKg = m.avgWeightKg().subtract(initialWeightKg);
+                    if (weightGainKg.signum() < 0) {
+                        weightGainKg = BigDecimal.ZERO;
+                    }
+                    BigDecimal adgGrams = weightGainKg
                             .multiply(new BigDecimal("1000"))
                             .divide(BigDecimal.valueOf(age), 1, RoundingMode.HALF_UP);
                     sb.append(" • ADG: **").append(adgGrams.toPlainString()).append(" g/con/ngày**");
@@ -4687,7 +4762,7 @@ public class AiAssistantService {
                 return AiRbacPolicy.createForbiddenResponse();
             }
             LocalDate today = LocalDate.now(CycleService.VN_ZONE);
-            NumberFormat nf = NumberFormat.getInstance(new Locale("vi", "VN"));
+            NumberFormat nf = NumberFormat.getInstance(VI_LOCALE);
             List<PurchaseInvoice> allInvoices = invoiceRepository.findByStockStatusNot("Đã hủy");
 
             List<PurchaseInvoice> draftMaterialInvoices = allInvoices.stream()
@@ -4856,7 +4931,7 @@ public class AiAssistantService {
             if (isWorker) {
                 return AiRbacPolicy.createForbiddenResponse();
             }
-            NumberFormat nf = NumberFormat.getInstance(new Locale("vi", "VN"));
+            NumberFormat nf = NumberFormat.getInstance(VI_LOCALE);
             if (debtService != null) {
                 DebtSummaryResponse summary = debtService.getDebtSummary();
                 long supplierDebt = Math.max(0L, summary.totalSupplierPayable());
@@ -5482,7 +5557,7 @@ public class AiAssistantService {
                     return untrackedExpenseResponse();
                 }
 
-                String formattedMoney = NumberFormat.getInstance(new Locale("vi", "VN")).format(amount) + " đ";
+                String formattedMoney = NumberFormat.getInstance(VI_LOCALE).format(amount) + " đ";
                 String categoryLabel = expenseCategoryLabel(category);
 
                 if (!autoExecute) {
@@ -5745,7 +5820,7 @@ public class AiAssistantService {
             boolean isWorker,
             java.util.function.Function<Barn, Map<String, Object>> optionMapper
     ) {
-        List<FarmingCycle> activeCycles = cycleRepository.findAllByStatus(CycleStatus.ACTIVE);
+        List<FarmingCycle> activeCycles = cycleRepository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE);
         Set<Long> allowedIds = (isWorker && workAssignmentService != null && username != null)
                 ? workAssignmentService.barnIdsOf(username)
                 : null;
@@ -5830,7 +5905,7 @@ public class AiAssistantService {
     }
 
     private AiAssistantResponse cycleNotFoundResponse(Barn barn) {
-        List<FarmingCycle> activeCycles = cycleRepository.findAllByStatus(CycleStatus.ACTIVE);
+        List<FarmingCycle> activeCycles = cycleRepository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE);
         String activeBarns = activeCycles.isEmpty() ? "Hiện tại chưa có chuồng nào có lứa nuôi hoạt động." :
                 activeCycles.stream().map(c -> c.getBarn().getName()).distinct().collect(Collectors.joining(", "));
         return AiAssistantResponse.builder()
@@ -5989,8 +6064,17 @@ public class AiAssistantService {
                 .toList();
 
         BigDecimal remainingKg = BigDecimal.valueOf(kg);
+        BigDecimal totalAvailableKg = BigDecimal.ZERO;
+        for (InventoryItem lot : sorted) {
+            totalAvailableKg = totalAvailableKg.add(lot.getStock().multiply(BigDecimal.valueOf(kgFactor(lot))));
+        }
+        if (totalAvailableKg.add(new BigDecimal("0.01")).compareTo(remainingKg) < 0) {
+            throw new BadRequestException("Tồn kho khả dụng không đủ cho " + feedName + " (MSG27).", "STOCK_NOT_ENOUGH");
+        }
+
         BigDecimal totalCost = BigDecimal.ZERO;
         BigDecimal totalDeductedKg = BigDecimal.ZERO;
+        List<Map.Entry<Long, BigDecimal>> deductedLots = new ArrayList<>();
 
         for (InventoryItem lot : sorted) {
             if (remainingKg.signum() <= 0) break;
@@ -6005,8 +6089,12 @@ public class AiAssistantService {
 
             if (takeUnits.signum() <= 0) continue;
             if (inventoryRepository.takeStock(lot.getId(), takeUnits) != 1) {
+                for (Map.Entry<Long, BigDecimal> prev : deductedLots) {
+                    inventoryRepository.returnStock(prev.getKey(), prev.getValue());
+                }
                 throw new BadRequestException("Tồn kho khả dụng không đủ hoặc vừa thay đổi (MSG27).", "STOCK_NOT_ENOUGH");
             }
+            deductedLots.add(Map.entry(lot.getId(), takeUnits));
 
             BigDecimal lotPrice = lot.getPrice() != null ? lot.getPrice() : BigDecimal.ZERO;
             totalCost = totalCost.add(takeUnits.multiply(lotPrice));
@@ -6015,6 +6103,9 @@ public class AiAssistantService {
         }
 
         if (remainingKg.compareTo(new BigDecimal("0.01")) > 0) {
+            for (Map.Entry<Long, BigDecimal> prev : deductedLots) {
+                inventoryRepository.returnStock(prev.getKey(), prev.getValue());
+            }
             throw new BadRequestException("Tồn kho khả dụng không đủ cho " + feedName + " (MSG27).", "STOCK_NOT_ENOUGH");
         }
 
@@ -6024,25 +6115,46 @@ public class AiAssistantService {
         return BigDecimal.valueOf(13500.00);
     }
 
+    private void restoreInventoryStockAtomic(Barn barn, String feedName, double restoreKg) {
+        if (restoreKg <= 0) return;
+        List<InventoryItem> matching = inventoryRepository.findAll().stream()
+                .filter(item -> matchesFeedName(item, feedName))
+                .toList();
+        if (matching.isEmpty()) return;
+
+        WarehouseCategory preferredWh = resolveAreaFeedWarehouse(barn);
+        List<InventoryItem> scoped = matching;
+        if (preferredWh != null) {
+            List<InventoryItem> inAreaWh = matching.stream()
+                    .filter(i -> i.getWarehouse() != null && Objects.equals(preferredWh.getId(), i.getWarehouse().getId()))
+                    .toList();
+            if (!inAreaWh.isEmpty()) {
+                scoped = inAreaWh;
+            }
+        }
+
+        InventoryItem targetLot = scoped.stream()
+                .max(Comparator
+                        .comparing(InventoryItem::getCreatedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(InventoryItem::getId))
+                .orElse(null);
+        if (targetLot == null) return;
+
+        BigDecimal factor = BigDecimal.valueOf(kgFactor(targetLot));
+        BigDecimal addUnits = factor.compareTo(BigDecimal.ONE) == 0
+                ? BigDecimal.valueOf(restoreKg).setScale(6, RoundingMode.HALF_UP)
+                : BigDecimal.valueOf(restoreKg).divide(factor, 6, RoundingMode.HALF_UP);
+        if (addUnits.signum() > 0) {
+            inventoryRepository.returnStock(targetLot.getId(), addUnits);
+        }
+    }
+
     private void deductInventoryStock(String feedName, double kg) {
         if (kg > 0) {
             deductInventoryStockAtomic(null, feedName, kg);
             return;
         }
-        if (kg == 0) return;
-        double restoreKg = Math.abs(kg);
-        for (InventoryItem item : inventoryRepository.findAll()) {
-            if (matchesFeedName(item, feedName)) {
-                BigDecimal current = item.getStock() != null ? item.getStock() : BigDecimal.ZERO;
-                double factor = kgFactor(item);
-                BigDecimal addUnits = factor == 1.0
-                        ? BigDecimal.valueOf(restoreKg).setScale(6, RoundingMode.HALF_UP)
-                        : BigDecimal.valueOf(restoreKg).divide(BigDecimal.valueOf(factor), 6, RoundingMode.HALF_UP);
-                item.setStock(current.add(addUnits));
-                inventoryRepository.save(item);
-                break;
-            }
-        }
+        restoreInventoryStockAtomic(null, feedName, Math.abs(kg));
     }
 
     private static double kgFactor(InventoryItem item) {

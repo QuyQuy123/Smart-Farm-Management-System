@@ -16,6 +16,15 @@ import { Plus, Search, FileSpreadsheet, X, Printer, Pencil, ScanText, Loader2 } 
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
+const broadcastFarmAreasChanged = () => {
+  window.dispatchEvent(new Event('farm-areas-changed'));
+  try {
+    localStorage.setItem('farm-areas-changed', `${Date.now()}-${Math.random()}`);
+  } catch (_err) {
+    // Ignore storage quota or private-mode errors
+  }
+};
+
 export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = ['orders', 'customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'create';
@@ -290,8 +299,7 @@ export const SalesView = () => {
       setShowAddModal(false);
       if (!editingSale) setActiveTab('orders');
       setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '' }));
-      window.dispatchEvent(new Event('farm-areas-changed'));
-      try { localStorage.setItem('farm-areas-changed', `${Date.now()}-${Math.random()}`); } catch {}
+      broadcastFarmAreasChanged();
     } catch (error) {
       setSaveError(error.response?.data?.message || 'Không thể lưu đơn bán. Vui lòng thử lại.');
     } finally { setSaving(false); }

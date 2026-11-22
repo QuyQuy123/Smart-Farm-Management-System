@@ -1365,6 +1365,8 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
 
   // ── Trình Thu âm Thông minh (Web Audio VAD + MediaRecorder + Hybrid Confidence Routing) ──
   const startListening = async () => {
+    const voiceOwnerScope = ownerScopeRef.current;
+    const voiceEpoch = sessionEpochRef.current;
     if ('speechSynthesis' in window) {
       try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
       setSpeakingMsgId(null);
@@ -1416,6 +1418,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
           setVoiceRms(0);
           setRecordingSeconds(0);
 
+          if (!mountedRef.current || ownerScopeRef.current !== voiceOwnerScope || sessionEpochRef.current !== voiceEpoch) {
+            return;
+          }
+
           const fallbackText = normalizeWebSpeechText(interimTranscriptRef.current);
 
           if (blob && blob.size > 0) {
@@ -1423,6 +1429,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
             setVoiceNotice('⚡ Đang chuyển giọng nói thành văn bản...');
             try {
               const sttResult = await transcribeAudio(blob, filename);
+              if (!mountedRef.current || ownerScopeRef.current !== voiceOwnerScope || sessionEpochRef.current !== voiceEpoch) {
+                return;
+              }
               setIsTranscribing(false);
 
               if (sttResult?.rejectedReason) {
@@ -1482,6 +1491,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
         }
       });
 
+      if (!mountedRef.current || ownerScopeRef.current !== voiceOwnerScope || sessionEpochRef.current !== voiceEpoch) {
+        recorderHandle.cancel();
+        return;
+      }
       if (stopRequestedBeforeReadyRef.current) {
         recorderHandle.cancel();
         return;
@@ -1491,6 +1504,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       console.warn('Không thể truy cập Micro qua AdaptiveRecorder:', mediaErr);
       setIsListening(false);
       setVoiceNotice('⚠️ Vui lòng cấp quyền Micro trên trình duyệt để sử dụng.');
+      return;
     }
 
     // Chạy song song Web Speech API để hiển thị live preview và làm fallback khi offline

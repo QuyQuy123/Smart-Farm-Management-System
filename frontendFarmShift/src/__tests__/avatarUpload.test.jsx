@@ -67,4 +67,14 @@ describe('Profile avatar upload', () => {
     expect(screen.getByAltText('Avatar')).toHaveAttribute('src', '/img/old.png');
     expect(mocks.updateUser).not.toHaveBeenCalledWith(expect.objectContaining({ avatarUrl: expect.stringContaining('data:') }));
   });
+
+  it('allows non-owner roles to access personal profile and security tabs while hiding staff management', async () => {
+    mocks.user = { email: 'worker@test.local', fullName: 'Công nhân Test', role: 'ROLE_FARM_WORKER', avatarUrl: '' };
+    render(<MemoryRouter initialEntries={['/profile']}><AccountView /></MemoryRouter>);
+    await screen.findByDisplayValue('Công nhân Test');
+    expect(screen.queryByRole('button', { name: /Danh sách nhân sự/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Hồ sơ cá nhân/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Bảo mật/i })).toBeInTheDocument();
+    mocks.user = { email: 'avatar@test.local', fullName: 'Avatar User', role: 'ROLE_FARM_OWNER', avatarUrl: '/img/old.png' };
+  });
 });

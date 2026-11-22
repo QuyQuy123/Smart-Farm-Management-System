@@ -78,7 +78,7 @@ const RBAC_DOMAINS = [
     owner: { label: 'Toàn quyền + Xác nhận 2 bước', variant: 'success' },
     accountant: { label: 'Nghiệp vụ kho/hóa đơn + OCR', variant: 'info' },
     worker: { label: 'Ghi nhật ký giọng nói', variant: 'neutral' },
-    guardrail: 'AiRbacPolicy chặn 16 lệnh sửa giá/xóa/tài chính (MSG60)',
+    guardrail: 'AiRbacPolicy chặn 32 lệnh sửa giá/xóa/tài chính (MSG60)',
   },
 ];
 

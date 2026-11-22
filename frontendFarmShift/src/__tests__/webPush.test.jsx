@@ -8,6 +8,7 @@ import {
   unsubscribeUserFromPush,
   sendTestPushNotification,
   saveLocalNotificationPrefs,
+  loadLocalNotificationPrefs,
 } from '../services/webPushClient';
 import { api } from '../utils/api';
 import { FarmShiftLayout } from '../layouts/FarmShiftLayout';
@@ -459,5 +460,22 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
     // Toast popup and header bell unread badge must stay suppressed while inAppEnabled is false
     expect(document.querySelector('.farmshift-floating-toast')).toBeNull();
     expect(document.querySelector('.farmshift-badge-counter')).toBeNull();
+  });
+
+  it('decodes Base64URL JWT payloads with - and _ without falling back to default scope', () => {
+    localStorage.removeItem('user');
+    const base64UrlPayload = btoa('{"sub":"user-a?1@farm.vn"}')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(base64UrlPayload).toMatch(/[-_]/);
+    localStorage.setItem('token', `hdr.${base64UrlPayload}.sig`);
+    localStorage.setItem(
+      'farmshift_notif_prefs:user-a?1@farm.vn',
+      JSON.stringify({ inAppEnabled: false, iotAlertEnabled: false, taskVaccineReminderEnabled: true, debtReminderEnabled: false })
+    );
+    const loaded = loadLocalNotificationPrefs();
+    expect(loaded.inAppEnabled).toBe(false);
+    expect(loaded.iotAlertEnabled).toBe(false);
   });
 });

@@ -63,7 +63,9 @@ public final class AssistantNavigationRouter {
                     "chi tieu tang truong", "loai thu hoach", "lich vac xin")),
             new Entry("/general-settings", "Thiết lập chung", List.of(
                     "thiet lap chung", "cai dat chung", "cai dat he thong", "thong tin trang trai", "thong tin co so",
-                    "cai dat", "thiet lap", "thong bao"))
+                    "cai dat", "thiet lap")),
+            new Entry("/notifications", "Thông báo cá nhân", List.of(
+                    "thong bao ca nhan", "cai dat thong bao", "thong bao"))
     );
 
     /** Động từ mở đầu câu lệnh điều hướng (đã bỏ dấu). */

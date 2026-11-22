@@ -74,7 +74,7 @@ public final class VietnameseSpeechNormalizer {
     private static final Pattern INVOICE_NUMBER = Pattern.compile(
             "(?iu)(?<![\\p{L}\\d])(?:hóa\\s+đơn|hoá\\s+đơn|đơn\\s+nhập\\s+hàng|đơn\\s+nhập|đơn\\s+hàng|đơn)\\s+(?:số\\s+)?(\\d{1,6})(?![\\d\\p{L}])");
     private static final Pattern BARN_SPLIT = Pattern.compile("(?iu)(?<![\\p{L}\\d])(nhà|chuồng|khu)\\s+([a-d])\\s*[-_]?\\s*(\\d{1,2})(?![\\d\\p{L}])");
-    private static final Pattern MONEY_NUMBER = Pattern.compile("(?<![\\p{L}\\d.,-])(\\d{4,12})(?![\\p{L}\\d])");
+    private static final Pattern MONEY_NUMBER = Pattern.compile("(?<![\\p{L}\\d.,-])(\\d{1,3}(?:\\.\\d{3})+|\\d{4,12})(?![\\p{L}\\d])");
 
     private VietnameseSpeechNormalizer() {
     }
@@ -157,7 +157,8 @@ public final class VietnameseSpeechNormalizer {
         Matcher m = MONEY_NUMBER.matcher(normalizedText);
         Long best = null;
         while (m.find()) {
-            long value = Long.parseLong(m.group(1));
+            String digitsOnly = m.group(1).replace(".", "");
+            long value = Long.parseLong(digitsOnly);
             if (best == null || value > best) best = value;
         }
         return best;

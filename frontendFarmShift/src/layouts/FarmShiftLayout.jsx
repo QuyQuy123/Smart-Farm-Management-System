@@ -585,7 +585,7 @@ export const FarmShiftLayout = ({
                                     </div>
                                 </div>
                                 <Link
-                                    to="/account?tab=profile"
+                                    to={userRole === 'ROLE_FARM_OWNER' ? '/account?tab=profile' : '/profile'}
                                     style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', fontSize: '15px', color: 'var(--color-body)', textDecoration: 'none' }}
                                     onClick={() => setUserMenuOpen(false)}
                                 >

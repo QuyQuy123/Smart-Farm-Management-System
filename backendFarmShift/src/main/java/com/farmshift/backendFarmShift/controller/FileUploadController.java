@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -27,14 +28,15 @@ public class FileUploadController {
             @RequestParam(value = "folder", defaultValue = "avatars") String folder,
             Authentication authentication) {
 
+        String normalizedFolder = folder != null ? folder.trim().toLowerCase(Locale.ROOT) : "avatars";
         boolean isWorker = authentication != null && authentication.getAuthorities() != null
                 && authentication.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_FARM_WORKER".equals(a.getAuthority()));
-        if (isWorker && ("products".equals(folder) || "purchases".equals(folder))) {
+        if (isWorker && ("products".equals(normalizedFolder) || "purchases".equals(normalizedFolder))) {
             throw new AccessDeniedException("Tài khoản Công nhân không có quyền tải tệp lên danh mục này.");
         }
 
-        String url = fileUploadService.uploadFile(file, folder);
+        String url = fileUploadService.uploadFile(file, normalizedFolder);
         
         return ResponseEntity.ok(ApiResponse.success("File uploaded successfully", Map.of("url", url)));
     }

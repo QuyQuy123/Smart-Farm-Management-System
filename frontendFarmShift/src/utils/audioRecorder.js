@@ -243,7 +243,12 @@ export async function createAdaptiveVoiceRecorder({
         }, cfg.sampleIntervalMs);
       }
     } catch (_vadErr) {
-      releaseTracksAndAudio();
+      try {
+        if (audioContext && typeof audioContext.close === 'function' && audioContext.state !== 'closed') {
+          audioContext.close().catch(() => {});
+        }
+      } catch (_closeErr) { /* ignore */ }
+      audioContext = null;
       hasVad = false;
     }
   }
