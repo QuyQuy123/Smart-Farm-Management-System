@@ -104,19 +104,19 @@ export const AppRouter = () => {
         <Route path="/general-settings" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><GeneralSettingsView /></ProtectedRoute>} />
 
         {/* ── Legacy Aliases & Role Dashboards ────────────────── */}
-        <Route path="/system-map" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
-        <Route path="/energy" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
-        <Route path="/cycles" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
-        <Route path="/growth-targets" element={<ProtectedRoute><BreedingSettingsView /></ProtectedRoute>} />
-        <Route path="/screens" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><GeneralSettingsView /></ProtectedRoute>} />
-        <Route path="/owner-dashboard" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
-        <Route path="/accountant-dashboard" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
-        <Route path="/worker-dashboard" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
-        <Route path="/batches" element={<ProtectedRoute><BarnsView /></ProtectedRoute>} />
-        <Route path="/tasks" element={<ProtectedRoute><JournalView /></ProtectedRoute>} />
+        <Route path="/system-map" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><DashboardView /></ProtectedRoute>} />
+        <Route path="/energy" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><DashboardView /></ProtectedRoute>} />
+        <Route path="/cycles" element={<ProtectedRoute allowedRoles={FARM_ROLES}><BarnsView /></ProtectedRoute>} />
+        <Route path="/growth-targets" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><BreedingSettingsView /></ProtectedRoute>} />
+        <Route path="/screens" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><GeneralSettingsView /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute allowedRoles={ALL_ROLES}><GeneralSettingsView /></ProtectedRoute>} />
+        <Route path="/owner-dashboard" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><DashboardView /></ProtectedRoute>} />
+        <Route path="/accountant-dashboard" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><DashboardView /></ProtectedRoute>} />
+        <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={FARM_ROLES}><DashboardView /></ProtectedRoute>} />
+        <Route path="/batches" element={<ProtectedRoute allowedRoles={FARM_ROLES}><BarnsView /></ProtectedRoute>} />
+        <Route path="/tasks" element={<ProtectedRoute allowedRoles={FARM_ROLES}><JournalView /></ProtectedRoute>} />
         <Route path="/iot" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><IotView /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><AccountView /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><AccountView /></ProtectedRoute>} />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />

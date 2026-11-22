@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -224,6 +225,7 @@ public class AiSecurityGuard {
 
     private final ConcurrentHashMap<String, SignedPendingAction> pendingStore = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CachedSnapshot> snapshotCache = new ConcurrentHashMap<>();
+    private final AtomicLong snapshotGeneration = new AtomicLong(0L);
 
     private record CachedSnapshot(
             long cachedAt,
@@ -463,6 +465,7 @@ public class AiSecurityGuard {
     // ─────────────────────────────────────────────────────────────────────────
 
     public void evictContextCache() {
+        snapshotGeneration.incrementAndGet();
         snapshotCache.clear();
     }
 
@@ -563,8 +566,17 @@ public class AiSecurityGuard {
 
         boolean includeFinance = !isWorker && requiresFinancialSnapshot(userQuery, currentRoute);
         LocalDate today = LocalDate.now(CycleService.VN_ZONE);
-        String cacheKey = (isWorker ? "W:" + (username == null ? "anon" : username.trim().toLowerCase(Locale.ROOT)) : "OWNER")
-                + "|FIN:" + includeFinance;
+        String workerScope;
+        if (isWorker) {
+            String userKey = username == null ? "anon" : username.trim().toLowerCase(Locale.ROOT);
+            String barnsKey = allowedBarnIds == null || allowedBarnIds.isEmpty()
+                    ? "none"
+                    : allowedBarnIds.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
+            workerScope = "W:" + userKey + ":" + barnsKey;
+        } else {
+            workerScope = "OWNER";
+        }
+        String cacheKey = workerScope + "|FIN:" + includeFinance;
         String signature = buildSnapshotSignature(today, includeFinance);
         long now = System.currentTimeMillis();
 
@@ -589,7 +601,7 @@ public class AiSecurityGuard {
         long invCount = inventoryRepository.count();
         long supCount = includeFinance ? supplierRepository.count() : 0L;
         long invDocCount = includeFinance ? invoiceRepository.count() : 0L;
-        return today + "|" + barnCount + "|" + cycleCount + "|" + invCount + "|" + supCount + "|" + invDocCount;
+        return snapshotGeneration.get() + "|" + today + "|" + barnCount + "|" + cycleCount + "|" + invCount + "|" + supCount + "|" + invDocCount;
     }
 
     private void registerRollbackCacheEviction() {
@@ -653,9 +665,14 @@ public class AiSecurityGuard {
                 .collect(Collectors.toSet());
 
         Set<Long> visibleWarehouseIds = new LinkedHashSet<>();
-        if (isWorker) {
-            for (Long areaId : visibleAreaIds) {
-                warehouseRepository.findAllByArea_Id(areaId).forEach(w -> visibleWarehouseIds.add(w.getId()));
+        if (isWorker && !visibleAreaIds.isEmpty()) {
+            List<WarehouseCategory> batchWarehouses = warehouseRepository.findAllByAreaIdIn(visibleAreaIds);
+            if (batchWarehouses != null && !batchWarehouses.isEmpty()) {
+                batchWarehouses.forEach(w -> visibleWarehouseIds.add(w.getId()));
+            } else {
+                for (Long areaId : visibleAreaIds) {
+                    warehouseRepository.findAllByArea_Id(areaId).forEach(w -> visibleWarehouseIds.add(w.getId()));
+                }
             }
         }
 

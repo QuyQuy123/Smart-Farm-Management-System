@@ -1,9 +1,11 @@
 package com.farmshift.backendFarmShift.config;
 
 import com.farmshift.backendFarmShift.service.RealtimeSyncService;
+import com.farmshift.backendFarmShift.service.ai.AiSecurityGuard;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -21,6 +23,9 @@ public class RealtimeSyncInterceptor implements HandlerInterceptor {
     private static final Set<String> MUTATING_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
 
     private final RealtimeSyncService realtimeSyncService;
+
+    @Autowired(required = false)
+    private AiSecurityGuard aiSecurityGuard;
 
     @Override
     public void afterCompletion(
@@ -43,6 +48,9 @@ public class RealtimeSyncInterceptor implements HandlerInterceptor {
         String path = resolvePath(request);
         if (shouldSkipBroadcast(path)) {
             return;
+        }
+        if (aiSecurityGuard != null) {
+            aiSecurityGuard.evictContextCache();
         }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String actor = auth != null ? auth.getName() : null;

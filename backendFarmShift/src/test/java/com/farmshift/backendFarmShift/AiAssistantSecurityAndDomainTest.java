@@ -1061,6 +1061,44 @@ class AiAssistantSecurityAndDomainTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.actionType").value("RBAC_BLOCKED"));
 
+        // Navigation RBAC fail-closed across owner-only, finance, and farm-ops routes
+        mvc.perform(post(ASSISTANT_API)
+                .with(workerAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Mở trang tài khoản nhân sự"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("RBAC_BLOCKED"));
+
+        mvc.perform(post(ASSISTANT_API)
+                .with(workerAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Mở hóa đơn nhập hàng"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("RBAC_BLOCKED"));
+
+        mvc.perform(post(ASSISTANT_API)
+                .with(accountantAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("message", "Mở ghi nhật ký"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionType").value("RBAC_BLOCKED"));
+
+        assertFalse(com.farmshift.backendFarmShift.service.AiAssistantService.isMutatingExecution(
+                com.farmshift.backendFarmShift.dto.AiAssistantResponse.builder()
+                        .actionType("NAVIGATE_AND_PREFILL")
+                        .executed(true)
+                        .build()));
+        assertFalse(com.farmshift.backendFarmShift.service.AiAssistantService.isMutatingExecution(
+                com.farmshift.backendFarmShift.dto.AiAssistantResponse.builder()
+                        .actionType("QUERY_FARM_STATUS")
+                        .executed(true)
+                        .build()));
+        assertTrue(com.farmshift.backendFarmShift.service.AiAssistantService.isMutatingExecution(
+                com.farmshift.backendFarmShift.dto.AiAssistantResponse.builder()
+                        .actionType("LOG_FEED")
+                        .executed(true)
+                        .build()));
+
         // 8. ACC-E05: "Còn nợ <Supplier> bao nhiêu tiền?" routes deterministically to ProcurementAndDebtHandler (no LLM flakiness)
         ProductType supPt = productTypeRepository.findAll().stream().findFirst().orElseGet(() -> {
             ProductType type = new ProductType();
@@ -1077,6 +1115,11 @@ class AiAssistantSecurityAndDomainTest {
         cpSup.setProductType(supPt);
         cpSup.setOpeningDebt(71_000_000L);
         supplierRepository.saveAndFlush(cpSup);
+        dynamicNormalizer.evictLexiconCache();
+
+        String normalizedCpQuery = dynamicNormalizer.normalize("Còn nợ Công ty CP Chăn nuôi C.P. Việt Nam bao nhiêu tiền?");
+        assertTrue(normalizedCpQuery.toLowerCase().contains("nợ"),
+                "Dynamic normalizer must not swallow 'nợ' before a multi-word supplier name: " + normalizedCpQuery);
 
         String cpDebtJson = mvc.perform(post(ASSISTANT_API)
                 .with(accountantAuth)

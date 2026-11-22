@@ -169,11 +169,13 @@ def _verify_and_reconcile_invoice_math(
                 )
 
         effective_line = (
-            amount_dec
-            if amount_dec is not None and amount_dec > Decimal("0")
+            qty_dec * unit_price_dec
+            if qty_dec > Decimal("0")
+            and unit_price_dec is not None
+            and unit_price_dec > Decimal("0")
             else (
-                qty_dec * unit_price_dec
-                if unit_price_dec is not None and unit_price_dec > Decimal("0")
+                amount_dec
+                if amount_dec is not None and amount_dec > Decimal("0")
                 else Decimal("0")
             )
         )

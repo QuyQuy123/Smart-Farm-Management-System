@@ -95,4 +95,41 @@ class PurchaseOcrServiceTest {
         assertEquals(18250000L, result.totalAmount());
         assertTrue(result.warnings().stream().anyMatch(w -> w.contains("Thuốc B") && w.contains("chưa khớp")));
     }
+
+    @Test
+    void extract_deduplicatesLineAndTotalWarningsAlreadyProvidedByAiService() throws Exception {
+        VisionClient visionClient = mock(VisionClient.class);
+        SupplierRepository supplierRepository = mock(SupplierRepository.class);
+        ProductCategoryRepository productCategoryRepository = mock(ProductCategoryRepository.class);
+
+        String payload = """
+                {
+                  "isInvoice": true,
+                  "supplierName": "C.P. Việt Nam",
+                  "items": [
+                    { "name": "Thuốc B", "qty": 10, "unit": "Chai", "unitPrice": 100000, "amount": 1800000 }
+                  ],
+                  "discountAmount": 0,
+                  "vatAmount": 0,
+                  "otherCost": 0,
+                  "totalAmount": 1800000,
+                  "confidence": 91.0,
+                  "warnings": [
+                    "Dòng hàng #1 (Thuốc B): thành tiền (1.800.000 đ) chưa khớp số lượng × đơn giá (1.000.000 đ).",
+                    "Tổng tiền trên hóa đơn (1.800.000 đ) chưa khớp với tổng tính lại (1.000.000 đ). Vui lòng đối chiếu lại."
+                  ]
+                }
+                """;
+        when(visionClient.extractJson(anyString(), any(), anyString(), any()))
+                .thenReturn(objectMapper.readTree(payload));
+
+        PurchaseOcrService service = new PurchaseOcrService(visionClient, supplierRepository, productCategoryRepository);
+        MockMultipartFile file = new MockMultipartFile("file", "inv.png", "image/png", new byte[]{1, 2, 3});
+
+        var result = service.extract(file);
+        long lineWarnings = result.warnings().stream().filter(w -> w.contains("Thuốc B") && w.contains("chưa khớp")).count();
+        long totalWarnings = result.warnings().stream().filter(w -> w.startsWith("Tổng tiền") && w.contains("chưa khớp")).count();
+        assertEquals(1L, lineWarnings, "Line mismatch warning must not be duplicated: " + result.warnings());
+        assertEquals(1L, totalWarnings, "Total mismatch warning must not be duplicated: " + result.warnings());
+    }
 }

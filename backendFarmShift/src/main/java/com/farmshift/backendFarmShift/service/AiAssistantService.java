@@ -5,6 +5,7 @@ import com.farmshift.backendFarmShift.service.ai.AiSecurityGuard;
 import com.farmshift.backendFarmShift.service.ai.AssistantCommandDispatcher;
 import com.farmshift.backendFarmShift.service.ai.AssistantExecutionContext;
 import com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer;
+import com.farmshift.backendFarmShift.service.ai.handler.NavigationCommandHandler;
 
 import com.farmshift.backendFarmShift.dto.AiAssistantRequest;
 import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
@@ -299,16 +300,15 @@ public class AiAssistantService {
                     rawMessage, rawMessage, request.getCurrentRoute()));
         }
 
-        boolean autoExecute = request.getAutoExecute() == null || Boolean.TRUE.equals(request.getAutoExecute());
+        boolean autoExecute = Boolean.TRUE.equals(request.getAutoExecute());
 
         // GIAI ĐOẠN 1: chuẩn hóa tiếng Việt đời thường & từ điển thực thể động
         String message = executeInReadOnlyTx(() -> dynamicNormalizer != null
                 ? dynamicNormalizer.normalize(rawMessage)
                 : VietnameseSpeechNormalizer.normalizeVietnameseCommand(rawMessage));
 
-        // Từ khóa xác nhận trực tiếp ("luôn nhé", "xác nhận luôn"): thực thi ngay, không cần thẻ xác nhận
+        // Làm sạch hậu tố xác nhận nếu có, luôn giữ nguyên autoExecute từ client để bắt buộc xác nhận 2 bước HMAC
         if (DIRECT_CONFIRM.matcher(message).find()) {
-            autoExecute = true;
             message = DIRECT_CONFIRM.matcher(message).replaceAll(" ").replaceAll("\\s+", " ").trim();
         }
         final String normalizedMsg = message;
@@ -365,25 +365,23 @@ public class AiAssistantService {
                     return finalizeResponse(dispatched, actor, role, isWorker, sessionKey, sessionId,
                             rawMessage, normalizedMsg, request.getCurrentRoute());
                 }
-            }
-
-            // GIAI ĐOẠN 1b: Điều hướng màn hình thuần túy ("mở ghi nhật ký", "kho hàng"...) — 100% xử lý cục bộ, 0 token AI
-            AssistantNavigationRouter.Route navRoute = AssistantNavigationRouter.resolve(normalizeText(normalizedMsg));
-            if (navRoute != null) {
-                Map<String, Object> navSummary = new LinkedHashMap<>();
-                navSummary.put("title", "⚡ Điều hướng tức thì (0 tốn token AI)");
-                navSummary.put("detail", "Mở nhanh màn hình " + navRoute.label() + " bằng bộ định tuyến cục bộ (<5ms, không gọi LLM)");
-                navSummary.put("timestamp", LocalDateTime.now(CycleService.VN_ZONE).toString());
-
-                AiAssistantResponse navResponse = AiAssistantResponse.builder()
-                        .reply("🚀 Đang chuyển bạn sang màn hình **" + navRoute.label() + "** *(xử lý tức thì tại chỗ, không tốn token AI)*.")
-                        .actionType("NAVIGATE_AND_PREFILL")
-                        .executed(true)
-                        .navigateTo(navRoute.path())
-                        .actionSummary(navSummary)
+            } else {
+                AssistantExecutionContext navCtx = AssistantExecutionContext.builder()
+                        .message(normalizedMsg)
+                        .rawMessage(rawMessage)
+                        .username(actor)
+                        .isWorker(isWorker)
+                        .authorities(authorities)
+                        .confirmAction(request.getConfirmAction())
                         .build();
-                return finalizeResponse(navResponse, actor, role, isWorker, sessionKey, sessionId,
-                        rawMessage, normalizedMsg, request.getCurrentRoute());
+                NavigationCommandHandler navHandler = new NavigationCommandHandler();
+                if (navHandler.canHandle(navCtx)) {
+                    AiAssistantResponse navRes = navHandler.handle(navCtx);
+                    if (navRes != null) {
+                        return finalizeResponse(navRes, actor, role, isWorker, sessionKey, sessionId,
+                                rawMessage, normalizedMsg, request.getCurrentRoute());
+                    }
+                }
             }
 
             // GIAI ĐOẠN 2a: Multi-Intent Fuzzy Engine — sửa/cập nhật bản ghi, công nợ, vật tư, nhà cung cấp, lứa nuôi, chuyển đàn
@@ -443,7 +441,7 @@ public class AiAssistantService {
         AiAssistantResponse enriched = withDiffDetails(response);
         captureContext(sessionKey, sessionId, actor, isWorker, rawMessage, normalizedMessage, currentRoute, enriched);
         if (aiSecurityGuard != null) {
-            if (enriched.isExecuted()) {
+            if (isMutatingExecution(enriched)) {
                 aiSecurityGuard.evictContextCache();
             }
             if (enriched.isRequiresConfirmation()) {
@@ -452,6 +450,38 @@ public class AiAssistantService {
             aiSecurityGuard.sanitizeOutput(enriched, isWorker);
         }
         return enriched;
+    }
+
+    private static final Set<String> NON_MUTATING_ACTION_TYPES = Set.of(
+            "NONE",
+            "GENERAL_QNA",
+            "CONVERSATIONAL_ACK",
+            "SESSION_MEMORY_SUMMARY",
+            "RESET_SESSION",
+            "CLARIFICATION_REQUIRED",
+            "NAVIGATE_AND_PREFILL",
+            "VET_DIAGNOSIS",
+            "ADMIN_UI_REQUIRED",
+            "RBAC_BLOCKED",
+            "SECURITY_BLOCKED",
+            "OUT_OF_SCOPE_HUMAN_MEDICAL",
+            "BARN_NOT_ASSIGNED",
+            "STOCK_INSUFFICIENT"
+    );
+
+    public static boolean isMutatingExecution(AiAssistantResponse response) {
+        if (response == null || !response.isExecuted() || response.isRequiresConfirmation()) {
+            return false;
+        }
+        String actionType = response.getActionType();
+        if (actionType == null || actionType.isBlank()) {
+            return false;
+        }
+        String upper = actionType.trim().toUpperCase(Locale.ROOT);
+        if (upper.startsWith("QUERY_") || upper.startsWith("NAVIGATE") || upper.startsWith("SECURITY_")) {
+            return false;
+        }
+        return !NON_MUTATING_ACTION_TYPES.contains(upper);
     }
 
     private static String resolvePrimaryRole(Collection<? extends GrantedAuthority> authorities, boolean isWorker) {
@@ -469,9 +499,9 @@ public class AiAssistantService {
     // PENDING ACTION CARD: giá trị cũ → giá trị mới, xác nhận trước khi ghi DB
     // ─────────────────────────────────────────────────────────────────────────────
 
-    /** Từ khóa xác nhận trực tiếp trong câu lệnh: thực thi ngay không cần bấm nút Xác nhận. */
+    /** Hậu tố khẳng định trong câu nói (đã tách khỏi cờ autoExecute để đảm bảo xác nhận 2 bước HMAC). */
     private static final Pattern DIRECT_CONFIRM = Pattern.compile(
-            "(?iu)(?<![\\p{L}])(?:xác\\s+nhận\\s+luôn|thực\\s+hiện\\s+luôn|chốt\\s+luôn|lưu\\s+luôn|làm\\s+luôn|luôn\\s+nhé|luôn\\s+nha|luôn\\s+đi|luôn)(?![\\p{L}])");
+            "(?iu)(?<![\\p{L}])(?:xác\\s+nhận\\s+luôn|thực\\s+hiện\\s+luôn|chốt\\s+luôn|lưu\\s+luôn|làm\\s+luôn|luôn\\s+nhé|luôn\\s+nha|luôn\\s+đi)(?![\\p{L}])");
 
     private static String vn(Object number) {
         return number == null ? "-" : NumberFormat.getInstance(new Locale("vi", "VN")).format(number);

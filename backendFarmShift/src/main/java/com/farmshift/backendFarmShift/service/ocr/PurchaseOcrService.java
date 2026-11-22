@@ -106,9 +106,13 @@ public class PurchaseOcrService {
 
         long invoiceTotal = money(json, "totalAmount");
         if (invoiceTotal > 0 && Math.abs(invoiceTotal - computedTotal) > 1000) {
-            warnings.add(String.format(Locale.ROOT,
-                    "Tổng tiền trên chứng từ (%,d đ) chưa khớp với tổng tính lại (%,d đ). Vui lòng kiểm tra lại.",
-                    invoiceTotal, computedTotal).replace(',', '.'));
+            boolean alreadyFlaggedTotal = warnings.stream()
+                    .anyMatch(w -> w.startsWith("Tổng tiền") && w.contains("chưa khớp"));
+            if (!alreadyFlaggedTotal) {
+                warnings.add(String.format(Locale.ROOT,
+                        "Tổng tiền trên chứng từ (%,d đ) chưa khớp với tổng tính lại (%,d đ). Vui lòng kiểm tra lại.",
+                        invoiceTotal, computedTotal).replace(',', '.'));
+            }
         }
         if (supplierName != null && matched == null) {
             warnings.add("Nhà cung cấp \"" + supplierName + "\" chưa khớp duy nhất với danh mục. Vui lòng chọn đúng nhà cung cấp và nhóm trước khi lưu.");
@@ -236,11 +240,15 @@ public class PurchaseOcrService {
         } else if (unitPriceDec.compareTo(BigDecimal.ZERO) > 0 && amountDec.compareTo(BigDecimal.ZERO) > 0 && warnings != null) {
             BigDecimal expectedLine = qtyDec.multiply(unitPriceDec);
             if (expectedLine.subtract(amountDec).abs().compareTo(new BigDecimal("1000")) > 0) {
-                warnings.add(String.format(Locale.ROOT,
-                        "Dòng hàng \"%s\": thành tiền (%,d đ) chưa khớp số lượng × đơn giá (%,d đ). Vui lòng kiểm tra lại.",
-                        name,
-                        amountDec.setScale(0, RoundingMode.HALF_UP).longValue(),
-                        expectedLine.setScale(0, RoundingMode.HALF_UP).longValue()).replace(',', '.'));
+                boolean alreadyFlaggedLine = warnings.stream()
+                        .anyMatch(w -> w.contains(name) && w.contains("chưa khớp"));
+                if (!alreadyFlaggedLine) {
+                    warnings.add(String.format(Locale.ROOT,
+                            "Dòng hàng \"%s\": thành tiền (%,d đ) chưa khớp số lượng × đơn giá (%,d đ). Vui lòng kiểm tra lại.",
+                            name,
+                            amountDec.setScale(0, RoundingMode.HALF_UP).longValue(),
+                            expectedLine.setScale(0, RoundingMode.HALF_UP).longValue()).replace(',', '.'));
+                }
             }
         }
 

@@ -178,13 +178,7 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
             }
         }
         if (salesOrderRepository != null) {
-            List<SalesOrder> unpaidOrders = salesOrderRepository.findAll().stream()
-                    .filter(o -> {
-                        BigDecimal tot = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
-                        BigDecimal pd = o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO;
-                        return tot.compareTo(pd) > 0;
-                    })
-                    .toList();
+            List<SalesOrder> unpaidOrders = salesOrderRepository.findUnpaidOrders();
             if (!unpaidOrders.isEmpty()) {
                 sb.append("\n**Chi tiết đơn bán còn công nợ:**\n");
                 for (SalesOrder o : unpaidOrders) {
