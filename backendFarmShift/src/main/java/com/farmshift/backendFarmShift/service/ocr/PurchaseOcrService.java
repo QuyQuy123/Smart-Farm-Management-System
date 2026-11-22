@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -71,10 +73,15 @@ public class PurchaseOcrService {
             throw new BadRequestException(message, "OCR_NOT_INVOICE");
         }
 
+        List<String> warnings = new ArrayList<>();
+        for (JsonNode w : json.path("warnings")) {
+            if (!w.asText("").isBlank()) warnings.add(w.asText().strip());
+        }
+
         List<ProductCategory> categories = productCategoryRepository.findAll();
         List<PurchaseInvoiceItemRequest> items = new ArrayList<>();
         for (JsonNode node : json.path("items")) {
-            PurchaseInvoiceItemRequest item = toItem(node, categories);
+            PurchaseInvoiceItemRequest item = toItem(node, categories, warnings);
             if (item != null) items.add(item);
         }
         if (items.isEmpty()) {
@@ -91,18 +98,21 @@ public class PurchaseOcrService {
         long discount = money(json, "discountAmount");
         long vat = money(json, "vatAmount");
         long otherCost = money(json, "otherCost") + vat;
-        long itemsTotal = items.stream().mapToLong(it -> Math.round(it.qty() * it.price())).sum();
+        BigDecimal itemsTotalDec = items.stream()
+                .map(it -> BigDecimal.valueOf(it.qty()).multiply(BigDecimal.valueOf(it.price())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long itemsTotal = itemsTotalDec.setScale(0, RoundingMode.HALF_UP).longValue();
         long computedTotal = Math.max(0L, itemsTotal - discount + otherCost);
 
-        List<String> warnings = new ArrayList<>();
-        for (JsonNode w : json.path("warnings")) {
-            if (!w.asText("").isBlank()) warnings.add(w.asText().strip());
-        }
         long invoiceTotal = money(json, "totalAmount");
         if (invoiceTotal > 0 && Math.abs(invoiceTotal - computedTotal) > 1000) {
-            warnings.add(String.format(Locale.ROOT,
-                    "Tổng tiền trên chứng từ (%,d đ) chưa khớp với tổng tính lại (%,d đ). Vui lòng kiểm tra lại.",
-                    invoiceTotal, computedTotal).replace(',', '.'));
+            boolean alreadyFlaggedTotal = warnings.stream()
+                    .anyMatch(w -> w.startsWith("Tổng tiền") && w.contains("chưa khớp"));
+            if (!alreadyFlaggedTotal) {
+                warnings.add(String.format(Locale.ROOT,
+                        "Tổng tiền trên chứng từ (%,d đ) chưa khớp với tổng tính lại (%,d đ). Vui lòng kiểm tra lại.",
+                        invoiceTotal, computedTotal).replace(',', '.'));
+            }
         }
         if (supplierName != null && matched == null) {
             warnings.add("Nhà cung cấp \"" + supplierName + "\" chưa khớp duy nhất với danh mục. Vui lòng chọn đúng nhà cung cấp và nhóm trước khi lưu.");
@@ -199,15 +209,48 @@ public class PurchaseOcrService {
         );
     }
 
-    private PurchaseInvoiceItemRequest toItem(JsonNode node, List<ProductCategory> categories) {
+    private PurchaseInvoiceItemRequest toItem(JsonNode node, List<ProductCategory> categories, List<String> warnings) {
         String name = text(node, "name");
         if (name == null) return null;
 
-        double qty = node.path("qty").asDouble(0);
-        double amount = node.path("amount").asDouble(0);
-        double unitPrice = node.path("unitPrice").asDouble(0);
-        if (qty <= 0) qty = 1;
-        if (unitPrice <= 0 && amount > 0) unitPrice = amount / qty;
+        double rawQty = node.path("qty").asDouble(0);
+        double rawAmount = node.path("amount").asDouble(0);
+        double rawUnitPrice = node.path("unitPrice").asDouble(0);
+        double qty = rawQty <= 0 ? 1.0 : rawQty;
+
+        BigDecimal qtyDec = BigDecimal.valueOf(qty);
+        BigDecimal unitPriceDec = rawUnitPrice > 0 ? BigDecimal.valueOf(rawUnitPrice) : BigDecimal.ZERO;
+        BigDecimal amountDec = rawAmount > 0 ? BigDecimal.valueOf(rawAmount) : BigDecimal.ZERO;
+
+        if (unitPriceDec.compareTo(BigDecimal.ZERO) > 0
+                && unitPriceDec.compareTo(new BigDecimal("1000")) < 0
+                && amountDec.compareTo(new BigDecimal("10000")) >= 0) {
+            BigDecimal scaledUnit = unitPriceDec.multiply(new BigDecimal("1000"));
+            BigDecimal rawExpected = qtyDec.multiply(unitPriceDec);
+            BigDecimal scaledExpected = qtyDec.multiply(scaledUnit);
+            BigDecimal tolerance = new BigDecimal("1000");
+            if (amountDec.subtract(scaledExpected).abs().compareTo(tolerance) <= 0
+                    && amountDec.subtract(rawExpected).abs().compareTo(tolerance) > 0) {
+                unitPriceDec = scaledUnit;
+            }
+        }
+
+        if (unitPriceDec.compareTo(BigDecimal.ZERO) <= 0 && amountDec.compareTo(BigDecimal.ZERO) > 0) {
+            unitPriceDec = amountDec.divide(qtyDec, 0, RoundingMode.HALF_UP);
+        } else if (unitPriceDec.compareTo(BigDecimal.ZERO) > 0 && amountDec.compareTo(BigDecimal.ZERO) > 0 && warnings != null) {
+            BigDecimal expectedLine = qtyDec.multiply(unitPriceDec);
+            if (expectedLine.subtract(amountDec).abs().compareTo(new BigDecimal("1000")) > 0) {
+                boolean alreadyFlaggedLine = warnings.stream()
+                        .anyMatch(w -> w.contains(name) && w.contains("chưa khớp"));
+                if (!alreadyFlaggedLine) {
+                    warnings.add(String.format(Locale.ROOT,
+                            "Dòng hàng \"%s\": thành tiền (%,d đ) chưa khớp số lượng × đơn giá (%,d đ). Vui lòng kiểm tra lại.",
+                            name,
+                            amountDec.setScale(0, RoundingMode.HALF_UP).longValue(),
+                            expectedLine.setScale(0, RoundingMode.HALF_UP).longValue()).replace(',', '.'));
+                }
+            }
+        }
 
         String unit = text(node, "unit");
         Double vatRate = node.hasNonNull("vatRate") ? node.get("vatRate").asDouble() : null;
@@ -218,7 +261,7 @@ public class PurchaseOcrService {
                 name,
                 qty,
                 unit != null ? unit : "Cái",
-                Math.max(0L, Math.round(unitPrice)),
+                Math.max(0L, unitPriceDec.setScale(0, RoundingMode.HALF_UP).longValue()),
                 vatRate
         );
     }

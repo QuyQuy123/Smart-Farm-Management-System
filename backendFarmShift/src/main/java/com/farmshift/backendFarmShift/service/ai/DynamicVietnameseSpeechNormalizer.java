@@ -53,7 +53,9 @@ public class DynamicVietnameseSpeechNormalizer {
 
     private static final Set<String> GRAMMAR_BOUNDARY_WORDS = Set.of(
             "cho", "an", "va", "cua", "tu", "den", "la", "duoc", "thanh", "het", "chet",
-            "bao", "kg", "g", "con", "lo", "lieu", "sang", "o", "tai", "voi"
+            "bao", "kg", "g", "con", "lo", "lieu", "sang", "o", "tai", "voi",
+            "no", "cong", "tra", "tien", "gia", "mua", "ban", "nhap", "xuat", "chuyen",
+            "sua", "doi", "xoa", "huy", "ghi", "xem", "hoi", "co", "bi", "khong", "nhieu"
     );
 
     private final Set<String> knownBarnNames = ConcurrentHashMap.newKeySet();
@@ -318,7 +320,10 @@ public class DynamicVietnameseSpeechNormalizer {
                 }
 
                 // 2. Fuzzy Levenshtein DB alignment (>= 0.78) with strict digit-sequence lock
-                String fuzzyCanonical = findBestFuzzyEntity(words, i, len, plainCandidate, entries);
+                // Before accepting a fuzzy match that starts at words[i], ensure it does not cannibalize
+                // an exact DB entity starting 1 token later (e.g. "nợ Công ty CP ... Việt" eating "nợ"
+                // before exact "Công ty CP ... Việt Nam").
+                String fuzzyCanonical = findBestFuzzyEntity(words, i, len, plainCandidate, entries, exactMap);
                 if (fuzzyCanonical != null) {
                     recordCorrection(corrections, window.rawInner(), fuzzyCanonical);
                     output.add(window.leadPunct() + fuzzyCanonical + window.trailPunct());
@@ -340,7 +345,8 @@ public class DynamicVietnameseSpeechNormalizer {
             int startIdx,
             int spanLen,
             String plainCandidate,
-            List<LexiconEntry> entries
+            List<LexiconEntry> entries,
+            Map<String, String> exactMap
     ) {
         if (plainCandidate.length() < 5) {
             return null;
@@ -363,7 +369,25 @@ public class DynamicVietnameseSpeechNormalizer {
                 if (entry.wordCount() == 1 || Math.abs(spanLen - entry.wordCount()) > 1) {
                     continue;
                 }
-                if (GRAMMAR_BOUNDARY_WORDS.contains(firstPlain) || GRAMMAR_BOUNDARY_WORDS.contains(lastPlain)) {
+            }
+            // Never let fuzzy matching swallow a leading/trailing grammar or intent word
+            // unless the canonical entity itself begins/ends with that word.
+            if (entry.wordCount() > 1) {
+                if (GRAMMAR_BOUNDARY_WORDS.contains(firstPlain)
+                        && !entry.plain().startsWith(firstPlain + " ")) {
+                    continue;
+                }
+                if (GRAMMAR_BOUNDARY_WORDS.contains(lastPlain)
+                        && !entry.plain().endsWith(" " + lastPlain)) {
+                    continue;
+                }
+            }
+            // Never let a shifted fuzzy window cannibalize an exact DB entity starting at startIdx + 1.
+            if (startIdx + 1 + entry.wordCount() <= words.length && exactMap != null) {
+                String nextSpanPlain = normalizeEntityKey(
+                        extractSpanWindow(words, startIdx + 1, entry.wordCount()).rawInner()
+                );
+                if (exactMap.containsKey(nextSpanPlain)) {
                     continue;
                 }
             }
@@ -379,6 +403,19 @@ public class DynamicVietnameseSpeechNormalizer {
             double simSpaced = similarity(plainCandidate, entry.plain());
             double simCompact = similarity(compactCandidate, entry.compactPlain());
             double score = Math.max(simSpaced, simCompact);
+            if (spanLen > entry.wordCount() && spanLen >= 2) {
+                // Never swallow an unrelated leading/trailing sentence word (e.g. "nợ" before a supplier name)
+                // when dropping that boundary word makes the inner phrase strictly closer to the entity.
+                String dropFirst = normalizeEntityKey(extractSpanWindow(words, startIdx + 1, spanLen - 1).rawInner());
+                String dropLast = normalizeEntityKey(extractSpanWindow(words, startIdx, spanLen - 1).rawInner());
+                double innerBest = Math.max(
+                        Math.max(similarity(dropFirst, entry.plain()), similarity(dropFirst.replace(" ", ""), entry.compactPlain())),
+                        Math.max(similarity(dropLast, entry.plain()), similarity(dropLast.replace(" ", ""), entry.compactPlain()))
+                );
+                if (innerBest > score + 1e-6) {
+                    continue;
+                }
+            }
             if (score >= FUZZY_SIMILARITY_THRESHOLD) {
                 if (score > bestScore + 1e-6 || (Math.abs(score - bestScore) <= 1e-6 && entry.plain().length() > bestLen)) {
                     bestScore = score;

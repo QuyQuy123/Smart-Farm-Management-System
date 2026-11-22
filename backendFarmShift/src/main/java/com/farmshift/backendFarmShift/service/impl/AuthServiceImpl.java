@@ -13,6 +13,7 @@ import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.AccountRepository;
 import com.farmshift.backendFarmShift.repository.OtpTokenRepository;
 import com.farmshift.backendFarmShift.security.JwtProvider;
+import com.farmshift.backendFarmShift.service.CycleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.farmshift.backendFarmShift.service.EmailService;
@@ -129,7 +130,7 @@ public class AuthServiceImpl implements AuthService {
         OtpToken otpToken = OtpToken.builder()
                 .email(email)
                 .code(otp)
-                .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
+                .expiresAt(LocalDateTime.now(CycleService.VN_ZONE).plusMinutes(OTP_EXPIRY_MINUTES))
                 .used(false)
                 .build();
 
@@ -151,7 +152,7 @@ public class AuthServiceImpl implements AuthService {
         String email = request.getEmail().trim().toLowerCase();
 
         OtpToken otpToken = otpTokenRepository
-                .findTopByEmailAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(email, LocalDateTime.now())
+                .findTopByEmailAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(email, LocalDateTime.now(CycleService.VN_ZONE))
                 .orElseThrow(() -> new BadRequestException(
                         "No valid OTP found. Please request a new one."));
 
@@ -179,7 +180,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 1. Find the most recently issued, still-valid OTP
         OtpToken otpToken = otpTokenRepository
-                .findTopByEmailAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(email, LocalDateTime.now())
+                .findTopByEmailAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(email, LocalDateTime.now(CycleService.VN_ZONE))
                 .orElseThrow(() -> new BadRequestException(
                         "No valid OTP found. Please request a new one."));
 

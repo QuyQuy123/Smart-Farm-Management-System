@@ -1,9 +1,11 @@
 import asyncio
 import base64
+from decimal import Decimal
 import io
 import json
 import logging
 import re
+import time
 from typing import Any, List, Optional, Tuple
 
 import httpx
@@ -13,6 +15,7 @@ from PIL import Image, ImageOps
 
 from app.core.config import settings
 from app.core.http_client import get_shared_http_client
+from app.core.observability import extract_token_usage, log_ai_event
 from app.schemas.ocr_schema import InvoiceItemSchema, InvoiceOcrResponse
 from app.services.document_loader import (
     MAX_IMAGE_DIM,
@@ -106,6 +109,109 @@ def _safe_non_negative_float(value: Any, default: Optional[float] = None) -> Opt
     return num
 
 
+def _verify_and_reconcile_invoice_math(
+    items: List[InvoiceItemSchema],
+    discount: float,
+    vat: float,
+    other_cost: float,
+    total_amount: float,
+    warnings: List[str],
+) -> Tuple[List[InvoiceItemSchema], float]:
+    """Verify per-line and invoice totals with Decimal precision, auto-scaling dropped '.000' unit prices."""
+    items_sum = Decimal("0")
+    for idx, item in enumerate(items, start=1):
+        qty_dec = Decimal(str(item.qty))
+        unit_price_dec = (
+            Decimal(str(item.unitPrice)) if item.unitPrice is not None else None
+        )
+        amount_dec = Decimal(str(item.amount)) if item.amount is not None else None
+
+        if (
+            unit_price_dec is not None
+            and amount_dec is not None
+            and Decimal("0") < unit_price_dec < Decimal("1000")
+            and amount_dec >= Decimal("10000")
+            and qty_dec > Decimal("0")
+        ):
+            scaled_unit = unit_price_dec * Decimal("1000")
+            raw_expected = qty_dec * unit_price_dec
+            scaled_expected = qty_dec * scaled_unit
+            if (
+                abs(amount_dec - scaled_expected) <= Decimal("1000")
+                and abs(amount_dec - raw_expected) > Decimal("1000")
+            ):
+                item.unitPrice = float(scaled_unit)
+                unit_price_dec = scaled_unit
+
+        if (unit_price_dec is None or unit_price_dec <= Decimal("0")) and (
+            amount_dec is not None and amount_dec > Decimal("0") and qty_dec > Decimal("0")
+        ):
+            unit_price_dec = Decimal(str(round(float(amount_dec / qty_dec))))
+            item.unitPrice = float(unit_price_dec)
+        elif (amount_dec is None or amount_dec <= Decimal("0")) and (
+            unit_price_dec is not None and unit_price_dec > Decimal("0")
+        ):
+            amount_dec = Decimal(str(round(float(qty_dec * unit_price_dec))))
+            item.amount = float(amount_dec)
+
+        if (
+            unit_price_dec is not None
+            and unit_price_dec > Decimal("0")
+            and amount_dec is not None
+            and amount_dec > Decimal("0")
+        ):
+            expected_line = qty_dec * unit_price_dec
+            if abs(expected_line - amount_dec) > Decimal("1000"):
+                warnings.append(
+                    f"Dòng hàng #{idx} ({item.name}): thành tiền "
+                    f"({int(round(float(amount_dec))):,} đ) chưa khớp số lượng × đơn giá "
+                    f"({int(round(float(expected_line))):,} đ).".replace(",", ".")
+                )
+
+        effective_line = (
+            qty_dec * unit_price_dec
+            if qty_dec > Decimal("0")
+            and unit_price_dec is not None
+            and unit_price_dec > Decimal("0")
+            else (
+                amount_dec
+                if amount_dec is not None and amount_dec > Decimal("0")
+                else Decimal("0")
+            )
+        )
+        items_sum += effective_line
+
+    expected_total = max(
+        Decimal("0"),
+        items_sum
+        - Decimal(str(discount))
+        + Decimal(str(vat))
+        + Decimal(str(other_cost)),
+    )
+    total_dec = Decimal(str(total_amount))
+    if (
+        Decimal("0") < total_dec < Decimal("100000")
+        and expected_total >= Decimal("10000000")
+    ):
+        scaled_total = total_dec * Decimal("1000")
+        if (
+            abs(scaled_total - expected_total) <= Decimal("1000")
+            and abs(total_dec - expected_total) > Decimal("1000")
+        ):
+            total_amount = float(scaled_total)
+            total_dec = scaled_total
+
+    if total_dec <= Decimal("0") and expected_total > Decimal("0"):
+        total_amount = float(expected_total)
+    elif total_dec > Decimal("0") and abs(total_dec - expected_total) > Decimal("1000"):
+        warnings.append(
+            f"Tổng tiền trên hóa đơn ({int(round(float(total_dec))):,} đ) chưa khớp "
+            f"với tổng tính lại ({int(round(float(expected_total))):,} đ). Vui lòng đối chiếu lại.".replace(",", ".")
+        )
+
+    return items, total_amount
+
+
 class OcrService:
     def __init__(self):
         self.common_units = [
@@ -197,6 +303,7 @@ class OcrService:
         self, images: List[Tuple[bytes, str]]
     ) -> InvoiceOcrResponse:
         """Gọi OpenAI Vision API để bóc tách hóa đơn tiếng Việt từ 1..4 trang ảnh."""
+        started_at = time.perf_counter()
         parts: list[dict[str, Any]] = [{"type": "text", "text": INVOICE_VISION_PROMPT}]
         for img_bytes, image_mime in images:
             encoded = base64.b64encode(img_bytes).decode("ascii")
@@ -234,6 +341,8 @@ class OcrService:
                 )
 
             engine_label = f"OpenAI Vision ({settings.OPENAI_MODEL})"
+            duration_ms = int((time.perf_counter() - started_at) * 1000)
+            usage = extract_token_usage(body)
             raw_warnings = parsed.get("warnings")
             warnings = (
                 [str(w).strip() for w in raw_warnings if str(w).strip()]
@@ -246,6 +355,13 @@ class OcrService:
                     warnings = [
                         "Không nhận diện được hóa đơn mua hàng trong tệp đã tải lên."
                     ]
+                log_ai_event(
+                    logger,
+                    "invoice_ocr_rejected_non_invoice",
+                    provider=engine_label,
+                    duration_ms=duration_ms,
+                    **usage,
+                )
                 return InvoiceOcrResponse(
                     isInvoice=False,
                     items=[],
@@ -284,8 +400,32 @@ class OcrService:
                         )
                     )
 
+            discount_amt = _safe_non_negative_float(parsed.get("discountAmount"), 0.0) or 0.0
+            vat_amt = _safe_non_negative_float(parsed.get("vatAmount"), 0.0) or 0.0
+            other_cost = _safe_non_negative_float(parsed.get("otherCost"), 0.0) or 0.0
+            total_amt = _safe_non_negative_float(parsed.get("totalAmount"), 0.0) or 0.0
+            items, total_amt = _verify_and_reconcile_invoice_math(
+                items,
+                discount_amt,
+                vat_amt,
+                other_cost,
+                total_amt,
+                warnings,
+            )
+
             raw_conf = _safe_non_negative_float(parsed.get("confidence"), 0.0) or 0.0
             confidence = min(100.0, max(0.0, raw_conf))
+
+            log_ai_event(
+                logger,
+                "invoice_ocr_completed",
+                provider=engine_label,
+                duration_ms=duration_ms,
+                items_count=len(items),
+                confidence=confidence,
+                warnings_count=len(warnings),
+                **usage,
+            )
 
             return InvoiceOcrResponse(
                 isInvoice=True,
@@ -294,10 +434,10 @@ class OcrService:
                 invoiceDate=str(parsed.get("invoiceDate") or "").strip() or None,
                 referenceCode=str(parsed.get("referenceCode") or "").strip() or None,
                 items=items,
-                discountAmount=_safe_non_negative_float(parsed.get("discountAmount"), 0.0),
-                vatAmount=_safe_non_negative_float(parsed.get("vatAmount"), 0.0),
-                otherCost=_safe_non_negative_float(parsed.get("otherCost"), 0.0),
-                totalAmount=_safe_non_negative_float(parsed.get("totalAmount"), 0.0),
+                discountAmount=discount_amt,
+                vatAmount=vat_amt,
+                otherCost=other_cost,
+                totalAmount=total_amt,
                 paidAmount=_safe_non_negative_float(parsed.get("paidAmount"), 0.0),
                 paymentStatus=str(parsed.get("paymentStatus") or "Trả sau").strip() or "Trả sau",
                 confidence=confidence,

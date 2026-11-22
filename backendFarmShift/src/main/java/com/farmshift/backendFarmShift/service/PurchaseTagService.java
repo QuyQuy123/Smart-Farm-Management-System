@@ -23,7 +23,24 @@ public class PurchaseTagService {
     private final PurchaseTagRepository repository;
 
     public List<PurchaseTagResponse> list() {
-        return repository.findAll(Sort.by("createdAt", "id")).stream().map(this::toResponse).toList();
+        List<PurchaseTag> tags = repository.findAll(Sort.by("createdAt", "id"));
+        if (tags.isEmpty()) {
+            return List.of();
+        }
+        java.util.Map<Long, Long> usageByTag = new java.util.HashMap<>();
+        for (Object[] row : repository.countSupplierUsageByTag()) {
+            if (row != null && row.length >= 2 && row[0] instanceof Number idNum && row[1] instanceof Number cntNum) {
+                usageByTag.merge(idNum.longValue(), cntNum.longValue(), Long::sum);
+            }
+        }
+        for (Object[] row : repository.countInvoiceUsageByTag()) {
+            if (row != null && row.length >= 2 && row[0] instanceof Number idNum && row[1] instanceof Number cntNum) {
+                usageByTag.merge(idNum.longValue(), cntNum.longValue(), Long::sum);
+            }
+        }
+        return tags.stream()
+                .map(t -> toResponse(t, usageByTag.getOrDefault(t.getId(), 0L)))
+                .toList();
     }
 
     public PurchaseTagResponse get(Long id) {
@@ -69,6 +86,10 @@ public class PurchaseTagService {
 
     private PurchaseTagResponse toResponse(PurchaseTag tag) {
         long usageCount = tag.getId() != null ? repository.countUsage(tag.getId()) : 0L;
+        return toResponse(tag, usageCount);
+    }
+
+    private PurchaseTagResponse toResponse(PurchaseTag tag, long usageCount) {
         return new PurchaseTagResponse(
                 tag.getId(),
                 tag.getName(),

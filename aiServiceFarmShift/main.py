@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 import logging
+import uuid
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.http_client import close_http_client, init_http_client
+from app.core.observability import reset_correlation_id, set_correlation_id
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,8 +54,22 @@ app.add_middleware(
     allow_origins=["*"] if allow_all else origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "HEAD"],
-    allow_headers=["Content-Type", "X-Internal-AI-Token"],
+    allow_headers=["Content-Type", "X-Internal-AI-Token", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    incoming_id = (request.headers.get("X-Request-ID") or "").strip()
+    correlation_id = incoming_id[:128] if incoming_id else uuid.uuid4().hex
+    token = set_correlation_id(correlation_id)
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = correlation_id
+        return response
+    finally:
+        reset_correlation_id(token)
 
 
 # Healthcheck

@@ -40,6 +40,7 @@ public class AiSuggestionService {
 
     private static final int MAX_SUGGESTIONS = 4;
     private static final int ROUTE_BOOST_POINTS = 25;
+    private static final int IOT_ROUTE_BOOST_POINTS = 80;
     private static final BigDecimal LOW_STOCK_THRESHOLD = new BigDecimal("5");
     private static final BigDecimal MORTALITY_RATE_ALERT = new BigDecimal("0.5");
 
@@ -55,6 +56,9 @@ public class AiSuggestionService {
     private final InventoryItemRepository inventoryItemRepository;
     private final PurchaseInvoiceRepository purchaseInvoiceRepository;
     private final DebtService debtService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private BarnRepository barnRepository;
 
     public AiSuggestionResponse getSuggestions(
             String username,
@@ -481,8 +485,10 @@ public class AiSuggestionService {
                     .build());
         }
 
-        // 6. Clean fallbacks (so empty DB still delivers 4 helpful, accurate cards)
-        String primaryBarn = resolvePrimaryBarnName(activeCycles, "Nhà A1");
+        // 6. Clean fallbacks & dedicated /iot contextual cards (so empty DB and /iot route deliver relevant cards)
+        List<String> activeBarnNames = resolveDistinctBarnNames(activeCycles);
+        String primaryBarn = activeBarnNames.isEmpty() ? "Nhà A1" : activeBarnNames.get(0);
+        String secondaryBarn = activeBarnNames.size() > 1 ? activeBarnNames.get(1) : primaryBarn;
         cards.add(SuggestionCard.builder()
                 .id("owner_profit_loss")
                 .category("INSIGHT")
@@ -511,12 +517,48 @@ public class AiSuggestionService {
                 .id("owner_iot_status")
                 .category("INSIGHT")
                 .badge("Môi trường")
-                .title("Kiểm tra nhiệt độ & độ ẩm chuồng")
-                .subtitle("Theo dõi thông số cảm biến các khu nuôi")
-                .prompt("Kiểm tra nhiệt độ và môi trường các chuồng nuôi hiện tại")
+                .title("Kiểm tra nhiệt độ & độ ẩm · " + primaryBarn)
+                .subtitle("Đọc thông số cảm biến ESP32 & ngưỡng an toàn (28–31°C)")
+                .prompt("Kiểm tra nhiệt độ và độ ẩm tại " + primaryBarn)
                 .autoSend(true)
                 .targetRoute("/iot")
-                .priorityScore(46)
+                .priorityScore(32)
+                .build());
+
+        cards.add(SuggestionCard.builder()
+                .id("owner_iot_ventilation")
+                .category("ACTION")
+                .badge("Thông gió")
+                .title("Kiểm tra quạt thông gió & làm mát · " + secondaryBarn)
+                .subtitle("Rà soát relay quạt hút, giàn mát và khí độc NH3/CO2")
+                .prompt("Kiểm tra cảm biến và quạt thông gió tại " + secondaryBarn)
+                .autoSend(true)
+                .targetRoute("/iot")
+                .priorityScore(30)
+                .build());
+
+        cards.add(SuggestionCard.builder()
+                .id("owner_iot_heat_threshold")
+                .category("ALERT")
+                .badge("Ngưỡng nhiệt")
+                .title("Ngưỡng nhiệt cảnh báo & chống nóng")
+                .subtitle("Xử lý khi cảm biến vượt ngưỡng, bật phun sương & quạt")
+                .prompt("Biện pháp chống nóng và kiểm soát stress nhiệt cho đàn gà")
+                .autoSend(true)
+                .targetRoute("/iot")
+                .priorityScore(28)
+                .build());
+
+        cards.add(SuggestionCard.builder()
+                .id("owner_iot_camera_tpl")
+                .category("ACTION")
+                .badge("Camera QR")
+                .title("Tra cứu cảm biến / Camera QR theo chuồng")
+                .subtitle("Điền tên chuồng (vd: " + primaryBarn + ") để kiểm tra môi trường")
+                .prompt("Kiểm tra nhiệt độ, độ ẩm và thông gió tại ...")
+                .autoSend(false)
+                .targetRoute("/iot")
+                .priorityScore(26)
                 .build());
 
         cards.add(SuggestionCard.builder()
@@ -528,10 +570,29 @@ public class AiSuggestionService {
                 .prompt("Tóm tắt tình hình trang trại hôm nay")
                 .autoSend(true)
                 .targetRoute("/dashboard")
-                .priorityScore(40)
+                .priorityScore(38)
                 .build());
 
         return cards;
+    }
+
+    private List<String> resolveDistinctBarnNames(List<FarmingCycle> activeCycles) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        if (activeCycles != null) {
+            for (FarmingCycle c : activeCycles) {
+                if (c.getBarn() != null && c.getBarn().getName() != null && !c.getBarn().getName().isBlank()) {
+                    names.add(c.getBarn().getName());
+                }
+            }
+        }
+        if (names.isEmpty() && barnRepository != null) {
+            for (Barn b : barnRepository.findAllByOrderByCreatedAtAscIdAsc()) {
+                if (b.getName() != null && !b.getName().isBlank()) {
+                    names.add(b.getName());
+                }
+            }
+        }
+        return new ArrayList<>(names);
     }
 
     // -------------------------------------------------------------- Computation
@@ -710,17 +771,17 @@ public class AiSuggestionService {
             boolean isMia = flocks.stream()
                     .map(Flock::getProgram)
                     .filter(Objects::nonNull)
-                    .map(p -> safeStr(p.getName(), "").toLowerCase(Locale.ROOT))
-                    .anyMatch(name -> name.contains("mía") || name.contains("mia") || name.contains("gà ta"));
+                    .map(p -> (safeStr(p.getBreed(), "") + " " + safeStr(p.getName(), "")).toLowerCase(Locale.ROOT))
+                    .anyMatch(name -> name.contains("mía") || name.contains("mia") || name.contains("gà ta") || name.contains("ga ta"));
 
             String stageLabel;
             BigDecimal maxBench;
             if (ageDays <= 21) {
                 stageLabel = "Giai đoạn úm";
-                maxBench = new BigDecimal("1.55");
+                maxBench = new BigDecimal("1.35");
             } else if (ageDays <= 50) {
                 stageLabel = "Giai đoạn phát triển";
-                maxBench = new BigDecimal("2.25");
+                maxBench = new BigDecimal("1.85");
             } else {
                 stageLabel = "Giai đoạn vỗ béo";
                 maxBench = isMia ? new BigDecimal("2.95") : new BigDecimal("2.45");
@@ -780,7 +841,10 @@ public class AiSuggestionService {
             if (card == null || card.getId() == null) continue;
             int boostedScore = card.getPriorityScore();
             if (matchesRouteContext(normalizedRoute, card.getTargetRoute())) {
-                boostedScore += ROUTE_BOOST_POINTS;
+                int boost = "/iot".equals(normalizedRoute) && "/iot".equals(normalizeRoute(card.getTargetRoute()))
+                        ? IOT_ROUTE_BOOST_POINTS
+                        : ROUTE_BOOST_POINTS;
+                boostedScore += boost;
             }
             card.setPriorityScore(boostedScore);
             deduped.putIfAbsent(card.getId(), card);

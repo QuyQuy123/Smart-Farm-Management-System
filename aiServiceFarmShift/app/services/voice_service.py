@@ -8,6 +8,7 @@ import httpx
 
 from app.core.config import settings
 from app.core.http_client import get_shared_http_client
+from app.core.observability import ProviderCircuitBreaker, extract_token_usage, log_ai_event
 from app.schemas.voice_schema import (
     AssistantChatRequest,
     AssistantChatResponse,
@@ -17,6 +18,19 @@ from app.services.phonetic_postprocess import postprocess_vietnamese_phonetic
 from app.services.voice_hallucination_guard import filter_whisper_verbose_json
 
 logger = logging.getLogger("aiServiceFarmShift.voice")
+
+MAX_HISTORY_TURNS = 6
+MAX_HISTORY_TURN_CHARS = 500
+
+groq_stt_breaker = ProviderCircuitBreaker(
+    "groq_stt", failure_threshold=3, reset_timeout_sec=30.0
+)
+groq_chat_breaker = ProviderCircuitBreaker(
+    "groq_chat", failure_threshold=3, reset_timeout_sec=30.0
+)
+openai_chat_breaker = ProviderCircuitBreaker(
+    "openai_chat", failure_threshold=3, reset_timeout_sec=30.0
+)
 
 DOMAIN_PROMPT = (
     "FarmShift, trang trại gà thịt thương phẩm. Khu Mía Thịt, Khu J Thịt, Khu đông tảo, "
@@ -105,6 +119,12 @@ async def _post_json(
 
 class VoiceService:
     @staticmethod
+    def reset_circuit_breakers() -> None:
+        groq_stt_breaker.reset()
+        groq_chat_breaker.reset()
+        openai_chat_breaker.reset()
+
+    @staticmethod
     async def transcribe_audio(
         file_bytes: bytes,
         filename: str = "voice.webm",
@@ -133,6 +153,29 @@ class VoiceService:
         if not api_key:
             logger.info("Chưa cấu hình GROQ_API_KEY trong aiService. Fallback sang Web Speech API.")
             duration_ms = int((time.time() - start_time) * 1000)
+            return SpeechTranscribeResponse(
+                text="",
+                raw_text="",
+                normalized_text="",
+                confidence=0.0,
+                duration_sec=0.0,
+                rejected_reason=None,
+                corrections=[],
+                segments_filtered=0,
+                provider="WEB_SPEECH_FALLBACK",
+                fallback=True,
+                duration_ms=duration_ms,
+            )
+
+        if not groq_stt_breaker.allow_request():
+            duration_ms = int((time.time() - start_time) * 1000)
+            log_ai_event(
+                logger,
+                "groq_stt_circuit_open",
+                level=logging.WARNING,
+                circuit_state=groq_stt_breaker.state,
+                duration_ms=duration_ms,
+            )
             return SpeechTranscribeResponse(
                 text="",
                 raw_text="",
@@ -176,14 +219,18 @@ class VoiceService:
             duration_ms = int((time.time() - start_time) * 1000)
 
             if response.status_code == 200:
+                groq_stt_breaker.record_success()
                 result = response.json()
                 guard = filter_whisper_verbose_json(result)
                 if guard.rejected_reason is not None:
-                    logger.info(
-                        "Groq Whisper rejected (%s, segments_filtered=%d, raw_len=%d)",
-                        guard.rejected_reason,
-                        guard.segments_filtered,
-                        len(guard.raw_text),
+                    log_ai_event(
+                        logger,
+                        "voice_stt_rejected_hallucination",
+                        provider="GROQ_WHISPER_LARGE_V3",
+                        duration_ms=duration_ms,
+                        rejected_reason=guard.rejected_reason,
+                        segments_filtered=guard.segments_filtered,
+                        raw_len=len(guard.raw_text),
                     )
                     return SpeechTranscribeResponse(
                         text="",
@@ -204,12 +251,15 @@ class VoiceService:
                     guard.filtered_text,
                     entities,
                 )
-                logger.info(
-                    "Groq Whisper STT succeeded in %dms (conf=%.4f, chars=%d, corrections=%d)",
-                    duration_ms,
-                    guard.confidence,
-                    len(normalized_text),
-                    len(corrections),
+                log_ai_event(
+                    logger,
+                    "voice_stt_completed",
+                    provider="GROQ_WHISPER_LARGE_V3",
+                    duration_ms=duration_ms,
+                    confidence=round(guard.confidence, 4),
+                    chars=len(normalized_text),
+                    corrections_count=len(corrections),
+                    segments_filtered=guard.segments_filtered,
                 )
                 logger.debug("Groq Whisper STT transcript: '%s'", normalized_text)
                 return SpeechTranscribeResponse(
@@ -225,8 +275,11 @@ class VoiceService:
                     fallback=False,
                     duration_ms=duration_ms,
                 )
+            if response.status_code == 429 or response.status_code >= 500:
+                groq_stt_breaker.record_failure()
             logger.warning("Groq Whisper returned HTTP %s", response.status_code)
         except Exception as ex:
+            groq_stt_breaker.record_failure()
             logger.warning(
                 "Error calling Groq Whisper API (fallback to Web Speech): %s",
                 type(ex).__name__,
@@ -254,101 +307,149 @@ class VoiceService:
         if req.system_prompt:
             messages.append({"role": "system", "content": req.system_prompt})
         if req.history:
-            for item in req.history[-14:]:
+            for item in req.history[-MAX_HISTORY_TURNS:]:
                 if isinstance(item, dict):
                     raw_role = str(item.get("role", "user"))
                     raw_content = str(item.get("content", ""))
                 else:
                     raw_role = str(item.role or "user")
                     raw_content = str(item.content or "")
-                if raw_content.strip():
+                clean_content = raw_content.strip()[:MAX_HISTORY_TURN_CHARS]
+                if clean_content:
                     mapped_role = (
                         "assistant" if raw_role.lower() in ("assistant", "bot") else "user"
                     )
-                    messages.append({"role": mapped_role, "content": raw_content})
+                    messages.append({"role": mapped_role, "content": clean_content})
         messages.append({"role": "user", "content": req.message})
 
         use_json_mode = _wants_json_mode(req)
 
         groq_key = settings.GROQ_API_KEY.strip() if settings.GROQ_API_KEY else ""
         if groq_key:
-            try:
-                headers = {
-                    "Authorization": f"Bearer {groq_key}",
-                    "Content-Type": "application/json",
-                }
-                payload: dict[str, Any] = {
-                    "model": settings.GROQ_CHAT_MODEL or "llama-3.3-70b-versatile",
-                    "temperature": 0.1,
-                    "messages": messages,
-                }
-                if use_json_mode:
-                    payload["response_format"] = {"type": "json_object"}
+            if groq_chat_breaker.allow_request():
+                try:
+                    headers = {
+                        "Authorization": f"Bearer {groq_key}",
+                        "Content-Type": "application/json",
+                    }
+                    payload: dict[str, Any] = {
+                        "model": settings.GROQ_CHAT_MODEL or "llama-3.3-70b-versatile",
+                        "temperature": 0.1,
+                        "messages": messages,
+                    }
+                    if use_json_mode:
+                        payload["response_format"] = {"type": "json_object"}
 
-                response = await _post_json(
-                    GROQ_CHAT_ENDPOINT,
-                    headers=headers,
-                    payload=payload,
-                    timeout_sec=GROQ_CHAT_TIMEOUT_SEC,
+                    response = await _post_json(
+                        GROQ_CHAT_ENDPOINT,
+                        headers=headers,
+                        payload=payload,
+                        timeout_sec=GROQ_CHAT_TIMEOUT_SEC,
+                    )
+
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    if response.status_code == 200:
+                        data = response.json()
+                        content = _extract_choice_content(data)
+                        if content is not None:
+                            groq_chat_breaker.record_success()
+                            provider_name = settings.GROQ_CHAT_MODEL or "llama-3.3-70b-versatile"
+                            log_ai_event(
+                                logger,
+                                "voice_chat_completed",
+                                provider=provider_name,
+                                duration_ms=duration_ms,
+                                json_mode=use_json_mode,
+                                history_turns=max(0, len(messages) - 2),
+                                **extract_token_usage(data),
+                            )
+                            return AssistantChatResponse(
+                                content=content,
+                                provider=provider_name,
+                                fallback=False,
+                                duration_ms=duration_ms,
+                            )
+                        groq_chat_breaker.record_failure()
+                        logger.warning("Groq Chat LLM returned 200 with empty choices")
+                    else:
+                        if response.status_code == 429 or response.status_code >= 500:
+                            groq_chat_breaker.record_failure()
+                        logger.warning("Groq Chat LLM returned HTTP %s", response.status_code)
+                except Exception as ex:
+                    groq_chat_breaker.record_failure()
+                    logger.warning("Groq Chat LLM request failed: %s", type(ex).__name__)
+            else:
+                log_ai_event(
+                    logger,
+                    "groq_chat_circuit_open",
+                    level=logging.WARNING,
+                    circuit_state=groq_chat_breaker.state,
                 )
-
-                duration_ms = int((time.time() - start_time) * 1000)
-                if response.status_code == 200:
-                    data = response.json()
-                    content = _extract_choice_content(data)
-                    if content is not None:
-                        return AssistantChatResponse(
-                            content=content,
-                            provider=settings.GROQ_CHAT_MODEL or "llama-3.3-70b-versatile",
-                            fallback=False,
-                            duration_ms=duration_ms,
-                        )
-                    logger.warning("Groq Chat LLM returned 200 with empty choices")
-                else:
-                    logger.warning("Groq Chat LLM returned HTTP %s", response.status_code)
-            except Exception as ex:
-                logger.warning("Groq Chat LLM request failed: %s", type(ex).__name__)
 
         openai_key = settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY else ""
         if openai_key:
-            try:
-                headers = {
-                    "Authorization": f"Bearer {openai_key}",
-                    "Content-Type": "application/json",
-                }
-                payload = {
-                    "model": settings.OPENAI_MODEL or "gpt-4o-mini",
-                    "temperature": 0.1,
-                    "messages": messages,
-                }
-                if use_json_mode:
-                    payload["response_format"] = {"type": "json_object"}
+            if openai_chat_breaker.allow_request():
+                try:
+                    headers = {
+                        "Authorization": f"Bearer {openai_key}",
+                        "Content-Type": "application/json",
+                    }
+                    payload = {
+                        "model": settings.OPENAI_MODEL or "gpt-4o-mini",
+                        "temperature": 0.1,
+                        "messages": messages,
+                    }
+                    if use_json_mode:
+                        payload["response_format"] = {"type": "json_object"}
 
-                response = await _post_json(
-                    settings.OPENAI_API_URL,
-                    headers=headers,
-                    payload=payload,
-                    timeout_sec=OPENAI_CHAT_TIMEOUT_SEC,
-                )
-
-                duration_ms = int((time.time() - start_time) * 1000)
-                if response.status_code == 200:
-                    data = response.json()
-                    content = _extract_choice_content(data)
-                    if content is not None:
-                        return AssistantChatResponse(
-                            content=content,
-                            provider=settings.OPENAI_MODEL or "gpt-4o-mini",
-                            fallback=False,
-                            duration_ms=duration_ms,
-                        )
-                    logger.warning("OpenAI Chat fallback returned 200 with empty choices")
-                else:
-                    logger.warning(
-                        "OpenAI Chat fallback returned HTTP %s", response.status_code
+                    response = await _post_json(
+                        settings.OPENAI_API_URL,
+                        headers=headers,
+                        payload=payload,
+                        timeout_sec=OPENAI_CHAT_TIMEOUT_SEC,
                     )
-            except Exception as ex:
-                logger.warning("OpenAI Chat fallback failed: %s", type(ex).__name__)
+
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    if response.status_code == 200:
+                        data = response.json()
+                        content = _extract_choice_content(data)
+                        if content is not None:
+                            openai_chat_breaker.record_success()
+                            provider_name = settings.OPENAI_MODEL or "gpt-4o-mini"
+                            log_ai_event(
+                                logger,
+                                "voice_chat_completed",
+                                provider=provider_name,
+                                fallback_from="groq",
+                                duration_ms=duration_ms,
+                                json_mode=use_json_mode,
+                                history_turns=max(0, len(messages) - 2),
+                                **extract_token_usage(data),
+                            )
+                            return AssistantChatResponse(
+                                content=content,
+                                provider=provider_name,
+                                fallback=False,
+                                duration_ms=duration_ms,
+                            )
+                        openai_chat_breaker.record_failure()
+                        logger.warning("OpenAI Chat fallback returned 200 with empty choices")
+                    else:
+                        if response.status_code == 429 or response.status_code >= 500:
+                            openai_chat_breaker.record_failure()
+                        logger.warning(
+                            "OpenAI Chat fallback returned HTTP %s", response.status_code
+                        )
+                except Exception as ex:
+                    openai_chat_breaker.record_failure()
+                    logger.warning("OpenAI Chat fallback failed: %s", type(ex).__name__)
+            else:
+                log_ai_event(
+                    logger,
+                    "openai_chat_circuit_open",
+                    level=logging.WARNING,
+                    circuit_state=openai_chat_breaker.state,
+                )
 
         duration_ms = int((time.time() - start_time) * 1000)
         return AssistantChatResponse(
