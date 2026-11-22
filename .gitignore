@@ -63,3 +63,4 @@ aiServiceFarmShift/**/__pycache__/
 aiServiceFarmShift/*.pyc
 aiServiceFarmShift/**/*.pyc
 aiServiceFarmShift/.pytest_cache/
+/_study
