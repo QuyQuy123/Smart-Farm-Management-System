@@ -55,9 +55,13 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
         String msg = context.getMessage();
         String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase();
 
-        List<Barn> barns = barnRepository.findAll();
+        List<Barn> barns = new ArrayList<>(barnRepository.findAll());
+        barns.sort((b1, b2) -> Integer.compare(b2.getName().length(), b1.getName().length()));
         Barn targetBarn = barns.stream()
-                .filter(b -> norm.contains(VietnameseSpeechNormalizer.removeVietnameseDiacritics(b.getName()).toLowerCase()))
+                .filter(b -> {
+                    String bNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(b.getName()).toLowerCase(Locale.ROOT);
+                    return norm.matches(".*\\b" + java.util.regex.Pattern.quote(bNorm) + "\\b.*") || norm.contains(bNorm);
+                })
                 .findFirst()
                 .orElse(null);
 
@@ -95,6 +99,7 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
                         + "Trạng thái vi khí hậu hoàn toàn bình thường, đàn gà sinh trưởng tốt.")
                 .actionType("QUERY_IOT_TELEMETRY")
                 .executed(true)
+                .navigateTo(context.isOwner() ? "/iot" : null)
                 .dataCard(dataCard)
                 .build();
     }

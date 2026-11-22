@@ -1,5 +1,7 @@
 // src/__tests__/aiChatboxUxAndSuggestions.test.jsx
 import React from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -819,5 +821,75 @@ describe('AI Chatbox Live Suggestions, UX Overhaul & Dashboard Ask-AI Integratio
     expect(screen.getByText(/Đã ghi nhận thanh toán 53\.760\.000 đ/i)).toBeInTheDocument();
     expect(screen.getByTestId('session-list-panel')).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Hỏi hoặc ra lệnh/i).value).toBe('Chuyển 5 bao cám');
+  });
+
+  it('enforces >= 44px touch targets and readable pending action text in AIChatbot stylesheet and rendered controls (W03)', async () => {
+    const cssPath = path.resolve('src/components/AIChatbot/AIChatbot.module.css');
+    const cssText = fs.readFileSync(cssPath, 'utf8');
+
+    const extractRuleBlock = (source, selectorRegex) => {
+      const match = source.match(selectorRegex);
+      return match ? match[1] : '';
+    };
+
+    const parsePx = (block, prop) => {
+      const m = block.match(new RegExp(`${prop}:\\s*([0-9]+(?:\\.[0-9]+)?)px`));
+      return m ? Number(m[1]) : null;
+    };
+
+    const micBlock = extractRuleBlock(cssText, /\.micBtn\s*\{([^}]+)\}/);
+    const sendBlock = extractRuleBlock(cssText, /\.sendBtn\s*\{([^}]+)\}/);
+    const pillBlock = extractRuleBlock(cssText, /\.autoSpeakPill\s*\{([^}]+)\}/);
+    const acceptBlock = extractRuleBlock(cssText, /\.confirmAcceptBtn\s*\{([^}]+)\}/);
+    const rejectBlock = extractRuleBlock(cssText, /\.confirmRejectBtn\s*\{([^}]+)\}/);
+    const clarifBlock = extractRuleBlock(cssText, /\.clarificationOptionBtn\s*\{([^}]+)\}/);
+    const descBlock = extractRuleBlock(cssText, /\.confirmDesc\s*\{([^}]+)\}/);
+    const mobileBlock = cssText.split('@media (max-width: 768px)')[1] || '';
+    const mobileMicBlock = extractRuleBlock(mobileBlock, /\.micBtn\s*\{([^}]+)\}/);
+    const mobileSendBlock = extractRuleBlock(mobileBlock, /\.sendBtn\s*\{([^}]+)\}/);
+
+    expect(parsePx(micBlock, 'width')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(micBlock, 'height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(micBlock, 'min-width')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(micBlock, 'min-height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(mobileMicBlock, 'width')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(mobileMicBlock, 'height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(mobileMicBlock, 'min-width')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(mobileMicBlock, 'min-height')).toBeGreaterThanOrEqual(44);
+
+    expect(parsePx(sendBlock, 'min-height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(mobileSendBlock, 'min-height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(pillBlock, 'min-height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(acceptBlock, 'min-height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(rejectBlock, 'min-height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(clarifBlock, 'min-height')).toBeGreaterThanOrEqual(44);
+    expect(parsePx(descBlock, 'font-size')).toBeGreaterThanOrEqual(15);
+
+    // Also verify rendered controls bind those CSS module classes
+    aiAssistantService.getAiSuggestions.mockResolvedValue({
+      role: 'ROLE_FARM_WORKER',
+      roleLabel: 'Công nhân',
+      routeLabel: 'Bảng điều khiển',
+      inputPlaceholder: 'Hỏi hoặc ra lệnh...',
+      suggestions: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/today-tasks']}>
+        <AIChatbot userRole="ROLE_FARM_WORKER" userEmail="worker@farmshift.local" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    await screen.findByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+
+    const micBtn = document.querySelector('button[class*="micBtn"]');
+    const sendBtn = screen.getByTitle('Gửi câu lệnh');
+    const autoSpeakBtn = document.querySelector('button[class*="autoSpeakPill"]');
+
+    expect(micBtn).toBeTruthy();
+    expect(sendBtn).toBeTruthy();
+    expect(autoSpeakBtn).toBeTruthy();
+    expect(sendBtn.className).toMatch(/sendBtn/);
   });
 });

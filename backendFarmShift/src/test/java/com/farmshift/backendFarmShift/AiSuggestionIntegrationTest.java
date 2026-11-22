@@ -380,6 +380,101 @@ public class AiSuggestionIntegrationTest {
         }
     }
 
+    @Test
+    void testSuggestions_OwnerOnIotRouteReceivesContextualIotSuggestions() throws Exception {
+        LocalDate today = LocalDate.now(CycleService.VN_ZONE);
+        LocalTime now = LocalTime.now(CycleService.VN_ZONE);
+
+        long areaId = id(postAsOwner("/api/farm-areas", Map.of("name", "Khu IoT Chủ Trại")));
+        long barnId = id(postAsOwner("/api/barns", Map.of("areaId", areaId, "name", "Nhà IoT 1", "capacity", 3000, "areaM2", 300)));
+        Barn barn = barnRepository.findById(barnId).orElseThrow();
+
+        long progId = id(postAsOwner("/api/farming-programs", Map.of(
+                "name", "Chương trình IoT Test",
+                "breed", "Gà Mía",
+                "durationDays", 90,
+                "steps", List.of(Map.of(
+                        "category", "FEED",
+                        "name", "Higro 02",
+                        "dayFrom", 1,
+                        "dayTo", 60,
+                        "quantity", 30,
+                        "mealsPerDay", 2
+                ))
+        )));
+        long cycleId = id(postAsOwner("/api/barns/" + barnId + "/cycles",
+                Map.of("startDate", today.minusDays(25).toString())));
+        postAsOwner("/api/cycles/" + cycleId + "/flocks", Map.of(
+                "name", "Đàn IoT 1",
+                "programId", progId,
+                "gender", "MALE",
+                "importDate", today.minusDays(25).toString(),
+                "ageAtImport", 1,
+                "quantity", 1000,
+                "avgWeight", 0.04,
+                "unitPrice", 12000,
+                "sourceNote", "Dabaco"
+        )).andExpect(status().isCreated());
+        FarmingCycle cycle = cycleRepository.findById(cycleId).orElseThrow();
+
+        // Seed dashboard-competing alerts (overdue task, high FCR, low stock)
+        FeedRecord feed = new FeedRecord();
+        feed.setCycle(cycle);
+        feed.setRecordDate(today.minusDays(1));
+        feed.setFeedName("Cám Higro 02");
+        feed.setQuantityKg(new BigDecimal("4500.000"));
+        feed.setUnitPrice(new BigDecimal("14000"));
+        feed.setCreatedBy("owner@farm.test");
+        feedRepository.saveAndFlush(feed);
+
+        WeightSample weight = new WeightSample();
+        weight.setCycle(cycle);
+        weight.setSampleDate(today);
+        weight.setAvgWeightKg(new BigDecimal("1.500"));
+        weight.setSampleSize(50);
+        weight.setCreatedBy("owner@farm.test");
+        weightRepository.saveAndFlush(weight);
+
+        Account iotWorker = ensureWorkerAccount("worker-iot@farm.test", "Công nhân IoT");
+        if (now.isAfter(LocalTime.of(0, 5))) {
+            WorkTask overdueTask = new WorkTask();
+            overdueTask.setTitle("Cho ăn cữ sáng quá giờ");
+            overdueTask.setBarn(barn);
+            overdueTask.setAssignee(iotWorker);
+            overdueTask.setStartDate(today.minusDays(1));
+            overdueTask.setEndDate(today.plusDays(2));
+            overdueTask.setDueTime(now.minusMinutes(5));
+            overdueTask.setCreatedBy("owner@farm.test");
+            workTaskRepository.saveAndFlush(overdueTask);
+        }
+
+        // Request /iot route -> must surface contextual /iot cards rather than dashboard cards
+        String iotBody = mvc.perform(get(SUGGESTIONS_API)
+                        .param("route", "/iot")
+                        .with(user("owner@farm.test").authorities(new SimpleGrantedAuthority(RoleNames.FARM_OWNER))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.routeLabel").value("Môi trường IoT"))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode iotJson = mapper.readTree(iotBody);
+        assertEquals(4, iotJson.path("suggestions").size(), "Owner on /iot should receive 4 contextual IoT cards: " + iotBody);
+        assertNotNull(findCardById(iotJson, "owner_iot_status"), "Expected owner_iot_status card on /iot: " + iotBody);
+        assertNotNull(findCardById(iotJson, "owner_iot_ventilation"), "Expected owner_iot_ventilation card on /iot: " + iotBody);
+        assertNotNull(findCardById(iotJson, "owner_iot_heat_threshold"), "Expected owner_iot_heat_threshold card on /iot: " + iotBody);
+        assertNotNull(findCardById(iotJson, "owner_iot_camera_tpl"), "Expected owner_iot_camera_tpl card on /iot: " + iotBody);
+        assertNull(findCardById(iotJson, "owner_overdue_tasks"), "Dashboard overdue card must not displace /iot cards on /iot: " + iotBody);
+        assertNull(findCardById(iotJson, "owner_fcr_alert"), "Dashboard FCR card must not displace /iot cards on /iot: " + iotBody);
+
+        // Request /dashboard -> dashboard alerts continue to surface as usual
+        String dashBody = mvc.perform(get(SUGGESTIONS_API)
+                        .param("route", "/dashboard")
+                        .with(user("owner@farm.test").authorities(new SimpleGrantedAuthority(RoleNames.FARM_OWNER))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode dashJson = mapper.readTree(dashBody);
+        assertNotNull(findCardById(dashJson, "owner_overdue_tasks"), "Overdue card must still appear on /dashboard");
+        assertNotNull(findCardById(dashJson, "owner_fcr_alert"), "FCR alert card must still appear on /dashboard");
+    }
+
     // -------------------------------------------------------------- Helpers
 
     private void seedUnimportedInvoice(String code, String supplierName, long totalAmount, long paidAmount) {

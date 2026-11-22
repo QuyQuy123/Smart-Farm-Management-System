@@ -420,6 +420,7 @@
 
 .input {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   font-size: 15px;
@@ -433,8 +434,10 @@
 }
 
 .sendBtn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: none;
   background: #019788;
@@ -467,10 +470,10 @@
 
 /* ── Voice-to-Text Microphone & Wave Animations ── */
 .micBtn {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: 1px solid #cbd5e1;
   background: #ffffff;
@@ -955,7 +958,7 @@
 }
 
 .confirmDesc {
-  font-size: 14.5px;
+  font-size: 15px;
   color: #334155;
   line-height: 1.45;
 }
@@ -1376,6 +1379,8 @@
 }
 
 .utilityHint {
+  flex: 1;
+  min-width: 0;
   font-size: 11.5px;
   color: #0f766e;
   opacity: 0.9;
@@ -1388,8 +1393,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
-  padding: 6px 13px;
+  min-height: 44px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: #ffffff;
   border: 1px solid #99f6e4;
@@ -1448,6 +1453,7 @@
 
 .clarificationOptionBtn {
   width: 100%;
+  min-height: 44px;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -1547,11 +1553,18 @@
   }
 
   .micBtn {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
-    min-height: 42px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     margin-right: 6px;
+  }
+
+  .sendBtn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 

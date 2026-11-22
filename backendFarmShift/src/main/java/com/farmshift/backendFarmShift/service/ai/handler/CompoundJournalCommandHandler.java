@@ -142,8 +142,12 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
                 return barnNotAssignedResponse(barn);
             }
 
-            double kg = extractQuantityKg(clause);
-            if (kg <= 0) continue;
+            Double parsedKg = extractSignedQuantityKg(clause);
+            if (parsedKg == null) continue;
+            if (parsedKg <= 0) {
+                return validationErrorResponse("⚠️ Số lượng cám phải lớn hơn 0 (không được bằng 0 hoặc số âm). Vui lòng kiểm tra lại.");
+            }
+            double kg = parsedKg;
 
             String clauseFeed = extractFeedName(clause, defaultFeedName);
             feedClauses.add(new BarnFeedClause(barn, clauseFeed, kg));
@@ -294,8 +298,12 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
                 return barnNotAssignedResponse(barn);
             }
 
-            int qty = extractCount(clause);
-            if (qty <= 0) continue;
+            Integer parsedQty = extractSignedCount(clause);
+            if (parsedQty == null) continue;
+            if (parsedQty <= 0) {
+                return validationErrorResponse("⚠️ Số lượng hao hụt phải lớn hơn 0 (không được bằng 0 hoặc số âm). Vui lòng kiểm tra lại.");
+            }
+            int qty = parsedQty;
 
             lossClauses.add(new BarnLossClause(barn, qty));
             totalLoss += qty;
@@ -429,8 +437,12 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
                 return barnNotAssignedResponse(barn);
             }
 
-            double weight = extractQuantityKg(clause);
-            if (weight <= 0) continue;
+            Double parsedWeight = extractSignedQuantityKg(clause);
+            if (parsedWeight == null) continue;
+            if (parsedWeight <= 0) {
+                return validationErrorResponse("⚠️ Trọng lượng cân mẫu phải lớn hơn 0 (không được bằng 0 hoặc số âm). Vui lòng kiểm tra lại.");
+            }
+            double weight = parsedWeight;
 
             weightClauses.add(new BarnWeightClause(barn, weight));
         }
@@ -612,41 +624,58 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
         return null;
     }
 
-    private double extractQuantityKg(String text) {
-        String stripped = BARN_PATTERN.matcher(text).replaceAll(" ");
-        Matcher bagMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:bao)").matcher(stripped);
-        if (bagMatcher.find()) {
-            return Double.parseDouble(bagMatcher.group(1).replace(",", ".")) * 25.0;
-        }
-        Matcher kgMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:kg|cân)").matcher(stripped);
-        if (kgMatcher.find()) {
-            return Double.parseDouble(kgMatcher.group(1).replace(",", "."));
-        }
-        Matcher numMatcher = Pattern.compile("(\\d+(?:[.,]\\d+)?)").matcher(stripped);
-        if (numMatcher.find()) {
-            try {
-                double val = Double.parseDouble(numMatcher.group(1).replace(",", "."));
-                if (val > 0) return val;
-            } catch (Exception ignored) {}
-        }
-        return 0.0;
+    private AiAssistantResponse validationErrorResponse(String message) {
+        return AiAssistantResponse.builder()
+                .reply(message)
+                .actionType("VALIDATION_ERROR")
+                .executed(false)
+                .requiresConfirmation(false)
+                .build();
     }
 
-    private int extractCount(String text) {
-        String stripped = BARN_PATTERN.matcher(text).replaceAll(" ");
-        Matcher mWithUnit = Pattern.compile("(\\d+)\\s*con").matcher(stripped);
+    private Double extractSignedQuantityKg(String text) {
+        String stripped = VietnameseSpeechNormalizer.removeVietnameseDiacritics(
+                BARN_PATTERN.matcher(text).replaceAll(" ")
+        ).toLowerCase(Locale.ROOT);
+        Matcher bagMatcher = Pattern.compile("(?<![\\p{L}\\d.])(-\\s*|\\bam\\s+)?(\\d+(?:[.,]\\d+)?)\\s*bao\\b").matcher(stripped);
+        if (bagMatcher.find()) {
+            double val = Double.parseDouble(bagMatcher.group(2).replace(",", ".")) * 25.0;
+            return bagMatcher.group(1) != null ? -val : val;
+        }
+        Matcher kgMatcher = Pattern.compile("(?<![\\p{L}\\d.])(-\\s*|\\bam\\s+)?(\\d+(?:[.,]\\d+)?)\\s*(?:kg|ki|ky|can|kilogram)\\b").matcher(stripped);
+        if (kgMatcher.find()) {
+            double val = Double.parseDouble(kgMatcher.group(2).replace(",", "."));
+            return kgMatcher.group(1) != null ? -val : val;
+        }
+        Matcher numMatcher = Pattern.compile("(?<![\\p{L}\\d.])(-\\s*|\\bam\\s+)?(\\d+(?:[.,]\\d+)?)\\b").matcher(stripped);
+        if (numMatcher.find()) {
+            try {
+                double val = Double.parseDouble(numMatcher.group(2).replace(",", "."));
+                return numMatcher.group(1) != null ? -val : val;
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    private Integer extractSignedCount(String text) {
+        String stripped = VietnameseSpeechNormalizer.removeVietnameseDiacritics(
+                BARN_PATTERN.matcher(text).replaceAll(" ")
+        ).toLowerCase(Locale.ROOT);
+        Matcher mWithUnit = Pattern.compile("(?<![\\p{L}\\d.])(-\\s*|\\bam\\s+)?(\\d+)\\s*con\\b").matcher(stripped);
         if (mWithUnit.find()) {
             try {
-                return Integer.parseInt(mWithUnit.group(1));
+                int val = Integer.parseInt(mWithUnit.group(2));
+                return mWithUnit.group(1) != null ? -val : val;
             } catch (Exception ignored) {}
         }
-        Matcher m = Pattern.compile("(\\d+)").matcher(stripped);
+        Matcher m = Pattern.compile("(?<![\\p{L}\\d.])(-\\s*|\\bam\\s+)?(\\d+)\\b").matcher(stripped);
         if (m.find()) {
             try {
-                return Integer.parseInt(m.group(1));
+                int val = Integer.parseInt(m.group(2));
+                return m.group(1) != null ? -val : val;
             } catch (Exception ignored) {}
         }
-        return 0;
+        return null;
     }
 
     private String extractFeedName(String text, String fallback) {

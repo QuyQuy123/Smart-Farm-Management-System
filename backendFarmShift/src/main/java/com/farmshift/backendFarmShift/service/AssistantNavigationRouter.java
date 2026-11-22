@@ -79,11 +79,18 @@ public final class AssistantNavigationRouter {
 
     /** Các cụm cho thấy đây là truy vấn / thao tác dữ liệu, không phải điều hướng thuần. */
     private static final List<String> NON_NAVIGATION_SIGNALS = List.of(
-            "ton kho", "tinh trang", "cong no", "con bao nhieu", "bao nhieu", "nhiet do",
+            "ton kho", "trong kho", "kho khu", "phu trach", "khu toi", "khu minh", "tinh trang", "tinh hinh", "dan ga", "suc khoe", "trang thai",
+            "cong no", "con bao nhieu", "con cam", "con loai", "cam gi", "bao nhieu", "nhiet do",
             "cua toi", "cua minh", "qua gio", "chua lam", "hom nay co gi",
+            "kiem tra", "tong hop", "fcr", "adg", "hao hut", "can mau", "cho an",
+            "phai thu", "lai lo", "chi phi", "doanh thu", "qua han", "sap het", "binh quan", "don gia",
             "kho tho", "kho khe", "phan sap", "phan trang", "cau trung", "ngap",
             "sua ", "doi ", "cap nhat", "thanh toan", "tra no", "huy ", "xoa ", "tao ", "them ",
             "chuyen dan", "tach dan", "nhap kho", "xac nhan", "hoan thanh", "xong viec");
+
+    private static final Pattern BARN_TARGET_MENTION = Pattern.compile(
+            "\\b(?:nha|chuong)\\s+[a-z]*\\d+[a-z0-9]*\\b|\\b(?:a|b|c|d)\\d{1,2}\\b|\\b(?:cua|tai|o)\\s+(?:nha|chuong)\\b"
+    );
 
     private AssistantNavigationRouter() {
     }
@@ -115,6 +122,9 @@ public final class AssistantNavigationRouter {
     // ───────────────────────────── nội bộ ─────────────────────────────
 
     private static boolean hasNonNavigationSignal(String text) {
+        if (BARN_TARGET_MENTION.matcher(text).find()) {
+            return true;
+        }
         String padded = text + " ";
         for (String s : NON_NAVIGATION_SIGNALS) {
             if (padded.contains(s)) return true;

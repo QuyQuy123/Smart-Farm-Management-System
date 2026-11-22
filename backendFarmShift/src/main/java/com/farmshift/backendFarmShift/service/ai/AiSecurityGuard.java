@@ -287,12 +287,15 @@ public class AiSecurityGuard {
         }
 
         String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(rawMessage).toLowerCase(Locale.ROOT).trim();
+        String roleSuffix = isWorker
+                ? AiRbacPolicy.MSG60
+                : "Yêu cầu đã bị từ chối theo chính sách bảo mật Zero-Trust của hệ thống.";
 
         for (String pattern : PRIVILEGE_ESCALATION_PATTERNS) {
             if (norm.contains(pattern)) {
                 log.warn("AI Prompt Injection / Role Escalation blocked! user={} isWorker={} pattern='{}'", username, isWorker, pattern);
                 return AiAssistantResponse.builder()
-                        .reply("⛔ Yêu cầu vi phạm chính sách bảo mật (cố gắng vượt quyền hoặc ghi đè hướng dẫn hệ thống). " + AiRbacPolicy.MSG60)
+                        .reply("⛔ Yêu cầu vi phạm chính sách bảo mật (cố gắng vượt quyền hoặc ghi đè hướng dẫn hệ thống). " + roleSuffix)
                         .actionType("SECURITY_BLOCKED")
                         .executed(false)
                         .build();
@@ -302,7 +305,7 @@ public class AiSecurityGuard {
         if (PRIVILEGE_ESCALATION_REGEX.matcher(norm).find()) {
             log.warn("AI Prompt Injection / Role Escalation (regex) blocked! user={} isWorker={}", username, isWorker);
             return AiAssistantResponse.builder()
-                    .reply("⛔ Yêu cầu vi phạm chính sách bảo mật (cố gắng vượt quyền hoặc ghi đè hướng dẫn hệ thống). " + AiRbacPolicy.MSG60)
+                    .reply("⛔ Yêu cầu vi phạm chính sách bảo mật (cố gắng vượt quyền hoặc ghi đè hướng dẫn hệ thống). " + roleSuffix)
                     .actionType("SECURITY_BLOCKED")
                     .executed(false)
                     .build();
