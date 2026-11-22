@@ -168,7 +168,7 @@ public class AiAssistantController {
         }
 
         AiAssistantResponse response = assistantService.processRequest(request, username, authorities);
-        if (response.isExecuted()) {
+        if (AiAssistantService.isMutatingExecution(response)) {
             realtimeSyncService.broadcastDataChange("/all", "AI", username, clientId);
         }
         if (response.getActionType() != null && response.getActionType().startsWith("SECURITY_TOKEN_")) {
@@ -236,7 +236,7 @@ public class AiAssistantController {
         CompletableFuture.runAsync(() -> {
             try {
                 AiAssistantResponse response = assistantService.processRequest(request, username, authorities);
-                if (response.isExecuted()) {
+                if (AiAssistantService.isMutatingExecution(response)) {
                     realtimeSyncService.broadcastDataChange("/all", "AI", username, clientId);
                 }
                 String text = response.getReply() != null ? response.getReply() : "";

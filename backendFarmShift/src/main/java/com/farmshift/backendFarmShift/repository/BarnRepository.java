@@ -9,6 +9,10 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface BarnRepository extends JpaRepository<Barn, Long> {
+    @Override
+    @EntityGraph(attributePaths = "area")
+    List<Barn> findAll();
+
     @EntityGraph(attributePaths = "area")
     List<Barn> findAllByOrderByCreatedAtAscIdAsc();
     @EntityGraph(attributePaths = "area")

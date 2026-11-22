@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Handles Procurement, Supplier Debt, Customer Receivables, and Financial/WIP report queries.
@@ -67,8 +68,12 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
         if (msg == null || msg.isBlank()) return false;
         String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase(Locale.ROOT);
 
-        boolean isSupplierDebt = (norm.contains("cong no") || norm.contains("no nha cung cap") || norm.contains("tra no") || norm.contains("thanh toan no"))
-                && (norm.contains("nha cung cap") || norm.contains("dabaco") || norm.contains("cargill") || norm.contains("cp") || norm.contains("hanvet") || norm.contains("bao nhieu"));
+        boolean isSupplierDebt = (norm.contains("cong no") || norm.contains("con no") || norm.contains("dang no")
+                || norm.contains("no nha cung cap") || norm.contains("no cong ty") || norm.contains("no ncc")
+                || norm.contains("tra no") || norm.contains("thanh toan no"))
+                && (norm.contains("nha cung cap") || norm.contains("cong ty") || norm.contains("ncc")
+                || norm.contains("dabaco") || norm.contains("cargill") || norm.contains("cp") || norm.contains("c.p.")
+                || norm.contains("hanvet") || norm.contains("xanh pon") || norm.contains("favet") || norm.contains("bao nhieu"));
 
         boolean isCustomerReceivable = norm.contains("phai thu")
                 || ((norm.contains("cong no") || norm.contains("no ")) && (norm.contains("khach hang") || norm.contains("khach")));
@@ -94,15 +99,31 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
         }
 
         boolean isPayment = norm.contains("tra no") || norm.contains("thanh toan no") || norm.contains("thanh toan");
-        if (isPayment && context.isWorker()) {
-            return AiRbacPolicy.createForbiddenResponse();
+        boolean mentionsSpecificInvoice = Pattern.compile("\\bnh\\s*[-_]?\\s*\\d+\\b").matcher(norm).find();
+        if (isPayment && mentionsSpecificInvoice) {
+            if (context.isWorker()) {
+                return AiRbacPolicy.createForbiddenResponse();
+            }
+            return null;
         }
 
         List<Supplier> suppliers = supplierRepository.findAll();
         Supplier targetSupplier = suppliers.stream()
                 .filter(s -> s.getName() != null && norm.contains(VietnameseSpeechNormalizer.removeVietnameseDiacritics(s.getName()).toLowerCase(Locale.ROOT)))
                 .findFirst()
-                .orElse(null);
+                .orElseGet(() -> suppliers.stream()
+                        .filter(s -> {
+                            if (s.getName() == null) return false;
+                            String sNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(s.getName()).toLowerCase(Locale.ROOT);
+                            for (String kw : List.of("cargill", "c.p.", "dabaco", "xanh pon", "favet", "hanvet")) {
+                                if (sNorm.contains(kw) && norm.contains(kw)) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        })
+                        .findFirst()
+                        .orElse(null));
 
         if (targetSupplier != null) {
             if (context.isWorker()) {
@@ -133,7 +154,82 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
                     .build();
         }
 
-        return null;
+        return handleAllSuppliersDebtSummary(context);
+    }
+
+    private AiAssistantResponse handleAllSuppliersDebtSummary(AssistantExecutionContext context) {
+        if (context.isWorker()) {
+            return AiRbacPolicy.createForbiddenResponse();
+        }
+
+        if (debtService != null) {
+            DebtSummaryResponse summary = debtService.getDebtSummary();
+            long totalPayable = Math.max(0L, summary.totalSupplierPayable());
+            StringBuilder sb = new StringBuilder("💳 **Tổng hợp Công nợ Phải trả Nhà cung cấp:**\n")
+                    .append("- **Tổng công nợ cần thanh toán:** **")
+                    .append(formatCurrency(totalPayable)).append(" VNĐ** (")
+                    .append(summary.unpaidSupplierCount()).append(" nhà cung cấp / ")
+                    .append(summary.unpaidPurchaseInvoiceCount()).append(" hóa đơn chưa thanh toán đủ)\n");
+
+            if (summary.supplierPayables() != null) {
+                for (DebtSummaryResponse.SupplierDebtRow row : summary.supplierPayables()) {
+                    if (row.remainingDebt() > 0) {
+                        sb.append("- **").append(row.supplierName()).append(":** còn nợ **")
+                                .append(formatCurrency(row.remainingDebt())).append(" VNĐ** (")
+                                .append(row.openInvoiceCount()).append(" hóa đơn chưa tất toán)\n");
+                    }
+                }
+            }
+
+            if (invoiceRepository != null) {
+                List<PurchaseInvoice> unpaidInvoices = invoiceRepository.findByStockStatusNot("Đã hủy").stream()
+                        .filter(inv -> {
+                            long tot = inv.getTotalAmount() != null ? inv.getTotalAmount() : 0L;
+                            long pd = inv.getPaidAmount() != null ? inv.getPaidAmount() : 0L;
+                            return tot - pd > 0;
+                        })
+                        .toList();
+                if (!unpaidInvoices.isEmpty()) {
+                    sb.append("\n**Chi tiết hóa đơn nhập còn nợ:**\n");
+                    for (PurchaseInvoice inv : unpaidInvoices) {
+                        long tot = inv.getTotalAmount() != null ? inv.getTotalAmount() : 0L;
+                        long pd = inv.getPaidAmount() != null ? inv.getPaidAmount() : 0L;
+                        long rem = Math.max(0L, tot - pd);
+                        String supName = inv.getSupplier() != null ? inv.getSupplier().getName() : "NCC";
+                        boolean overdue = inv.getNote() != null
+                                && VietnameseSpeechNormalizer.removeVietnameseDiacritics(inv.getNote()).toLowerCase(Locale.ROOT).contains("qua han");
+                        sb.append("- `").append(inv.getCode()).append("` (").append(supName).append("): còn **")
+                                .append(formatCurrency(rem)).append(" VNĐ**")
+                                .append(overdue ? " ⚠️ **QUÁ HẠN**" : "").append("\n");
+                    }
+                }
+            }
+
+            return AiAssistantResponse.builder()
+                    .reply(sb.toString().trim())
+                    .actionType("QUERY_SUPPLIER_DEBT")
+                    .executed(true)
+                    .navigateTo("/purchases")
+                    .build();
+        }
+
+        long totalDebt = 0L;
+        if (invoiceRepository != null) {
+            totalDebt += invoiceRepository.findByStockStatusNot("Đã hủy").stream()
+                    .mapToLong(i -> Math.max(0L, (i.getTotalAmount() != null ? i.getTotalAmount() : 0L)
+                            - (i.getPaidAmount() != null ? i.getPaidAmount() : 0L)))
+                    .sum();
+        }
+        totalDebt += supplierRepository.findAll().stream()
+                .mapToLong(s -> s.getOpeningDebt() != null ? s.getOpeningDebt() : 0L)
+                .sum();
+
+        return AiAssistantResponse.builder()
+                .reply("💳 **Tổng công nợ phải trả nhà cung cấp hiện tại:** **" + formatCurrency(Math.max(0L, totalDebt)) + " VNĐ**.")
+                .actionType("QUERY_SUPPLIER_DEBT")
+                .executed(true)
+                .navigateTo("/purchases")
+                .build();
     }
 
     private AiAssistantResponse handleCustomerReceivablesQuery(AssistantExecutionContext context) {
@@ -162,13 +258,7 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
             }
         }
         if (salesOrderRepository != null) {
-            List<SalesOrder> unpaidOrders = salesOrderRepository.findAll().stream()
-                    .filter(o -> {
-                        BigDecimal tot = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
-                        BigDecimal pd = o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO;
-                        return tot.compareTo(pd) > 0;
-                    })
-                    .toList();
+            List<SalesOrder> unpaidOrders = salesOrderRepository.findUnpaidOrders();
             if (!unpaidOrders.isEmpty()) {
                 sb.append("\n**Chi tiết đơn bán còn công nợ:**\n");
                 for (SalesOrder o : unpaidOrders) {

@@ -43,8 +43,8 @@ public final class VietnameseSpeechNormalizer {
 
     private static final Pattern LEAD_TRAIL_PUNCT = Pattern.compile("^([\\p{Punct}]*)(.*?)([\\p{Punct}]*)$");
 
-    /** Số (có thể thập phân) không dính liền chữ cái / chữ số khác, tránh bắt nhầm "1" trong "A1". */
-    private static final String NUM = "(?<![\\p{L}\\d.,])(\\d+(?:[.,]\\d+)?)";
+    /** Số (có thể thập phân) không dính liền chữ cái / chữ số / dấu trừ khác, tránh bắt nhầm "1" trong "A1" hay ăn mất dấu "-" trong "-5 bao". */
+    private static final String NUM = "(?<![\\p{L}\\d.,-])(\\d+(?:[.,]\\d+)?)";
     private static final String REST_GUARD = "(?![\\d]|\\s*(?:bao|con|kg|ký|kí|cân|m2|m²|ngày|lần|%))";
     private static final String UNIT_WORD_GROUP = "một|hai|ba|bốn|tư|năm|sáu|bảy|tám|chín";
 
@@ -74,7 +74,7 @@ public final class VietnameseSpeechNormalizer {
     private static final Pattern INVOICE_NUMBER = Pattern.compile(
             "(?iu)(?<![\\p{L}\\d])(?:hóa\\s+đơn|hoá\\s+đơn|đơn\\s+nhập\\s+hàng|đơn\\s+nhập|đơn\\s+hàng|đơn)\\s+(?:số\\s+)?(\\d{1,6})(?![\\d\\p{L}])");
     private static final Pattern BARN_SPLIT = Pattern.compile("(?iu)(?<![\\p{L}\\d])(nhà|chuồng|khu)\\s+([a-d])\\s*[-_]?\\s*(\\d{1,2})(?![\\d\\p{L}])");
-    private static final Pattern MONEY_NUMBER = Pattern.compile("(?<![\\p{L}\\d.,])(\\d{4,12})(?![\\p{L}\\d])");
+    private static final Pattern MONEY_NUMBER = Pattern.compile("(?<![\\p{L}\\d.,-])(\\d{4,12})(?![\\p{L}\\d])");
 
     private VietnameseSpeechNormalizer() {
     }

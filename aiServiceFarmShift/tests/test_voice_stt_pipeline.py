@@ -216,6 +216,9 @@ class VoiceSttPipelineTests(unittest.TestCase):
 
 
 class VoiceServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        voice_service.reset_circuit_breakers()
+
     async def test_transcribe_audio_groq_success_hallucination_and_429_fallback(self):
         webm_bytes = b"\x1a\x45\xdf\xa3" + b"\x00" * 32
         with (
@@ -319,6 +322,58 @@ class VoiceServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
             res3 = await voice_service.chat_completion(AssistantChatRequest(message="Test"))
             self.assertTrue(res3.fallback)
             self.assertEqual("LOCAL_FALLBACK", res3.provider)
+
+    async def test_chat_completion_history_window_cap_and_circuit_breaker_fail_fast(self):
+        long_history = [
+            {"role": "user" if i % 2 == 0 else "assistant", "content": f"Turn {i}"}
+            for i in range(10)
+        ]
+        with (
+            patch("app.services.voice_service.settings.GROQ_API_KEY", "groq-key"),
+            patch("app.services.voice_service.settings.OPENAI_API_KEY", "openai-key"),
+            patch("app.services.voice_service.get_shared_http_client", return_value=None),
+            patch("app.services.voice_service.httpx.AsyncClient") as factory,
+        ):
+            http_mock = AsyncMock()
+            factory.return_value.__aenter__.return_value = http_mock
+
+            # 1. History must be capped at 6 turns (+ system + user = 8 messages)
+            ok_resp = MagicMock()
+            ok_resp.status_code = 200
+            ok_resp.json.return_value = {
+                "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60},
+                "choices": [{"message": {"content": '{"intent":"GENERAL_QNA"}'}}],
+            }
+            http_mock.post.return_value = ok_resp
+
+            res_ok = await voice_service.chat_completion(
+                AssistantChatRequest(
+                    message="Hỏi tiếp",
+                    systemPrompt="Return JSON",
+                    history=long_history,
+                )
+            )
+            self.assertFalse(res_ok.fallback)
+            sent_messages = http_mock.post.call_args.kwargs["json"]["messages"]
+            self.assertEqual(8, len(sent_messages))
+            self.assertEqual("Turn 4", sent_messages[1]["content"])
+            self.assertEqual("Turn 9", sent_messages[6]["content"])
+
+            # 2. 3 consecutive 500 errors open Groq & OpenAI chat breakers -> 4th call fails fast without HTTP
+            http_mock.post.reset_mock()
+            err_500 = MagicMock()
+            err_500.status_code = 500
+            http_mock.post.return_value = err_500
+
+            for _ in range(3):
+                fb = await voice_service.chat_completion(AssistantChatRequest(message="Test fail"))
+                self.assertTrue(fb.fallback)
+            self.assertEqual(6, http_mock.post.call_count)
+
+            fb_fast = await voice_service.chat_completion(AssistantChatRequest(message="Fast fail"))
+            self.assertTrue(fb_fast.fallback)
+            self.assertEqual("LOCAL_FALLBACK", fb_fast.provider)
+            self.assertEqual(6, http_mock.post.call_count)
 
 
 if __name__ == "__main__":

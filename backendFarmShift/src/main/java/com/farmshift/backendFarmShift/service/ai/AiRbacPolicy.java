@@ -11,7 +11,7 @@ import java.util.Set;
 public final class AiRbacPolicy {
 
     public static final String MSG60 = "Tài khoản Công nhân không có quyền thực hiện thao tác tài chính hoặc xóa dữ liệu này.";
-    public static final String MSG_ACCOUNTANT_FORBIDDEN = "Tài khoản Kế toán không có quyền thực hiện thao tác quản trị chuồng trại, lứa nuôi hoặc ghi nhật ký trực tiếp này. Vui lòng liên hệ Chủ trang trại.";
+    public static final String MSG_ACCOUNTANT_FORBIDDEN = "Tài khoản Kế toán không có quyền quản trị tài khoản nhân sự, thay đổi cấu hình hệ thống, quản trị chuồng trại/lứa nuôi hoặc ghi nhật ký trực tiếp này. Vui lòng liên hệ Chủ trang trại.";
 
     private static final Set<String> FORBIDDEN_FOR_WORKER = Set.of(
             "LOG_EXPENSE",
@@ -42,7 +42,10 @@ public final class AiRbacPolicy {
             "INTERNAL_STOCK_VOUCHER",
             "CREATE_INTERNAL_VOUCHER",
             "HARVEST_FLOCK",
-            "HARVEST"
+            "HARVEST",
+            "DELETE_ACCOUNT",
+            "MANAGE_ACCOUNT",
+            "UPDATE_SYSTEM_SETTINGS"
     );
 
     private static final Set<String> FORBIDDEN_FOR_ACCOUNTANT = Set.of(
@@ -68,7 +71,10 @@ public final class AiRbacPolicy {
             "LOG_MORTALITY",
             "COMPOUND_LOG_MORTALITY",
             "UPDATE_MORTALITY",
-            "LOG_OR_UPDATE_MORTALITY"
+            "LOG_OR_UPDATE_MORTALITY",
+            "DELETE_ACCOUNT",
+            "MANAGE_ACCOUNT",
+            "UPDATE_SYSTEM_SETTINGS"
     );
 
     private AiRbacPolicy() {

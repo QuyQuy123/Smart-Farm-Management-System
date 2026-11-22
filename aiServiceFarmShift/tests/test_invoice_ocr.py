@@ -283,6 +283,72 @@ class InvoiceOcrTests(unittest.TestCase):
             self.assertEqual([], body["items"])
             self.assertTrue(any("Quản lý bán hàng" in w for w in body["warnings"]))
 
+    def test_extract_invoice_math_verification_rescues_unit_price_and_flags_line_mismatch(self):
+        client = TestClient(app)
+        headers = {
+            "X-Internal-AI-Token": "test-ocr-token",
+            "X-Request-ID": "req-ocr-123",
+        }
+        with (
+            patch("app.api.router.settings.AI_INTERNAL_TOKEN", "test-ocr-token"),
+            patch("app.services.ocr_service.settings.OPENAI_API_KEY", "test-only"),
+            patch("app.services.ocr_service.settings.OCR_ENGINE", "hybrid"),
+            patch("app.services.ocr_service.get_shared_http_client", return_value=None),
+            patch("app.services.ocr_service.httpx.AsyncClient") as factory,
+        ):
+            math_resp = MagicMock()
+            math_resp.json.return_value = {
+                "usage": {"prompt_tokens": 120, "completion_tokens": 45, "total_tokens": 165},
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "isInvoice": True,
+                                    "supplierName": "C.P. Việt Nam",
+                                    "items": [
+                                        {
+                                            "name": "Cám Higro 01",
+                                            "qty": 50,
+                                            "unit": "Bao",
+                                            "unitPrice": 345,
+                                            "amount": 17250000,
+                                        },
+                                        {
+                                            "name": "Thuốc thú y B",
+                                            "qty": 10,
+                                            "unit": "Chai",
+                                            "unitPrice": 300000,
+                                            "amount": 4500000,
+                                        },
+                                    ],
+                                    "totalAmount": 21750000,
+                                    "confidence": 93.0,
+                                }
+                            )
+                        }
+                    }
+                ],
+            }
+            http_mock = AsyncMock()
+            http_mock.post.return_value = math_resp
+            factory.return_value.__aenter__.return_value = http_mock
+
+            res = client.post(
+                "/api/ocr/extract-invoice",
+                files={"file": ("invoice.png", _make_png(), "image/png")},
+                headers=headers,
+            )
+            self.assertEqual(200, res.status_code)
+            self.assertEqual("req-ocr-123", res.headers.get("X-Request-ID"))
+            body = res.json()
+            self.assertEqual(345000.0, body["items"][0]["unitPrice"])
+            self.assertTrue(
+                any("Dòng hàng #2 (Thuốc thú y B)" in w for w in body["warnings"]),
+                msg=f"Expected line-level mismatch warning, got: {body['warnings']}",
+            )
+            self.assertFalse(any("Dòng hàng #1" in w for w in body["warnings"]))
+
 
 if __name__ == "__main__":
     unittest.main()

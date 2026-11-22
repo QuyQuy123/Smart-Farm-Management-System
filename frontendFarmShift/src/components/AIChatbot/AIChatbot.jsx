@@ -1,6 +1,6 @@
 // src/components/AIChatbot/AIChatbot.jsx
 // Trợ lý Giọng nói & AI FarmShift (Actionable Voice Assistant & System Automation)
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles, X, Send, RotateCcw, Plus, History, Trash2,
@@ -98,6 +98,12 @@ const generateMessageId = () => `msg_${Date.now()}_${++nextMsgId}`;
 
 let nextSessionSeq = 0;
 
+// Module-level route-transition state so remounting FarmShiftLayout across routes
+// preserves scroll offset and avoids replaying the open pop-up animation.
+let savedMessagesScrollTop = null;
+let wasOpenBeforeUnmount = false;
+let lastMountedOwnerScope = null;
+
 const formatCurrentTime = () => {
   const now = new Date();
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -116,13 +122,25 @@ const formatRecordingClock = (seconds) => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
-const INITIAL_MESSAGE = {
+const resolveRoleGreetingText = (role) => {
+  if (role === 'ROLE_FARM_WORKER') {
+    return 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể hỗ trợ bạn ghi nhận khẩu phần cám, cân mẫu, báo cáo hao hụt, xem việc hôm nay và tra cứu thú y cho các chuồng bạn phụ trách.';
+  }
+  if (role === 'ROLE_ACCOUNTANT') {
+    return 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể hỗ trợ bạn kiểm tra hóa đơn nhập hàng, quét hóa đơn OCR, theo dõi công nợ, tồn kho, chuyển kho nội bộ và báo cáo tài chính.';
+  }
+  return 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể thực thi trực tiếp các thao tác ghi cám, cân mẫu, báo cáo hao hụt, nhập kho hoặc giải đáp thú y & điều hành trang trại.';
+};
+
+const buildInitialMessage = (role) => ({
   id: 1,
   type: 'bot',
-  text: 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể thực thi trực tiếp các thao tác ghi cám, cân mẫu, báo cáo hao hụt, nhập kho hoặc giải đáp thú y & điều hành trang trại.',
+  text: resolveRoleGreetingText(role),
   time: formatCurrentTime(),
   showChips: true
-};
+});
+
+const INITIAL_MESSAGE = buildInitialMessage('ROLE_FARM_OWNER');
 
 const createSessionObject = (index = 1, seedMessages = [INITIAL_MESSAGE]) => {
   const msgs = Array.isArray(seedMessages) && seedMessages.length > 0 ? seedMessages : [INITIAL_MESSAGE];
@@ -161,6 +179,116 @@ const SUGGESTIONS = [
   { label: '⚖️ Cân mẫu Nhà A1 1.5kg', query: 'Cân mẫu Nhà A1 trung bình 1.5 kg mẫu 50 con' },
   { label: '🩺 Gà thở khò khè', query: 'Gà có triệu chứng thở khò khè, ngáp gió điều trị thế nào?' },
 ];
+
+const TECHNICAL_ENUM_PATTERN = /\b(?:INTERNAL_STOCK_VOUCHER|COMPOUND_LOG_FEED|COMPOUND_LOG_WEIGHT|COMPOUND_LOG_MORTALITY|LOG_FEED|LOG_WEIGHT|LOG_MORTALITY|LOG_EXPENSE|UPDATE_BARN_INFO|UPDATE_INVENTORY_ITEM|UPDATE_SUPPLIER_INFO|PAY_PURCHASE_INVOICE|CANCEL_PURCHASE_INVOICE|IMPORT_PURCHASE_STOCK|COMPLETE_DAILY_TASKS|TRANSFER_FLOCK|START_CYCLE|CLOSE_CYCLE|START_OR_CLOSE_CYCLE|CREATE_BARN|CREATE_SUPPLIER|CREATE_AREA|OUT_OF_SCOPE_HUMAN_MEDICAL|SECURITY_BLOCKED|SECURITY_TOKEN_INVALID|SECURITY_TOKEN_EXPIRED|SECURITY_TOKEN_REPLAYED|RBAC_BLOCKED|CLARIFICATION_REQUIRED|STOCK_INSUFFICIENT|BARN_NOT_ASSIGNED|VALIDATION_ERROR|QUERY_FARM_STATUS|QUERY_STOCK_BATCH|QUERY_IOT_TELEMETRY|QUERY_SUPPLIER_DEBT|QUERY_CUSTOMER_DEBT|NAVIGATE_AND_PREFILL|VET_DIAGNOSIS|CONVERSATIONAL_ACK|SESSION_MEMORY_SUMMARY|RESET_SESSION|RATE_LIMIT_EXCEEDED|GENERAL_QNA|MEDICINE|DEATH|CULL|EXPORT|TRANSFER|IMPORT)\b/g;
+
+const cleanTextForSpeech = (val) => {
+  if (!val) return '';
+  return String(val)
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/\s*[→➔]\s*/g, ' sang ')
+    .replace(/^\|(?:\s*:?-+:?\s*\|)+$/gm, ' ')
+    .replace(/\|/g, ', ')
+    .replace(/[#*_`~]/g, '')
+    .replace(/\p{Extended_Pictographic}|[\u2600-\u27BF]|[\uFE00-\uFE0F]|\u200D/gu, '')
+    .replace(/^\s*[-•–—]+\s+/gm, '')
+    .replace(/\((?:MSG\d+|EXPORT|TRANSFER|IMPORT|ACTIVE|CLOSED)\)/gi, '')
+    .replace(/\bMSG\d+\b/gi, '')
+    .replace(TECHNICAL_ENUM_PATTERN, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/(?:^|\.\s*),\s*/g, '. ')
+    .replace(/\s*,\s*,+/g, ', ')
+    .replace(/,\s*\./g, '.')
+    .replace(/,\s*$/g, '')
+    .replace(/\s*\n+\s*/g, '. ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\.{2,}/g, '.')
+    .replace(/\.\s*\./g, '.')
+    .replace(/^\.\s*/, '')
+    .trim();
+};
+
+const buildSpokenConfirmationSummary = (replyText, pendingAction) => {
+  if (!pendingAction) return cleanTextForSpeech(replyText);
+  const payload = pendingAction.payload || {};
+  const actionType = payload.actionType || pendingAction.actionType || '';
+
+  if (actionType === 'LOG_FEED' && payload.barnName) {
+    const qtyText = payload.unitDetail || (payload.totalKg ? `${payload.totalKg} kg` : '');
+    const rawFeedName = payload.feedName ? String(payload.feedName).trim() : '';
+    const feedText = rawFeedName
+      ? (/^cám\b/i.test(rawFeedName) ? ` ${rawFeedName}` : ` cám ${rawFeedName}`)
+      : ' cám';
+    return cleanTextForSpeech(`Xác nhận ghi ${payload.barnName} ăn ${qtyText}${feedText}. Bấm Đồng ý lưu để thực hiện.`);
+  }
+
+  if (actionType === 'INTERNAL_STOCK_VOUCHER' && (payload.categoryName || payload.productName)) {
+    const cat = payload.categoryName || 'phiếu kho';
+    const qty = payload.quantity != null ? ` ${payload.quantity} bao` : '';
+    const prod = payload.productName ? ` ${payload.productName}` : '';
+    return cleanTextForSpeech(`Xác nhận lập phiếu ${cat}${qty}${prod}. Bấm Đồng ý lưu để thực hiện.`);
+  }
+
+  const raw = String(replyText || pendingAction.description || pendingAction.title || '')
+    .replace(/`?#\d{6,}(?:-\d{2,})?`?/g, '')
+    .replace(/`?\b\d{6,}-\d{2,}\b`?/g, '')
+    .replace(/\s{2,}/g, ' ');
+  const cleaned = cleanTextForSpeech(raw);
+  if (!cleaned) {
+    const titleClean = cleanTextForSpeech(pendingAction.title || 'Xác nhận thao tác');
+    return `${titleClean}. Bấm Đồng ý lưu để thực hiện.`;
+  }
+  if (/bấm\s+đồng\s+ý/i.test(cleaned)) {
+    return cleaned;
+  }
+  const base = cleaned.replace(/[?!.]+$/, '');
+  return `${base}. Bấm Đồng ý lưu để thực hiện.`;
+};
+
+const stripEnumTags = (str) => String(str).replace(/\s*\(`?(?:EXPORT|TRANSFER|IMPORT)`?\)/gi, '');
+
+const renderRichInlineTokens = (str, badgeClassName = styles.inlineCodeBadge) => {
+  if (str === null || str === undefined) return null;
+  const preCleaned = stripEnumTags(str);
+  const parts = [];
+  const tokenRegex = /(\*\*[^*]+\*\*|`[^`]+`|#\d{6,}(?:-\d{2,})?)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = tokenRegex.exec(preCleaned)) !== null) {
+    if (match.index > lastIndex) {
+      const plain = preCleaned.substring(lastIndex, match.index).replace(/`/g, '');
+      if (plain) parts.push(plain);
+    }
+    const token = match[0];
+    if (token.startsWith('**') && token.endsWith('**')) {
+      const inner = token.slice(2, -2);
+      parts.push(
+        <strong key={`${match.index}_b`}>
+          {renderRichInlineTokens(inner, badgeClassName)}
+        </strong>
+      );
+    } else {
+      const cleanToken = token.startsWith('`') && token.endsWith('`')
+        ? token.slice(1, -1)
+        : token;
+      if (cleanToken) {
+        parts.push(
+          <code key={`${match.index}_${cleanToken}`} className={badgeClassName}>
+            {cleanToken}
+          </code>
+        );
+      }
+    }
+    lastIndex = tokenRegex.lastIndex;
+  }
+  if (lastIndex < preCleaned.length) {
+    const tail = preCleaned.substring(lastIndex).replace(/`/g, '');
+    if (tail) parts.push(tail);
+  }
+  return parts.length > 0 ? parts : preCleaned.replace(/`/g, '');
+};
 
 /**
  * Pure Vanilla React Markdown & Table Renderer
@@ -259,29 +387,32 @@ export const FormattedBotText = ({ text }) => {
 
   const renderInline = (str) => {
     if (!str) return null;
+    const cleaned = stripEnumTags(str).replace(/^#{1,6}\s+/, '');
     const parts = [];
-    const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+    const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|#\d{6,}(?:-\d{2,})?)/g;
     let lastIndex = 0;
     let match;
 
-    while ((match = regex.exec(str)) !== null) {
+    while ((match = regex.exec(cleaned)) !== null) {
       if (match.index > lastIndex) {
-        parts.push(str.substring(lastIndex, match.index));
+        parts.push(cleaned.substring(lastIndex, match.index).replace(/`/g, ''));
       }
       const token = match[0];
       if (token.startsWith('**') && token.endsWith('**')) {
-        parts.push(<strong key={match.index}>{token.slice(2, -2)}</strong>);
+        parts.push(<strong key={match.index}>{token.slice(2, -2).replace(/`/g, '')}</strong>);
       } else if (token.startsWith('`') && token.endsWith('`')) {
         parts.push(<code key={match.index} className={styles.inlineCode}>{token.slice(1, -1)}</code>);
       } else if (token.startsWith('*') && token.endsWith('*')) {
-        parts.push(<em key={match.index}>{token.slice(1, -1)}</em>);
+        parts.push(<em key={match.index}>{token.slice(1, -1).replace(/`/g, '')}</em>);
+      } else if (token.startsWith('#')) {
+        parts.push(<code key={match.index} className={styles.inlineCode}>{token}</code>);
       }
       lastIndex = regex.lastIndex;
     }
-    if (lastIndex < str.length) {
-      parts.push(str.substring(lastIndex));
+    if (lastIndex < cleaned.length) {
+      parts.push(cleaned.substring(lastIndex).replace(/`/g, ''));
     }
-    return parts.length > 0 ? parts : str;
+    return parts.length > 0 ? parts : cleaned.replace(/`/g, '');
   };
 
   return (
@@ -365,27 +496,38 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   const mountedRef = useRef(true);
   const suppressPersistRef = useRef(false);
 
+  const roleInitialMessage = useMemo(() => buildInitialMessage(userRole), [userRole]);
+
   const initialChatStateRef = useRef(null);
   if (!initialChatStateRef.current) {
-    initialChatStateRef.current = loadAiChatState(ownerScope, createSessionObject, INITIAL_MESSAGE);
+    initialChatStateRef.current = loadAiChatState(ownerScope, createSessionObject, roleInitialMessage);
   }
 
-  // Restore previous open/closed status from user-scoped sessionStorage across routes & tabs
-  const [isOpen, setIsOpenState] = useState(() => initialChatStateRef.current.isOpen);
+  // Restore previous open/closed, Side-Drawer dock, session drawer & input draft state across routes
+  const [isOpen, setIsOpenState] = useState(() => Boolean(initialChatStateRef.current.isOpen));
   const setIsOpen = useCallback((updater) => {
     suppressPersistRef.current = false;
     setIsOpenState(updater);
   }, []);
 
-  // Restore multi-session conversations & active session from user-scoped sessionStorage
   const [sessions, setSessions] = useState(() => initialChatStateRef.current.sessions);
   const [activeSessionId, setActiveSessionId] = useState(() => initialChatStateRef.current.activeSessionId);
 
-  const [isSessionListOpen, setIsSessionListOpen] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isSessionListOpen, setIsSessionListOpen] = useState(() => Boolean(initialChatStateRef.current.isSessionListOpen));
+  const [isExpanded, setIsExpandedState] = useState(() => Boolean(initialChatStateRef.current.isExpanded));
+  const setIsExpanded = useCallback((updater) => {
+    suppressPersistRef.current = false;
+    setIsExpandedState(updater);
+  }, []);
 
-  // Sync Side-Drawer layout offset on root element so fixed drawer never hides Dashboard KPIs
-  useEffect(() => {
+  const [skipMountPopAnim] = useState(() => Boolean(
+    wasOpenBeforeUnmount
+    && initialChatStateRef.current.isOpen
+    && lastMountedOwnerScope === ownerScope
+  ));
+
+  // Sync Side-Drawer layout offset synchronously before paint so route transitions never flicker
+  useLayoutEffect(() => {
     const active = Boolean(isOpen && isExpanded);
     document.documentElement.classList.toggle('farmshift-ai-drawer-open', active);
     return () => {
@@ -396,15 +538,15 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const effectiveSessionId = activeSession?.id;
   const messages = useMemo(
-    () => (Array.isArray(activeSession?.messages) ? activeSession.messages : [INITIAL_MESSAGE]),
-    [activeSession]
+    () => (Array.isArray(activeSession?.messages) ? activeSession.messages : [roleInitialMessage]),
+    [activeSession, roleInitialMessage]
   );
   const lastActionContext = activeSession?.lastActionContext || null;
 
   const updateSessionMessages = (targetSessionId, updater) => {
     setSessions(prev => prev.map(s => {
       if (s.id !== targetSessionId) return s;
-      const prevMsgs = Array.isArray(s.messages) ? s.messages : [INITIAL_MESSAGE];
+      const prevMsgs = Array.isArray(s.messages) ? s.messages : [roleInitialMessage];
       const nextMsgs = typeof updater === 'function' ? updater(prevMsgs) : updater;
       const firstUser = nextMsgs.find(m => m.type === 'user' && m.text);
       return {
@@ -430,7 +572,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     }
   };
 
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(() => initialChatStateRef.current.draftInput || '');
   const [isTyping, setIsTyping] = useState(false);
   const [thinkingIndex, setThinkingIndex] = useState(0);
   const [liveSuggestions, setLiveSuggestions] = useState(null);
@@ -452,7 +594,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   });
 
   // TTS Voice Synthesis States
-  const [isAutoSpeakEnabled] = useState(() => {
+  const [isAutoSpeakEnabled, setIsAutoSpeakEnabled] = useState(() => {
     try {
       return localStorage.getItem('farmshift_ai_auto_speak') === 'true';
     } catch (_e) {
@@ -461,10 +603,26 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   });
   const [speakingMsgId, setSpeakingMsgId] = useState(null);
 
+  const toggleAutoSpeak = () => {
+    setIsAutoSpeakEnabled(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('farmshift_ai_auto_speak', String(next));
+      } catch (_e) { /* ignore */ }
+      if (!next && 'speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
+        setSpeakingMsgId(null);
+      }
+      return next;
+    });
+  };
+
   const chatWindowRef = useRef(null);
   const chatButtonRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
   const endOfMessagesRef = useRef(null);
+  const isInitialScrollSyncRef = useRef(true);
   const recognitionRef = useRef(null);
   const voiceRecorderRef = useRef(null);
   const stopRequestedBeforeReadyRef = useRef(false);
@@ -472,6 +630,8 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   const handsFreeModeRef = useRef(handsFreeMode);
   const suggestionsReqRef = useRef(0);
   const sendQueryRef = useRef(null);
+  const utteranceRef = useRef(null);
+  const isVoiceDraftRef = useRef(false);
   handsFreeModeRef.current = handsFreeMode;
 
   const normalizeWebSpeechText = (raw) => {
@@ -516,14 +676,17 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     if ('speechSynthesis' in window) {
       try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
     }
-    const fresh = createSessionObject(1, [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]);
+    const fresh = createSessionObject(1, [buildInitialMessage(userRole)]);
     confirmInFlightRef.current.clear();
     suggestionsReqRef.current += 1;
+    savedMessagesScrollTop = null;
+    wasOpenBeforeUnmount = false;
+    lastMountedOwnerScope = null;
     setSessions([fresh]);
     setActiveSessionId(fresh.id);
     setIsOpenState(false);
     setIsSessionListOpen(false);
-    setIsExpanded(false);
+    setIsExpandedState(false);
     setInput('');
     setIsTyping(false);
     setLiveSuggestions(null);
@@ -537,7 +700,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     setVoiceCorrections([]);
     setVoiceConfidence(null);
     setSpeakingMsgId(null);
-  }, []);
+  }, [userRole]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -557,7 +720,13 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     };
   }, [resetInMemoryChatState]);
 
-  // Persist user-scoped multi-session conversations & open state across routes
+  // Track route-transition open state & scroll offset so next page mounts identically
+  useEffect(() => {
+    wasOpenBeforeUnmount = isOpen;
+    lastMountedOwnerScope = ownerScope;
+  }, [isOpen, ownerScope]);
+
+  // Persist user-scoped multi-session conversations, drawer dock & input draft across routes
   // Guard against writing previous account's in-memory sessions when ownerScope changes in-place
   useEffect(() => {
     if (suppressPersistRef.current || ownerScopeRef.current !== ownerScope) return;
@@ -565,8 +734,11 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       sessions,
       activeSessionId: effectiveSessionId,
       isOpen,
+      isExpanded,
+      isSessionListOpen,
+      draftInput: input,
     });
-  }, [ownerScope, sessions, effectiveSessionId, isOpen]);
+  }, [ownerScope, sessions, effectiveSessionId, isOpen, isExpanded, isSessionListOpen, input]);
 
   // Reload strictly scoped state whenever user identity changes in-place without key remount
   useEffect(() => {
@@ -574,15 +746,18 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     ownerScopeRef.current = ownerScope;
     sessionEpochRef.current += 1;
     suppressPersistRef.current = false;
+    savedMessagesScrollTop = null;
+    wasOpenBeforeUnmount = false;
+    lastMountedOwnerScope = ownerScope;
     confirmInFlightRef.current.clear();
     suggestionsReqRef.current += 1;
-    const nextState = loadAiChatState(ownerScope, createSessionObject, INITIAL_MESSAGE);
+    const nextState = loadAiChatState(ownerScope, createSessionObject, buildInitialMessage(userRole));
     setSessions(nextState.sessions);
     setActiveSessionId(nextState.activeSessionId);
-    setIsOpenState(nextState.isOpen);
-    setIsSessionListOpen(false);
-    setIsExpanded(false);
-    setInput('');
+    setIsOpenState(Boolean(nextState.isOpen));
+    setIsSessionListOpen(Boolean(nextState.isSessionListOpen));
+    setIsExpandedState(Boolean(nextState.isExpanded));
+    setInput(nextState.draftInput || '');
     setIsTyping(false);
     setLiveSuggestions(null);
     setLiveMeta(null);
@@ -590,7 +765,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     setVoiceNotice('');
     setVoiceCorrections([]);
     setVoiceConfidence(null);
-  }, [ownerScope]);
+  }, [ownerScope, userRole]);
 
   // Dọn dẹp media streams, Web Audio VAD và Web Speech API khi unmount
   useEffect(() => {
@@ -614,6 +789,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       try {
         window.speechSynthesis.cancel();
       } catch (_e) { /* ignore */ }
+      setSpeakingMsgId(null);
     }
   }, [isOpen]);
 
@@ -692,6 +868,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   // Helper điền prompt mẫu & bôi đen chỗ '...' để điền số lượng nhanh
   const pendingSelectionRef = useRef(null);
   const applyPromptTemplate = useCallback((promptText) => {
+    isVoiceDraftRef.current = false;
     const text = String(promptText || '');
     const idx = text.indexOf('...');
     pendingSelectionRef.current = idx !== -1
@@ -828,14 +1005,23 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     };
   }, [isOpen, isExpanded, setIsOpen]);
 
-  useEffect(() => {
-    if (isOpen && endOfMessagesRef.current) {
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    if (isInitialScrollSyncRef.current) {
+      isInitialScrollSyncRef.current = false;
+      const container = messagesContainerRef.current;
+      if (container && savedMessagesScrollTop !== null && lastMountedOwnerScope === ownerScope) {
+        container.scrollTop = savedMessagesScrollTop;
+        return;
+      }
+    }
+    if (endOfMessagesRef.current) {
       endOfMessagesRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isTyping, isOpen]);
+  }, [messages, isTyping, isOpen, ownerScope]);
 
   // ── Web Speech API Text-to-Speech (TTS) Voice Synthesis ──
-  const speakText = (text, msgId) => {
+  const speakText = (text, msgId, optionsOrClarifications = null) => {
     if (!('speechSynthesis' in window)) return;
 
     if (speakingMsgId === msgId) {
@@ -846,12 +1032,28 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
 
     window.speechSynthesis.cancel();
 
-    // Clean markdown characters before speech synthesis
-    const cleanText = (text || '')
-      .replace(/[#*_`|~]/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/https?:\/\/\S+/g, '')
-      .trim();
+    const opts = Array.isArray(optionsOrClarifications)
+      ? { clarificationOptions: optionsOrClarifications }
+      : (optionsOrClarifications || {});
+    const {
+      clarificationOptions = null,
+      pendingAction = null,
+      requiresConfirmation = false,
+    } = opts;
+
+    let cleanText = (requiresConfirmation && pendingAction)
+      ? buildSpokenConfirmationSummary(text, pendingAction)
+      : cleanTextForSpeech(text);
+
+    if (Array.isArray(clarificationOptions) && clarificationOptions.length > 0) {
+      const optsText = clarificationOptions
+        .map((opt, idx) => `${idx + 1}. ${cleanTextForSpeech(opt.label || opt.prompt)}`)
+        .filter(Boolean)
+        .join('. ');
+      if (optsText) {
+        cleanText = cleanText ? `${cleanText}. Các phương án gợi ý: ${optsText}` : `Các phương án gợi ý: ${optsText}`;
+      }
+    }
 
     if (!cleanText) return;
 
@@ -865,9 +1067,16 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       utterance.voice = viVoice;
     }
 
-    utterance.onend = () => setSpeakingMsgId(null);
-    utterance.onerror = () => setSpeakingMsgId(null);
+    utterance.onend = () => {
+      utteranceRef.current = null;
+      setSpeakingMsgId(null);
+    };
+    utterance.onerror = () => {
+      utteranceRef.current = null;
+      setSpeakingMsgId(null);
+    };
 
+    utteranceRef.current = utterance;
     setSpeakingMsgId(msgId);
     window.speechSynthesis.speak(utterance);
   };
@@ -898,10 +1107,11 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   };
 
   // ── Xử lý gửi câu lệnh tới Trợ lý AI và Đồng bộ Hệ thống ──
-  const sendQuery = async (queryText) => {
+  const sendQuery = async (queryText, { fromVoice = false } = {}) => {
     const textToSend = (queryText || '').trim();
     if (!textToSend) return;
 
+    isVoiceDraftRef.current = false;
     suppressPersistRef.current = false;
     const requestOwnerScope = ownerScopeRef.current;
     const requestEpoch = sessionEpochRef.current;
@@ -945,7 +1155,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     setInput('');
 
     if (isVerbalConfirmOfPendingCard) {
-      await handleConfirmAction(lastMsg.id, lastMsg.pendingAction, targetSessionId, sessionContext);
+      await handleConfirmAction(lastMsg.id, lastMsg.pendingAction, targetSessionId, sessionContext, fromVoice);
       return;
     }
 
@@ -990,15 +1200,22 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
         navigateTo: response.navigateTo,
         requiresConfirmation: response.requiresConfirmation,
         pendingAction: response.pendingAction,
+        clarificationOptions: Array.isArray(response.clarificationOptions) && response.clarificationOptions.length > 0
+          ? response.clarificationOptions
+          : null,
         confirmationStatus: response.requiresConfirmation ? 'pending' : null,
         time: formatCurrentTime()
       };
 
       updateSessionMessages(targetSessionId, prev => [...prev, botMsg]);
 
-      // Auto-read response if enabled
-      if (isAutoSpeakEnabled && response.reply) {
-        speakText(response.reply, botMsg.id);
+      // Auto-read response when Auto-Speak is enabled OR turn originated from Voice Input
+      if ((isAutoSpeakEnabled || fromVoice) && (response.reply || (response.requiresConfirmation && response.pendingAction))) {
+        speakText(response.reply, botMsg.id, {
+          clarificationOptions: botMsg.clarificationOptions,
+          pendingAction: response.pendingAction,
+          requiresConfirmation: Boolean(response.requiresConfirmation && response.pendingAction),
+        });
       }
 
       // Phát sự kiện toàn cục để các màn hình lắng nghe tự reload dữ liệu hoặc mở modal nhanh
@@ -1038,9 +1255,14 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     msgId,
     pendingAction,
     targetSessionId = effectiveSessionId,
-    sessionContext = lastActionContext
+    sessionContext = lastActionContext,
+    fromVoice = false
   ) => {
     if (confirmInFlightRef.current.has(msgId)) return;
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
+      setSpeakingMsgId(null);
+    }
     suppressPersistRef.current = false;
     const requestOwnerScope = ownerScopeRef.current;
     const requestEpoch = sessionEpochRef.current;
@@ -1085,7 +1307,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
         return m;
       }));
 
-      if (response.reply && isAutoSpeakEnabled) {
+      if (response.reply && (isAutoSpeakEnabled || fromVoice)) {
         speakText(response.reply, msgId);
       }
 
@@ -1119,6 +1341,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
 
   // Hủy bỏ thao tác nếu chưa muốn thực hiện
   const handleCancelAction = (msgId) => {
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
+      setSpeakingMsgId(null);
+    }
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'cancelled' } : m));
   };
 
@@ -1139,6 +1365,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
 
   // ── Trình Thu âm Thông minh (Web Audio VAD + MediaRecorder + Hybrid Confidence Routing) ──
   const startListening = async () => {
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
+      setSpeakingMsgId(null);
+    }
     setIsListening(true);
     setIsTranscribing(false);
     setVoiceRms(0);
@@ -1213,7 +1443,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
               if (!finalText) {
                 setVoiceNotice(fallbackText ? '' : NO_SPEECH_HINT);
                 if (fallbackText) {
-                  sendQuery(fallbackText);
+                  (sendQueryRef.current || sendQuery)(fallbackText, { fromVoice: true });
                 }
                 return;
               }
@@ -1225,8 +1455,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                 setVoiceNotice('');
                 setVoiceCorrections([]);
                 setVoiceConfidence(null);
-                sendQuery(finalText);
+                (sendQueryRef.current || sendQuery)(finalText, { fromVoice: true });
               } else {
+                isVoiceDraftRef.current = true;
                 setInput(finalText);
                 setVoiceConfidence(confidence);
                 setVoiceCorrections(Array.isArray(sttResult?.corrections) ? sttResult.corrections : []);
@@ -1246,7 +1477,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
           setIsTranscribing(false);
           setVoiceNotice('');
           if (fallbackText && fallbackText.trim()) {
-            sendQuery(fallbackText.trim());
+            (sendQueryRef.current || sendQuery)(fallbackText.trim(), { fromVoice: true });
           }
         }
       });
@@ -1330,10 +1561,12 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   };
 
   const handleSend = () => {
+    const originatedFromVoice = isVoiceDraftRef.current;
+    isVoiceDraftRef.current = false;
     setVoiceCorrections([]);
     setVoiceConfidence(null);
     setVoiceNotice('');
-    sendQuery(input);
+    sendQuery(input, { fromVoice: originatedFromVoice });
   };
 
   sendQueryRef.current = sendQuery;
@@ -1370,7 +1603,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     const hasConversation = messages.some(m => m.type === 'user');
     const fresh = createSessionObject(
       hasConversation ? sessions.length + 1 : Math.max(1, sessions.findIndex(s => s.id === effectiveSessionId) + 1),
-      [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]
+      [buildInitialMessage(userRole)]
     );
     if (hasConversation) {
       setSessions(prev => [...prev, fresh]);
@@ -1395,7 +1628,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     setSessions(prev => {
       const remaining = prev.filter(s => s.id !== sessionId);
       if (remaining.length === 0) {
-        const fresh = createSessionObject(1, [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]);
+        const fresh = createSessionObject(1, [buildInitialMessage(userRole)]);
         setActiveSessionId(fresh.id);
         return [fresh];
       }
@@ -1410,7 +1643,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     <div className={styles.chatbotWidget}>
       {isOpen && (
         <div
-          className={`${styles.chatWindow} ${isExpanded ? styles.chatWindowExpanded : ''}`}
+          className={`${styles.chatWindow} ${isExpanded ? styles.chatWindowExpanded : ''} ${skipMountPopAnim ? styles.chatWindowNoAnim : ''}`}
           ref={chatWindowRef}
           data-testid="ai-chat-window"
         >
@@ -1481,6 +1714,21 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
             </div>
           </div>
 
+          <div className={styles.utilityBar}>
+            <span className={styles.utilityHint}>💡 Bấm chọn gợi ý hoặc nói để thao tác nhanh</span>
+            <button
+              type="button"
+              className={`${styles.autoSpeakPill} ${isAutoSpeakEnabled ? styles.autoSpeakPillActive : ''}`}
+              data-testid="auto-speak-toggle-btn"
+              aria-pressed={isAutoSpeakEnabled}
+              onClick={toggleAutoSpeak}
+              title={isAutoSpeakEnabled ? 'Đang bật tự động đọc phản hồi AI bằng giọng nói' : 'Bật để AI tự đọc to mọi câu trả lời (hỗ trợ người lớn tuổi)'}
+            >
+              {isAutoSpeakEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              <span>{isAutoSpeakEnabled ? 'Tự đọc: Bật' : 'Tự đọc: Tắt'}</span>
+            </button>
+          </div>
+
           {isSessionListOpen && (
             <div className={styles.sessionListPanel} data-testid="session-list-panel">
               <div className={styles.sessionListHeader}>
@@ -1522,7 +1770,11 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
           )}
 
           {/* ── Message Stream ── */}
-          <div className={styles.messages}>
+          <div
+            className={styles.messages}
+            ref={messagesContainerRef}
+            onScroll={(e) => { savedMessagesScrollTop = e.currentTarget.scrollTop; }}
+          >
             {messages.map(msg => (
               <React.Fragment key={msg.id}>
                 <div
@@ -1533,7 +1785,13 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                     <img src={farmLogo} alt="FarmShift AI" className={styles.botLogoSmall} />
                   </div>
                 )}
-                <div className={`${styles.message} ${msg.type === 'user' ? styles.messageUser : styles.messageBot}`}>
+                <div
+                  className={`${styles.message} ${msg.type === 'user' ? styles.messageUser : styles.messageBot} ${
+                    msg.type === 'bot' && ((msg.requiresConfirmation && msg.pendingAction && msg.confirmationStatus !== 'confirmed') || (msg.executed && msg.actionSummary))
+                      ? styles.messageWithCard
+                      : ''
+                  }`}
+                >
                   {msg.type === 'user' ? (
                     <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
                   ) : (
@@ -1544,8 +1802,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                   {msg.requiresConfirmation && msg.pendingAction && msg.confirmationStatus !== 'confirmed' && (
                     <div className={styles.confirmCard} data-testid="confirmation-card">
                       <div className={styles.confirmHeader}>
-                        <AlertCircle size={15} className={styles.confirmIcon} />
-                        <span className={styles.confirmTitle}>{msg.pendingAction.title || 'Xác nhận thao tác'}</span>
+                        <AlertCircle size={17} className={styles.confirmIcon} />
+                        <span className={styles.confirmTitle}>
+                          {renderRichInlineTokens(msg.pendingAction.title || 'Xác nhận thao tác')}
+                        </span>
                         {(msg.pendingAction.actionToken || msg.pendingAction.payload?.actionToken) && (
                           <span className={styles.securityBadge} data-testid="signed-action-badge">
                             <ShieldCheck size={12} />
@@ -1554,14 +1814,16 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                         )}
                       </div>
                       {msg.pendingAction.description && (
-                        <div className={styles.confirmDesc}>{msg.pendingAction.description}</div>
+                        <div className={styles.confirmDesc}>
+                          {renderRichInlineTokens(msg.pendingAction.description)}
+                        </div>
                       )}
                       {msg.pendingAction.details && (
-                        <div className={styles.confirmDetails}>
+                        <div className={styles.confirmDetails} data-testid="confirm-details-list">
                           {Object.entries(msg.pendingAction.details).map(([key, val]) => (
-                            <div key={key} className={styles.confirmDetailRow}>
-                              <span className={styles.confirmDetailKey}>{key}:</span>
-                              <span className={styles.confirmDetailVal}>{String(val)}</span>
+                            <div key={key} className={styles.confirmDetailRow} data-testid="confirm-detail-row">
+                              <span className={styles.confirmDetailKey}>{key}</span>
+                              <span className={styles.confirmDetailVal}>{renderRichInlineTokens(val)}</span>
                             </div>
                           ))}
                         </div>
@@ -1570,9 +1832,11 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                       {msg.pendingAction.batchItems && Array.isArray(msg.pendingAction.batchItems) && (
                         <div className={styles.confirmDetails} data-testid="batch-confirmation-items">
                           {msg.pendingAction.batchItems.map((bItem, bIdx) => (
-                            <div key={bIdx} className={styles.confirmDetailRow}>
+                            <div key={bIdx} className={styles.confirmDetailRow} data-testid="confirm-detail-row">
                               <span className={styles.confirmDetailKey}>{bItem.barnName}:</span>
-                              <span className={styles.confirmDetailVal}>{bItem.oldValue} → {bItem.newValue} ({bItem.diff})</span>
+                              <span className={styles.confirmDetailVal}>
+                                {renderRichInlineTokens(`${bItem.oldValue} → ${bItem.newValue} (${bItem.diff})`)}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -1586,8 +1850,8 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                             data-testid="confirm-accept-btn"
                             onClick={() => handleConfirmAction(msg.id, msg.pendingAction)}
                           >
-                            <Check size={14} />
-                            <span>Xác nhận thực hiện</span>
+                            <Check size={17} />
+                            <span>Đồng ý lưu</span>
                           </button>
                           <button
                             type="button"
@@ -1595,7 +1859,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                             data-testid="confirm-reject-btn"
                             onClick={() => handleCancelAction(msg.id)}
                           >
-                            <X size={14} />
+                            <X size={17} />
                             <span>Hủy bỏ</span>
                           </button>
                         </div>
@@ -1633,10 +1897,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                         <Zap size={12} />
                         <span>Đã thực thi trên hệ thống</span>
                       </div>
-                      <div className={styles.actionCardTitle}>{msg.actionSummary.title}</div>
+                      <div className={styles.actionCardTitle}>{renderRichInlineTokens(msg.actionSummary.title)}</div>
                       <div className={styles.actionCardDetail}>
                         {msg.actionSummary.barnName ? `🏡 ${msg.actionSummary.barnName} • ` : ''}
-                        {msg.actionSummary.detail}
+                        {renderRichInlineTokens(msg.actionSummary.detail)}
                       </div>
                       <div className={styles.actionCardFooter}>
                         <span className={styles.actionTimestamp}>
@@ -1661,6 +1925,46 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                     </div>
                   )}
 
+                  {/* ── Thẻ Gợi ý Xác nhận / Làm rõ Ý định (Disambiguation Options) ── */}
+                  {Array.isArray(msg.clarificationOptions) && msg.clarificationOptions.length > 0 && (
+                    <div className={styles.clarificationBox} data-testid="clarification-options">
+                      <div className={styles.clarificationHeader}>
+                        <span>🤔 Chọn nhanh phương án đúng ý bạn:</span>
+                      </div>
+                      <div className={styles.clarificationList}>
+                        {msg.clarificationOptions.map((opt, optIdx) => (
+                          <button
+                            key={`${msg.id}_opt_${optIdx}`}
+                            type="button"
+                            className={styles.clarificationOptionBtn}
+                            data-testid="clarification-option-btn"
+                            data-autosend={String(opt.autoSend !== false)}
+                            onClick={() => handleSuggestionClick(opt)}
+                          >
+                            <div className={styles.clarificationOptionTop}>
+                              <div className={styles.clarificationOptionLabelRow}>
+                                {opt.badge && (
+                                  <span className={styles.clarificationOptionBadge}>{opt.badge}</span>
+                                )}
+                                <span className={styles.clarificationOptionLabel}>
+                                  {renderRichInlineTokens(opt.label || opt.prompt)}
+                                </span>
+                              </div>
+                              <span className={styles.suggestionCueIcon} aria-hidden="true">
+                                {opt.autoSend === false ? <PenLine size={13} /> : <ArrowUpRight size={13} />}
+                              </span>
+                            </div>
+                            {opt.description && (
+                              <div className={styles.clarificationOptionDesc}>
+                                {renderRichInlineTokens(opt.description)}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── Deep-link pill cho phản hồi hỏi đáp có màn hình liên quan ── */}
                   {msg.type === 'bot' && msg.navigateTo && !(msg.executed && msg.actionSummary) && (
                     <button
@@ -1680,7 +1984,11 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                       <button
                         type="button"
                         className={`${styles.messageTtsBtn} ${speakingMsgId === msg.id ? styles.messageTtsBtnSpeaking : ''}`}
-                        onClick={() => speakText(msg.text, msg.id)}
+                        onClick={() => speakText(msg.text, msg.id, {
+                          clarificationOptions: msg.clarificationOptions,
+                          pendingAction: msg.pendingAction,
+                          requiresConfirmation: Boolean(msg.requiresConfirmation && msg.confirmationStatus === 'pending' && msg.pendingAction),
+                        })}
                         title={speakingMsgId === msg.id ? 'Dừng đọc' : 'Đọc câu trả lời bằng giọng nói'}
                         data-testid="message-speaker-btn"
                       >
@@ -1829,7 +2137,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                 className={styles.input}
                 placeholder={isListening ? 'Đang nhận diện giọng nói...' : effectivePlaceholder}
                 value={input}
-                onChange={e => setInput(e.target.value)}
+                onChange={e => {
+                  if (!e.target.value.trim()) isVoiceDraftRef.current = false;
+                  setInput(e.target.value);
+                }}
                 onKeyDown={handleKeyDown}
                 autoFocus
               />
