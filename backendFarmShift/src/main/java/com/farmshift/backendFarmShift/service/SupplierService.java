@@ -35,7 +35,26 @@ public class SupplierService {
     private final FlockRepository flockRepository;
 
     public List<SupplierResponse> list() {
-        return repository.findAll(Sort.by("createdAt", "id")).stream().map(this::response).toList();
+        List<Supplier> all = repository.findAll(Sort.by("createdAt", "id"));
+        if (all.isEmpty()) {
+            return List.of();
+        }
+        java.util.Map<Long, Long> purchasedBySupplier = new java.util.HashMap<>();
+        java.util.Map<Long, Long> debtBySupplier = new java.util.HashMap<>();
+        for (Object[] row : invoiceRepository.summarizeTotalsAndDebtBySupplier()) {
+            if (row != null && row.length >= 3 && row[0] instanceof Number idNum) {
+                long supplierId = idNum.longValue();
+                long purchased = row[1] instanceof Number n ? n.longValue() : 0L;
+                long debt = row[2] instanceof Number n ? n.longValue() : 0L;
+                purchasedBySupplier.put(supplierId, purchased);
+                debtBySupplier.put(supplierId, debt);
+            }
+        }
+        return all.stream()
+                .map(s -> response(s,
+                        purchasedBySupplier.getOrDefault(s.getId(), 0L),
+                        debtBySupplier.getOrDefault(s.getId(), 0L)))
+                .toList();
     }
 
     public SupplierResponse get(Long id) {
@@ -131,13 +150,19 @@ public class SupplierService {
     }
 
     private SupplierResponse response(Supplier supplier) {
+        Long totalPurchased = invoiceRepository.calculateTotalPurchasedBySupplier(supplier.getId());
+        Long currentDebt = invoiceRepository.calculateCurrentDebtBySupplier(supplier.getId());
+        return response(supplier,
+                totalPurchased != null ? totalPurchased : 0L,
+                currentDebt != null ? currentDebt : 0L);
+    }
+
+    private SupplierResponse response(Supplier supplier, long totalPurchased, long currentDebt) {
         List<Long> tagIds = supplier.getTags() == null ? List.of() : supplier.getTags().stream().map(PurchaseTag::getId).toList();
         List<String> tagNames = supplier.getTags() == null ? List.of() : supplier.getTags().stream().map(PurchaseTag::getName).toList();
 
-        Long totalPurchased = invoiceRepository.calculateTotalPurchasedBySupplier(supplier.getId());
-        Long currentDebt = invoiceRepository.calculateCurrentDebtBySupplier(supplier.getId());
         long openingDebt = supplier.getOpeningDebt() != null ? supplier.getOpeningDebt() : 0L;
-        long totalDebt = openingDebt + (currentDebt != null ? currentDebt : 0L);
+        long totalDebt = openingDebt + currentDebt;
 
         return new SupplierResponse(
                 supplier.getId(),
@@ -157,7 +182,7 @@ public class SupplierService {
                 supplier.getNote(),
                 tagIds,
                 tagNames,
-                totalPurchased != null ? totalPurchased : 0L,
+                totalPurchased,
                 totalDebt
         );
     }

@@ -13,6 +13,9 @@ public interface PurchaseInvoiceRepository extends JpaRepository<PurchaseInvoice
 
     @Query("SELECT p FROM PurchaseInvoice p " +
            "LEFT JOIN FETCH p.supplier s " +
+           "LEFT JOIN FETCH p.flock f " +
+           "LEFT JOIN FETCH f.cycle c " +
+           "LEFT JOIN FETCH c.barn b " +
            "WHERE (:search IS NULL OR :search = '' OR LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(s.name) LIKE LOWER(CONCAT('%', :search, '%'))) " +
            "AND (:paymentStatus IS NULL OR :paymentStatus = '' OR :paymentStatus = 'ALL' OR p.paymentStatus LIKE CONCAT('%', :paymentStatus, '%')) " +
            "ORDER BY p.invoiceDate DESC, p.id DESC")
@@ -36,6 +39,10 @@ public interface PurchaseInvoiceRepository extends JpaRepository<PurchaseInvoice
 
     @Query("SELECT COALESCE(SUM(p.totalAmount - p.paidAmount), 0) FROM PurchaseInvoice p WHERE p.supplier.id = :supplierId AND p.stockStatus <> 'Đã hủy'")
     Long calculateCurrentDebtBySupplier(@Param("supplierId") Long supplierId);
+
+    @Query("SELECT p.supplier.id, COALESCE(SUM(p.totalAmount), 0), COALESCE(SUM(p.totalAmount - p.paidAmount), 0) " +
+           "FROM PurchaseInvoice p WHERE p.stockStatus <> 'Đã hủy' GROUP BY p.supplier.id")
+    List<Object[]> summarizeTotalsAndDebtBySupplier();
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"supplier"})
     List<PurchaseInvoice> findBySupplier_IdOrderByInvoiceDateDescIdDesc(Long supplierId);

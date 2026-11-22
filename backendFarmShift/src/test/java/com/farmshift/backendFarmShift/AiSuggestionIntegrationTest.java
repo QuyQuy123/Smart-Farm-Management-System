@@ -297,6 +297,53 @@ public class AiSuggestionIntegrationTest {
         JsonNode fcrCardOnReports = findCardById(reportsJson, "owner_fcr_alert");
         assertNotNull(fcrCardOnReports, "Owner must receive FCR anomaly alert card: " + reportsBody);
         assertTrue(fcrCardOnReports.path("title").asText().contains("Nhà FCR1"));
+        assertTrue(fcrCardOnReports.path("title").asText().contains("chuẩn ≤ 1.85"),
+                "Stage 2 FCR suggestion card must use canonical 1.85 max benchmark: " + fcrCardOnReports.path("title").asText());
+
+        // Also verify Stage 1 brooding cycle (age <= 21 days) uses canonical 1.35 max benchmark (aligned with AiAssistantService)
+        long barnBroodId = id(postAsOwner("/api/barns", Map.of("areaId", areaId, "name", "Nhà Brood1", "capacity", 3000, "areaM2", 300)));
+        long cycleBroodId = id(postAsOwner("/api/barns/" + barnBroodId + "/cycles",
+                Map.of("startDate", today.minusDays(15).toString())));
+        postAsOwner("/api/cycles/" + cycleBroodId + "/flocks", Map.of(
+                "name", "Đàn Úm 16 ngày",
+                "programId", progId,
+                "gender", "MALE",
+                "importDate", today.minusDays(15).toString(),
+                "ageAtImport", 1,
+                "quantity", 1000,
+                "avgWeight", 0.04,
+                "unitPrice", 12000,
+                "sourceNote", "Dabaco"
+        )).andExpect(status().isCreated());
+        FarmingCycle broodCycle = cycleRepository.findById(cycleBroodId).orElseThrow();
+        // Feed 1500kg for 1000 birds @ 0.44kg avg (gain ~400kg => FCR 3.75, excess over 1.35 = 2.40 > 3.08 - 1.85 = 1.23)
+        FeedRecord broodFeed = new FeedRecord();
+        broodFeed.setCycle(broodCycle);
+        broodFeed.setRecordDate(today.minusDays(1));
+        broodFeed.setFeedName("Cám CP 511");
+        broodFeed.setQuantityKg(new BigDecimal("1500.000"));
+        broodFeed.setUnitPrice(new BigDecimal("14000"));
+        broodFeed.setCreatedBy("owner@farm.test");
+        feedRepository.saveAndFlush(broodFeed);
+
+        WeightSample broodSample = new WeightSample();
+        broodSample.setCycle(broodCycle);
+        broodSample.setSampleDate(today.minusDays(1));
+        broodSample.setAvgWeightKg(new BigDecimal("0.440"));
+        broodSample.setSampleSize(50);
+        broodSample.setCreatedBy("owner@farm.test");
+        weightRepository.saveAndFlush(broodSample);
+
+        String broodReportsBody = mvc.perform(get(SUGGESTIONS_API)
+                        .param("route", "/reports")
+                        .with(user("owner@farm.test").authorities(new SimpleGrantedAuthority(RoleNames.FARM_OWNER))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode broodFcrCard = findCardById(mapper.readTree(broodReportsBody), "owner_fcr_alert");
+        assertNotNull(broodFcrCard);
+        assertTrue(broodFcrCard.path("title").asText().contains("Nhà Brood1"));
+        assertTrue(broodFcrCard.path("title").asText().contains("chuẩn ≤ 1.35"),
+                "Stage 1 brooding FCR suggestion card must use canonical 1.35 max benchmark: " + broodFcrCard.path("title").asText());
 
         String purchasesBody = mvc.perform(get(SUGGESTIONS_API)
                         .param("route", "/purchases")

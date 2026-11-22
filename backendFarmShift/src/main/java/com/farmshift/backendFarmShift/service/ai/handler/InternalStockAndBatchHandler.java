@@ -356,12 +356,13 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
         }
 
         // Pre-Flight Stock Check (MSG27)
+        BigDecimal reqQty = BigDecimal.valueOf(qtyBags);
         if (sourceItem != null && sourceItem.getStock() != null && ("EXPORT".equals(movementType) || "TRANSFER".equals(movementType))) {
-            double currentStock = sourceItem.getStock().doubleValue();
-            if (qtyBags > currentStock) {
+            BigDecimal currentStock = sourceItem.getStock();
+            if (reqQty.compareTo(currentStock) > 0) {
                 return AiAssistantResponse.builder()
                         .reply("⚠️ Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm (Hiện có: "
-                                + currentStock + " Bao, Yêu cầu: " + qtyBags + " Bao). Vui lòng kiểm tra lại.")
+                                + formatCardQty(currentStock) + " Bao, Yêu cầu: " + formatCardQty(reqQty) + " Bao). Vui lòng kiểm tra lại.")
                         .actionType("STOCK_INSUFFICIENT")
                         .executed(false)
                         .build();
@@ -370,10 +371,10 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
 
         // Prepare Confirmation Card
         String batchCode = sourceItem != null ? formatBatchCode(sourceItem) : "#" + LocalDateTime.now(CycleService.VN_ZONE).format(BATCH_CODE_FORMATTER);
-        double stockBefore = sourceItem != null && sourceItem.getStock() != null ? sourceItem.getStock().doubleValue() : 50.0;
-        double stockAfter = Math.max(0.0, stockBefore - qtyBags);
-        String qtyDisplay = formatQty(BigDecimal.valueOf(qtyBags));
-        String stockAfterDisplay = formatQty(BigDecimal.valueOf(stockAfter));
+        BigDecimal stockBefore = sourceItem != null && sourceItem.getStock() != null ? sourceItem.getStock() : BigDecimal.valueOf(50);
+        BigDecimal stockAfter = stockBefore.subtract(reqQty).max(BigDecimal.ZERO);
+        String qtyDisplay = formatCardQty(reqQty);
+        String stockAfterDisplay = formatCardQty(stockAfter);
         String unitLabel = (sourceItem != null && sourceItem.getUnit() != null && sourceItem.getUnit().getName() != null && !sourceItem.getUnit().getName().isBlank())
                 ? (sourceItem.getUnit().getName().toLowerCase(Locale.ROOT).contains("bao") ? "bao" : sourceItem.getUnit().getName())
                 : "bao";
@@ -507,8 +508,14 @@ public class InternalStockAndBatchHandler implements AssistantCommandHandler {
     }
 
     private String formatQty(BigDecimal qty) {
+        return formatCardQty(qty);
+    }
+
+    private String formatCardQty(BigDecimal qty) {
         if (qty == null) return "0";
-        return qty.stripTrailingZeros().toPlainString();
+        BigDecimal scaled = qty.setScale(2, RoundingMode.HALF_UP);
+        if (scaled.compareTo(BigDecimal.ZERO) == 0) return "0";
+        return scaled.stripTrailingZeros().toPlainString();
     }
 
     private String extractSearchTarget(String text, List<InventoryItem> allItems) {

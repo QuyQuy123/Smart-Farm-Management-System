@@ -122,13 +122,25 @@ const formatRecordingClock = (seconds) => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
-const INITIAL_MESSAGE = {
+const resolveRoleGreetingText = (role) => {
+  if (role === 'ROLE_FARM_WORKER') {
+    return 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể hỗ trợ bạn ghi nhận khẩu phần cám, cân mẫu, báo cáo hao hụt, xem việc hôm nay và tra cứu thú y cho các chuồng bạn phụ trách.';
+  }
+  if (role === 'ROLE_ACCOUNTANT') {
+    return 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể hỗ trợ bạn kiểm tra hóa đơn nhập hàng, quét hóa đơn OCR, theo dõi công nợ, tồn kho, chuyển kho nội bộ và báo cáo tài chính.';
+  }
+  return 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể thực thi trực tiếp các thao tác ghi cám, cân mẫu, báo cáo hao hụt, nhập kho hoặc giải đáp thú y & điều hành trang trại.';
+};
+
+const buildInitialMessage = (role) => ({
   id: 1,
   type: 'bot',
-  text: 'Xin chào! Tôi là Trợ lý AI FarmShift. Tôi có thể thực thi trực tiếp các thao tác ghi cám, cân mẫu, báo cáo hao hụt, nhập kho hoặc giải đáp thú y & điều hành trang trại.',
+  text: resolveRoleGreetingText(role),
   time: formatCurrentTime(),
   showChips: true
-};
+});
+
+const INITIAL_MESSAGE = buildInitialMessage('ROLE_FARM_OWNER');
 
 const createSessionObject = (index = 1, seedMessages = [INITIAL_MESSAGE]) => {
   const msgs = Array.isArray(seedMessages) && seedMessages.length > 0 ? seedMessages : [INITIAL_MESSAGE];
@@ -484,9 +496,11 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   const mountedRef = useRef(true);
   const suppressPersistRef = useRef(false);
 
+  const roleInitialMessage = useMemo(() => buildInitialMessage(userRole), [userRole]);
+
   const initialChatStateRef = useRef(null);
   if (!initialChatStateRef.current) {
-    initialChatStateRef.current = loadAiChatState(ownerScope, createSessionObject, INITIAL_MESSAGE);
+    initialChatStateRef.current = loadAiChatState(ownerScope, createSessionObject, roleInitialMessage);
   }
 
   // Restore previous open/closed, Side-Drawer dock, session drawer & input draft state across routes
@@ -524,15 +538,15 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const effectiveSessionId = activeSession?.id;
   const messages = useMemo(
-    () => (Array.isArray(activeSession?.messages) ? activeSession.messages : [INITIAL_MESSAGE]),
-    [activeSession]
+    () => (Array.isArray(activeSession?.messages) ? activeSession.messages : [roleInitialMessage]),
+    [activeSession, roleInitialMessage]
   );
   const lastActionContext = activeSession?.lastActionContext || null;
 
   const updateSessionMessages = (targetSessionId, updater) => {
     setSessions(prev => prev.map(s => {
       if (s.id !== targetSessionId) return s;
-      const prevMsgs = Array.isArray(s.messages) ? s.messages : [INITIAL_MESSAGE];
+      const prevMsgs = Array.isArray(s.messages) ? s.messages : [roleInitialMessage];
       const nextMsgs = typeof updater === 'function' ? updater(prevMsgs) : updater;
       const firstUser = nextMsgs.find(m => m.type === 'user' && m.text);
       return {
@@ -662,7 +676,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     if ('speechSynthesis' in window) {
       try { window.speechSynthesis.cancel(); } catch (_e) { /* ignore */ }
     }
-    const fresh = createSessionObject(1, [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]);
+    const fresh = createSessionObject(1, [buildInitialMessage(userRole)]);
     confirmInFlightRef.current.clear();
     suggestionsReqRef.current += 1;
     savedMessagesScrollTop = null;
@@ -686,7 +700,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     setVoiceCorrections([]);
     setVoiceConfidence(null);
     setSpeakingMsgId(null);
-  }, []);
+  }, [userRole]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -737,7 +751,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     lastMountedOwnerScope = ownerScope;
     confirmInFlightRef.current.clear();
     suggestionsReqRef.current += 1;
-    const nextState = loadAiChatState(ownerScope, createSessionObject, INITIAL_MESSAGE);
+    const nextState = loadAiChatState(ownerScope, createSessionObject, buildInitialMessage(userRole));
     setSessions(nextState.sessions);
     setActiveSessionId(nextState.activeSessionId);
     setIsOpenState(Boolean(nextState.isOpen));
@@ -751,7 +765,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     setVoiceNotice('');
     setVoiceCorrections([]);
     setVoiceConfidence(null);
-  }, [ownerScope]);
+  }, [ownerScope, userRole]);
 
   // Dọn dẹp media streams, Web Audio VAD và Web Speech API khi unmount
   useEffect(() => {
@@ -1589,7 +1603,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     const hasConversation = messages.some(m => m.type === 'user');
     const fresh = createSessionObject(
       hasConversation ? sessions.length + 1 : Math.max(1, sessions.findIndex(s => s.id === effectiveSessionId) + 1),
-      [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]
+      [buildInitialMessage(userRole)]
     );
     if (hasConversation) {
       setSessions(prev => [...prev, fresh]);
@@ -1614,7 +1628,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     setSessions(prev => {
       const remaining = prev.filter(s => s.id !== sessionId);
       if (remaining.length === 0) {
-        const fresh = createSessionObject(1, [{ ...INITIAL_MESSAGE, time: formatCurrentTime() }]);
+        const fresh = createSessionObject(1, [buildInitialMessage(userRole)]);
         setActiveSessionId(fresh.id);
         return [fresh];
       }

@@ -45,6 +45,17 @@ public class NavigationCommandHandler implements AssistantCommandHandler {
             return null;
         }
 
+        if ("/iot".equals(route.path())) {
+            boolean isOwner = context.getAuthorities() == null || context.getAuthorities().isEmpty()
+                    || context.getAuthorities().stream().anyMatch(a ->
+                            "ROLE_FARM_OWNER".equalsIgnoreCase(a.getAuthority()) || "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
+            if (!isOwner) {
+                return context.isWorker()
+                        ? com.farmshift.backendFarmShift.service.ai.AiRbacPolicy.createForbiddenResponse()
+                        : com.farmshift.backendFarmShift.service.ai.AiRbacPolicy.createAccountantForbiddenResponse();
+            }
+        }
+
         Map<String, Object> navSummary = new LinkedHashMap<>();
         navSummary.put("title", "⚡ Điều hướng tức thì (0 tốn token AI)");
         navSummary.put("detail", "Định tuyến cục bộ sang " + route.label() + " (<5ms), bỏ qua hoàn toàn mô hình AI");

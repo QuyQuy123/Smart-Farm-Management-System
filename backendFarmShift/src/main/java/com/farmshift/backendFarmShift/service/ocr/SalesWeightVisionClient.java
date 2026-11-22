@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.service.ocr;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.net.URI;
@@ -10,6 +11,7 @@ import java.net.http.*;
 import java.time.Duration;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 @Service
 public class SalesWeightVisionClient {
@@ -27,14 +29,17 @@ public class SalesWeightVisionClient {
         this.mapper = mapper; this.baseUrl = url.replaceAll("/+$", "");
     }
     public JsonNode extract(WeightSlipStorage.Document document) {
-        String boundary = "weight-" + java.util.UUID.randomUUID();
+        String boundary = "weight-" + UUID.randomUUID();
+        String requestId = resolveRequestId();
         try {
             var body = new ByteArrayOutputStream();
             body.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"weight-slip" + document.extension() + "\"\r\nContent-Type: " + document.mime() + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
             body.write(document.bytes());
             body.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
             var reqBuilder = HttpRequest.newBuilder(URI.create(baseUrl + "/api/ocr/extract-weight-slip"))
-                    .timeout(Duration.ofSeconds(80)).header("Content-Type", "multipart/form-data; boundary=" + boundary);
+                    .timeout(Duration.ofSeconds(80))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("X-Request-ID", requestId);
             if (internalAiToken != null && !internalAiToken.isBlank()) {
                 reqBuilder.header("X-Internal-AI-Token", internalAiToken);
             }
@@ -54,5 +59,10 @@ public class SalesWeightVisionClient {
         } catch (BadRequestException ex) { throw ex; }
         catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new BadRequestException("Đã ngắt xử lý phiếu cân."); }
         catch (Exception ex) { throw new BadRequestException("Không kết nối được dịch vụ OCR. Vui lòng thử lại."); }
+    }
+
+    private static String resolveRequestId() {
+        String cid = MDC.get("requestId");
+        return (cid != null && !cid.isBlank()) ? cid.trim() : UUID.randomUUID().toString();
     }
 }

@@ -11,6 +11,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -58,5 +59,40 @@ class PurchaseOcrServiceTest {
                 "Không nhận diện được hóa đơn / phiếu nhập hàng trong tệp đã tải lên. Vui lòng chọn đúng chứng từ.",
                 ex.getMessage()
         );
+    }
+
+    @Test
+    void extract_rescuesDroppedThousandsUnitPriceAndFlagsMismatchedLineItem() throws Exception {
+        VisionClient visionClient = mock(VisionClient.class);
+        SupplierRepository supplierRepository = mock(SupplierRepository.class);
+        ProductCategoryRepository productCategoryRepository = mock(ProductCategoryRepository.class);
+
+        String payload = """
+                {
+                  "isInvoice": true,
+                  "supplierName": "C.P. Việt Nam",
+                  "items": [
+                    { "name": "Cám Higro 01", "qty": 50, "unit": "Bao", "unitPrice": 345, "amount": 17250000 },
+                    { "name": "Thuốc B", "qty": 10, "unit": "Chai", "unitPrice": 100000, "amount": 1800000 }
+                  ],
+                  "discountAmount": 0,
+                  "vatAmount": 0,
+                  "otherCost": 0,
+                  "totalAmount": 18250000,
+                  "confidence": 94.5,
+                  "warnings": []
+                }
+                """;
+        when(visionClient.extractJson(anyString(), any(), anyString(), any()))
+                .thenReturn(objectMapper.readTree(payload));
+
+        PurchaseOcrService service = new PurchaseOcrService(visionClient, supplierRepository, productCategoryRepository);
+        MockMultipartFile file = new MockMultipartFile("file", "inv.png", "image/png", new byte[]{1, 2, 3});
+
+        var result = service.extract(file);
+        assertEquals(2, result.items().size());
+        assertEquals(345000L, result.items().get(0).price());
+        assertEquals(18250000L, result.totalAmount());
+        assertTrue(result.warnings().stream().anyMatch(w -> w.contains("Thuốc B") && w.contains("chưa khớp")));
     }
 }

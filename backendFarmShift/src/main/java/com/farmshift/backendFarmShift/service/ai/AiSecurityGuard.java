@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -40,6 +42,9 @@ import java.util.stream.Collectors;
 public class AiSecurityGuard {
 
     public static final int MAX_PROMPT_LENGTH = 1000;
+    public static final int MAX_HISTORY_TURNS = 6;
+    public static final int MAX_HISTORY_TURN_CHARS = 500;
+    public static final long SNAPSHOT_CACHE_TTL_MS = 15_000L;
     public static final long ACTION_TOKEN_TTL_MS = 5L * 60L * 1000L;
     public static final int MAX_PENDING_ACTIONS = 1000;
     public static final String OUT_OF_SCOPE_HUMAN_MEDICAL_REPLY =
@@ -48,6 +53,9 @@ public class AiSecurityGuard {
     private static final Set<String> TOKEN_META_KEYS = Set.of("actionId", "actionToken", "expiresAt");
     private static final Pattern SENSITIVE_CTX_KEY = Pattern.compile(
             "(?i).*(price|cost|debt|amount|profit|revenue|paid|total|invoice|supplier).*"
+    );
+    private static final Pattern FINANCIAL_SNAPSHOT_CUE_NORM = Pattern.compile(
+            "(?i)\\b(?:gia|don\\s+gia|thanh\\s+tien|so\\s+tien|cong\\s+no|tien\\s+no|no\\s+cu|phai\\s+tra|phai\\s+thu|hoa\\s+don|nha\\s+cung\\s+cap|ncc|lai|lo|loi\\s+nhuan|chi\\s+phi|doanh\\s+thu|bao\\s+cao|tai\\s+chinh|thanh\\s+toan|tra\\s+tien|nhap\\s+hang|nhap\\s+kho|xuat\\s+ban|ban\\s+ga|fcr|khach\\s+hang|mua\\s+hang)\\b"
     );
 
     private static final List<String> PRIVILEGE_ESCALATION_PATTERNS = List.of(
@@ -189,6 +197,10 @@ public class AiSecurityGuard {
             "(?i)\\b(?:paracetamol|acetaminophen|ibuprofen|panadol|efferalgan|hapacol|tylenol|aspirin|naproxen|diclofenac|omeprazol|smecta|berberin|loratadine|cetirizine|augmentin|azithromycin)\\b"
     );
 
+    private static final Pattern MEDICAL_OR_HEALTH_CUE_NORM = Pattern.compile(
+            "(?i)(?:\\b(?:benh|thuoc|sot|dau\\s+dau|dau\\s+bung|dau\\s+hong|dau\\s+rang|dau\\s+mat|dau\\s+nhuc|dau\\s+lung|dau\\s+da\\s+day|viem\\s+hong|viem\\s+xoang|cam\\s+cum|cam\\s+lanh|ho\\s+khan|so\\s+mui|ngat\\s+mui|chong\\s+mat|buon\\s+non|tieu\\s+chay|di\\s+ung|mat\\s+ngu|khang\\s+sinh|ha\\s+sot|giam\\s+dau|bac\\s+si|nha\\s+thuoc|y\\s+te|suc\\s+khoe|dieu\\s+tri|chua\\s+benh|uong\\s+thuoc|uong\\s+gi|lieu\\s+dung|than\\s+nhiet|co\\s+the|om)\\b)"
+    );
+
     private static final Pattern WORKER_CURRENCY_LEAK = Pattern.compile(
             "(?iu)\\b\\d[\\d.,]*\\s*(?:vnđ|vnd|đ/kg)\\b"
     );
@@ -211,6 +223,13 @@ public class AiSecurityGuard {
     private FarmingCycleRepository cycleRepository;
 
     private final ConcurrentHashMap<String, SignedPendingAction> pendingStore = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CachedSnapshot> snapshotCache = new ConcurrentHashMap<>();
+
+    private record CachedSnapshot(
+            long cachedAt,
+            String signature,
+            String content
+    ) {}
 
     public AiSecurityGuard(
             BarnRepository barnRepository,
@@ -408,6 +427,20 @@ public class AiSecurityGuard {
         return !hasPoultryOrFarmEntity && !hasInventoryOp;
     }
 
+    public static boolean containsMedicalOrHealthCue(String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) {
+            return false;
+        }
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(rawMessage)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
+                .trim();
+        return MEDICAL_OR_HEALTH_CUE_NORM.matcher(norm).find()
+                || HUMAN_DRUG_MENTION_NORM.matcher(norm).find()
+                || EXPLICIT_HUMAN_PATIENT_NORM.matcher(norm).find()
+                || HUMAN_SYMPTOM_MEDICATION_NORM.matcher(norm).find();
+    }
+
     public static AiAssistantResponse buildHumanMedicalRefusal() {
         return AiAssistantResponse.builder()
                 .reply(OUT_OF_SCOPE_HUMAN_MEDICAL_REPLY)
@@ -426,18 +459,164 @@ public class AiSecurityGuard {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 2. PRE-LLM ZERO-TRUST CONTEXT SANITIZER
+    // 2. PRE-LLM ZERO-TRUST CONTEXT SANITIZER & INTENT-SCOPED SNAPSHOT CACHE
     // ─────────────────────────────────────────────────────────────────────────
 
+    public void evictContextCache() {
+        snapshotCache.clear();
+    }
+
+    public static boolean requiresFinancialSnapshot(String userQuery, String currentRoute) {
+        if (userQuery == null || userQuery.isBlank()) {
+            return true;
+        }
+        if (currentRoute != null) {
+            String routeLower = currentRoute.toLowerCase(Locale.ROOT);
+            if (routeLower.contains("/purchases") || routeLower.contains("/debts")
+                    || routeLower.contains("/reports") || routeLower.contains("/sales")) {
+                return true;
+            }
+        }
+        String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(userQuery)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
+                .trim();
+        return FINANCIAL_SNAPSHOT_CUE_NORM.matcher(norm).find();
+    }
+
+    public List<Map<String, String>> sanitizeConversationHistory(
+            List<Map<String, String>> rawHistory,
+            String username,
+            boolean isWorker
+    ) {
+        if (rawHistory == null || rawHistory.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Map<String, String>> sanitized = new ArrayList<>();
+        int start = Math.max(0, rawHistory.size() - (MAX_HISTORY_TURNS * 2));
+        for (int i = start; i < rawHistory.size(); i++) {
+            Map<String, String> turn = rawHistory.get(i);
+            if (turn == null) {
+                continue;
+            }
+            String content = String.valueOf(turn.getOrDefault("content", ""))
+                    .replaceAll("\\s+", " ")
+                    .trim();
+            if (content.isBlank()) {
+                continue;
+            }
+            if (inspectInput(content, username, isWorker) != null) {
+                continue;
+            }
+            if (inspectHumanMedicalScope(content) != null) {
+                continue;
+            }
+            if (isWorker && WORKER_CURRENCY_LEAK.matcher(content).find()) {
+                continue;
+            }
+            content = SECRET_MARKER_LEAK.matcher(content).replaceAll("[REDACTED]");
+            if (content.length() > MAX_HISTORY_TURN_CHARS) {
+                content = content.substring(0, MAX_HISTORY_TURN_CHARS);
+            }
+            String rawRole = String.valueOf(turn.getOrDefault("role", "user"));
+            String safeRole = ("assistant".equalsIgnoreCase(rawRole) || "bot".equalsIgnoreCase(rawRole))
+                    ? "assistant"
+                    : "user";
+            sanitized.add(Map.of("role", safeRole, "content", content));
+        }
+        if (sanitized.size() > MAX_HISTORY_TURNS) {
+            return List.copyOf(sanitized.subList(sanitized.size() - MAX_HISTORY_TURNS, sanitized.size()));
+        }
+        return List.copyOf(sanitized);
+    }
+
     public String buildSanitizedLlmContext(String username, boolean isWorker, String currentRoute, Map<String, Object> lastContext) {
-        List<Barn> allBarns = barnRepository.findAll();
+        return buildSanitizedLlmContext(username, isWorker, currentRoute, lastContext, null);
+    }
+
+    public String buildSanitizedLlmContext(
+            String username,
+            boolean isWorker,
+            String currentRoute,
+            Map<String, Object> lastContext,
+            String userQuery
+    ) {
         Set<Long> allowedBarnIds = isWorker ? workAssignmentService.barnIdsOf(username) : null;
 
+        StringBuilder sb = new StringBuilder();
+        if (currentRoute != null && currentRoute.matches(".*/barns/\\d+.*")) {
+            Matcher m = Pattern.compile("/barns/(\\d+)").matcher(currentRoute);
+            if (m.find()) {
+                Long bId = Long.parseLong(m.group(1));
+                if (!isWorker || (allowedBarnIds != null && allowedBarnIds.contains(bId))) {
+                    barnRepository.findById(bId).ifPresent(activeBarn ->
+                            sb.append("Người dùng đang xem trang của chuồng: ").append(activeBarn.getName())
+                                    .append(" (ID: ").append(activeBarn.getId()).append(").\n"));
+                }
+            }
+        }
+
+        Map<String, Object> safeLastCtx = sanitizeLastContext(lastContext, isWorker);
+        if (!safeLastCtx.isEmpty()) {
+            sb.append("Ngữ cảnh thao tác trước đó: ").append(safeLastCtx).append("\n");
+        }
+
+        boolean includeFinance = !isWorker && requiresFinancialSnapshot(userQuery, currentRoute);
+        LocalDate today = LocalDate.now(CycleService.VN_ZONE);
+        String cacheKey = (isWorker ? "W:" + (username == null ? "anon" : username.trim().toLowerCase(Locale.ROOT)) : "OWNER")
+                + "|FIN:" + includeFinance;
+        String signature = buildSnapshotSignature(today, includeFinance);
+        long now = System.currentTimeMillis();
+
+        CachedSnapshot cached = snapshotCache.get(cacheKey);
+        if (cached != null
+                && (now - cached.cachedAt()) <= SNAPSHOT_CACHE_TTL_MS
+                && Objects.equals(cached.signature(), signature)) {
+            sb.append(cached.content());
+            return sb.toString();
+        }
+
+        String snapshotBody = computeDatabaseSnapshot(isWorker, allowedBarnIds, includeFinance, today);
+        snapshotCache.put(cacheKey, new CachedSnapshot(now, signature, snapshotBody));
+        registerRollbackCacheEviction();
+        sb.append(snapshotBody);
+        return sb.toString();
+    }
+
+    private String buildSnapshotSignature(LocalDate today, boolean includeFinance) {
+        long barnCount = barnRepository.count();
+        long cycleCount = cycleRepository != null ? cycleRepository.count() : 0L;
+        long invCount = inventoryRepository.count();
+        long supCount = includeFinance ? supplierRepository.count() : 0L;
+        long invDocCount = includeFinance ? invoiceRepository.count() : 0L;
+        return today + "|" + barnCount + "|" + cycleCount + "|" + invCount + "|" + supCount + "|" + invDocCount;
+    }
+
+    private void registerRollbackCacheEviction() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_ROLLED_BACK) {
+                        snapshotCache.clear();
+                    }
+                }
+            });
+        }
+    }
+
+    private String computeDatabaseSnapshot(
+            boolean isWorker,
+            Set<Long> allowedBarnIds,
+            boolean includeFinance,
+            LocalDate today
+    ) {
+        List<Barn> allBarns = barnRepository.findAll();
         List<Barn> visibleBarns = isWorker
-                ? allBarns.stream().filter(b -> allowedBarnIds.contains(b.getId())).toList()
+                ? allBarns.stream().filter(b -> allowedBarnIds != null && allowedBarnIds.contains(b.getId())).toList()
                 : allBarns;
 
-        LocalDate today = LocalDate.now(CycleService.VN_ZONE);
         Map<Long, Integer> activeAgeByBarnId = new HashMap<>();
         if (cycleRepository != null) {
             for (FarmingCycle c : cycleRepository.findAllByStatus(CycleStatus.ACTIVE)) {
@@ -498,30 +677,13 @@ public class AiSecurityGuard {
                 .collect(Collectors.joining(", "));
 
         StringBuilder sb = new StringBuilder();
-        if (currentRoute != null && currentRoute.matches(".*/barns/\\d+.*")) {
-            Matcher m = Pattern.compile("/barns/(\\d+)").matcher(currentRoute);
-            if (m.find()) {
-                Long bId = Long.parseLong(m.group(1));
-                if (!isWorker || allowedBarnIds.contains(bId)) {
-                    barnRepository.findById(bId).ifPresent(activeBarn ->
-                            sb.append("Người dùng đang xem trang của chuồng: ").append(activeBarn.getName())
-                                    .append(" (ID: ").append(activeBarn.getId()).append(").\n"));
-                }
-            }
-        }
-
-        Map<String, Object> safeLastCtx = sanitizeLastContext(lastContext, isWorker);
-        if (!safeLastCtx.isEmpty()) {
-            sb.append("Ngữ cảnh thao tác trước đó: ").append(safeLastCtx).append("\n");
-        }
-
         sb.append("Live Database Snapshot (Ngày hiện tại VN: ").append(today).append("):\n");
         sb.append("- Chuồng nuôi được phép truy cập (Barns): [").append(barnSummary).append("]\n");
         sb.append("- Vật tư kho (Inventory): [").append(inventorySummary).append("]\n");
 
         if (isWorker) {
             sb.append("- Phạm vi RBAC: ROLE_FARM_WORKER (MSG51/MSG60 — đã ẩn toàn bộ đơn giá, công nợ, lợi nhuận, hóa đơn và chuồng ngoài phân công).\n");
-        } else {
+        } else if (includeFinance) {
             List<PurchaseInvoice> activeInvoices = invoiceRepository.findByStockStatusNot("Đã hủy");
             Map<Long, Long> invoiceDebtBySupplier = new HashMap<>();
             for (PurchaseInvoice inv : activeInvoices) {
@@ -562,6 +724,8 @@ public class AiSecurityGuard {
             } catch (Exception ex) {
                 log.debug("Could not append report summary to AI context: {}", ex.getMessage());
             }
+        } else {
+            sb.append("- Ngữ cảnh tinh gọn: Đã lược bỏ dữ liệu công nợ/hóa đơn do câu lệnh thuộc nhóm kỹ thuật vận hành/chuồng trại.\n");
         }
 
         return sb.toString();
@@ -721,6 +885,7 @@ public class AiSecurityGuard {
             );
         }
 
+        evictContextCache();
         return VerificationResult.valid(new LinkedHashMap<>(stored.canonicalPayload()));
     }
 

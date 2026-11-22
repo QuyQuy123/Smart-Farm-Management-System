@@ -53,6 +53,8 @@ public final class AssistantNavigationRouter {
                     "tai khoan nhan su", "quan ly nguoi dung", "phan quyen", "tai khoan", "nhan su", "nhan vien", "ho so ca nhan", "ho so")),
             new Entry("/reports", "Báo cáo & Thống kê", List.of(
                     "bao cao thong ke", "bieu do hieu suat", "bao cao lai lo", "bao cao", "thong ke")),
+            new Entry("/iot", "Môi trường IoT", List.of(
+                    "moi truong iot", "thiet bi iot", "cam bien iot", "man hinh iot", "trang iot", "cam bien moi truong", "iot")),
             new Entry("/catalog-settings", "Thiết lập danh mục", List.of(
                     "thiet lap danh muc", "cai dat danh muc", "danh muc hang hoa", "danh muc", "catalog",
                     "don vi tinh", "nhan hieu", "loai hang")),

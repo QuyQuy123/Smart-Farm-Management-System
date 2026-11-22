@@ -4,6 +4,7 @@ import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -72,10 +73,12 @@ public class AiServiceVisionClient implements VisionClient {
         try {
             byte[] multipartBody = createMultipartPayload(boundary, "file", filename, mimeType, document);
 
+            String requestId = resolveRequestId();
             HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(aiServiceUrl + "/api/ocr/extract-invoice"))
                     .timeout(Duration.ofSeconds(65))
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("X-Request-ID", requestId);
             if (internalAiToken != null && !internalAiToken.isBlank()) {
                 reqBuilder.header("X-Internal-AI-Token", internalAiToken);
             }
@@ -83,12 +86,12 @@ public class AiServiceVisionClient implements VisionClient {
                     .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
                     .build();
 
-            log.info("Sending invoice extraction request to aiServiceFarmShift at {}/api/ocr/extract-invoice", aiServiceUrl);
+            log.info("Sending invoice extraction request [requestId={}] to aiServiceFarmShift at {}/api/ocr/extract-invoice", requestId, aiServiceUrl);
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
             if (response.statusCode() == 200) {
                 JsonNode parsed = objectMapper.readTree(response.body());
-                log.info("Successfully extracted invoice from aiServiceFarmShift, confidence={}", parsed.path("confidence").asDouble(0));
+                log.info("Successfully extracted invoice [requestId={}] from aiServiceFarmShift, confidence={}", requestId, parsed.path("confidence").asDouble(0));
                 return parsed;
             }
 
@@ -101,7 +104,7 @@ public class AiServiceVisionClient implements VisionClient {
             } catch (Exception ignored) {
                 // Non-JSON error body from upstream/proxy
             }
-            log.warn("aiServiceFarmShift returned status {} for invoice OCR", response.statusCode());
+            log.warn("aiServiceFarmShift returned status {} [requestId={}] for invoice OCR", response.statusCode(), requestId);
             throw new BadRequestException(message, "AI_SERVICE_ERROR");
         } catch (BadRequestException e) {
             throw e;
@@ -115,6 +118,11 @@ public class AiServiceVisionClient implements VisionClient {
                     "AI_SERVICE_ERROR"
             );
         }
+    }
+
+    private static String resolveRequestId() {
+        String cid = MDC.get("requestId");
+        return (cid != null && !cid.isBlank()) ? cid.trim() : UUID.randomUUID().toString();
     }
 
     private byte[] createMultipartPayload(String boundary, String fieldName, String filename, String mimeType, byte[] fileBytes) throws IOException {

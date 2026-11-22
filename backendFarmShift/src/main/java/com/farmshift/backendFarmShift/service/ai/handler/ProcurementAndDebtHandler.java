@@ -67,8 +67,12 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
         if (msg == null || msg.isBlank()) return false;
         String norm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(msg).toLowerCase(Locale.ROOT);
 
-        boolean isSupplierDebt = (norm.contains("cong no") || norm.contains("no nha cung cap") || norm.contains("tra no") || norm.contains("thanh toan no"))
-                && (norm.contains("nha cung cap") || norm.contains("dabaco") || norm.contains("cargill") || norm.contains("cp") || norm.contains("hanvet") || norm.contains("bao nhieu"));
+        boolean isSupplierDebt = (norm.contains("cong no") || norm.contains("con no") || norm.contains("dang no")
+                || norm.contains("no nha cung cap") || norm.contains("no cong ty") || norm.contains("no ncc")
+                || norm.contains("tra no") || norm.contains("thanh toan no"))
+                && (norm.contains("nha cung cap") || norm.contains("cong ty") || norm.contains("ncc")
+                || norm.contains("dabaco") || norm.contains("cargill") || norm.contains("cp") || norm.contains("c.p.")
+                || norm.contains("hanvet") || norm.contains("xanh pon") || norm.contains("favet") || norm.contains("bao nhieu"));
 
         boolean isCustomerReceivable = norm.contains("phai thu")
                 || ((norm.contains("cong no") || norm.contains("no ")) && (norm.contains("khach hang") || norm.contains("khach")));
@@ -102,7 +106,19 @@ public class ProcurementAndDebtHandler implements AssistantCommandHandler {
         Supplier targetSupplier = suppliers.stream()
                 .filter(s -> s.getName() != null && norm.contains(VietnameseSpeechNormalizer.removeVietnameseDiacritics(s.getName()).toLowerCase(Locale.ROOT)))
                 .findFirst()
-                .orElse(null);
+                .orElseGet(() -> suppliers.stream()
+                        .filter(s -> {
+                            if (s.getName() == null) return false;
+                            String sNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(s.getName()).toLowerCase(Locale.ROOT);
+                            for (String kw : List.of("cargill", "c.p.", "dabaco", "xanh pon", "favet", "hanvet")) {
+                                if (sNorm.contains(kw) && norm.contains(kw)) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        })
+                        .findFirst()
+                        .orElse(null));
 
         if (targetSupplier != null) {
             if (context.isWorker()) {

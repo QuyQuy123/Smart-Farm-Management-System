@@ -710,17 +710,17 @@ public class AiSuggestionService {
             boolean isMia = flocks.stream()
                     .map(Flock::getProgram)
                     .filter(Objects::nonNull)
-                    .map(p -> safeStr(p.getName(), "").toLowerCase(Locale.ROOT))
-                    .anyMatch(name -> name.contains("mía") || name.contains("mia") || name.contains("gà ta"));
+                    .map(p -> (safeStr(p.getBreed(), "") + " " + safeStr(p.getName(), "")).toLowerCase(Locale.ROOT))
+                    .anyMatch(name -> name.contains("mía") || name.contains("mia") || name.contains("gà ta") || name.contains("ga ta"));
 
             String stageLabel;
             BigDecimal maxBench;
             if (ageDays <= 21) {
                 stageLabel = "Giai đoạn úm";
-                maxBench = new BigDecimal("1.55");
+                maxBench = new BigDecimal("1.35");
             } else if (ageDays <= 50) {
                 stageLabel = "Giai đoạn phát triển";
-                maxBench = new BigDecimal("2.25");
+                maxBench = new BigDecimal("1.85");
             } else {
                 stageLabel = "Giai đoạn vỗ béo";
                 maxBench = isMia ? new BigDecimal("2.95") : new BigDecimal("2.45");

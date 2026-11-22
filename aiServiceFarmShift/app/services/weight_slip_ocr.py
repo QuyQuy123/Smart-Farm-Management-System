@@ -7,6 +7,7 @@ import json
 import logging
 import math
 import re
+import time
 
 from fastapi import HTTPException
 import httpx
@@ -14,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config import settings
 from app.core.http_client import get_shared_http_client
+from app.core.observability import extract_token_usage, log_ai_event
 from app.services.document_loader import render_document_to_jpeg_images
 
 logger = logging.getLogger(__name__)
@@ -272,6 +274,7 @@ async def extract_weight_slip(content: bytes, mime: str):
     if not settings.OPENAI_API_KEY.strip():
         raise HTTPException(503, "Chưa cấu hình OpenAI cho dịch vụ OCR.")
 
+    started_at = time.perf_counter()
     images, _ = await asyncio.to_thread(
         render_document_to_jpeg_images,
         content,
@@ -416,6 +419,16 @@ async def extract_weight_slip(content: bytes, mime: str):
                 draft.warnings.append(
                     "Thành tiền trên phiếu chưa khớp khối lượng × đơn giá. Vui lòng kiểm tra."
                 )
+        log_ai_event(
+            logger,
+            "weight_slip_ocr_completed",
+            model=settings.OPENAI_MODEL,
+            duration_ms=int((time.perf_counter() - started_at) * 1000),
+            document_kind=draft.documentKind,
+            weighings_count=len(draft.weighings),
+            warnings_count=len(draft.warnings),
+            **extract_token_usage(body),
+        )
         return draft.model_dump(mode="json")
     except HTTPException:
         raise

@@ -413,4 +413,34 @@ describe('AI Chatbot Cryptographic Signing & Security Guard UI', () => {
     expect(screen.queryByText(/Dữ liệu mật của Chủ trại: 800 triệu đ/i)).not.toBeInTheDocument();
     expect(sessionStorage.getItem(AI_SESSIONS_STORAGE_KEY)).toBeNull();
   });
+
+  it('renders role-scoped initial greeting bubble (worker greeting has zero nhập kho / điều hành trang trại / finance terms)', () => {
+    const workerView = render(
+      <MemoryRouter initialEntries={['/today-tasks']}>
+        <AIChatbot key="worker-greet@farm.vn" userRole="ROLE_FARM_WORKER" userScope="worker-greet@farm.vn" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    const chatWindow = screen.getByTestId('ai-chat-window');
+    expect(chatWindow.textContent).toContain('ghi nhận khẩu phần cám');
+    expect(chatWindow.textContent).toContain('chuồng bạn phụ trách');
+    expect(chatWindow.textContent.toLowerCase()).not.toContain('nhập kho');
+    expect(chatWindow.textContent.toLowerCase()).not.toContain('điều hành trang trại');
+    expect(chatWindow.textContent.toLowerCase()).not.toContain('công nợ');
+    workerView.unmount();
+
+    sessionStorage.clear();
+    render(
+      <MemoryRouter initialEntries={['/purchases']}>
+        <AIChatbot key="accountant-greet@farm.vn" userRole="ROLE_ACCOUNTANT" userScope="accountant-greet@farm.vn" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    const accWindow = screen.getByTestId('ai-chat-window');
+    expect(accWindow.textContent).toContain('hóa đơn nhập hàng');
+    expect(accWindow.textContent).toContain('OCR');
+    expect(accWindow.textContent).toContain('công nợ');
+  });
 });

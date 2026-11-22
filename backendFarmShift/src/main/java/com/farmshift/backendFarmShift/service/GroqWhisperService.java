@@ -8,6 +8,7 @@ import com.farmshift.backendFarmShift.service.ai.VoiceContextPromptBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -26,6 +27,9 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Service providing Speech-To-Text (STT) capabilities.
@@ -38,11 +42,15 @@ import java.util.Map;
 public class GroqWhisperService {
 
     public static final double AUTO_SUBMIT_CONFIDENCE_THRESHOLD = 0.82;
+    public static final int STT_CIRCUIT_THRESHOLD = 3;
+    public static final long STT_CIRCUIT_COOLDOWN_MS = 30_000L;
 
     private final String aiServiceUrl;
     private final String internalAiToken;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+    private final AtomicInteger sttCircuitFailures = new AtomicInteger(0);
+    private final AtomicLong sttCircuitOpenedAt = new AtomicLong(0L);
 
     @Autowired(required = false)
     private DynamicVietnameseSpeechNormalizer dynamicNormalizer;
@@ -71,6 +79,39 @@ public class GroqWhisperService {
 
     public GroqWhisperService(String aiServiceUrl, ObjectMapper objectMapper) {
         this(aiServiceUrl, "farmshift-local-ai-token", objectMapper);
+    }
+
+    public void resetCircuitBreaker() {
+        sttCircuitFailures.set(0);
+        sttCircuitOpenedAt.set(0L);
+    }
+
+    private boolean allowSttRequest() {
+        long openedAt = sttCircuitOpenedAt.get();
+        if (openedAt == 0L) {
+            return true;
+        }
+        if ((System.currentTimeMillis() - openedAt) >= STT_CIRCUIT_COOLDOWN_MS) {
+            return true;
+        }
+        return false;
+    }
+
+    private void recordSttSuccess() {
+        sttCircuitFailures.set(0);
+        sttCircuitOpenedAt.set(0L);
+    }
+
+    private void recordSttFailure() {
+        int fails = sttCircuitFailures.incrementAndGet();
+        if (fails >= STT_CIRCUIT_THRESHOLD) {
+            sttCircuitOpenedAt.set(System.currentTimeMillis());
+        }
+    }
+
+    private static String resolveRequestId() {
+        String cid = MDC.get("requestId");
+        return (cid != null && !cid.isBlank()) ? cid.trim() : UUID.randomUUID().toString();
     }
 
     public SpeechTranscribeResponse transcribe(MultipartFile file) {
@@ -125,10 +166,17 @@ public class GroqWhisperService {
             }
         }
 
-        // 2. Delegate in-memory to aiServiceFarmShift
+        // 2. Delegate in-memory to aiServiceFarmShift (guarded by 3-state circuit breaker)
+        if (!allowSttRequest()) {
+            log.warn("STT circuit breaker OPEN (failures={}) — failing fast to WEB_SPEECH_FALLBACK", sttCircuitFailures.get());
+            return fallbackResponse(System.currentTimeMillis() - startTime);
+        }
+
+        String requestId = resolveRequestId();
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            headers.set("X-Request-ID", requestId);
             if (!internalAiToken.isBlank()) {
                 headers.set("X-Internal-AI-Token", internalAiToken);
             }
@@ -155,6 +203,7 @@ public class GroqWhisperService {
 
             ResponseEntity<String> response = restTemplate.postForEntity(targetUrl, requestEntity, String.class);
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                recordSttSuccess();
                 JsonNode root = objectMapper.readTree(response.getBody());
                 boolean fallback = root.path("fallback").asBoolean(false);
                 String provider = root.path("provider").asText("GROQ_WHISPER_LARGE_V3");
@@ -235,7 +284,7 @@ public class GroqWhisperService {
                         && !finalText.isBlank()
                         && confidence >= AUTO_SUBMIT_CONFIDENCE_THRESHOLD;
 
-                log.info("aiServiceFarmShift STT succeeded in {}ms (conf={}): '{}'", duration, confidence, finalText);
+                log.info("aiServiceFarmShift STT succeeded [requestId={}] in {}ms (conf={}): '{}'", requestId, duration, confidence, finalText);
                 return SpeechTranscribeResponse.builder()
                         .text(finalText)
                         .rawText(rawText)
@@ -251,8 +300,10 @@ public class GroqWhisperService {
                         .durationMs(duration)
                         .build();
             }
+            recordSttFailure();
         } catch (Exception ex) {
-            log.warn("aiServiceFarmShift unavailable for voice STT ({}/api/voice/transcribe): {}", aiServiceUrl, ex.getMessage());
+            recordSttFailure();
+            log.warn("aiServiceFarmShift unavailable [requestId={}] for voice STT ({}/api/voice/transcribe): {}", requestId, aiServiceUrl, ex.getMessage());
         }
 
         return fallbackResponse(System.currentTimeMillis() - startTime);

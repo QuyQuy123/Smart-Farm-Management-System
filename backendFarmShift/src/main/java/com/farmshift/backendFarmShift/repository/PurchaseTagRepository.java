@@ -17,4 +17,10 @@ public interface PurchaseTagRepository extends JpaRepository<PurchaseTag, Long> 
            "LEFT JOIN PurchaseInvoice p ON t MEMBER OF p.tags AND t.id = :tagId " +
            "WHERE t.id = :tagId")
     long countUsage(@Param("tagId") Long tagId);
+
+    @Query("SELECT t.id, COUNT(s) FROM Supplier s JOIN s.tags t GROUP BY t.id")
+    java.util.List<Object[]> countSupplierUsageByTag();
+
+    @Query("SELECT t.id, COUNT(p) FROM PurchaseInvoice p JOIN p.tags t GROUP BY t.id")
+    java.util.List<Object[]> countInvoiceUsageByTag();
 }
