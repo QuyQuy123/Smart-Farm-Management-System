@@ -9,6 +9,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PurchaseInvoiceRepository extends JpaRepository<PurchaseInvoice, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PurchaseInvoice p WHERE p.id = :id")
+    Optional<PurchaseInvoice> findForUpdate(@Param("id") Long id);
+
     Optional<PurchaseInvoice> findByCode(String code);
 
     @Query("SELECT p FROM PurchaseInvoice p " +

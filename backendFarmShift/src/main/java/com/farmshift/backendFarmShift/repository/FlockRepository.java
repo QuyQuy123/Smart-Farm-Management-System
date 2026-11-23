@@ -17,6 +17,14 @@ public interface FlockRepository extends JpaRepository<Flock, Long> {
     List<Flock> findByCycleIdInOrderByImportDateAscIdAsc(List<Long> cycleIds);
 
     List<Flock> findAllByCycleIdOrderByImportDateAscIdAsc(Long cycleId);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select f from Flock f where f.cycle.id = :cycleId order by f.importDate asc, f.id asc")
+    List<Flock> findAllByCycleIdForUpdate(@Param("cycleId") Long cycleId);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select f from Flock f where f.id = :id")
+    Optional<Flock> findByIdForUpdate(@Param("id") Long id);
     boolean existsByProgramId(Long programId);
     boolean existsBySupplierId(Long supplierId);
     long countByProgramIdAndStatus(Long programId, FlockStatus status);

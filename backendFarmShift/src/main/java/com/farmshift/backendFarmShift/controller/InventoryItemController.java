@@ -22,18 +22,31 @@ public class InventoryItemController {
                 .anyMatch(a -> RoleNames.FARM_OWNER.equals(a.getAuthority()) || RoleNames.ACCOUNTANT.equals(a.getAuthority()));
     }
 
+    private static boolean isWorker(Authentication authentication) {
+        return authentication != null
+                && !canSeeFinance(authentication)
+                && authentication.getAuthorities().stream()
+                        .anyMatch(a -> RoleNames.FARM_WORKER.equals(a.getAuthority()));
+    }
+
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER')")
     public ApiResponse<List<InventoryItemResponse>> list(
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(defaultValue = "false") boolean includeReceipts,
             Authentication authentication
     ) {
-        return ApiResponse.success("Danh sách hàng hóa", service.list(warehouseId, includeReceipts, canSeeFinance(authentication)));
+        boolean finance = canSeeFinance(authentication);
+        String workerEmail = isWorker(authentication) ? authentication.getName() : null;
+        return ApiResponse.success("Danh sách hàng hóa", service.list(warehouseId, finance && includeReceipts, finance, workerEmail));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER')")
     public ApiResponse<InventoryItemResponse> get(@PathVariable Long id, Authentication authentication) {
-        return ApiResponse.success("Chi tiết hàng hóa", service.get(id, canSeeFinance(authentication)));
+        boolean finance = canSeeFinance(authentication);
+        String workerEmail = isWorker(authentication) ? authentication.getName() : null;
+        return ApiResponse.success("Chi tiết hàng hóa", service.get(id, finance, workerEmail));
     }
 
     @PostMapping @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")

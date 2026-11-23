@@ -48,6 +48,11 @@ services:
     environment:
       TZ: Asia/Bangkok
       SPRING_PROFILES_ACTIVE: local
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: ${DB_NAME:-farmshift_db}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
       AI_SERVICE_URL: http://ai-service:8000
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-farmshift-local-ai-token}
       AI_SERVICE_AUTOSTART_ENABLED: "false"
@@ -63,6 +68,8 @@ services:
       - backend_target:/app/target
       - ./frontendFarmShift/public:/shared/frontend-public
     depends_on:
+      postgres:
+        condition: service_healthy
       ai-service:
         condition: service_started
     healthcheck:
@@ -116,12 +123,11 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # Tùy chọn chạy PostgreSQL cục bộ khi không dùng Render DB trong application-local.properties:
-  # Chạy: docker compose --profile local-db up -d
   postgres:
-    profiles: ["local-db"]
     image: postgres:16-alpine
     environment:
+      TZ: Asia/Bangkok
+      PGTZ: Asia/Bangkok
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
       POSTGRES_DB: ${DB_NAME:-farmshift_db}
@@ -129,6 +135,12 @@ services:
       - "5432:5432"
     volumes:
       - farmshift_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-farmshift_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
 volumes:

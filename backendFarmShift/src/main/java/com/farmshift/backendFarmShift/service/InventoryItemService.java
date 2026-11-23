@@ -28,10 +28,26 @@ public class InventoryItemService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.farmshift.backendFarmShift.service.ai.DynamicVietnameseSpeechNormalizer speechNormalizer;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private WorkAssignmentService workAssignmentService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private BarnRepository barnRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AccountRepository accountRepository;
     /** warehouseId null: mọi hàng hóa của mọi kho (dùng khi gắn hàng hóa vào chương trình nuôi). */
     public List<InventoryItemResponse> list(Long warehouseId) { return list(warehouseId, false, true); }
     public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts) { return list(warehouseId, includeReceipts, true); }
     public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts, boolean canSeeFinance) {
+        return list(warehouseId, includeReceipts, canSeeFinance, null);
+    }
+    public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts, boolean canSeeFinance, String workerEmail) {
+        boolean effectiveIncludeReceipts = canSeeFinance && includeReceipts;
+        if (!canSeeFinance) {
+            java.util.Set<Long> allowedWarehouseIds = allowedWarehouseIdsForWorker(workerEmail);
+            if (warehouseId == null || !allowedWarehouseIds.contains(warehouseId)) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem tồn kho ngoài phạm vi phân công.");
+            }
+        }
         List<InventoryItem> items;
         if (warehouseId == null) items = repository.findAllWithDetailsBy(Sort.by("warehouse.name", "product.name"));
         else {
@@ -39,7 +55,7 @@ public class InventoryItemService {
             items = repository.findByWarehouse_Id(warehouseId, Sort.by("createdAt", "id"));
         }
         var receipts = new java.util.HashMap<Long, com.farmshift.backendFarmShift.dto.response.InventoryReceiptResponse>();
-        if (includeReceipts) {
+        if (effectiveIncludeReceipts) {
             var ids = items.stream().map(InventoryItem::getPurchaseInvoiceItemId).filter(java.util.Objects::nonNull).distinct().toList();
             if (!ids.isEmpty()) for (var row : purchaseItems.findByIdIn(ids)) {
                 var invoice = row.getInvoice();
@@ -51,7 +67,52 @@ public class InventoryItemService {
         return items.stream().map(item -> response(item, receipts.get(item.getPurchaseInvoiceItemId()), canSeeFinance)).toList();
     }
     public InventoryItemResponse get(Long id) { return get(id, true); }
-    public InventoryItemResponse get(Long id, boolean canSeeFinance) { return response(find(id), null, canSeeFinance); }
+    public InventoryItemResponse get(Long id, boolean canSeeFinance) { return get(id, canSeeFinance, null); }
+    public InventoryItemResponse get(Long id, boolean canSeeFinance, String workerEmail) {
+        if (!canSeeFinance) {
+            java.util.Set<Long> allowedWarehouseIds = allowedWarehouseIdsForWorker(workerEmail);
+            if (allowedWarehouseIds.isEmpty()) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem tồn kho ngoài phạm vi phân công.");
+            }
+            InventoryItem item = find(id);
+            if (item.getWarehouse() == null || !allowedWarehouseIds.contains(item.getWarehouse().getId())) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem tồn kho ngoài phạm vi phân công.");
+            }
+            return response(item, null, false);
+        }
+        return response(find(id), null, true);
+    }
+
+    private java.util.Set<Long> allowedWarehouseIdsForWorker(String workerEmail) {
+        if (workerEmail == null || workerEmail.isBlank()) {
+            return java.util.Set.of();
+        }
+        java.util.Set<Long> allowed = new java.util.HashSet<>();
+        if (workAssignmentService != null && barnRepository != null) {
+            java.util.Set<Long> barnIds = workAssignmentService.barnIdsOf(workerEmail);
+            if (!barnIds.isEmpty()) {
+                java.util.Set<Long> areaIds = barnRepository.findAllById(barnIds).stream()
+                        .map(com.farmshift.backendFarmShift.entity.Barn::getArea)
+                        .filter(java.util.Objects::nonNull)
+                        .map(com.farmshift.backendFarmShift.entity.FarmArea::getId)
+                        .filter(java.util.Objects::nonNull)
+                        .collect(java.util.stream.Collectors.toSet());
+                if (!areaIds.isEmpty()) {
+                    warehouses.findAllByAreaIdIn(areaIds).forEach(w -> allowed.add(w.getId()));
+                }
+            }
+        }
+        if (accountRepository != null) {
+            accountRepository.findAllByRole_NameAndIsActiveTrueOrderByFullNameAsc(com.farmshift.backendFarmShift.security.RoleNames.FARM_WORKER)
+                    .stream()
+                    .filter(a -> a.getEmail() != null && a.getEmail().equalsIgnoreCase(workerEmail.strip()))
+                    .map(com.farmshift.backendFarmShift.entity.Account::getId)
+                    .findFirst()
+                    .ifPresent(workerId -> warehouses.findDistinctByWorkers_IdIn(List.of(workerId))
+                            .forEach(w -> allowed.add(w.getId())));
+        }
+        return allowed;
+    }
     @Transactional public InventoryItemResponse create(InventoryItemRequest request) {
         var item = new InventoryItem(); item.setStock(BigDecimal.ZERO); return save(item, request);
     }

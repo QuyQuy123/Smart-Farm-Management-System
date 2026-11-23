@@ -266,9 +266,15 @@ public class InternalStockService {
 
     @Transactional
     public InternalStockVoucherResponse cancel(Long id, String cancelledBy) {
-        InternalStockVoucher voucher = voucherRepository.findWithDetailsById(id)
+        InternalStockVoucher locked = voucherRepository.findForUpdateById(id)
+                .or(() -> voucherRepository.findWithDetailsById(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiếu xuất nhập nội bộ."));
 
+        if (!"COMPLETED".equalsIgnoreCase(locked.getStatus())) {
+            throw new BadRequestException("Chỉ có thể hủy phiếu đang ở trạng thái Hoàn thành.");
+        }
+
+        InternalStockVoucher voucher = voucherRepository.findWithDetailsById(id).orElse(locked);
         if (!"COMPLETED".equalsIgnoreCase(voucher.getStatus())) {
             throw new BadRequestException("Chỉ có thể hủy phiếu đang ở trạng thái Hoàn thành.");
         }

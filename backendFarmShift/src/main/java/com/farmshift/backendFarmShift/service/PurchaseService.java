@@ -48,7 +48,7 @@ public class PurchaseService {
 
     @Transactional
     public PurchaseInvoiceResponse update(Long id, com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceEditRequest request) {
-        var invoice = find(id);
+        var invoice = findForUpdate(id);
         requireNotFlockInvoice(invoice);
         if ("Đã hủy".equals(invoice.getStockStatus()) || "Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus())
                 || invoice.getPaidAmount() > 0 || "Thanh toán hoàn tất".equalsIgnoreCase(invoice.getPaymentStatus()))
@@ -88,7 +88,7 @@ public class PurchaseService {
 
     @Transactional
     public void delete(Long id) {
-        var invoice = find(id);
+        var invoice = findForUpdate(id);
         requireNotFlockInvoice(invoice);
         if ("Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus()) || invoice.getPaidAmount() > 0)
             throw new BadRequestException("Không thể xóa hóa đơn đã nhập kho hoặc đã thanh toán.", "MSG39");
@@ -230,7 +230,7 @@ public class PurchaseService {
 
     @Transactional
     public PurchaseInvoiceResponse importStock(Long id) {
-        PurchaseInvoice invoice = find(id);
+        PurchaseInvoice invoice = findForUpdate(id);
         requireNotFlockInvoice(invoice);
         if ("Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus())) {
             return toResponse(invoice);
@@ -248,7 +248,7 @@ public class PurchaseService {
 
     @Transactional
     public PurchaseInvoiceResponse pay(Long id, PurchasePaymentRequest request) {
-        PurchaseInvoice invoice = find(id);
+        PurchaseInvoice invoice = findForUpdate(id);
         if ("Đã hủy".equalsIgnoreCase(invoice.getStockStatus())) {
             throw new BadRequestException("Không thể thanh toán cho hóa đơn đã bị hủy.");
         }
@@ -288,7 +288,7 @@ public class PurchaseService {
 
     @Transactional
     public void cancel(Long id) {
-        PurchaseInvoice invoice = find(id);
+        PurchaseInvoice invoice = findForUpdate(id);
         requireNotFlockInvoice(invoice);
 
         // System rule: finalized/stocked or paid records cannot be cancelled/deleted
@@ -452,6 +452,12 @@ public class PurchaseService {
 
     private PurchaseInvoice find(Long id) {
         return invoiceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn nhập hàng."));
+    }
+
+    private PurchaseInvoice findForUpdate(Long id) {
+        return invoiceRepository.findForUpdate(id)
+                .or(() -> invoiceRepository.findById(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn nhập hàng."));
     }
 

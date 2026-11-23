@@ -143,9 +143,26 @@ class CustomerContactIntegrationTest {
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"A\",\"phone\":\"abc\"}")).andExpect(status().isBadRequest());
     }
     @Test @WithMockUser(authorities="ROLE_FARM_WORKER")
-    void workerCanReadButCannotWrite() throws Exception {
-        mvc.perform(get(API)).andExpect(status().isOk());
+    void workerCannotReadOrWrite() throws Exception {
+        var customer = new CustomerContact();
+        customer.setName("Khách hàng bí mật");
+        customer.setPhone("0912345678");
+        Long id = repository.saveAndFlush(customer).getId();
+
+        mvc.perform(get(API)).andExpect(status().isForbidden());
+        mvc.perform(get(API).param("q", "Khách hàng")).andExpect(status().isForbidden());
+        mvc.perform(get(API + "/" + id)).andExpect(status().isForbidden());
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isForbidden());
+    }
+    @Test @WithMockUser(authorities="ROLE_ACCOUNTANT")
+    void accountantCanReadCustomerContacts() throws Exception {
+        var customer = new CustomerContact();
+        customer.setName("Khách hàng kế toán");
+        customer.setPhone("0912345679");
+        Long id = repository.saveAndFlush(customer).getId();
+
+        mvc.perform(get(API)).andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1));
+        mvc.perform(get(API + "/" + id)).andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Khách hàng kế toán"));
     }
     @Test void anonymousCannotRead() throws Exception { mvc.perform(get(API)).andExpect(status().is4xxClientError()); }
 }

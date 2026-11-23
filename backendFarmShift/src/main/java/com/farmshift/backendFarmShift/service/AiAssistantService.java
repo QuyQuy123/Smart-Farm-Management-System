@@ -342,7 +342,7 @@ public class AiAssistantService {
         final boolean effectiveAutoExecute = autoExecute;
         Env env = new Env(actor, isWorker, isAccountant, effectiveAutoExecute);
         List<Map<String, String>> history = request.getHistory() != null ? request.getHistory() : Collections.emptyList();
-        Map<String, Object> ctx = resolveContext(sessionKey, request.getLastActionContext(), history);
+        Map<String, Object> ctx = resolveContext(sessionKey, request.getLastActionContext(), history, actor, isWorker);
 
         String preNorm = normalizeText(normalizedMsg);
         if (isWorker && isWorkerForbiddenFinancialOrAdminQuery(rawMessage, preNorm)) {
@@ -992,7 +992,13 @@ public class AiAssistantService {
         }
     }
 
-    private Map<String, Object> resolveContext(String sessionKey, Map<String, Object> clientContext, List<Map<String, String>> history) {
+    private Map<String, Object> resolveContext(
+            String sessionKey,
+            Map<String, Object> clientContext,
+            List<Map<String, String>> history,
+            String actor,
+            boolean isWorker
+    ) {
         Map<String, Object> merged = new LinkedHashMap<>();
         if (sessionKey != null && lastContextByUser.containsKey(sessionKey)) {
             Map<String, Object> cached = lastContextByUser.get(sessionKey);
@@ -1003,22 +1009,28 @@ public class AiAssistantService {
                 lastContextByUser.remove(sessionKey);
             }
         }
-        if (clientContext != null) {
-            clientContext.forEach((k, v) -> {
+        if (clientContext != null && !clientContext.isEmpty() && aiSecurityGuard != null) {
+            Map<String, Object> safeClientCtx = aiSecurityGuard.sanitizeLastContext(clientContext, actor, isWorker);
+            safeClientCtx.forEach((k, v) -> {
                 if (k != null && v != null) {
-                    merged.put(k, v);
+                    merged.putIfAbsent(k, v);
                 }
             });
         }
-        // Recover discussed barn from recent history turns within the same session if not already present
+        // Recover discussed barn from recent safe history turns within the same session if not already present
         if (merged.get("barnId") == null && history != null && !history.isEmpty()) {
             for (int i = history.size() - 1; i >= 0; i--) {
                 Map<String, String> turn = history.get(i);
                 String content = turn != null ? turn.get("content") : null;
                 if (content != null && !content.isBlank()) {
+                    if (aiSecurityGuard != null
+                            && (aiSecurityGuard.inspectInput(content, actor, isWorker) != null
+                                || AiSecurityGuard.inspectHumanMedicalScope(content) != null)) {
+                        continue;
+                    }
                     String norm = normalizeText(content);
                     Barn b = resolveBarn(norm, content, null);
-                    if (b != null) {
+                    if (b != null && isWorkerAllowedForBarn(actor, isWorker, b)) {
                         merged.put("barnId", b.getId());
                         merged.put("barnName", b.getName());
                         break;
@@ -1996,6 +2008,11 @@ public class AiAssistantService {
                     if (h != null && "user".equalsIgnoreCase(String.valueOf(h.get("role")))) {
                         String c = h.get("content");
                         if (c != null && !c.isBlank()) {
+                            if (aiSecurityGuard != null
+                                    && (aiSecurityGuard.inspectInput(c, username, isWorker) != null
+                                        || AiSecurityGuard.inspectHumanMedicalScope(c) != null)) {
+                                continue;
+                            }
                             recentUserQuestions.add(c.trim());
                         }
                     }

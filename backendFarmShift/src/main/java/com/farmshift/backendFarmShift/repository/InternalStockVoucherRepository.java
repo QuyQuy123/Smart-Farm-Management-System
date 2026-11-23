@@ -7,6 +7,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface InternalStockVoucherRepository extends JpaRepository<InternalStockVoucher, Long>, JpaSpecificationExecutor<InternalStockVoucher> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT v FROM InternalStockVoucher v WHERE v.id = :id")
+    Optional<InternalStockVoucher> findForUpdateById(@org.springframework.data.repository.query.Param("id") Long id);
+
     Optional<InternalStockVoucher> findByCode(String code);
     boolean existsByCode(String code);
     long countByCategory_IdAndStatusNot(Long categoryId, String status);

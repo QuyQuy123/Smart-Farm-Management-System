@@ -29,6 +29,13 @@ class InventoryItemIntegrationTest {
     @Autowired ProductCategoryRepository products;
     @Autowired BrandRepository brands;
     @Autowired MeasurementUnitRepository units;
+    @Autowired FarmAreaRepository areas;
+    @Autowired BarnRepository barns;
+    @Autowired AccountRepository accounts;
+    @Autowired RoleRepository roles;
+    @Autowired PurchaseInvoiceRepository invoices;
+    @Autowired SupplierRepository suppliers;
+    @Autowired ProductTypeRepository productTypes;
     Long warehouseId, productId, brandId, unitId;
     static final String API = "/api/inventory-items";
     @BeforeEach void setup() {
@@ -98,10 +105,115 @@ class InventoryItemIntegrationTest {
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("name", "   ")))).andExpect(status().isBadRequest());
     }
     @Test @WithMockUser(authorities="ROLE_FARM_WORKER")
-    void workerCanReadButCannotWrite() throws Exception {
-        mvc.perform(get(API).param("warehouseId", warehouseId.toString())).andExpect(status().isOk());
-        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of()))).andExpect(status().isForbidden());
-        mvc.perform(delete(API + "/1")).andExpect(status().isForbidden());
+    void workerCannotListAllOrUnassignedWarehousesAndOnlySeesAssignedQuantityWithoutPriceOrReceipts() throws Exception {
+        var area = new FarmArea();
+        area.setName("Khu được giao");
+        area.setNameKey("khu được giao");
+        area = areas.saveAndFlush(area);
+
+        var assignedWarehouse = new WarehouseCategory();
+        assignedWarehouse.setName("Kho được giao");
+        assignedWarehouse.setNameKey("kho được giao");
+        assignedWarehouse.setArea(area);
+        assignedWarehouse = warehouses.saveAndFlush(assignedWarehouse);
+
+        var assignedBarn = new Barn();
+        assignedBarn.setArea(area);
+        assignedBarn.setName("Chuồng được giao");
+        assignedBarn.setNameKey("chuồng được giao");
+        assignedBarn.setStatus(BarnStatus.ACTIVE);
+        assignedBarn.setCapacity(1000);
+        assignedBarn = barns.saveAndFlush(assignedBarn);
+
+        Role workerRole = roles.findByName("ROLE_FARM_WORKER").orElseGet(() -> roles.save(new Role(null, "ROLE_FARM_WORKER", "Công nhân")));
+        Account worker = new Account();
+        worker.setEmail("worker.inv@farm.test");
+        worker.setFullName("Worker Inventory");
+        worker.setPassword("secret");
+        worker.setRole(workerRole);
+        worker.setIsActive(true);
+        worker = accounts.saveAndFlush(worker);
+        area.getWorkers().add(worker);
+        areas.saveAndFlush(area);
+
+        ProductType pt = new ProductType();
+        pt.setName("Nhóm Test Inv");
+        pt.setNameKey("nhóm test inv");
+        pt = productTypes.saveAndFlush(pt);
+        Supplier sup = new Supplier();
+        sup.setCode("NCCINV1");
+        sup.setName("NCC Test Inv");
+        sup.setNameKey("ncc test inv");
+        sup.setRepresentative("Rep");
+        sup.setPhone("0912345678");
+        sup.setProductType(pt);
+        sup = suppliers.saveAndFlush(sup);
+        PurchaseInvoice inv = new PurchaseInvoice();
+        inv.setCode("NHINV1");
+        inv.setSupplier(sup);
+        inv.setInvoiceDate(java.time.LocalDate.now());
+        inv.setTotalAmount(500000L);
+        PurchaseInvoiceItem invItem = new PurchaseInvoiceItem(inv, products.findById(productId).orElseThrow(), "Cám kiểm thử", 10.0, "Kg", 50000L, 0.0, 500000L);
+        inv.addItem(invItem);
+        inv = invoices.saveAndFlush(inv);
+
+        InventoryItem assignedItem = new InventoryItem();
+        assignedItem.setWarehouse(assignedWarehouse);
+        assignedItem.setProduct(products.findById(productId).orElseThrow());
+        assignedItem.setUnit(units.findById(unitId).orElseThrow());
+        assignedItem.setPrice(new BigDecimal("50000"));
+        assignedItem.setStock(new BigDecimal("10"));
+        assignedItem.setPurchaseInvoiceItemId(inv.getItems().getFirst().getId());
+        assignedItem = inventory.saveAndFlush(assignedItem);
+
+        InventoryItem unassignedItem = new InventoryItem();
+        unassignedItem.setWarehouse(warehouses.findById(warehouseId).orElseThrow());
+        unassignedItem.setProduct(products.findById(productId).orElseThrow());
+        unassignedItem.setUnit(units.findById(unitId).orElseThrow());
+        unassignedItem.setPrice(new BigDecimal("60000"));
+        unassignedItem.setStock(new BigDecimal("20"));
+        unassignedItem = inventory.saveAndFlush(unassignedItem);
+
+        var workerAuth = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("worker.inv@farm.test")
+                .authorities(() -> "ROLE_FARM_WORKER");
+
+        // Unassigned or unfiltered list / detail / write are forbidden
+        mvc.perform(get(API).with(workerAuth)).andExpect(status().isForbidden());
+        mvc.perform(get(API).with(workerAuth).param("warehouseId", warehouseId.toString())).andExpect(status().isForbidden());
+        mvc.perform(get(API + "/" + unassignedItem.getId()).with(workerAuth)).andExpect(status().isForbidden());
+        mvc.perform(post(API).with(workerAuth).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of()))).andExpect(status().isForbidden());
+        mvc.perform(delete(API + "/" + assignedItem.getId()).with(workerAuth)).andExpect(status().isForbidden());
+
+        // Assigned warehouse list and detail succeed with quantities only (price and receipt stripped)
+        mvc.perform(get(API).with(workerAuth).param("warehouseId", assignedWarehouse.getId().toString()).param("includeReceipts", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].stock").value(10))
+                .andExpect(jsonPath("$.data[0].price").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data[0].receipt").value(org.hamcrest.Matchers.nullValue()));
+
+        mvc.perform(get(API + "/" + assignedItem.getId()).with(workerAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stock").value(10))
+                .andExpect(jsonPath("$.data.price").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.receipt").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test @WithMockUser(authorities="ROLE_ACCOUNTANT")
+    void accountantKeepsFullReadAccessWithPricesAndReceipts() throws Exception {
+        long id = inventory.saveAndFlush(createEntity(warehouseId, "120000", "5")).getId();
+        mvc.perform(get(API)).andExpect(status().isOk());
+        mvc.perform(get(API + "/" + id)).andExpect(status().isOk()).andExpect(jsonPath("$.data.price").value(120000));
+    }
+
+    private InventoryItem createEntity(Long whId, String price, String stock) {
+        InventoryItem item = new InventoryItem();
+        item.setWarehouse(warehouses.findById(whId).orElseThrow());
+        item.setProduct(products.findById(productId).orElseThrow());
+        item.setUnit(units.findById(unitId).orElseThrow());
+        item.setPrice(new BigDecimal(price));
+        item.setStock(new BigDecimal(stock));
+        return item;
     }
     @Test void anonymousCannotRead() throws Exception { mvc.perform(get(API).param("warehouseId", warehouseId.toString())).andExpect(status().is4xxClientError()); }
 }
