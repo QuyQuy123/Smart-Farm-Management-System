@@ -59,6 +59,8 @@ public final class AiRbacPolicy {
             "CLOSE_CYCLE",
             "START_OR_CLOSE_CYCLE",
             "TRANSFER_FLOCK",
+            "HARVEST",
+            "HARVEST_FLOCK",
             "COMPLETE_DAILY_TASKS",
             "LOG_FEED",
             "COMPOUND_LOG_FEED",

@@ -4,17 +4,22 @@ import com.farmshift.backendFarmShift.dto.AiAssistantRequest;
 import com.farmshift.backendFarmShift.dto.AiAssistantResponse;
 import com.farmshift.backendFarmShift.dto.AiSuggestionResponse;
 import com.farmshift.backendFarmShift.dto.SpeechTranscribeResponse;
+import com.farmshift.backendFarmShift.dto.request.AiFeedbackRequest;
+import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.service.AiAssistantService;
 import com.farmshift.backendFarmShift.service.GroqWhisperService;
 import com.farmshift.backendFarmShift.service.RealtimeSyncService;
+import com.farmshift.backendFarmShift.service.ai.AiInteractionFlywheelService;
 import com.farmshift.backendFarmShift.service.ai.AiRateLimiter;
 import com.farmshift.backendFarmShift.service.ai.AiSuggestionService;
+import jakarta.annotation.PreDestroy;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,7 +28,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @RestController
@@ -46,6 +53,14 @@ public class AiAssistantController {
     private final AiRateLimiter rateLimiter;
     private final RealtimeSyncService realtimeSyncService;
     private final AiSuggestionService suggestionService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AiInteractionFlywheelService flywheelService;
+    private final ExecutorService sseExecutor = Executors.newVirtualThreadPerTaskExecutor();
+
+    @PreDestroy
+    void shutdownSseExecutor() {
+        sseExecutor.shutdown();
+    }
 
     @GetMapping("/suggestions")
     public ResponseEntity<AiSuggestionResponse> getSuggestions(
@@ -187,6 +202,46 @@ public class AiAssistantController {
         return handleAssistantRequest(request, clientId, authentication);
     }
 
+    @PostMapping("/feedback")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> submitFeedback(
+            @Valid @RequestBody AiFeedbackRequest request,
+            Authentication authentication
+    ) {
+        if (flywheelService == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ApiResponse.error("Dịch vụ thu thập phản hồi AI chưa sẵn sàng."));
+        }
+        String username = authentication != null ? authentication.getName() : "anonymous";
+        boolean isOwner = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_FARM_OWNER".equalsIgnoreCase(a.getAuthority())
+                        || "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
+        return ResponseEntity.ok(ApiResponse.success(
+                "Đã ghi nhận phản hồi của bạn.",
+                flywheelService.submitFeedback(request, username, isOwner)
+        ));
+    }
+
+    @GetMapping("/flywheel/stats")
+    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getFlywheelStats() {
+        if (flywheelService == null) {
+            return ResponseEntity.ok(ApiResponse.success("Thống kê Data Flywheel", java.util.Map.of()));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Thống kê Data Flywheel AI", flywheelService.getFlywheelStats()));
+    }
+
+    @GetMapping(value = "/flywheel/export", produces = "application/x-ndjson;charset=UTF-8")
+    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
+    public ResponseEntity<String> exportFlywheelJsonl(
+            @RequestParam(value = "minRating", required = false, defaultValue = "1") Integer minRating,
+            @RequestParam(value = "includeAll", required = false, defaultValue = "false") boolean includeAll
+    ) {
+        if (flywheelService == null) {
+            return ResponseEntity.ok("");
+        }
+        return ResponseEntity.ok(flywheelService.exportCuratedSftJsonl(minRating, includeAll));
+    }
+
     @PostMapping(value = "/assistant/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamAssistantPost(
             @Valid @RequestBody AiAssistantRequest request,
@@ -203,9 +258,12 @@ public class AiAssistantController {
             @RequestHeader(value = "X-Client-Id", required = false) String clientId,
             Authentication authentication
     ) {
+        if (message == null || message.isBlank() || message.length() > 4000) {
+            throw new com.farmshift.backendFarmShift.exception.BadRequestException("Tin nhắn không hợp lệ hoặc vượt quá 4000 ký tự.");
+        }
         AiAssistantRequest request = AiAssistantRequest.builder()
                 .message(message)
-                .currentRoute(currentRoute)
+                .currentRoute(currentRoute != null && currentRoute.length() <= 256 ? currentRoute : null)
                 .build();
         return createAssistantSseEmitter(request, authentication, clientId);
     }
@@ -216,6 +274,11 @@ public class AiAssistantController {
             String clientId
     ) {
         SseEmitter emitter = new SseEmitter(60_000L);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        emitter.onCompletion(() -> cancelled.set(true));
+        emitter.onTimeout(() -> cancelled.set(true));
+        emitter.onError(ignored -> cancelled.set(true));
+
         String username = authentication != null ? authentication.getName() : "Người dùng";
         var authorities = authentication != null ? authentication.getAuthorities() : null;
 
@@ -229,26 +292,41 @@ public class AiAssistantController {
                                 .executed(false)
                                 .build()));
                 emitter.complete();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                log.debug("Failed to send SSE rate-limit event");
+            }
             return emitter;
         }
 
-        CompletableFuture.runAsync(() -> {
+        sseExecutor.execute(() -> {
             try {
                 AiAssistantResponse response = assistantService.processRequest(request, username, authorities);
                 if (AiAssistantService.isMutatingExecution(response)) {
                     realtimeSyncService.broadcastDataChange("/all", "AI", username, clientId);
                 }
+                if (cancelled.get()) {
+                    return;
+                }
                 String text = response.getReply() != null ? response.getReply() : "";
                 String[] words = text.split(" ");
                 for (String word : words) {
+                    if (cancelled.get()) {
+                        return;
+                    }
                     emitter.send(SseEmitter.event().name("token").data(word + " "));
                     Thread.sleep(20);
                 }
-                emitter.send(SseEmitter.event().name("done").data(response));
+                if (!cancelled.get()) {
+                    emitter.send(SseEmitter.event().name("done").data(response));
+                    emitter.complete();
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
                 emitter.complete();
             } catch (Exception ex) {
-                emitter.completeWithError(ex);
+                if (!cancelled.get()) {
+                    emitter.completeWithError(ex);
+                }
             }
         });
 

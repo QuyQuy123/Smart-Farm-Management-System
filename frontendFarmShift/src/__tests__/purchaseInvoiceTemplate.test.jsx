@@ -1,5 +1,5 @@
 import React from 'react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import { PurchaseInvoiceTemplate } from '../features/farmshift/PurchaseInvoiceTemplate';
 const order = { code: 'NH-TEST', supplier: 'Nhà cung cấp A', date: '2026-10-20', importedDate: '2026-10-21', stockStatus: 'Đã nhập kho', paymentStatus: 'Thanh toán một phần', referenceCode: 'REF-01', note: 'Đã chuyển khoản', tags: ['Cám'], discountAmount: 10000, otherCost: 5000, totalAmount: 195000, paidAmount: 50000, debtAmount: 145000, items: [{ id: 1, name: 'Cám A', qty: 2, unit: 'Bao', price: 50000, amount: 100000 }, { id: 2, name: 'Thuốc B', qty: 1, unit: 'Chai', price: 100000, amount: 100000 }] };

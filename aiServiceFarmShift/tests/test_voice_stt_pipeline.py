@@ -375,6 +375,106 @@ class VoiceServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual("LOCAL_FALLBACK", fb_fast.provider)
             self.assertEqual(6, http_mock.post.call_count)
 
+    def test_settings_debug_validator_handles_non_boolean_env_strings(self):
+        from app.core.config import Settings
+
+        self.assertFalse(Settings(DEBUG="release").DEBUG)
+        self.assertFalse(Settings(DEBUG="false").DEBUG)
+        self.assertTrue(Settings(DEBUG="true").DEBUG)
+        self.assertTrue(Settings(DEBUG="1").DEBUG)
+
+    def test_shared_phonetic_lexicon_parity_and_new_terms(self):
+        import json
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[2]
+        shared_path = repo_root / "shared" / "phonetic_lexicon.json"
+        ai_res_path = repo_root / "aiServiceFarmShift" / "app" / "resources" / "phonetic_lexicon.json"
+        be_res_path = repo_root / "backendFarmShift" / "src" / "main" / "resources" / "phonetic_lexicon.json"
+
+        self.assertTrue(shared_path.is_file())
+        shared_data = json.loads(shared_path.read_text(encoding="utf-8"))
+        self.assertEqual(shared_data, json.loads(ai_res_path.read_text(encoding="utf-8")))
+        self.assertEqual(shared_data, json.loads(be_res_path.read_text(encoding="utf-8")))
+
+        norm, _ = postprocess_vietnamese_phonetic(
+            "tiêm ma réc, pha gờ lu cô ka xê, trị hàn cốc và xịt bê ka xê 80% cho gà lạc thủy"
+        )
+        self.assertIn("Marek", norm)
+        self.assertIn("Gluco-K-C", norm)
+        self.assertIn("Toltrazuril", norm)
+        self.assertIn("BKC 80%", norm)
+        self.assertIn("Gà Lạc Thủy", norm)
+
+    async def test_chat_completion_native_tool_calling_extracts_tool_calls_with_null_content(self):
+        sample_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "log_feed",
+                    "description": "Ghi cám",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "targetBarnName": {"type": "string"},
+                            "quantity": {"type": "number"},
+                            "unit": {"type": "string", "enum": ["kg", "bao"]},
+                        },
+                        "required": ["targetBarnName", "quantity", "unit"],
+                    },
+                },
+            }
+        ]
+        with (
+            patch("app.services.voice_service.settings.GROQ_API_KEY", "groq-key"),
+            patch("app.services.voice_service.get_shared_http_client", return_value=None),
+            patch("app.services.voice_service.httpx.AsyncClient") as factory,
+        ):
+            http_mock = AsyncMock()
+            factory.return_value.__aenter__.return_value = http_mock
+
+            groq_tool_resp = MagicMock()
+            groq_tool_resp.status_code = 200
+            groq_tool_resp.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_abc123",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "log_feed",
+                                        "arguments": '{"targetBarnName":"Nhà A1","quantity":2,"unit":"bao"}',
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+            http_mock.post.return_value = groq_tool_resp
+
+            res = await voice_service.chat_completion(
+                AssistantChatRequest(
+                    message="Cho Nhà A1 ăn 2 bao cám",
+                    systemPrompt="Return JSON or call tool",
+                    tools=sample_tools,
+                    toolChoice="auto",
+                )
+            )
+            self.assertFalse(res.fallback)
+            self.assertEqual("", res.content)
+            self.assertIsNotNone(res.tool_calls)
+            self.assertEqual(1, len(res.tool_calls))
+            self.assertEqual("log_feed", res.tool_calls[0]["function"]["name"])
+
+            sent_payload = http_mock.post.call_args.kwargs["json"]
+            self.assertEqual(sample_tools, sent_payload["tools"])
+            self.assertEqual("auto", sent_payload["tool_choice"])
+            self.assertNotIn("response_format", sent_payload)
+
 
 if __name__ == "__main__":
     unittest.main()

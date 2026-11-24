@@ -1708,6 +1708,25 @@ class AiAssistantSecurityAndDomainTest {
                 .andExpect(jsonPath("$.navigateTo").value("/notifications"));
     }
 
+    @Test
+    void workerCurrencyLeakSanitizerRedactsVietnameseAmountsWithoutFalsePositives() {
+        var workerResponse = new com.farmshift.backendFarmShift.dto.AiAssistantResponse();
+        workerResponse.setActionType("GENERAL_ADVICE");
+        workerResponse.setReply("Tổng chi 500.000 VNĐ, phụ phí 500.000 đ, giá 35.000 đ/kg; đàn còn 100 đầu gà và nhiệt độ 28 độ C.");
+        String sanitized = aiSecurityGuard.sanitizeOutput(workerResponse, true).getReply();
+
+        assertFalse(sanitized.contains("500.000"));
+        assertFalse(sanitized.contains("35.000"));
+        assertTrue(sanitized.contains("[Đã ẩn theo RBAC]"));
+        assertTrue(sanitized.contains("100 đầu gà"));
+        assertTrue(sanitized.contains("28 độ C"));
+
+        var ownerResponse = new com.farmshift.backendFarmShift.dto.AiAssistantResponse();
+        ownerResponse.setActionType("GENERAL_ADVICE");
+        ownerResponse.setReply("Giá 35.000 đ/kg.");
+        assertEquals("Giá 35.000 đ/kg.", aiSecurityGuard.sanitizeOutput(ownerResponse, false).getReply());
+    }
+
     private ResultActions postJson(String url, Object body) throws Exception {
         return mvc.perform(post(url)
                 .contentType(MediaType.APPLICATION_JSON)

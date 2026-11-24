@@ -4,10 +4,10 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
-- File dữ liệu mẫu tương ứng là [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`, `barns.target_weight`), làm sạch toàn bộ 47 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu mô phỏng liên tục 79 ngày từ `06/09/2026` đến `23/11/2026` theo múi giờ `Asia/Bangkok` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
-- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **14 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`, `PushSubscriptionSchemaUpgrade`.
-- **Kiểm kê 47 bảng vật lý trong PostgreSQL:**
-  - **41 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `push_subscriptions`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `work_tasks`, `work_task_checks`, `sales_orders`, `sales_invoice_numbers`.
+- File dữ liệu mẫu tương ứng là [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`, `barns.target_weight`), làm sạch toàn bộ 48 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu mô phỏng liên tục 79 ngày từ `06/09/2026` đến `23/11/2026` theo múi giờ `Asia/Bangkok` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
+- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **15 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`, `PushSubscriptionSchemaUpgrade`, `AiInteractionLogSchemaUpgrade`.
+- **Kiểm kê 48 bảng vật lý trong PostgreSQL:**
+  - **42 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `push_subscriptions`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `work_tasks`, `work_task_checks`, `sales_orders`, `sales_invoice_numbers`, `ai_interaction_logs`.
   - **1 `@Embeddable` (`@ElementCollection`):** `daily_stock_allocations` (thuộc `DailyTaskLog`).
   - **5 bảng trung gian N-N (`@ManyToMany`):** `farm_area_workers`, `farm_area_warehouses`, `warehouse_workers`, `supplier_tag_mappings`, `purchase_invoice_tag_mappings`.
   - *Lưu ý:* Các `enum` Java (`BarnStatus`, `CycleStatus`, `FlockGender`, `FlockMovementType`, `FlockSource`, `FlockStatus`, `ExpenseCategory`, `ProgramStepCategory`, `AdministrationMethod`, `UsageUnit`) được ánh xạ dạng `VARCHAR` trong bảng, không tạo Postgres `ENUM` type riêng. Dữ liệu IoT ESP32 và luồng Camera QR hoạt động ở RAM / `localStorage`, không tạo bảng PostgreSQL riêng.
@@ -22,6 +22,7 @@ erDiagram
     roles ||--o{ accounts : "has"
     accounts ||--o| customers : "profiles"
     accounts ||--o{ push_subscriptions : "receives_push"
+    accounts ||--o{ ai_interaction_logs : "logs_ai_turns"
     
     %% Farm Infrastructure & Daily Operations
     farm_areas ||--o{ barns : "contains"
@@ -1063,7 +1064,8 @@ Phân hệ **Thiết bị IoT** **không tạo bảng riêng trong PostgreSQL** 
 | **Nhân sự & Tài khoản (`EmployeeController`)** | `GET /api/employees`, `GET /api/employees/summary`, `GET /{id}`, `POST`, `PUT /{id}` | Chỉ `ROLE_FARM_OWNER`. Đồng bộ 2 bảng `accounts` và `customers`. |
 | **Hồ sơ cá nhân (`UserController`)** | `GET/PUT /api/user/profile`, `PUT /api/user/password`, `POST /api/user/avatar`, `GET /api/user/all` (`ROLE_FARM_OWNER`) | Nếu đổi email trong `PUT /profile`, server phát hành JWT token mới để phiên làm việc không bị gián đoạn. |
 | **Tải tệp media (`FileUploadController`)** | `POST /api/files/upload?folder=...` | Hỗ trợ tải ảnh đại diện, sản phẩm, ảnh hao hụt hoặc chứng từ lên Local hoặc Cloudflare R2. |
-| **Trợ lý AI & Giọng nói (`AiAssistantController`)** | `POST /api/ai/transcribe`, `POST /api/ai/assistant`, `GET/POST /api/ai/assistant/stream` (SSE) | Áp dụng giới hạn tốc độ (`AiRateLimiter`: 20 STT/phút, 30 Chat/phút) và kiểm soát quyền theo RBAC vai trò người dùng. |
+| **Trợ lý AI & Giọng nói (`AiAssistantController`)** | `POST /api/ai/transcribe`, `POST /api/ai/assistant`, `POST /api/ai/confirm`, `GET/POST /api/ai/assistant/stream` (SSE), `POST /api/ai/feedback`, `GET /api/ai/flywheel/stats`, `GET /api/ai/flywheel/export` | Áp dụng giới hạn tốc độ (`AiRateLimiter`: 20 STT/phút, 30 Chat/phút), kiểm soát RBAC vai trò người dùng, xác thực thẻ hành động HMAC-SHA256 và thu thập Data Flywheel (`ai_interaction_logs`). |
+| **Đồng bộ IoT Telemetry (`IotTelemetryController`)** | `POST /api/iot/telemetry`, `GET /api/iot/telemetry/{barnId}` | Đồng bộ số đo nhiệt độ/độ ẩm/relay ESP32 thời gian thực vào RAM (`IotTelemetryRegistry`) cho `IoTTelemetryCommandHandler`, kiểm tra phạm vi chuồng của công nhân (`MSG51`). |
 | **Giám sát dịch vụ (`HealthController`)** | `GET /api/health`, `GET /health` | Công khai (`permitAll`), phục vụ kiểm tra trạng thái sống của backend. |
 
 ### 11.2 Dịch vụ AI Microservice (`aiServiceFarmShift` — FastAPI)
@@ -1071,8 +1073,41 @@ Phân hệ **Thiết bị IoT** **không tạo bảng riêng trong PostgreSQL** 
 | Endpoint | Mục đích & Tích hợp |
 | :--- | :--- |
 | `POST /api/extract-invoice`, `POST /api/extract-weight-slip`, `POST /api/preprocess`, `GET /api/sample` | Bóc tách chứng từ hóa đơn mua hàng, phiếu cân xuất bán gà (kèm tiền xử lý nghiêng ảnh & tọa độ bounding box), được Spring Boot gọi qua HTTP. |
-| `POST /api/voice/transcribe` (alias `/api/ai/transcribe`), `POST /api/voice/chat` (alias `/api/ai/chat`) | Chuyển đổi giọng nói tiếng Việt sang văn bản (STT) và phân tích ý định NLU / trả lời kiến thức chăn nuôi qua LLM. |
+| `POST /api/voice/transcribe` (alias `/api/ai/transcribe`), `POST /api/voice/chat` (alias `/api/ai/chat`) | Chuyển đổi giọng nói tiếng Việt sang văn bản (STT), chuẩn hóa từ điển ngữ âm dùng chung (`shared/phonetic_lexicon.json`) và phân tích ý định NLU / Native Tool Calling (`tools`, `tool_calls`) qua LLM. |
 | `GET /health`, `GET /api/health` | Endpoint `GET` / `HEAD` kiểm tra trạng thái sống của AI microservice và `OCR_ENGINE`. |
+
+### 11.3 Bảng `ai_interaction_logs` — Data Flywheel & Huấn luyện Trợ lý AI
+
+Entity: `AiInteractionLog` (nâng cấp idempotent qua `AiInteractionLogSchemaUpgrade`). Lưu trữ nhật ký tương tác Trợ lý AI, tầng xử lý (`handler_tier`), payload trích xuất, trạng thái xác nhận HITL và đánh giá `+1 / -1` của người dùng phục vụ đánh giá định lượng và xuất tập SFT/LoRA (`GET /api/ai/flywheel/export`).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `request_id` | VARCHAR(64) | NOT NULL. Mã tương quan `X-Request-ID` xuyên biên Spring Boot ↔ FastAPI. |
+| `session_id` | VARCHAR(128) | Mã phiên hội thoại trên `AIChatbot`. |
+| `account_id` | BIGINT | FOREIGN KEY → `accounts.id` ON DELETE SET NULL. |
+| `username` | VARCHAR(100) | NOT NULL. Email / tài khoản thực hiện truy vấn. |
+| `user_role` | VARCHAR(30) | NOT NULL. Vai trò tại thời điểm hỏi (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`, `ROLE_FARM_WORKER`). |
+| `current_route` | VARCHAR(255) | Đường dẫn màn hình SPA đang mở. |
+| `raw_message` | TEXT | NOT NULL. Câu lệnh gốc của người dùng (đã lọc bí mật). |
+| `normalized_message` | TEXT | Câu lệnh sau chuẩn hóa ngữ âm & thực thể động. |
+| `intent` | VARCHAR(80) | Mã ý định / `actionType` kết quả (`LOG_FEED`, `VET_DIAGNOSIS`, `RBAC_BLOCKED`, ...). |
+| `handler_tier` | VARCHAR(50) | Tầng xử lý (`COMMAND_DISPATCHER`, `MUTATION_ENGINE`, `RULE_ENGINE`, `LLM_TOOL_CALL`, `LLM_JSON`, `RAG_FALLBACK`, `SECURITY_GUARD`, `RBAC_GUARD`). |
+| `provider` | VARCHAR(80) | Nguồn xử lý (`LOCAL_DETERMINISTIC`, `llama-3.3-70b-versatile`, `gpt-4o-mini`, `LOCAL_RAG`, ...). |
+| `confidence` | DOUBLE PRECISION | Độ tin cậy (nếu có từ STT/NLU). |
+| `executed` | BOOLEAN | NOT NULL, DEFAULT FALSE. Đã thực thi ghi/đọc thành công hay chưa. |
+| `requires_confirmation` | BOOLEAN | NOT NULL, DEFAULT FALSE. Có sinh thẻ xác nhận 2 bước HMAC hay không. |
+| `confirmed` | BOOLEAN | Kết quả xác nhận HITL (`TRUE`: đã bấm Đồng ý lưu, `FALSE`: hủy, `NULL`: chưa/không áp dụng). |
+| `latency_ms` | BIGINT | NOT NULL, DEFAULT 0. Thời gian xử lý (ms). |
+| `reply_preview` | VARCHAR(1000) | Tóm tắt câu trả lời trả về cho người dùng. |
+| `extracted_payload` | TEXT | JSON tham số trích xuất (đã loại bỏ `actionToken`, `actionId`, `expiresAt`). |
+| `feedback_rating` | SMALLINT | Đánh giá của người dùng (`1`: Hữu ích, `-1`: Chưa đúng, `NULL`: chưa đánh giá). |
+| `feedback_note` | VARCHAR(500) | Ghi chú góp ý (tùy chọn). |
+| `feedback_corrected_intent` | VARCHAR(80) | Nhãn ý định hiệu chỉnh do Chủ trại gán lại để huấn luyện. |
+| `feedback_at` | TIMESTAMP | Thời điểm gửi đánh giá (`Asia/Bangkok`). |
+| `created_at` | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP. |
+
+**Chỉ mục (`Indexes`):** `idx_ai_logs_created_at(created_at DESC)`, `idx_ai_logs_intent_rating(intent, feedback_rating)`, `idx_ai_logs_username(username, created_at DESC)`, `idx_ai_logs_request_id(request_id)`.
 
 > [!NOTE]
 > **Ghi chú loại bỏ phân hệ Sổ quỹ (`Cashbook`):** Toàn bộ phân hệ **Sổ quỹ** đã được gỡ bỏ hoàn toàn khỏi cơ sở dữ liệu, backend (`Cashbook` entities/controllers/services), frontend và dữ liệu mẫu [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt). Dòng tiền nhập – xuất – công nợ được quản lý tập trung qua `purchase_invoices`, `purchase_payments`, `sales_orders`, `customer_contacts`, `suppliers` và `cycle_expenses`.

@@ -5,6 +5,7 @@ import com.farmshift.backendFarmShift.dto.response.ReportSummaryResponse;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
 import com.farmshift.backendFarmShift.service.CycleService;
+import com.farmshift.backendFarmShift.service.FuzzyEntityResolver;
 import com.farmshift.backendFarmShift.service.ReportService;
 import com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer;
 import com.farmshift.backendFarmShift.service.WorkAssignmentService;
@@ -211,7 +212,7 @@ public class AiSecurityGuard {
     );
 
     private static final Pattern WORKER_CURRENCY_LEAK = Pattern.compile(
-            "(?iu)\\b\\d[\\d.,]*\\s*(?:vnđ|vnd|đ/kg)\\b"
+            "(?iU)\\b\\d[\\d.,]*\\s*(?:vnđ|vnd|đồng|đ(?:/(?:kg|bao|con|lít|lọ|gói))?)(?![\\p{L}])"
     );
 
     private static final Pattern SECRET_MARKER_LEAK = Pattern.compile(
@@ -231,14 +232,37 @@ public class AiSecurityGuard {
     @Autowired(required = false)
     private FarmingCycleRepository cycleRepository;
 
+    @Autowired(required = false)
+    private FarmKnowledgeRagService ragService;
+
+    @Autowired(required = false)
+    private AccountRepository accountRepository;
+
     private final ConcurrentHashMap<String, SignedPendingAction> pendingStore = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CachedSnapshot> snapshotCache = new ConcurrentHashMap<>();
     private final AtomicLong snapshotGeneration = new AtomicLong(0L);
 
+    private record InventorySummaryRow(
+            Long id,
+            String productName,
+            String warehouseName,
+            String brandName,
+            String productType,
+            String unitName,
+            BigDecimal stock,
+            BigDecimal price,
+            String searchKey,
+            long createdAtEpochMs
+    ) {}
+
     private record CachedSnapshot(
             long cachedAt,
             String signature,
-            String content
+            String headerAndBarns,
+            List<InventorySummaryRow> visibleInventoryRows,
+            Set<Long> visibleWarehouseIds,
+            Integer primaryActiveAgeDays,
+            String footerSection
     ) {}
 
     public AiSecurityGuard(
@@ -263,7 +287,12 @@ public class AiSecurityGuard {
         String effectiveSecret = (secretKey == null || secretKey.isBlank())
                 ? "farmshift-default-ai-hmac-secret-key-2026"
                 : secretKey;
-        this.hmacSecretBytes = effectiveSecret.getBytes(StandardCharsets.UTF_8);
+        try {
+            this.hmacSecretBytes = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(("farmshift-ai-action-hmac:" + effectiveSecret).getBytes(StandardCharsets.UTF_8));
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 unavailable", ex);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -597,17 +626,42 @@ public class AiSecurityGuard {
         long now = System.currentTimeMillis();
 
         CachedSnapshot cached = snapshotCache.get(cacheKey);
+        CachedSnapshot snapshot;
         if (cached != null
                 && (now - cached.cachedAt()) <= SNAPSHOT_CACHE_TTL_MS
                 && Objects.equals(cached.signature(), signature)) {
-            sb.append(cached.content());
-            return sb.toString();
+            snapshot = cached;
+        } else {
+            snapshot = computeDatabaseSnapshot(username, isWorker, allowedBarnIds, includeFinance, today, now, signature);
+            if (snapshotCache.size() >= 256) {
+                snapshotCache.entrySet().removeIf(e -> (now - e.getValue().cachedAt()) > SNAPSHOT_CACHE_TTL_MS);
+                if (snapshotCache.size() >= 256) {
+                    snapshotCache.clear();
+                }
+            }
+            snapshotCache.put(cacheKey, snapshot);
+            registerRollbackCacheEviction();
         }
 
-        String snapshotBody = computeDatabaseSnapshot(isWorker, allowedBarnIds, includeFinance, today);
-        snapshotCache.put(cacheKey, new CachedSnapshot(now, signature, snapshotBody));
-        registerRollbackCacheEviction();
-        sb.append(snapshotBody);
+        String dynamicInventorySection = renderDynamicInventorySection(
+                snapshot.visibleInventoryRows(), userQuery, isWorker, 25);
+        sb.append("<farm_data>\n")
+                .append(snapshot.headerAndBarns())
+                .append(dynamicInventorySection)
+                .append(snapshot.footerSection())
+                .append("</farm_data>\n");
+
+        if (ragService != null && FarmKnowledgeRagService.shouldInjectRagContext(userQuery)) {
+            String ragSection = ragService.buildPromptRagSection(
+                    userQuery,
+                    snapshot.primaryActiveAgeDays(),
+                    snapshot.visibleWarehouseIds(),
+                    isWorker
+            );
+            if (ragSection != null && !ragSection.isBlank()) {
+                sb.append(ragSection);
+            }
+        }
         return sb.toString();
     }
 
@@ -634,11 +688,14 @@ public class AiSecurityGuard {
         }
     }
 
-    private String computeDatabaseSnapshot(
+    private CachedSnapshot computeDatabaseSnapshot(
+            String username,
             boolean isWorker,
             Set<Long> allowedBarnIds,
             boolean includeFinance,
-            LocalDate today
+            LocalDate today,
+            long cachedAt,
+            String signature
     ) {
         List<Barn> allBarns = barnRepository.findAll();
         List<Barn> visibleBarns = isWorker
@@ -646,6 +703,7 @@ public class AiSecurityGuard {
                 : allBarns;
 
         Map<Long, Integer> activeAgeByBarnId = new HashMap<>();
+        Integer primaryAgeDays = null;
         if (cycleRepository != null) {
             for (FarmingCycle c : cycleRepository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE)) {
                 if (c.getBarn() != null && c.getBarn().getId() != null) {
@@ -653,6 +711,9 @@ public class AiSecurityGuard {
                     if (refDate != null) {
                         int age = Math.max(1, (int) ChronoUnit.DAYS.between(refDate, today) + 1 + (c.getHatchDate() == null ? c.getCarriedDays() : 0));
                         activeAgeByBarnId.put(c.getBarn().getId(), age);
+                        if (primaryAgeDays == null && (!isWorker || (allowedBarnIds != null && allowedBarnIds.contains(c.getBarn().getId())))) {
+                            primaryAgeDays = age;
+                        }
                     }
                 }
             }
@@ -664,8 +725,8 @@ public class AiSecurityGuard {
                     String agePart = age != null ? (", activeCycleAgeDays:" + age) : "";
                     return String.format("{id:%d, name:'%s', area:'%s', status:'%s', currentQty:%d, capacity:%d%s}",
                             b.getId(),
-                            b.getName(),
-                            b.getArea() != null ? b.getArea().getName() : "",
+                            sanitizePromptField(b.getName()),
+                            b.getArea() != null ? sanitizePromptField(b.getArea().getName()) : "",
                             b.getStatus(),
                             b.getCurrentQuantity(),
                             b.getCapacity(),
@@ -681,41 +742,65 @@ public class AiSecurityGuard {
                 .collect(Collectors.toSet());
 
         Set<Long> visibleWarehouseIds = new LinkedHashSet<>();
-        if (isWorker && !visibleAreaIds.isEmpty()) {
-            List<WarehouseCategory> batchWarehouses = warehouseRepository.findAllByAreaIdIn(visibleAreaIds);
-            if (batchWarehouses != null && !batchWarehouses.isEmpty()) {
-                batchWarehouses.forEach(w -> visibleWarehouseIds.add(w.getId()));
-            } else {
-                for (Long areaId : visibleAreaIds) {
-                    warehouseRepository.findAllByArea_Id(areaId).forEach(w -> visibleWarehouseIds.add(w.getId()));
+        if (isWorker) {
+            if (!visibleAreaIds.isEmpty()) {
+                List<WarehouseCategory> batchWarehouses = warehouseRepository.findAllByAreaIdIn(visibleAreaIds);
+                if (batchWarehouses != null && !batchWarehouses.isEmpty()) {
+                    batchWarehouses.forEach(w -> visibleWarehouseIds.add(w.getId()));
+                } else {
+                    for (Long areaId : visibleAreaIds) {
+                        warehouseRepository.findAllByArea_Id(areaId).forEach(w -> visibleWarehouseIds.add(w.getId()));
+                    }
                 }
+            }
+            if (accountRepository != null && username != null && !username.isBlank()) {
+                accountRepository.findByEmail(username.trim().toLowerCase(Locale.ROOT))
+                        .or(() -> accountRepository.findByEmail(username.trim()))
+                        .ifPresent(acc -> warehouseRepository.findDistinctByWorkers_IdIn(List.of(acc.getId()))
+                                .forEach(w -> visibleWarehouseIds.add(w.getId())));
             }
         }
 
-        List<InventoryItem> allItems = inventoryRepository.findAll();
-        String inventorySummary = allItems.stream()
-                .filter(i -> !isWorker || (i.getWarehouse() != null && visibleWarehouseIds.contains(i.getWarehouse().getId())))
-                .limit(25)
-                .map(i -> {
-                    String prodName = i.getProduct() != null ? i.getProduct().getName() : "";
-                    String whName = i.getWarehouse() != null ? i.getWarehouse().getName() : "";
-                    String unitName = i.getUnit() != null ? i.getUnit().getName() : "";
-                    if (isWorker) {
-                        return String.format("{id:%d, name:'%s', warehouse:'%s', stock:%s, unit:'%s'}",
-                                i.getId(), prodName, whName, i.getStock(), unitName);
-                    }
-                    return String.format("{id:%d, name:'%s', warehouse:'%s', stock:%s, price:%s, unit:'%s'}",
-                            i.getId(), prodName, whName, i.getStock(), i.getPrice(), unitName);
-                })
-                .collect(Collectors.joining(", "));
+        List<InventoryItem> allItems = inventoryRepository.findAllForReport();
+        if (allItems == null) {
+            allItems = inventoryRepository.findAll();
+        }
+        List<InventorySummaryRow> visibleInventory = new ArrayList<>();
+        for (InventoryItem i : allItems) {
+            if (isWorker && (i.getWarehouse() == null || !visibleWarehouseIds.contains(i.getWarehouse().getId()))) {
+                continue;
+            }
+            String prodName = i.getProduct() != null ? sanitizePromptField(i.getProduct().getName()) : "";
+            String whName = i.getWarehouse() != null ? sanitizePromptField(i.getWarehouse().getName()) : "";
+            String brandName = i.getBrand() != null ? sanitizePromptField(i.getBrand().getName()) : "";
+            String prodType = (i.getProduct() != null && i.getProduct().getProductType() != null)
+                    ? sanitizePromptField(i.getProduct().getProductType()) : "";
+            String unitName = i.getUnit() != null ? sanitizePromptField(i.getUnit().getName()) : "";
+            String searchKey = normalizeForRetrieval(prodName + " " + whName + " " + brandName + " " + prodType);
+            long createdMs = i.getCreatedAt() != null
+                    ? i.getCreatedAt().atZone(CycleService.VN_ZONE).toInstant().toEpochMilli()
+                    : 0L;
+            visibleInventory.add(new InventorySummaryRow(
+                    i.getId(),
+                    prodName,
+                    whName,
+                    brandName,
+                    prodType,
+                    unitName,
+                    i.getStock(),
+                    isWorker ? null : i.getPrice(),
+                    searchKey,
+                    createdMs
+            ));
+        }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("Live Database Snapshot (Ngày hiện tại VN: ").append(today).append("):\n");
-        sb.append("- Chuồng nuôi được phép truy cập (Barns): [").append(barnSummary).append("]\n");
-        sb.append("- Vật tư kho (Inventory): [").append(inventorySummary).append("]\n");
+        StringBuilder headerSb = new StringBuilder();
+        headerSb.append("Live Database Snapshot (Ngày hiện tại VN: ").append(today).append("):\n");
+        headerSb.append("- Chuồng nuôi được phép truy cập (Barns): [").append(barnSummary).append("]\n");
 
+        StringBuilder footerSb = new StringBuilder();
         if (isWorker) {
-            sb.append("- Phạm vi RBAC: ROLE_FARM_WORKER (MSG51/MSG60 — đã ẩn toàn bộ đơn giá, công nợ, lợi nhuận, hóa đơn và chuồng ngoài phân công).\n");
+            footerSb.append("- Phạm vi RBAC: ROLE_FARM_WORKER (MSG51/MSG60 — đã ẩn toàn bộ đơn giá, công nợ, lợi nhuận, hóa đơn và chuồng ngoài phân công).\n");
         } else if (includeFinance) {
             List<PurchaseInvoice> activeInvoices = invoiceRepository.findByStockStatusNot("Đã hủy");
             Map<Long, Long> invoiceDebtBySupplier = new HashMap<>();
@@ -732,7 +817,8 @@ public class AiSecurityGuard {
                         long opening = s.getOpeningDebt() != null ? s.getOpeningDebt() : 0L;
                         long remaining = Math.max(0L, opening + invoiceDebtBySupplier.getOrDefault(s.getId(), 0L));
                         return String.format("{id:%d, code:'%s', name:'%s', phone:'%s', policy:'%s', remainingDebt:%d}",
-                                s.getId(), s.getCode(), s.getName(), s.getPhone(), s.getPaymentPolicy(), remaining);
+                                s.getId(), sanitizePromptField(s.getCode()), sanitizePromptField(s.getName()),
+                                sanitizePromptField(s.getPhone()), sanitizePromptField(s.getPaymentPolicy()), remaining);
                     })
                     .collect(Collectors.joining(", "));
 
@@ -740,17 +826,19 @@ public class AiSecurityGuard {
                     .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
                     .limit(10)
                     .map(inv -> String.format("{id:%d, code:'%s', supplier:'%s', total:%d, paid:%d, payStatus:'%s', stockStatus:'%s'}",
-                            inv.getId(), inv.getCode(), inv.getSupplier() != null ? inv.getSupplier().getName() : "",
-                            inv.getTotalAmount(), inv.getPaidAmount(), inv.getPaymentStatus(), inv.getStockStatus()))
+                            inv.getId(), sanitizePromptField(inv.getCode()),
+                            inv.getSupplier() != null ? sanitizePromptField(inv.getSupplier().getName()) : "",
+                            inv.getTotalAmount(), inv.getPaidAmount(),
+                            sanitizePromptField(inv.getPaymentStatus()), sanitizePromptField(inv.getStockStatus())))
                     .collect(Collectors.joining(", "));
 
-            sb.append("- Nhà cung cấp & Công nợ (Suppliers): [").append(supplierSummary).append("]\n");
-            sb.append("- Hóa đơn nhập gần nhất (Invoices): [").append(invoiceSummary).append("]\n");
+            footerSb.append("- Nhà cung cấp & Công nợ (Suppliers): [").append(supplierSummary).append("]\n");
+            footerSb.append("- Hóa đơn nhập gần nhất (Invoices): [").append(invoiceSummary).append("]\n");
 
             try {
                 ReportSummaryResponse.FarmSummary fs = reportService.getSummary(null, null).farmSummary();
                 if (fs != null) {
-                    sb.append(String.format(
+                    footerSb.append(String.format(
                             "- Tài chính tổng hợp: {realizedProfit:%s, wipCost:%s, wipRevenue:%s, totalRevenue:%s, totalCost:%s, closedCycles:%d, activeBarns:%d}\n",
                             fs.realizedProfit(), fs.wipCost(), fs.wipRevenue(), fs.totalRevenue(), fs.totalCost(), fs.closedCycles(), fs.activeBarns()));
                 }
@@ -758,10 +846,121 @@ public class AiSecurityGuard {
                 log.debug("Could not append report summary to AI context: {}", ex.getMessage());
             }
         } else {
-            sb.append("- Ngữ cảnh tinh gọn: Đã lược bỏ dữ liệu công nợ/hóa đơn do câu lệnh thuộc nhóm kỹ thuật vận hành/chuồng trại.\n");
+            footerSb.append("- Ngữ cảnh tinh gọn: Đã lược bỏ dữ liệu công nợ/hóa đơn do câu lệnh thuộc nhóm kỹ thuật vận hành/chuồng trại.\n");
         }
 
-        return sb.toString();
+        return new CachedSnapshot(
+                cachedAt,
+                signature,
+                headerSb.toString(),
+                List.copyOf(visibleInventory),
+                Set.copyOf(visibleWarehouseIds),
+                primaryAgeDays,
+                footerSb.toString()
+        );
+    }
+
+    private static String renderDynamicInventorySection(
+            List<InventorySummaryRow> visibleItems,
+            String userQuery,
+            boolean isWorker,
+            int maxItems
+    ) {
+        if (visibleItems == null || visibleItems.isEmpty()) {
+            return "- Vật tư kho (Inventory): []\n";
+        }
+        List<InventorySummaryRow> selected = selectDynamicInventoryItems(visibleItems, userQuery, maxItems);
+        String joined = selected.stream()
+                .map(i -> {
+                    if (isWorker) {
+                        return String.format("{id:%d, name:'%s', warehouse:'%s', stock:%s, unit:'%s'}",
+                                i.id(), i.productName(), i.warehouseName(), i.stock(), i.unitName());
+                    }
+                    return String.format("{id:%d, name:'%s', warehouse:'%s', stock:%s, price:%s, unit:'%s'}",
+                            i.id(), i.productName(), i.warehouseName(), i.stock(), i.price(), i.unitName());
+                })
+                .collect(Collectors.joining(", "));
+        String coverage = visibleItems.size() > selected.size()
+                ? String.format(" (truy xuất động %d/%d lô liên quan nhất)", selected.size(), visibleItems.size())
+                : "";
+        return "- Vật tư kho" + coverage + " (Inventory): [" + joined + "]\n";
+    }
+
+    private static List<InventorySummaryRow> selectDynamicInventoryItems(
+            List<InventorySummaryRow> visibleItems,
+            String userQuery,
+            int maxItems
+    ) {
+        String queryNorm = normalizeForRetrieval(userQuery);
+        List<String> queryTokens = queryNorm.isBlank()
+                ? List.of()
+                : Arrays.stream(queryNorm.split("\\s+"))
+                .filter(t -> t.length() >= 2)
+                .toList();
+
+        List<Map.Entry<InventorySummaryRow, Double>> scored = new ArrayList<>(visibleItems.size());
+        for (InventorySummaryRow row : visibleItems) {
+            double score = scoreInventoryRelevance(row, queryNorm, queryTokens);
+            scored.add(Map.entry(row, score));
+        }
+        scored.sort((a, b) -> {
+            int cmp = Double.compare(b.getValue(), a.getValue());
+            if (cmp != 0) return cmp;
+            return Long.compare(b.getKey().createdAtEpochMs(), a.getKey().createdAtEpochMs());
+        });
+
+        int limit = Math.min(maxItems, scored.size());
+        List<InventorySummaryRow> out = new ArrayList<>(limit);
+        for (int i = 0; i < limit; i++) {
+            out.add(scored.get(i).getKey());
+        }
+        return out;
+    }
+
+    private static double scoreInventoryRelevance(
+            InventorySummaryRow row,
+            String queryNorm,
+            List<String> queryTokens
+    ) {
+        double score = 0.0;
+        if (row.stock() != null && row.stock().signum() > 0) {
+            score += 1.0;
+        }
+        if (queryNorm.isBlank() || queryTokens.isEmpty()) {
+            return score;
+        }
+        String prodNorm = normalizeForRetrieval(row.productName());
+        if (!prodNorm.isBlank() && queryNorm.contains(prodNorm)) {
+            score += 10.0;
+        }
+        String[] itemTokens = row.searchKey().split("\\s+");
+        for (String qt : queryTokens) {
+            if (row.searchKey().contains(qt)) {
+                score += 3.0;
+            } else if (qt.length() >= 4) {
+                for (String it : itemTokens) {
+                    if (it.length() >= 4) {
+                        int maxLen = Math.max(qt.length(), it.length());
+                        double sim = 1.0 - ((double) FuzzyEntityResolver.levenshtein(qt, it) / maxLen);
+                        if (sim >= 0.75) {
+                            score += 2.0 * sim;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return score;
+    }
+
+    private static String normalizeForRetrieval(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        return VietnameseSpeechNormalizer.removeVietnameseDiacritics(raw)
+                .replaceAll("[^a-z0-9\\s]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     public Map<String, Object> sanitizeLastContext(Map<String, Object> lastContext, boolean isWorker) {
@@ -1151,6 +1350,14 @@ public class AiSecurityGuard {
                 toDrop--;
             }
         }
+    }
+
+    private static String sanitizePromptField(String raw) {
+        if (raw == null) return "";
+        String cleaned = raw.replace('\r', ' ').replace('\n', ' ')
+                .replace("<", "").replace(">", "").replace("'", "")
+                .replaceAll("\\s+", " ").trim();
+        return cleaned.length() > 120 ? cleaned.substring(0, 120) : cleaned;
     }
 
     public record SignedPendingAction(

@@ -60,6 +60,7 @@ public class JwtProvider {
         return Jwts.builder()
                 .subject(email)
                 .claim("roles", roles)
+                .claim("iatMs", now.getTime())
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)          // JJWT 0.12 auto-selects HS256 for SecretKey
@@ -75,6 +76,16 @@ public class JwtProvider {
     @SuppressWarnings("unchecked")
     public List<String> getRolesFromToken(String token) {
         return (List<String>) parseClaims(token).get("roles");
+    }
+
+    public Long getIssuedAtMillisFromToken(String token) {
+        Claims claims = parseClaims(token);
+        Object iatMs = claims.get("iatMs");
+        if (iatMs instanceof Number num) {
+            return num.longValue();
+        }
+        Date issuedAt = claims.getIssuedAt();
+        return issuedAt != null ? issuedAt.getTime() : null;
     }
 
     // ------------------------------------------------------------------ validate

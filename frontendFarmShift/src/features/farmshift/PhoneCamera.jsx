@@ -10,6 +10,7 @@ export function PhoneCamera({ barn, children }) {
   const [image, setImage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pollingActive, setPollingActive] = useState(true);
   const [localCamera, setLocalCamera] = useState(null);
   const [requestingCamera, setRequestingCamera] = useState(false);
   const localSession = useRef(null);
@@ -60,6 +61,7 @@ export function PhoneCamera({ barn, children }) {
   }
 
   useEffect(() => {
+    if (!pollingActive) return undefined;
     const controller = new AbortController();
     let timer;
     let objectUrl = '';
@@ -83,7 +85,7 @@ export function PhoneCamera({ barn, children }) {
       clearTimeout(timer);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [endpoint]);
+  }, [endpoint, pollingActive]);
 
   const pair = useCallback(async (signal) => {
     setBusy(true);
@@ -99,6 +101,7 @@ export function PhoneCamera({ barn, children }) {
       if (!signal?.aborted) {
         setLink(url.href);
         setQr(code);
+        setPollingActive(true);
       }
     } catch {
       if (!signal?.aborted) setError('Không thể tạo liên kết camera. Vui lòng thử lại.');
@@ -116,6 +119,7 @@ export function PhoneCamera({ barn, children }) {
     setError('');
     try {
       await api.delete(endpoint);
+      setPollingActive(false);
       setLink('');
       setQr('');
       setImage('');
@@ -166,6 +170,7 @@ export function PhoneCameraPublisher() {
   }, []);
 
   async function start() {
+    if (session.current) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('Hãy mở liên kết qua HTTPS để cấp quyền camera.');
       return;
@@ -181,9 +186,21 @@ export function PhoneCameraPublisher() {
       current.stream = stream;
       video.current.srcObject = stream;
       await video.current.play();
+      if (!video.current.videoWidth || !video.current.videoHeight) {
+        await new Promise(resolve => {
+          const el = video.current;
+          if (!el) { resolve(); return; }
+          const done = () => { el.removeEventListener('loadedmetadata', done); resolve(); };
+          el.addEventListener('loadedmetadata', done);
+          setTimeout(done, 1500);
+        });
+      }
+      const vw = video.current?.videoWidth || 0;
+      const vh = video.current?.videoHeight || 0;
+      if (!vw || !vh) throw new Error('Camera chưa sẵn sàng khung hình.');
       const canvas = document.createElement('canvas');
-      canvas.width = Math.min(video.current.videoWidth, 640);
-      canvas.height = Math.round(canvas.width * video.current.videoHeight / video.current.videoWidth);
+      canvas.width = Math.min(vw, 640);
+      canvas.height = Math.round(canvas.width * vh / vw);
       const context = canvas.getContext('2d');
       while (!signal.aborted) {
         context.drawImage(video.current, 0, 0, canvas.width, canvas.height);

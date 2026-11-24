@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics } from '../../services/esp32MqttService';
+import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics, syncIotTelemetrySnapshot } from '../../services/esp32MqttService';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Camera, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Plus, Search, Trash2, Warehouse } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
@@ -88,9 +88,20 @@ export function IotView() {
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const [query, setQuery] = useState('');
-  const [devicesByBarn, setDevicesByBarn] = useState({});
+  const [devicesByBarn, setDevicesByBarn] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('farmshift-iot-devices') || '{}');
+      return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('farmshift-iot-devices', JSON.stringify(devicesByBarn)); } catch { /* In-memory config remains available. */ }
+  }, [devicesByBarn]);
   const [modal, setModal] = useState(null);
   const lastThermalPushAt = useRef(new Map());
+  const lastTelemetrySyncAt = useRef(0);
+  const lastSyncedHasSensorsRef = useRef(false);
+  const syncedConnectedBarnRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
     Promise.all([listFarmAreas(), listBarns()]).then(([areas, barns]) => {
@@ -110,18 +121,33 @@ export function IotView() {
   const [connection, setConnection] = useState('disconnected');
   const [relayStates, setRelayStates] = useState({});
   const [sensorReadings, setSensorReadings] = useState({});
+  const tempStorageKey = barnId ? `farmshift-esp32-temperature:${barnId}` : 'farmshift-esp32-temperature';
+  const loadedTempKeyRef = useRef(tempStorageKey);
   const [liveTemperatures, setLiveTemperatures] = useState([]);
   const [temperatureHistory, setTemperatureHistory] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('farmshift-esp32-temperature') || '[]');
+      const raw = localStorage.getItem(tempStorageKey) ?? (barnId ? localStorage.getItem('farmshift-esp32-temperature') : null);
+      const saved = JSON.parse(raw || '[]');
       return Array.isArray(saved) ? saved.filter(point => point && Number.isFinite(point.time)
         && Number.isFinite(point.value) && ['temp1', 'temp3'].includes(point.sensor)
         && point.time >= Date.now() - 7 * 86400000) : [];
     } catch { return []; }
   });
   useEffect(() => {
-    try { localStorage.setItem('farmshift-esp32-temperature', JSON.stringify(temperatureHistory)); } catch { /* In-memory history remains available. */ }
-  }, [temperatureHistory]);
+    loadedTempKeyRef.current = tempStorageKey;
+    setLiveTemperatures([]);
+    try {
+      const raw = localStorage.getItem(tempStorageKey);
+      const saved = JSON.parse(raw || '[]');
+      setTemperatureHistory(Array.isArray(saved) ? saved.filter(point => point && Number.isFinite(point.time)
+        && Number.isFinite(point.value) && ['temp1', 'temp3'].includes(point.sensor)
+        && point.time >= Date.now() - 7 * 86400000) : []);
+    } catch { setTemperatureHistory([]); }
+  }, [tempStorageKey]);
+  useEffect(() => {
+    if (loadedTempKeyRef.current !== tempStorageKey) return;
+    try { localStorage.setItem(tempStorageKey, JSON.stringify(temperatureHistory)); } catch { /* In-memory history remains available. */ }
+  }, [tempStorageKey, temperatureHistory]);
   const [mqttError, setMqttError] = useState('');
   const hasBarn = Boolean(barn);
   useEffect(() => {
@@ -193,12 +219,99 @@ export function IotView() {
   }, [automaticEnabled, barnId]);
 
   useEffect(() => {
-    if (!barn || connection !== 'connected' || !mqtt.current || !automaticEnabled) return;
+    lastTelemetrySyncAt.current = 0;
+    lastSyncedHasSensorsRef.current = false;
+  }, [barnId]);
+
+  useEffect(() => {
+    if (!barn) return;
+    if (connection !== 'connected') {
+      if (syncedConnectedBarnRef.current === barn.id) {
+        syncedConnectedBarnRef.current = null;
+        lastSyncedHasSensorsRef.current = false;
+        syncIotTelemetrySnapshot({
+          barnId: barn.id,
+          connected: false,
+          source: 'ESP32_MQTT',
+        });
+      }
+      return;
+    }
+    const hasAnySensor = ['temp1', 'humi1', 'temp3', 'humi3'].some(key => sensorReadings[key] !== undefined);
+    const hasAnyRelay = Object.keys(relayStates).length > 0;
+    if (!hasAnySensor && !hasAnyRelay) return;
     const now = Date.now();
+    const isFirstSensorSync = hasAnySensor && !lastSyncedHasSensorsRef.current;
+    if (!isFirstSensorSync && now - lastTelemetrySyncAt.current < 10_000) return;
+    lastTelemetrySyncAt.current = now;
+    if (hasAnySensor) lastSyncedHasSensorsRef.current = true;
+    syncedConnectedBarnRef.current = barn.id;
+    const activeLabels = devices
+      .filter(device => device.relay && relayStates[device.relay] === true)
+      .map(device => `${device.name} (Đang bật)`);
+    syncIotTelemetrySnapshot({
+      barnId: barn.id,
+      connected: true,
+      temp1: sensorReadings.temp1 ?? null,
+      humi1: sensorReadings.humi1 ?? null,
+      temp3: sensorReadings.temp3 ?? null,
+      humi3: sensorReadings.humi3 ?? null,
+      relayStates,
+      activeDeviceLabels: activeLabels,
+      source: 'ESP32_MQTT',
+    });
+  }, [barn, barnId, connection, devices, relayStates, sensorReadings]);
+
+  useEffect(() => {
+    if (!barn || connection !== 'connected') return;
+    const now = Date.now();
+    const freshPoints = ['temp1', 'temp3']
+      .map(sensor => liveTemperatures.findLast(point => point.sensor === sensor))
+      .filter(point => point && sensorReadings[point.sensor] !== undefined && now - point.time <= 15_000);
+    if (freshPoints.length > 0) {
+      const avg = freshPoints.reduce((sum, point) => sum + point.value, 0) / freshPoints.length;
+      const thermalDevices = devices.filter(device => device.type !== 'LIGHT');
+      const alertThreshold = thermalDevices.length > 0
+        ? Math.min(...thermalDevices.map(device => {
+          const rawThr = device.threshold;
+          return (rawThr !== '' && rawThr !== null && rawThr !== undefined && Number.isFinite(Number(rawThr)))
+            ? Number(rawThr)
+            : (device.type === 'FAN' ? 40 : 42);
+        }))
+        : 40;
+      if (avg > alertThreshold) {
+        const cooldownKey = `${barn.id}`;
+        const lastSent = lastThermalPushAt.current.get(cooldownKey) || 0;
+        if (now - lastSent > 300_000) {
+          lastThermalPushAt.current.set(cooldownKey, now);
+          const avgFmt = avg.toFixed(1);
+          const thrFmt = alertThreshold.toFixed(1);
+          const alertTitle = `⚠️ Cảnh báo nhiệt độ ${barn.name}`;
+          const alertBody = `Nhiệt độ trung bình tại ${barn.name} đạt ${avgFmt}°C, vượt ngưỡng an toàn (${thrFmt}°C).`;
+          const isIotAlertEnabled = (notification?.notifPrefs?.iotAlertEnabled ?? loadLocalNotificationPrefs().iotAlertEnabled) !== false;
+          if (isIotAlertEnabled) {
+            notification?.sendNotification?.({
+              barn: barn.name,
+              type: 'Nhiệt độ cao',
+              value: `${avgFmt}°C (Ngưỡng ${thrFmt}°C)`,
+              level: 'Cảnh báo',
+              status: 'Nhiệt độ chuồng vượt ngưỡng an toàn',
+            });
+          }
+          dispatchBarnIotAlert({
+            barnId: barn.id,
+            title: alertTitle,
+            body: alertBody,
+            severity: 'CRITICAL',
+          }).catch(() => {});
+        }
+      }
+    }
+
+    if (!mqtt.current || !automaticEnabled) return;
     const localTime = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(now);
-    const latest = ['temp1', 'temp3'].map(sensor => liveTemperatures.findLast(point => point.sensor === sensor));
     for (const device of devices) {
       if (!device.automatic || !device.relay) continue;
       let desired;
@@ -208,36 +321,14 @@ export function IotView() {
         if (on === off) continue;
         desired = on < off ? localTime >= on && localTime < off : localTime >= on || localTime < off;
       } else {
-        if (latest.some(point => !point || sensorReadings[point.sensor] === undefined || now - point.time > 15_000)) continue;
-        const average = (latest[0].value + latest[1].value) / 2;
-        const threshold = Number(device.threshold ?? (device.type === 'FAN' ? 40 : 42));
+        if (freshPoints.length === 0) continue;
+        const average = freshPoints.reduce((sum, point) => sum + point.value, 0) / freshPoints.length;
+        const rawThr = device.threshold;
+        const threshold = (rawThr !== '' && rawThr !== null && rawThr !== undefined && Number.isFinite(Number(rawThr)))
+          ? Number(rawThr)
+          : (device.type === 'FAN' ? 40 : 42);
         if (average > threshold) {
           desired = true;
-          const cooldownKey = `${barn.id}`;
-          const lastSent = lastThermalPushAt.current.get(cooldownKey) || 0;
-          if (now - lastSent > 300_000) {
-            lastThermalPushAt.current.set(cooldownKey, now);
-            const avgFmt = average.toFixed(1);
-            const thrFmt = threshold.toFixed(1);
-            const alertTitle = `⚠️ Cảnh báo nhiệt độ ${barn.name}`;
-            const alertBody = `Nhiệt độ trung bình tại ${barn.name} đạt ${avgFmt}°C, vượt ngưỡng an toàn (${thrFmt}°C).`;
-            const isIotAlertEnabled = (notification?.notifPrefs?.iotAlertEnabled ?? loadLocalNotificationPrefs().iotAlertEnabled) !== false;
-            if (isIotAlertEnabled) {
-              notification?.sendNotification?.({
-                barn: barn.name,
-                type: 'Nhiệt độ cao',
-                value: `${avgFmt}°C (Ngưỡng ${thrFmt}°C)`,
-                level: 'Cảnh báo',
-                status: `Tự động bật ${device.name}`,
-              });
-            }
-            dispatchBarnIotAlert({
-              barnId: barn.id,
-              title: alertTitle,
-              body: alertBody,
-              severity: 'CRITICAL',
-            }).catch(() => {});
-          }
         }
         else if (average <= threshold - 1) desired = false;
         else continue;
@@ -248,10 +339,11 @@ export function IotView() {
       if (pending?.desired === desired && now - pending.time < 10_000) continue;
       autoCommands.current.set(key, { desired, time: now });
       mqtt.current.publishRelay(device.relay, desired ? 'ON' : 'OFF').catch(() => {
+        autoCommands.current.delete(key);
         setMqttError('Không gửi được lệnh tự động đến thiết bị phần cứng.');
       });
     }
-  }, [automaticEnabled, automationTime, barn, barnId, connection, devices, liveTemperatures, relayStates, sensorReadings]);
+  }, [automaticEnabled, automationTime, barn, barnId, connection, devices, liveTemperatures, notification, relayStates, sensorReadings]);
 
   function manuallyControl(targets, enabled) {
     const ids = new Set(targets.map(device => device.id));

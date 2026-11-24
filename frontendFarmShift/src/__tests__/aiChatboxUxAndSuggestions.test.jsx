@@ -16,6 +16,7 @@ vi.mock('../services/aiAssistantService', () => ({
   getAiSuggestions: vi.fn(),
   sendAssistantMessage: vi.fn(),
   transcribeAudio: vi.fn(),
+  submitAiFeedback: vi.fn(),
 }));
 
 vi.mock('../utils/audioRecorder', async () => {
@@ -891,5 +892,74 @@ describe('AI Chatbox Live Suggestions, UX Overhaul & Dashboard Ask-AI Integratio
     expect(sendBtn).toBeTruthy();
     expect(autoSpeakBtn).toBeTruthy();
     expect(sendBtn.className).toMatch(/sendBtn/);
+  });
+
+  it('renders thumbs up/down feedback buttons on bot responses and submits rating to Data Flywheel', async () => {
+    aiAssistantService.getAiSuggestions.mockResolvedValue({
+      role: 'ROLE_FARM_OWNER',
+      roleLabel: 'Chủ trại',
+      routeLabel: 'Bảng điều khiển',
+      inputPlaceholder: 'Hỏi hoặc ra lệnh...',
+      suggestions: [],
+    });
+    aiAssistantService.sendAssistantMessage.mockResolvedValueOnce({
+      reply: 'Đã kiểm tra xong đàn gà Nhà A1.',
+      actionType: 'QUERY_FARM_STATUS',
+      executed: true,
+      interactionId: 901,
+    });
+    aiAssistantService.submitAiFeedback.mockResolvedValueOnce({
+      success: true,
+      data: { interactionId: 901, rating: 1 },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AIChatbot userRole="ROLE_FARM_OWNER" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    const input = await screen.findByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Kiểm tra Nhà A1' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await screen.findByText('Đã kiểm tra xong đàn gà Nhà A1.');
+    const upBtn = screen.getByTestId('feedback-up-btn');
+    fireEvent.click(upBtn);
+
+    await waitFor(() => {
+      expect(aiAssistantService.submitAiFeedback).toHaveBeenCalledWith({
+        interactionId: 901,
+        rating: 1,
+      });
+    });
+    expect(upBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('feedback-saved-hint')).toHaveTextContent('Đã ghi nhận');
+  });
+
+  it('does not render feedback buttons on offline/error messages lacking interactionId', async () => {
+    aiAssistantService.getAiSuggestions.mockResolvedValue({
+      role: 'ROLE_FARM_OWNER',
+      roleLabel: 'Chủ trại',
+      routeLabel: 'Bảng điều khiển',
+      inputPlaceholder: 'Hỏi hoặc ra lệnh...',
+      suggestions: [],
+    });
+    aiAssistantService.sendAssistantMessage.mockRejectedValueOnce(new Error('Network Error'));
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AIChatbot userRole="ROLE_FARM_OWNER" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('ai-chatbot-launcher'));
+    const input = await screen.findByPlaceholderText(/Hỏi hoặc ra lệnh/i);
+    fireEvent.change(input, { target: { value: 'Kiểm tra Nhà A1' } });
+    fireEvent.click(screen.getByTitle('Gửi câu lệnh'));
+
+    await screen.findByText(/Không thể kết nối tới máy chủ Trợ lý AI/i);
+    expect(screen.queryByTestId('ai-feedback-group')).not.toBeInTheDocument();
   });
 });

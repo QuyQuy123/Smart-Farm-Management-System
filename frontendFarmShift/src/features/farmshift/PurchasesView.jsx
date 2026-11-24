@@ -902,7 +902,12 @@ export const PurchasesView = () => {
         previewType = 'image/png';
       }
 
-      setOcrPreviewUrl(previewUrl);
+      setOcrPreviewUrl(prev => {
+        if (typeof prev === 'string' && prev.startsWith('blob:') && typeof URL?.revokeObjectURL === 'function') {
+          try { URL.revokeObjectURL(prev); } catch { /* ignore */ }
+        }
+        return previewUrl;
+      });
       setOcrPreviewName(previewName);
       setOcrPreviewType(previewType);
       setOcrZoom(1);
@@ -975,6 +980,22 @@ export const PurchasesView = () => {
     }, 60);
   };
 
+  const safeExternalUrl = (raw) => {
+    if (typeof raw !== 'string') return '#';
+    const trimmed = raw.trim();
+    return (trimmed.startsWith('/') && !trimmed.startsWith('//'))
+      || trimmed.startsWith('https://')
+      || trimmed.startsWith('http://')
+      ? trimmed
+      : '#';
+  };
+
+  const escapeCsvCell = (value) => {
+    const str = String(value ?? '');
+    const formulaSafe = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+    return `"${formulaSafe.replace(/"/g, '""')}"`;
+  };
+
   // Export to Excel / CSV
   const handleExportExcel = () => {
     if (!purchases.length) {
@@ -983,15 +1004,15 @@ export const PurchasesView = () => {
     }
     const headers = ['Mã đơn', 'Ngày nhập', 'Nhà cung cấp', 'Tổng tiền (VND)', 'Đã thanh toán (VND)', 'Công nợ (VND)', 'Thanh toán', 'Kho hàng', 'Ghi chú'];
     const rows = purchases.map(p => [
-      p.code,
-      p.date,
-      `"${p.supplier}"`,
+      escapeCsvCell(p.code),
+      escapeCsvCell(p.date),
+      escapeCsvCell(p.supplier),
       p.totalAmount,
       p.paidAmount,
       p.debtAmount,
-      `"${p.paymentStatus}"`,
-      `"${p.stockStatus}"`,
-      `"${p.note || ''}"`
+      escapeCsvCell(p.paymentStatus),
+      escapeCsvCell(p.stockStatus),
+      escapeCsvCell(p.note || '')
     ]);
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1002,6 +1023,7 @@ export const PurchasesView = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast('Xuất báo cáo thành công.', 'success');
   };
 
@@ -1800,7 +1822,7 @@ export const PurchasesView = () => {
                           <ImageIcon size={15} color="var(--color-primary)" /> Ảnh hóa đơn / chứng từ đính kèm
                         </span>
                         <a
-                          href={selectedOrder.attachmentUrl}
+                          href={safeExternalUrl(selectedOrder.attachmentUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="farmshift-btn farmshift-btn-secondary"

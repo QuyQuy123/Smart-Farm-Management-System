@@ -83,7 +83,7 @@ public class InventoryItemService {
         return response(find(id), null, true);
     }
 
-    private java.util.Set<Long> allowedWarehouseIdsForWorker(String workerEmail) {
+    public java.util.Set<Long> allowedWarehouseIdsForWorker(String workerEmail) {
         if (workerEmail == null || workerEmail.isBlank()) {
             return java.util.Set.of();
         }
@@ -103,11 +103,10 @@ public class InventoryItemService {
             }
         }
         if (accountRepository != null) {
-            accountRepository.findAllByRole_NameAndIsActiveTrueOrderByFullNameAsc(com.farmshift.backendFarmShift.security.RoleNames.FARM_WORKER)
-                    .stream()
-                    .filter(a -> a.getEmail() != null && a.getEmail().equalsIgnoreCase(workerEmail.strip()))
+            String normalizedEmail = workerEmail.strip().toLowerCase(java.util.Locale.ROOT);
+            accountRepository.findByEmail(normalizedEmail)
+                    .filter(a -> !Boolean.FALSE.equals(a.getIsActive()))
                     .map(com.farmshift.backendFarmShift.entity.Account::getId)
-                    .findFirst()
                     .ifPresent(workerId -> warehouses.findDistinctByWorkers_IdIn(List.of(workerId))
                             .forEach(w -> allowed.add(w.getId())));
         }

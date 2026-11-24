@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.service.ocr;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class SalesWeightVisionClient {
     private final String baseUrl;
@@ -58,7 +60,10 @@ public class SalesWeightVisionClient {
             return result;
         } catch (BadRequestException ex) { throw ex; }
         catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new BadRequestException("Đã ngắt xử lý phiếu cân."); }
-        catch (Exception ex) { throw new BadRequestException("Không kết nối được dịch vụ OCR. Vui lòng thử lại."); }
+        catch (Exception ex) {
+            log.warn("Weight slip OCR call failed [requestId={}] ({}): {}", requestId, baseUrl, ex.getMessage());
+            throw new BadRequestException("Không kết nối được dịch vụ OCR. Vui lòng thử lại.");
+        }
     }
 
     private static String resolveRequestId() {

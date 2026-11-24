@@ -11,12 +11,17 @@ import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.AccountRepository;
 import com.farmshift.backendFarmShift.repository.CustomerRepository;
+import com.farmshift.backendFarmShift.security.AccountAuthStateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -27,6 +32,9 @@ public class UserServiceImpl implements UserService {
     private final AccountRepository accountRepository;
     private final CustomerRepository customerRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Autowired(required = false)
+    private AccountAuthStateService accountAuthStateService;
 
     @Override
     @Transactional
@@ -49,16 +57,20 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserProfileResponse updateProfile(String email, UpdateProfileRequest request) {
         Account account = getAccountByEmail(email);
-        if (request.getEmail() != null && !request.getEmail().trim().equals(account.getEmail())) {
+        if (request.getEmail() != null && !request.getEmail().trim().equalsIgnoreCase(account.getEmail())) {
             if (account.getRole() == null || !com.farmshift.backendFarmShift.security.RoleNames.FARM_OWNER.equals(account.getRole().getName())) {
                 throw new org.springframework.security.access.AccessDeniedException("Chỉ chủ trang trại được thay đổi email tài khoản.");
             }
-            String newEmail = request.getEmail().trim();
+            String newEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
             if (newEmail.isBlank()) throw new BadRequestException("Email không được để trống.");
             if (accountRepository.existsByEmailIgnoreCaseAndIdNot(newEmail, account.getId())) {
                 throw new com.farmshift.backendFarmShift.exception.ConflictException("Email đã được sử dụng.", "MSG47", "email");
             }
+            String oldEmail = account.getEmail();
             account.setEmail(newEmail);
+            if (accountAuthStateService != null) {
+                accountAuthStateService.evictAndRevokeTokensIssuedBeforeNow(oldEmail);
+            }
         }
         
         account.setFullName(request.getFullName().trim());
@@ -100,15 +112,31 @@ public class UserServiceImpl implements UserService {
         
         account.setPassword(passwordEncoder.encode(request.getNewPassword()));
         accountRepository.save(account);
+        if (accountAuthStateService != null) {
+            accountAuthStateService.evictAndRevokeTokensIssuedBeforeNow(account.getEmail());
+        }
         log.info("Password changed successfully for user: {}", email);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public java.util.List<UserProfileResponse> getAllUsers() {
         java.util.List<Account> accounts = accountRepository.findAll();
+        if (accounts.isEmpty()) {
+            return java.util.List.of();
+        }
+        Map<Long, Customer> customersByAccountId = new HashMap<>();
+        java.util.List<Customer> batched = customerRepository.findByAccountIn(accounts);
+        if (batched != null) {
+            for (Customer c : batched) {
+                if (c != null && c.getAccount() != null) {
+                    customersByAccountId.putIfAbsent(c.getAccount().getId(), c);
+                }
+            }
+        }
         return accounts.stream().map(account -> {
-            Optional<Customer> customerOpt = customerRepository.findByAccount(account);
-            return mapToResponse(account, customerOpt.orElse(null));
+            Customer customer = customersByAccountId.get(account.getId());
+            return mapToResponse(account, customer);
         }).collect(java.util.stream.Collectors.toList());
     }
 

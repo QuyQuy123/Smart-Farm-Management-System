@@ -7,7 +7,7 @@ import {
   HeartPulse, Thermometer, Box, Scale, Award,
   Truck, ShoppingCart, ArrowLeftRight, CheckCircle2,
   ArrowRight,
-  Info, Sparkles, Layers, ShieldCheck, Zap
+  Info, Sparkles
 } from 'lucide-react';
 
 export const FarmSystemMap = ({ onSelectNode }) => {

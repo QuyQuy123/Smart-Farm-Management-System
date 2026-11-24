@@ -19,6 +19,7 @@ import java.util.UUID;
 @Service
 @ConditionalOnProperty(name = "storage.provider", havingValue = "local")
 public class LocalFileUploadService implements FileUploadService {
+    private static final java.util.Set<String> ALLOWED_FOLDERS = java.util.Set.of("avatars", "products", "losses", "purchases");
     private final Path directory;
 
     public LocalFileUploadService(@Value("${storage.local.directory:}") String configuredDirectory) {
@@ -35,7 +36,7 @@ public class LocalFileUploadService implements FileUploadService {
         if (file.isEmpty() || file.getSize() > 5 * 1024 * 1024) {
             throw new BadRequestException("Ảnh phải có dung lượng lớn hơn 0 và không quá 5MB.");
         }
-        if (folder == null || !folder.matches("[a-zA-Z0-9_-]+")) {
+        if (folder == null || !folder.matches("[a-zA-Z0-9_-]+") || !ALLOWED_FOLDERS.contains(folder)) {
             throw new BadRequestException("Thư mục upload không hợp lệ.");
         }
         try {

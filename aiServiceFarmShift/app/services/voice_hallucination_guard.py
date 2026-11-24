@@ -100,9 +100,10 @@ def validate_audio_magic_bytes(file_bytes: bytes, filename: str = "") -> tuple[b
     if file_bytes[0] == 0xFF and (file_bytes[1] & 0xF6) == 0xF0:
         return True, "audio/aac"
 
+    safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", (filename or "unknown"))[:64]
     return (
         False,
-        f"Định dạng âm thanh không hợp lệ ({filename or 'unknown'}): magic bytes không khớp WebM/MP4/OGG/WAV/MP3.",
+        f"Định dạng âm thanh không hợp lệ ({safe_name}): magic bytes không khớp WebM/MP4/OGG/WAV/MP3.",
     )
 
 

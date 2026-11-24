@@ -148,7 +148,9 @@ public class SalesOrderService {
    revertPreviousHarvest(order);
   }
 
-  var customer = customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc(request.phone().strip(), request.customer().strip()).orElseGet(CustomerContact::new);
+  var customer = customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc(request.phone().strip(), request.customer().strip())
+    .map(found -> found.getId() != null ? customers.findForUpdate(found.getId()).orElse(found) : found)
+    .orElseGet(CustomerContact::new);
   customer.setName(request.customer().strip()); customer.setPhone(request.phone().strip()); customer.setAddress(request.address().strip());
   if(request.taxCode()!=null && !request.taxCode().isBlank()) customer.setTaxCode(request.taxCode().strip());
   if(request.paymentMethod()!=null && !request.paymentMethod().isBlank()) customer.setPaymentMethod(request.paymentMethod().strip());
@@ -166,6 +168,13 @@ public class SalesOrderService {
   FarmingCycle cycle = resolveCycle(request);
   if (cycle != null) {
    applyHarvest(order, request, cycle);
+  } else if (order.getHarvestMovement() != null) {
+   FlockMovement orphanedMovement = order.getHarvestMovement();
+   order.setHarvestMovement(null);
+   order.setCycle(null);
+   if (movements != null) {
+    movements.delete(orphanedMovement);
+   }
   }
 
   return orders.save(order);
@@ -298,7 +307,10 @@ public class SalesOrderService {
     if (c.isPresent()) return c.get();
    } catch (Exception ignored) {}
   }
-  List<FarmingCycle> all = cycles.findAll();
+  List<FarmingCycle> all = cycles.findAllWithBarnAndAreaForReport();
+  if (all == null || all.isEmpty()) {
+   all = cycles.findAll();
+  }
   for (FarmingCycle c : all) {
    String code = String.format(java.util.Locale.ROOT, "L%06d", c.getId());
    if (flockStr.contains(code)) return c;

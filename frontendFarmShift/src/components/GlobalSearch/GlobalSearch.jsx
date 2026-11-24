@@ -239,7 +239,7 @@ const removeVietnameseTones = (str) => {
 
 export const GlobalSearch = () => {
   const { user } = useAuth();
-  const role = user?.role || 'ROLE_FARM_OWNER';
+  const role = user?.role || 'ROLE_FARM_WORKER';
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);

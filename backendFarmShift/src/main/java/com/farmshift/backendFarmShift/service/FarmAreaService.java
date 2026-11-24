@@ -43,25 +43,32 @@ public class FarmAreaService {
 
     public List<FarmAreaResponse> list(String workerEmail) {
         if (workerEmail == null || workerEmail.isBlank()) {
+            List<FarmArea> areas = repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id"));
             Map<Long, long[]> summaries = summaries();
-            return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream()
-                    .map(area -> response(area, summaries.get(area.getId()))).toList();
+            Map<Long, List<FarmAreaResponse.WarehouseRef>> warehousesByArea = loadWarehousesByArea(areas);
+            return areas.stream()
+                    .map(area -> response(area, summaries.get(area.getId()), warehousesByArea.getOrDefault(area.getId(), List.of())))
+                    .toList();
         }
 
         Set<Long> assignedBarnIds = responsibilities.assignedBarnIdsOf(workerEmail);
         List<Barn> assignedBarns = assignedBarnIds.isEmpty() ? List.of() : barnRepository.findAllById(assignedBarnIds);
         Set<Long> areaIdsWithAssignedBarns = assignedBarns.stream().map(b -> b.getArea().getId()).collect(Collectors.toSet());
 
-        return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream()
+        List<FarmArea> filteredAreas = repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream()
                 .filter(area -> areaIdsWithAssignedBarns.contains(area.getId())
                         || (area.getWorkers() != null && area.getWorkers().stream().anyMatch(w -> w.getEmail().equalsIgnoreCase(workerEmail))))
+                .toList();
+        Map<Long, List<FarmAreaResponse.WarehouseRef>> warehousesByArea = loadWarehousesByArea(filteredAreas);
+        return filteredAreas.stream()
                 .map(area -> {
                     List<Barn> barnsInArea = assignedBarns.stream().filter(b -> b.getArea().getId().equals(area.getId())).toList();
                     long totalBarns = barnsInArea.size();
                     long activeBarns = barnsInArea.stream().filter(b -> b.getStatus() == BarnStatus.ACTIVE).count();
                     long animalCount = barnsInArea.stream().mapToLong(Barn::getCurrentQuantity).sum();
                     long totalCapacity = barnsInArea.stream().mapToLong(Barn::getCapacity).sum();
-                    return response(area, new long[]{totalBarns, activeBarns, animalCount, totalCapacity});
+                    return response(area, new long[]{totalBarns, activeBarns, animalCount, totalCapacity},
+                            warehousesByArea.getOrDefault(area.getId(), List.of()));
                 })
                 .toList();
     }
@@ -213,11 +220,49 @@ public class FarmAreaService {
         return new ConflictException("Tên khu nuôi đã tồn tại.", "FARM_AREA_DUPLICATE", "name");
     }
 
+    private Map<Long, List<FarmAreaResponse.WarehouseRef>> loadWarehousesByArea(List<FarmArea> areas) {
+        if (areas == null || areas.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> areaIds = areas.stream().map(FarmArea::getId).filter(Objects::nonNull).toList();
+        if (areaIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<FarmAreaResponse.WarehouseRef>> grouped = new HashMap<>();
+        Set<Long> seenPerArea = new HashSet<>();
+        for (com.farmshift.backendFarmShift.entity.WarehouseCategory w : warehouseCategoryRepository.findAllByAreaIdIn(areaIds)) {
+            var ref = new FarmAreaResponse.WarehouseRef(w.getId(), w.getName(), w.getKind());
+            if (w.getArea() != null && w.getArea().getId() != null && areaIds.contains(w.getArea().getId())) {
+                long aid = w.getArea().getId();
+                long pairKey = aid * 1_000_003L + w.getId();
+                if (seenPerArea.add(pairKey)) {
+                    grouped.computeIfAbsent(aid, k -> new ArrayList<>()).add(ref);
+                }
+            }
+            if (w.getAreas() != null) {
+                for (FarmArea a : w.getAreas()) {
+                    if (a != null && a.getId() != null && areaIds.contains(a.getId())) {
+                        long aid = a.getId();
+                        long pairKey = aid * 1_000_003L + w.getId();
+                        if (seenPerArea.add(pairKey)) {
+                            grouped.computeIfAbsent(aid, k -> new ArrayList<>()).add(ref);
+                        }
+                    }
+                }
+            }
+        }
+        return grouped;
+    }
+
     private FarmAreaResponse response(FarmArea area, long[] summary) {
-        long[] counts = summary == null ? new long[4] : summary;
         List<FarmAreaResponse.WarehouseRef> warehouseRefs = warehouseCategoryRepository.findAllByArea_Id(area.getId()).stream()
                 .map(w -> new FarmAreaResponse.WarehouseRef(w.getId(), w.getName(), w.getKind()))
                 .toList();
+        return response(area, summary, warehouseRefs);
+    }
+
+    private FarmAreaResponse response(FarmArea area, long[] summary, List<FarmAreaResponse.WarehouseRef> warehouseRefs) {
+        long[] counts = summary == null ? new long[4] : summary;
         return new FarmAreaResponse(area.getId(), String.format(Locale.ROOT, "KN%06d", area.getId()), area.getName(),
                 split(area.getEnvironmentMetrics()), split(area.getAnimalMetrics()),
                 area.getDescription(), counts[0], counts[1], counts[2], counts[3], area.getCreatedAt(), area.getUpdatedAt(),

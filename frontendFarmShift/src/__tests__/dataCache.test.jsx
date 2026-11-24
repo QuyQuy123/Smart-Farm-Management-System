@@ -7,8 +7,7 @@ import {
   DataCache,
   buildCacheKey,
   shouldSkipCache,
-  normalizeCacheKey,
-  INVALIDATION_MATRIX
+  normalizeCacheKey
 } from '../services/dataCache';
 import { useCachedQuery } from '../hooks/useCachedQuery';
 

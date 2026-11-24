@@ -3,12 +3,15 @@ package com.farmshift.backendFarmShift.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Retain existing inventory and references while permitting multiple receipt lots per product. */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class InventoryLotSchemaUpgrade implements ApplicationRunner {
     private final JdbcTemplate jdbc;

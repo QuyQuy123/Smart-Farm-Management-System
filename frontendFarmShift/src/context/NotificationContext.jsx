@@ -1,6 +1,6 @@
 // src/context/NotificationContext.jsx
 // Quản lý trung tâm Thông báo & Cảnh báo IoT thời gian thực toàn hệ thống FarmShift
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { INITIAL_FARMSHIFT_DATA } from '../data/farmshiftMockData';
 import { SYSTEM_MESSAGES, getSystemMessage } from '../constants/systemMessages';
 import {
@@ -180,6 +180,7 @@ export const NotificationProvider = ({ children }) => {
 
   const [activeToast, setActiveToast] = useState(null);
   const [notifPrefs, setNotifPrefs] = useState(() => loadLocalNotificationPrefs());
+  const toastTimerRef = useRef(null);
 
   useEffect(() => {
     const syncPrefs = (event) => {
@@ -190,11 +191,24 @@ export const NotificationProvider = ({ children }) => {
         setNotifPrefs(loadLocalNotificationPrefs());
       }
     };
+    const syncAuthAlerts = () => {
+      try {
+        const saved = localStorage.getItem('farmshift_alerts');
+        if (!saved) {
+          setAlerts([]);
+          setUnreadCount(0);
+        }
+      } catch { /* ignore */ }
+      setNotifPrefs(loadLocalNotificationPrefs());
+    };
     window.addEventListener(NOTIFICATION_PREFS_EVENT, syncPrefs);
     window.addEventListener('storage', syncPrefs);
+    window.addEventListener('farmshift:auth-changed', syncAuthAlerts);
     return () => {
       window.removeEventListener(NOTIFICATION_PREFS_EVENT, syncPrefs);
       window.removeEventListener('storage', syncPrefs);
+      window.removeEventListener('farmshift:auth-changed', syncAuthAlerts);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
 
@@ -236,13 +250,14 @@ export const NotificationProvider = ({ children }) => {
     };
 
     if (inAppEnabled) {
-      setAlerts(prev => [newAlert, ...prev]);
+      setAlerts(prev => [newAlert, ...prev.slice(0, 49)]);
       setUnreadCount(prev => prev + 1);
 
       // Kích hoạt banner toast nổi ở góc phải màn hình
       setActiveToast(newAlert);
-      setTimeout(() => {
-        setActiveToast(null);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => {
+        setActiveToast(prev => prev?.id === newAlert.id ? null : prev);
       }, 4500);
     }
 
@@ -345,7 +360,8 @@ export const NotificationProvider = ({ children }) => {
     // Hiển thị toast popup nổi ở góc phải màn hình khi inAppEnabled được bật
     if (inAppEnabled) {
       setActiveToast(toastObj);
-      setTimeout(() => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => {
         setActiveToast(prev => prev?.id === toastObj.id ? null : prev);
       }, 4500);
     }

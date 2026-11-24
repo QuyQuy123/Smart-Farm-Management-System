@@ -123,5 +123,10 @@ async def extract_weight_slip(file: UploadFile = File(...)):
             )
         mime = detect_document_mime(content, file.content_type, allow_pdf=True)
         return await extract_weight_slip_service(content, mime)
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error("Error extracting weight slip: %s", type(error).__name__, exc_info=True)
+        raise HTTPException(status_code=500, detail="Lỗi hệ thống khi bóc tách phiếu cân.")
     finally:
         await file.close()

@@ -11,8 +11,11 @@ import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.*;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -41,11 +44,17 @@ public class FlockService {
     private final PurchaseService purchaseService;
     private final WebPushService webPushService;
 
+    @Autowired(required = false)
+    private BarnRepository barnRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /** Nhập đàn con giống vào lứa đang nuôi. */
     @Transactional
     public FlockResponse importFlock(Long cycleId, FlockImportRequest request, String user) {
         FarmingCycle cycle = cycleService.requireActive(cycleId);
-        Barn barn = cycle.getBarn();
+        Barn barn = lockBarn(cycle.getBarn());
         LocalDate date = request.importDate();
         checkDate(cycle, date, "Ngày nhập đàn");
         checkImportWindow(cycle, date);
@@ -86,13 +95,25 @@ public class FlockService {
      */
     @Transactional
     public FlockResponse transfer(Long flockId, FlockTransferRequest request, String user) {
-        Flock source = requireActive(flockId);
-        FarmingCycle sourceCycle = source.getCycle();
-        Barn sourceBarn = sourceCycle.getBarn();
-        Barn target = barnService.find(request.targetBarnId());
-        if (target.getId().equals(sourceBarn.getId())) {
+        Flock unlockedSource = requireActive(flockId);
+        FarmingCycle sourceCycle = unlockedSource.getCycle();
+        Barn sourceBarnUnlocked = sourceCycle.getBarn();
+        Barn targetUnlocked = barnService.find(request.targetBarnId());
+        if (targetUnlocked.getId().equals(sourceBarnUnlocked.getId())) {
             throw new BadRequestException("Hãy chọn chuồng đích khác chuồng đang nuôi đàn.", "TRANSFER_SAME_BARN");
         }
+        // Acquire barn locks in deterministic ID order to avoid deadlocks across concurrent transfers.
+        Barn sourceBarn;
+        Barn target;
+        if (sourceBarnUnlocked.getId() < targetUnlocked.getId()) {
+            sourceBarn = lockBarn(sourceBarnUnlocked);
+            target = lockBarn(targetUnlocked);
+        } else {
+            target = lockBarn(targetUnlocked);
+            sourceBarn = lockBarn(sourceBarnUnlocked);
+        }
+        Flock source = requireActiveForUpdate(flockId);
+        sourceCycle = source.getCycle();
         java.util.Optional<FarmingCycle> runningCycle = cycleRepository.findFirstByBarnIdAndStatus(target.getId(), CycleStatus.ACTIVE);
         int quantity = request.quantity();
         checkStock(source, quantity);
@@ -101,7 +122,8 @@ public class FlockService {
         checkDate(sourceCycle, date, "Ngày chuyển đàn");
         runningCycle.ifPresent(cycle -> checkDate(cycle, date, "Ngày chuyển đàn"));
         checkNotBeforeImport(source, date);
-        FarmingCycle targetCycle = runningCycle.orElseGet(() -> cycleService.openForTransfer(target, date, sourceCycle));
+        final FarmingCycle effectiveSourceCycle = sourceCycle;
+        FarmingCycle targetCycle = runningCycle.orElseGet(() -> cycleService.openForTransfer(target, date, effectiveSourceCycle));
         cycleService.carryWithFlock(sourceCycle, targetCycle, quantity);
         // Lứa mới mở cho đàn tách sang: mang theo lịch sử cân để cân nặng và biểu đồ tăng trọng giống đàn gốc.
         if (runningCycle.isEmpty()) copyWeightHistory(sourceCycle, targetCycle, date, request.avgWeight(), user);
@@ -186,16 +208,29 @@ public class FlockService {
         if (request.type() != FlockMovementType.DEATH && request.type() != FlockMovementType.CULL) {
             throw new BadRequestException("Chỉ ghi nhận hao hụt (chết) hoặc loại thải.", "FLOCK_LOSS_TYPE");
         }
-        Flock flock = requireActive(flockId);
+        Flock flock = requireActiveForUpdate(flockId);
+        Barn barn = lockBarn(flock.getCycle().getBarn());
         checkStock(flock, request.quantity());
         checkDate(flock.getCycle(), request.movementDate(), "Ngày ghi nhận");
         checkNotBeforeImport(flock, request.movementDate());
         FlockMovement movement = record(flock, request.type(), request.movementDate(), request.quantity(), request.weightKg(), null, null,
                 clean(request.note()), user);
         if (request.photoUrls() != null && !request.photoUrls().isEmpty()) {
-            movement.setPhotoUrls(String.join("\n", request.photoUrls().stream().map(String::trim).toList()));
+            List<String> safeUrls = request.photoUrls().stream()
+                    .filter(java.util.Objects::nonNull)
+                    .map(String::trim)
+                    .filter(url -> !url.isBlank())
+                    .peek(url -> {
+                        if (!(url.startsWith("/img/") || url.startsWith("https://") || url.startsWith("http://"))) {
+                            throw new BadRequestException("Đường dẫn ảnh hao hụt không hợp lệ.");
+                        }
+                    })
+                    .toList();
+            if (!safeUrls.isEmpty()) {
+                movement.setPhotoUrls(String.join("\n", safeUrls));
+            }
         }
-        decrease(flock, request.quantity());
+        decrease(flock, barn, request.quantity());
         notifyCriticalLossIfNeeded(flock, request);
         return movementResponse(movement, false);
     }
@@ -226,13 +261,14 @@ public class FlockService {
     /** Xuất bán / thu hoạch, ghi doanh thu theo khối lượng và đơn giá. */
     @Transactional
     public FlockMovementResponse harvest(Long flockId, FlockHarvestRequest request, String user) {
-        Flock flock = requireActive(flockId);
+        Flock flock = requireActiveForUpdate(flockId);
+        Barn barn = lockBarn(flock.getCycle().getBarn());
         checkStock(flock, request.quantity());
         checkDate(flock.getCycle(), request.movementDate(), "Ngày xuất bán");
         checkNotBeforeImport(flock, request.movementDate());
         FlockMovement movement = record(flock, FlockMovementType.HARVEST, request.movementDate(), request.quantity(), request.weightKg(),
                 request.unitPrice(), null, clean(request.note()), user);
-        decrease(flock, request.quantity());
+        decrease(flock, barn, request.quantity());
         return movementResponse(movement, true);
     }
 
@@ -280,6 +316,31 @@ public class FlockService {
         return flock;
     }
 
+    private Flock requireActiveForUpdate(Long flockId) {
+        Flock flock = repository.findByIdForUpdate(flockId)
+                .or(() -> repository.findById(flockId))
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đàn."));
+        if (entityManager != null && entityManager.contains(flock)) {
+            entityManager.refresh(flock);
+        }
+        cycleService.requireActive(flock.getCycle().getId());
+        if (flock.getStatus() != FlockStatus.ACTIVE) {
+            throw new BadRequestException("Đàn " + flockCode(flock) + " đã hết tồn và được lưu trữ.", "FLOCK_ARCHIVED");
+        }
+        return flock;
+    }
+
+    private Barn lockBarn(Barn barn) {
+        if (barn == null || barn.getId() == null || barnRepository == null) {
+            return barn;
+        }
+        Barn locked = barnRepository.findByIdForUpdate(barn.getId()).orElse(barn);
+        if (entityManager != null && entityManager.contains(locked)) {
+            entityManager.refresh(locked);
+        }
+        return locked;
+    }
+
     /** Sao các lần cân đến ngày chuyển sang lứa mới; có nhập cân lúc chuyển thì thêm một lần cân đúng ngày đó. */
     private void copyWeightHistory(FarmingCycle from, FarmingCycle to, LocalDate date, BigDecimal weighedAtMove, String user) {
         weightRepository.findAllByCycleIdOrderBySampleDateDescIdDesc(from.getId()).stream().filter(sample -> !sample.getSampleDate().isAfter(date)).forEach(sample -> {
@@ -311,9 +372,12 @@ public class FlockService {
     }
 
     private void decrease(Flock flock, int quantity) {
+        decrease(flock, flock.getCycle().getBarn(), quantity);
+    }
+
+    private void decrease(Flock flock, Barn barn, int quantity) {
         flock.setQuantity(flock.getQuantity() - quantity);
         if (flock.getQuantity() == 0) flock.setStatus(FlockStatus.ARCHIVED);
-        Barn barn = flock.getCycle().getBarn();
         barn.setCurrentQuantity(barn.getCurrentQuantity() - quantity);
     }
 

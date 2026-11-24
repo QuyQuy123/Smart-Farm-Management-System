@@ -12,11 +12,13 @@ import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.AccountRepository;
 import com.farmshift.backendFarmShift.repository.OtpTokenRepository;
+import com.farmshift.backendFarmShift.security.AccountAuthStateService;
 import com.farmshift.backendFarmShift.security.JwtProvider;
 import com.farmshift.backendFarmShift.service.CycleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.farmshift.backendFarmShift.service.EmailService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -24,8 +26,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Core authentication service.
@@ -57,6 +63,8 @@ import java.time.LocalDateTime;
 public class AuthServiceImpl implements AuthService {
 
     private static final int OTP_EXPIRY_MINUTES = 5;
+    private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final int MAX_ATTEMPT_BUCKETS = 5_000;
 
     private final AuthenticationManager  authenticationManager;
     private final JwtProvider            jwtProvider;
@@ -64,6 +72,10 @@ public class AuthServiceImpl implements AuthService {
     private final OtpTokenRepository     otpTokenRepository;
     private final PasswordEncoder        passwordEncoder;
     private final EmailService           emailService;
+    private final ConcurrentHashMap<String, AtomicInteger> otpFailedAttempts = new ConcurrentHashMap<>();
+
+    @Autowired(required = false)
+    private AccountAuthStateService accountAuthStateService;
 
     // ------------------------------------------------------------------ login
 
@@ -102,9 +114,7 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * Generates and emails a 6-digit OTP for password recovery.
-     *
-     * <p>To prevent user-enumeration attacks, the method always responds successfully
-     * even if no account exists for the given email — the OTP simply won't be stored.</p>
+     * Validates that the account exists and is active before issuing an OTP.
      */
     @Transactional
     public void requestPasswordReset(ForgotPasswordRequest request) {
@@ -123,6 +133,7 @@ public class AuthServiceImpl implements AuthService {
 
         // Invalidate all existing, unused OTPs for this email
         otpTokenRepository.invalidateAllByEmail(email);
+        otpFailedAttempts.remove(email);
 
         // Generate a cryptographically-secure 6-digit OTP
         String otp = generateOtp();
@@ -144,10 +155,10 @@ public class AuthServiceImpl implements AuthService {
     // ------------------------------------------------------------------ verify OTP
 
     /**
-     * Verifies the OTP without consuming it.
+     * Verifies the OTP without consuming it (invalidating on excessive failed attempts).
      * Useful for multi-step frontend flows.
      */
-    @Transactional(readOnly = true)
+    @Transactional(noRollbackFor = BadRequestException.class)
     public void verifyOtp(com.farmshift.backendFarmShift.dto.request.VerifyOtpRequest request) {
         String email = request.getEmail().trim().toLowerCase();
 
@@ -156,7 +167,8 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BadRequestException(
                         "No valid OTP found. Please request a new one."));
 
-        if (!otpToken.getCode().equals(request.getOtp())) {
+        if (!constantTimeEquals(otpToken.getCode(), request.getOtp())) {
+            recordFailedOtpAttempt(email, otpToken);
             throw new BadRequestException("Invalid OTP code. Please try again.");
         }
 
@@ -171,10 +183,10 @@ public class AuthServiceImpl implements AuthService {
     /**
      * Verifies the OTP and updates the account password.
      *
-     * @throws BadRequestException       if the OTP is invalid or expired
+     * @throws BadRequestException       if the OTP is invalid/expired or the account is inactive
      * @throws ResourceNotFoundException if no account matches the email
      */
-    @Transactional
+    @Transactional(noRollbackFor = BadRequestException.class)
     public void resetPassword(ResetPasswordRequest request) {
         String email = request.getEmail().trim().toLowerCase();
 
@@ -184,27 +196,57 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BadRequestException(
                         "No valid OTP found. Please request a new one."));
 
-        // 2. Constant-time comparison to prevent timing attacks
-        if (!otpToken.getCode().equals(request.getOtp())) {
+        // 2. Constant-time comparison to prevent timing attacks + brute-force lockout
+        if (!constantTimeEquals(otpToken.getCode(), request.getOtp())) {
+            recordFailedOtpAttempt(email, otpToken);
             throw new BadRequestException("Invalid OTP code. Please try again.");
         }
 
-        // 3. Mark OTP as consumed before modifying the password (idempotency guard)
-        otpToken.setUsed(true);
-        otpTokenRepository.save(otpToken);
-
-        // 4. Update the account password
+        // 3. Load account and verify it is active before consuming OTP
         Account account = accountRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Account not found for email: " + email));
+        if (Boolean.FALSE.equals(account.getIsActive())) {
+            throw new BadRequestException("Tài khoản đang bị vô hiệu hóa.");
+        }
+
+        // 4. Mark OTP as consumed before modifying the password (idempotency guard)
+        otpFailedAttempts.remove(email);
+        otpToken.setUsed(true);
+        otpTokenRepository.save(otpToken);
 
         account.setPassword(passwordEncoder.encode(request.getNewPassword()));
         accountRepository.save(account);
+        if (accountAuthStateService != null) {
+            accountAuthStateService.evictAndRevokeTokensIssuedBeforeNow(email);
+        }
 
         log.info("Password successfully reset for email: {}", email);
     }
 
     // ------------------------------------------------------------------ helpers
+
+    private void recordFailedOtpAttempt(String email, OtpToken otpToken) {
+        if (otpFailedAttempts.size() >= MAX_ATTEMPT_BUCKETS) {
+            otpFailedAttempts.clear();
+        }
+        int attempts = otpFailedAttempts.computeIfAbsent(email, ignored -> new AtomicInteger()).incrementAndGet();
+        if (attempts >= MAX_OTP_ATTEMPTS) {
+            otpToken.setUsed(true);
+            otpTokenRepository.save(otpToken);
+            otpFailedAttempts.remove(email);
+        }
+    }
+
+    private static boolean constantTimeEquals(String expected, String provided) {
+        if (expected == null || provided == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                provided.getBytes(StandardCharsets.UTF_8)
+        );
+    }
 
     /** Generates a 6-digit numeric OTP using {@link SecureRandom}. */
     private String generateOtp() {

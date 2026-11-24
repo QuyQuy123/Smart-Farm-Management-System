@@ -1,0 +1,202 @@
+{
+  "version": "1.0.0",
+  "description": "Shared Vietnamese poultry & agricultural phonetic homophone dictionary for FarmShift (Java Backend + Python AI Microservice).",
+  "rules": [
+    {
+      "id": "journal_nhat_ky",
+      "category": "JOURNAL",
+      "pattern": "nhật\\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)",
+      "boundary": "LETTER",
+      "replacement": "nhật ký"
+    },
+    {
+      "id": "weight_can_mau",
+      "category": "JOURNAL",
+      "pattern": "(?:cần\\s+mẫu|cân\\s+mẩu)",
+      "boundary": "LETTER",
+      "replacement": "cân mẫu"
+    },
+    {
+      "id": "mortality_hao_hut",
+      "category": "JOURNAL",
+      "pattern": "hao\\s+hục",
+      "boundary": "LETTER",
+      "replacement": "hao hụt"
+    },
+    {
+      "id": "cull_thai_loai",
+      "category": "JOURNAL",
+      "pattern": "thải\\s+lọai",
+      "boundary": "LETTER",
+      "replacement": "thải loại"
+    },
+    {
+      "id": "feed_higro_so_1",
+      "category": "FEED",
+      "pattern": "cám\\s+số\\s+1",
+      "boundary": "ALNUM",
+      "replacement": "Higro 01"
+    },
+    {
+      "id": "feed_higro_so_2",
+      "category": "FEED",
+      "pattern": "cám\\s+số\\s+2",
+      "boundary": "ALNUM",
+      "replacement": "Higro 02"
+    },
+    {
+      "id": "feed_cp_codes",
+      "category": "FEED",
+      "pattern": "(?:xi\\s*pi|si\\s*pi|cp)\\s*(511|512)",
+      "boundary": "ALNUM",
+      "replacement": "CP {1}"
+    },
+    {
+      "id": "feed_cam_cp",
+      "category": "FEED",
+      "pattern": "cám\\s+(?:xi\\s*pi|si\\s*pi)",
+      "boundary": "LETTER",
+      "replacement": "Cám CP"
+    },
+    {
+      "id": "breed_ga_jdabaco",
+      "category": "BREED",
+      "pattern": "gà\\s+(?:di|j)\\s+(?:đa\\s+ba\\s+cô|da\\s+ba\\s+co|đabacô|dabaco)",
+      "boundary": "LETTER",
+      "replacement": "Gà J-Dabaco"
+    },
+    {
+      "id": "breed_jdabaco",
+      "category": "BREED",
+      "pattern": "(?:di|j)\\s+(?:đa\\s+ba\\s+cô|da\\s+ba\\s+co|đabacô|dabaco)",
+      "boundary": "LETTER",
+      "replacement": "J-Dabaco"
+    },
+    {
+      "id": "breed_ga_di",
+      "category": "BREED",
+      "pattern": "gà\\s+di",
+      "boundary": "LETTER",
+      "replacement": "Gà J-Dabaco"
+    },
+    {
+      "id": "breed_dabaco",
+      "category": "BREED",
+      "pattern": "(?:đa\\s+ba\\s+cô|da\\s+ba\\s+co|đabacô)",
+      "boundary": "LETTER",
+      "replacement": "Dabaco"
+    },
+    {
+      "id": "breed_ga_lac_thuy",
+      "category": "BREED",
+      "pattern": "gà\\s+(?:lạc\\s+thủy|lạt\\s+thủy|lạc\\s+thuỷ)",
+      "boundary": "LETTER",
+      "replacement": "Gà Lạc Thủy"
+    },
+    {
+      "id": "brand_cargill",
+      "category": "FEED",
+      "pattern": "(?:ca\\s+giu|ca\\s+gin|các\\s+giu|cạc\\s+giu)",
+      "boundary": "LETTER",
+      "replacement": "Cargill"
+    },
+    {
+      "id": "brand_hanvet",
+      "category": "MEDICINE",
+      "pattern": "(?:han\\s+vét|hàn\\s+vét)",
+      "boundary": "LETTER",
+      "replacement": "Hanvet"
+    },
+    {
+      "id": "vaccine_lasota",
+      "category": "VACCINE",
+      "pattern": "(?:lát\\s+sô\\s+ta|la\\s+sô\\s+ta|la\\s+xô\\s+ta|lasôta)",
+      "boundary": "LETTER",
+      "replacement": "Lasota"
+    },
+    {
+      "id": "vaccine_gumboro",
+      "category": "VACCINE",
+      "pattern": "(?:gum\\s+bô\\s+rô|găm\\s+bô\\s+rô|gum\\s+bô|găm\\s+bô)",
+      "boundary": "LETTER",
+      "replacement": "Gumboro"
+    },
+    {
+      "id": "vaccine_newcastle",
+      "category": "VACCINE",
+      "pattern": "(?:nhiu\\s+cát\\s+xơn|niu\\s+cát\\s+xơ|niu\\s+cát\\s+xơn|niu\\s+cat\\s+xon)",
+      "boundary": "LETTER",
+      "replacement": "Newcastle"
+    },
+    {
+      "id": "vaccine_marek",
+      "category": "VACCINE",
+      "pattern": "(?:ma\\s+réc|ma\\s+rét|ma\\s+rếch)",
+      "boundary": "LETTER",
+      "replacement": "Marek"
+    },
+    {
+      "id": "disease_coryza",
+      "category": "MEDICINE",
+      "pattern": "(?:cô\\s+ri\\s+da|co\\s+ri\\s+za|sưng\\s+phù\\s+mặt)",
+      "boundary": "LETTER",
+      "replacement": "Coryza"
+    },
+    {
+      "id": "medicine_gluco_kc",
+      "category": "MEDICINE",
+      "pattern": "(?:gờ\\s+lu\\s+cô\\s+ka\\s+xê|gluco\\s+k\\s+c|gluco\\s+kc)",
+      "boundary": "LETTER",
+      "replacement": "Gluco-K-C"
+    },
+    {
+      "id": "medicine_toltrazuril",
+      "category": "MEDICINE",
+      "pattern": "(?:tôn\\s+tra\\s+zu\\s+rin|ton\\s+tra\\s+zu\\s+ril|han\\s+cốc|hàn\\s+cốc)",
+      "boundary": "LETTER",
+      "replacement": "Toltrazuril"
+    },
+    {
+      "id": "medicine_bkc",
+      "category": "MEDICINE",
+      "pattern": "(?:bê\\s+ka\\s+xê|bê\\s+ca\\s+xê|bkc)\\s*(?:80\\s*%)?",
+      "boundary": "LETTER",
+      "replacement": "BKC 80%"
+    },
+    {
+      "id": "metric_fcr",
+      "category": "METRIC",
+      "pattern": "(?:ép\\s+xê\\s+rờ|ép\\s+cờ\\s+rờ|f\\s+c\\s+r|hệ\\s+số\\s+ép)",
+      "boundary": "LETTER",
+      "replacement": "FCR"
+    },
+    {
+      "id": "area_khu_j_thit",
+      "category": "AREA",
+      "pattern": "khu\\s+(?:di|gi|j)\\s+thịt",
+      "boundary": "LETTER",
+      "replacement": "Khu J Thịt"
+    },
+    {
+      "id": "area_khu_mia_thit",
+      "category": "AREA",
+      "pattern": "khu\\s+mía(?:\\s+thịt)?",
+      "boundary": "LETTER",
+      "replacement": "Khu Mía Thịt"
+    },
+    {
+      "id": "doc_nh_code",
+      "category": "DOCUMENT",
+      "pattern": "(?:n\\s*h|nh)\\s*(\\d{3,8})",
+      "boundary": "ALNUM",
+      "replacement": "NH{1}"
+    },
+    {
+      "id": "doc_xnb_code",
+      "category": "DOCUMENT",
+      "pattern": "(?:x\\s*n\\s*b|xnb)\\s*(\\d{3,8})",
+      "boundary": "ALNUM",
+      "replacement": "XNB{1}"
+    }
+  ]
+}

@@ -15,7 +15,7 @@ from PIL import Image, ImageOps
 
 from app.core.config import settings
 from app.core.http_client import get_shared_http_client
-from app.core.observability import extract_token_usage, log_ai_event
+from app.core.observability import ProviderCircuitBreaker, extract_token_usage, log_ai_event
 from app.schemas.ocr_schema import InvoiceItemSchema, InvoiceOcrResponse
 from app.services.document_loader import (
     MAX_IMAGE_DIM,
@@ -26,6 +26,9 @@ from app.services.document_loader import (
 )
 
 logger = logging.getLogger(__name__)
+openai_vision_breaker = ProviderCircuitBreaker(
+    "openai_invoice_vision", failure_threshold=5, reset_timeout_sec=30.0
+)
 
 INVOICE_VISION_PROMPT = (
     "Bạn là chuyên gia OCR hóa đơn chứng từ trang trại chăn nuôi Việt Nam "
@@ -303,6 +306,11 @@ class OcrService:
         self, images: List[Tuple[bytes, str]]
     ) -> InvoiceOcrResponse:
         """Gọi OpenAI Vision API để bóc tách hóa đơn tiếng Việt từ 1..4 trang ảnh."""
+        if not openai_vision_breaker.allow_request():
+            raise HTTPException(
+                status_code=503,
+                detail="Dịch vụ AI OCR đang tạm ngưng để phục hồi sau sự cố kết nối. Vui lòng thử lại sau giây lát.",
+            )
         started_at = time.perf_counter()
         parts: list[dict[str, Any]] = [{"type": "text", "text": INVOICE_VISION_PROMPT}]
         for img_bytes, image_mime in images:
@@ -351,6 +359,7 @@ class OcrService:
             )
 
             if parsed.get("isInvoice") is not True:
+                openai_vision_breaker.record_success()
                 if not warnings:
                     warnings = [
                         "Không nhận diện được hóa đơn mua hàng trong tệp đã tải lên."
@@ -427,6 +436,7 @@ class OcrService:
                 **usage,
             )
 
+            openai_vision_breaker.record_success()
             return InvoiceOcrResponse(
                 isInvoice=True,
                 supplierName=str(parsed.get("supplierName") or "").strip() or None,
@@ -448,6 +458,8 @@ class OcrService:
             raise
         except httpx.HTTPStatusError as error:
             code = error.response.status_code
+            if code in (401, 403, 429) or code >= 500:
+                openai_vision_breaker.record_failure()
             logger.warning("Invoice OCR provider returned HTTP %s", code)
             if code in (401, 403):
                 raise HTTPException(
@@ -464,11 +476,13 @@ class OcrService:
                 detail=f"Dịch vụ OpenAI phản hồi lỗi HTTP {code}. Vui lòng thử lại.",
             )
         except httpx.TimeoutException:
+            openai_vision_breaker.record_failure()
             raise HTTPException(
                 status_code=504,
                 detail="OpenAI xử lý hóa đơn quá thời gian chờ. Vui lòng thử lại với ảnh rõ hơn.",
             )
         except Exception as error:
+            openai_vision_breaker.record_failure()
             logger.warning("Invoice OCR failed: %s", type(error).__name__)
             raise HTTPException(
                 status_code=502,

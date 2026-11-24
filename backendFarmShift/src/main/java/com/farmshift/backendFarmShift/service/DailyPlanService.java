@@ -464,65 +464,7 @@ public class DailyPlanService {
     private Plan computeWithPreloaded(FarmingCycle cycle, LocalDate day,
                                       List<Flock> flocks, List<FlockMovement> movements,
                                       Map<Long, FarmingProgram> programsById) {
-        List<String> warnings = new ArrayList<>();
-        List<FlockDay> present = new ArrayList<>();
-        for (Flock flock : flocks) {
-            if (flock.getImportDate().isAfter(day)) continue;
-            int heads = headsAtEndOf(flock, day, movements);
-            if (heads <= 0) continue;
-            present.add(new FlockDay(flock, ageOn(flock, day), heads));
-            if (flock.getProgram() == null) {
-                warnings.add("Đàn " + flockCode(flock) + " chưa gắn chương trình nuôi nên chưa có việc.");
-            }
-        }
-
-        Map<String, Planned> groups = new LinkedHashMap<>();
-        for (FlockDay flockDay : present) {
-            FarmingProgram rawProgram = flockDay.flock().getProgram();
-            FarmingProgram program = rawProgram != null && programsById != null
-                    ? programsById.getOrDefault(rawProgram.getId(), rawProgram)
-                    : rawProgram;
-            if (program == null) continue;
-            List<FarmingProgramStep> steps = program.getSteps().stream()
-                    .filter(step -> step.getCategory() != ProgramStepCategory.WORK)
-                    .filter(step -> flockDay.age() >= step.getDayFrom() && flockDay.age() <= step.getDayTo()).toList();
-            BigDecimal feedKg = steps.stream().filter(step -> step.getCategory() == ProgramStepCategory.FEED && step.getQuantity() != null)
-                    .map(step -> grams(step.getQuantity(), flockDay.heads()).divide(BigDecimal.valueOf(1000), 3, RoundingMode.HALF_UP))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            for (FarmingProgramStep step : steps) {
-                String groupKey = step.getCategory().name() + ":" + identity(step);
-                Planned group = groups.computeIfAbsent(groupKey, key -> newGroup(key, step, cycle, null, false, null, null));
-                if (step.getMealsPerDay() != null) group.meals = Math.max(group.meals == null ? 1 : group.meals, step.getMealsPerDay());
-                if (step.getQuantity() != null) group.doses.add(step.getQuantity().stripTrailingZeros());
-                BigDecimal share = share(step, flockDay, feedKg);
-                if (share == null) group.unknown = true;
-                group.shares.merge(flockDay.flock().getId(), share == null ? BigDecimal.ZERO : share, BigDecimal::add);
-            }
-        }
-
-        List<Planned> tasks = new ArrayList<>();
-        for (Planned group : groups.values()) {
-            if (group.category == ProgramStepCategory.FEED) {
-                int meals = group.meals == null ? 1 : group.meals;
-                BigDecimal perMeal = group.unknown ? null : group.shares.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add)
-                        .divide(BigDecimal.valueOf(meals), 3, RoundingMode.HALF_UP);
-                for (int meal = 1; meal <= meals; meal++) {
-                    Planned task = copy(group);
-                    task.key = group.groupKey + ":M" + meal;
-                    task.meal = meal;
-                    task.meals = meals;
-                    group.shares.forEach((flockId, value) -> task.shares.put(flockId, value.divide(BigDecimal.valueOf(meals), 3, RoundingMode.HALF_UP)));
-                    task.total = perMeal;
-                    tasks.add(task);
-                }
-            } else {
-                Planned task = copy(group);
-                task.key = group.groupKey;
-                    group.shares.forEach(task.shares::put);
-                    tasks.add(task);
-            }
-        }
-        return new Plan(present, tasks, warnings);
+        return computeWithData(cycle, day, null, false, null, null, flocks, movements, programsById);
     }
 
     private Plan compute(FarmingCycle cycle, LocalDate day, String workerEmail) {
@@ -574,17 +516,19 @@ public class DailyPlanService {
 
         List<Planned> tasks = new ArrayList<>();
         for (Planned group : groups.values()) {
-            boolean measured = group.category == ProgramStepCategory.FEED || group.category == ProgramStepCategory.MEDICINE
-                    || group.category == ProgramStepCategory.VACCINE;
-            if (measured && (group.unknown || group.unit == null)) {
-                group.unknown = true;
-                warnings.add(label(group.category) + " \"" + group.name + "\": chưa tính được lượng vì thiếu liều, đơn vị liều chưa rõ hoặc không có cám để trộn.");
-            } else if (measured && group.item == null && group.itemWithoutContent != null) {
-                warnings.add("Hàng hóa " + group.itemWithoutContent + " chưa có quy cách đơn vị (ví dụ Bao 25kg = 25 kg) nên chưa trừ kho và chưa tính tiền.");
-            } else if (measured && group.sources.size() > 1) {
-                warnings.add(label(group.category) + " \"" + group.name + "\": có nhiều nguồn phù hợp. Chọn kho nguồn khi xác nhận.");
-            } else if (measured && group.item == null) {
-                warnings.add(label(group.category) + " \"" + group.name + "\" chưa xác định được hàng hóa có quy cách phù hợp trong kho cám/thuốc của khu nuôi nên chưa trừ kho và chưa tính tiền.");
+            if (resolveStock) {
+                boolean measured = group.category == ProgramStepCategory.FEED || group.category == ProgramStepCategory.MEDICINE
+                        || group.category == ProgramStepCategory.VACCINE;
+                if (measured && (group.unknown || group.unit == null)) {
+                    group.unknown = true;
+                    warnings.add(label(group.category) + " \"" + group.name + "\": chưa tính được lượng vì thiếu liều, đơn vị liều chưa rõ hoặc không có cám để trộn.");
+                } else if (measured && group.item == null && group.itemWithoutContent != null) {
+                    warnings.add("Hàng hóa " + group.itemWithoutContent + " chưa có quy cách đơn vị (ví dụ Bao 25kg = 25 kg) nên chưa trừ kho và chưa tính tiền.");
+                } else if (measured && group.sources.size() > 1) {
+                    warnings.add(label(group.category) + " \"" + group.name + "\": có nhiều nguồn phù hợp. Chọn kho nguồn khi xác nhận.");
+                } else if (measured && group.item == null) {
+                    warnings.add(label(group.category) + " \"" + group.name + "\" chưa xác định được hàng hóa có quy cách phù hợp trong kho cám/thuốc của khu nuôi nên chưa trừ kho và chưa tính tiền.");
+                }
             }
             if (group.category == ProgramStepCategory.FEED) {
                 int meals = group.meals == null ? 1 : group.meals;
@@ -607,15 +551,17 @@ public class DailyPlanService {
                 tasks.add(task);
             }
         }
-        for (Planned task : tasks) {
-            boolean measured = task.category == ProgramStepCategory.FEED || task.category == ProgramStepCategory.MEDICINE
-                    || task.category == ProgramStepCategory.VACCINE;
-            if (task.category == ProgramStepCategory.FEED && task.unit != null) continue;
-            task.total = !measured || task.unknown || task.unit == null ? null
-                    : task.shares.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add).setScale(3, RoundingMode.HALF_UP);
+        if (resolveStock) {
+            for (Planned task : tasks) {
+                boolean measured = task.category == ProgramStepCategory.FEED || task.category == ProgramStepCategory.MEDICINE
+                        || task.category == ProgramStepCategory.VACCINE;
+                if (task.category == ProgramStepCategory.FEED && task.unit != null) continue;
+                task.total = !measured || task.unknown || task.unit == null ? null
+                        : task.shares.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add).setScale(3, RoundingMode.HALF_UP);
+            }
+            tasks.sort(Comparator.comparing((Planned task) -> ORDER.indexOf(task.category))
+                    .thenComparing(task -> task.meal == null ? 0 : task.meal).thenComparing(task -> task.name));
         }
-        tasks.sort(Comparator.comparing((Planned task) -> ORDER.indexOf(task.category))
-                .thenComparing(task -> task.meal == null ? 0 : task.meal).thenComparing(task -> task.name));
         return new Plan(present, tasks, warnings);
     }
 

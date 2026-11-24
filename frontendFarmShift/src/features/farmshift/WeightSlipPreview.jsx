@@ -44,12 +44,22 @@ export function WeightSlipPreview({ file, imageUrl }) {
   const zoomOut = () => update({ ...current.current, scale: Math.max(0.3, Number((current.current.scale / 1.3).toFixed(2))) });
   const resetZoom = () => update(initial);
 
+  const isSafePreviewUrl = (raw) => {
+    if (typeof raw !== 'string') return false;
+    const trimmed = raw.trim();
+    return (trimmed.startsWith('/') && !trimmed.startsWith('//'))
+      || trimmed.startsWith('https://')
+      || trimmed.startsWith('http://')
+      || trimmed.startsWith('blob:');
+  };
+
   const viewOriginal = () => {
     if (file) {
       const url = URL.createObjectURL(file);
-      window.open(url, '_blank');
-    } else if (imageUrl) {
-      window.open(imageUrl, '_blank');
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } else if (isSafePreviewUrl(imageUrl)) {
+      window.open(imageUrl, '_blank', 'noopener,noreferrer');
     }
   };
 

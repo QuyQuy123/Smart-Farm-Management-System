@@ -28,6 +28,7 @@ public class FarmArea {
     @Column(length = 1000)
     private String description;
     @ManyToMany
+    @org.hibernate.annotations.BatchSize(size = 50)
     @JoinTable(name = "farm_area_workers", joinColumns = @JoinColumn(name = "area_id"),
             inverseJoinColumns = @JoinColumn(name = "account_id"),
             uniqueConstraints = @UniqueConstraint(name = "uk_farm_area_workers", columnNames = {"area_id", "account_id"}))

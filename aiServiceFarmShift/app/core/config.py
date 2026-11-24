@@ -1,11 +1,21 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
+from typing import Any, List
 import os
 
 class Settings(BaseSettings):
     APP_NAME: str = "FarmShift AI Service"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def _parse_debug(cls, value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on", "debug"}
+        return bool(value)
     PORT: int = 8000
     HOST: str = "0.0.0.0"
 

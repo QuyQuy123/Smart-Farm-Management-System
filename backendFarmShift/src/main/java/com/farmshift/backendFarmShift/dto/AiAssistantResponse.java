@@ -29,4 +29,6 @@ public class AiAssistantResponse {
     private List<Map<String, Object>> clarificationOptions;
     /** Ngữ cảnh ngắn hạn để client gửi lại ở lượt sau (câu kiểu "à nhầm, sửa lại thành 65kg"). */
     private Map<String, Object> actionContext;
+    /** Mã lượt tương tác được lưu trong Data Flywheel (ai_interaction_logs) để người dùng đánh giá phản hồi. */
+    private Long interactionId;
 }

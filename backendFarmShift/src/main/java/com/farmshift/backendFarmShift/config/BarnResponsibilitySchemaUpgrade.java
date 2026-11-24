@@ -3,11 +3,14 @@ package com.farmshift.backendFarmShift.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /** Additive, repeatable upgrade for installations with Hibernate DDL disabled. */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class BarnResponsibilitySchemaUpgrade implements ApplicationRunner {
     private final JdbcTemplate jdbc;

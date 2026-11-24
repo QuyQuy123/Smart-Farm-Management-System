@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -403,10 +405,24 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
         int totalLoss = 0;
         LocalDate today = LocalDate.now(CycleService.VN_ZONE);
 
+        // Pre-validate all barn loss clauses before any write so partial mortality is never committed.
+        for (BarnLossClause lc : lossClauses) {
+            if (lc.qty > lc.barn.getCurrentQuantity()) {
+                if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                    TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                }
+                return validationErrorResponse("⚠️ Số lượng hao hụt (**" + lc.qty + " con**) vượt quá số gà hiện nuôi tại **"
+                        + lc.barn.getName() + "** (" + lc.barn.getCurrentQuantity() + " con, MSG25).");
+            }
+        }
+
         for (BarnLossClause lc : lossClauses) {
             Barn barn = lc.barn;
             int qty = lc.qty;
             if (qty > barn.getCurrentQuantity()) {
+                if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                    TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                }
                 return validationErrorResponse("⚠️ Số lượng hao hụt (**" + qty + " con**) vượt quá số gà hiện nuôi tại **"
                         + barn.getName() + "** (" + barn.getCurrentQuantity() + " con, MSG25).");
             }
@@ -446,6 +462,9 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
         }
 
         if (summaryList.isEmpty()) {
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            }
             return validationErrorResponse("⚠️ Không có chuồng nào đang có đàn/lứa nuôi hoạt động (`ACTIVE`) để ghi nhận hao hụt.");
         }
 
@@ -795,7 +814,7 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
         BigDecimal totalKg = BigDecimal.ZERO;
         for (InventoryItem item : scoped) {
             BigDecimal stock = item.getStock() != null ? item.getStock() : BigDecimal.ZERO;
-            BigDecimal factor = BigDecimal.valueOf(kgFactor(item));
+            BigDecimal factor = kgFactor(item);
             totalKg = totalKg.add(stock.multiply(factor));
         }
         return totalKg.doubleValue();
@@ -816,7 +835,7 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
         BigDecimal remainingKg = BigDecimal.valueOf(kg);
         BigDecimal totalAvailableKg = BigDecimal.ZERO;
         for (InventoryItem lot : matching) {
-            totalAvailableKg = totalAvailableKg.add(lot.getStock().multiply(BigDecimal.valueOf(kgFactor(lot))));
+            totalAvailableKg = totalAvailableKg.add(lot.getStock().multiply(kgFactor(lot)));
         }
         if (totalAvailableKg.add(new BigDecimal("0.01")).compareTo(remainingKg) < 0) {
             throw new BadRequestException("Tồn kho khả dụng không đủ cho " + feedName + " (MSG27).", "STOCK_NOT_ENOUGH");
@@ -828,14 +847,14 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
 
         for (InventoryItem lot : matching) {
             if (remainingKg.signum() <= 0) break;
-            double factor = kgFactor(lot);
-            BigDecimal lotStockKg = lot.getStock().multiply(BigDecimal.valueOf(factor));
+            BigDecimal factor = kgFactor(lot);
+            BigDecimal lotStockKg = lot.getStock().multiply(factor);
             if (lotStockKg.signum() <= 0) continue;
 
             BigDecimal takeKg = lotStockKg.min(remainingKg);
-            BigDecimal takeUnits = factor == 1.0
+            BigDecimal takeUnits = factor.compareTo(BigDecimal.ONE) == 0
                     ? takeKg.setScale(6, RoundingMode.HALF_UP)
-                    : takeKg.divide(BigDecimal.valueOf(factor), 6, RoundingMode.HALF_UP);
+                    : takeKg.divide(factor, 6, RoundingMode.HALF_UP);
 
             if (takeUnits.signum() <= 0) continue;
             if (inventoryRepository.takeStock(lot.getId(), takeUnits) != 1) {
@@ -865,19 +884,19 @@ public class CompoundJournalCommandHandler implements AssistantCommandHandler {
         return BigDecimal.valueOf(13500.00);
     }
 
-    private static double kgFactor(InventoryItem item) {
-        if (item.getUnit() == null) return 1.0;
+    private static BigDecimal kgFactor(InventoryItem item) {
+        if (item.getUnit() == null) return BigDecimal.ONE;
         if (item.getUnit().getContentQuantity() != null
                 && item.getUnit().getContentQuantity().signum() > 0) {
             if (item.getUnit().getContentUnit() == UsageUnit.KG) {
-                return item.getUnit().getContentQuantity().doubleValue();
+                return item.getUnit().getContentQuantity();
             }
             if (item.getUnit().getContentUnit() == UsageUnit.G) {
-                return item.getUnit().getContentQuantity().doubleValue() / 1000.0;
+                return item.getUnit().getContentQuantity().divide(BigDecimal.valueOf(1000), 6, RoundingMode.HALF_UP);
             }
         }
         String unitName = item.getUnit().getName() != null ? item.getUnit().getName().toLowerCase(Locale.ROOT) : "";
-        return unitName.contains("bao") ? 25.0 : 1.0;
+        return unitName.contains("bao") ? new BigDecimal("25") : BigDecimal.ONE;
     }
 
     private record BarnFeedClause(Barn barn, String feedName, double kg) {}

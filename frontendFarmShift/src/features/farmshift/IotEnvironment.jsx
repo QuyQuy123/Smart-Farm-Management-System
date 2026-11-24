@@ -36,7 +36,7 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
     return () => clearInterval(timer);
   }, [live]);
   const duration = live ? 60_000 : (range === 'day' ? 1 : 7) * 86400000;
-  const end = live ? Math.max(clock, liveHistory.at(-1)?.time ?? clock) : Date.now();
+  const end = live ? Math.max(clock, liveHistory.at(-1)?.time ?? clock) : clock;
   const start = end - duration;
   const recent = (live ? liveHistory : history).filter(point => point.time >= start && point.time <= end);
   const isAverage = display === 'average';
@@ -65,8 +65,8 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
       <header className={styles.chartHeading}><div><h4><TrendingUp size={18} />Diễn biến nhiệt độ</h4><p>Số đo từ thiết bị phần cứng được lưu trên trình duyệt này</p></div>
         <div className={styles.chartRanges} role="group" aria-label="Khoảng thời gian biểu đồ">
           <button type="button" aria-pressed={live} onClick={() => { setClock(Date.now()); setRange('live'); setSelected(null); }}>Trực tiếp</button>
-          <button type="button" aria-pressed={range === 'day'} onClick={() => { setRange('day'); setSelected(null); }}>24 giờ</button>
-          <button type="button" aria-pressed={range === 'week'} onClick={() => { setRange('week'); setSelected(null); }}>7 ngày</button>
+          <button type="button" aria-pressed={range === 'day'} onClick={() => { setClock(Date.now()); setRange('day'); setSelected(null); }}>24 giờ</button>
+          <button type="button" aria-pressed={range === 'week'} onClick={() => { setClock(Date.now()); setRange('week'); setSelected(null); }}>7 ngày</button>
         </div></header>
       <div className={styles.chartRanges} role="group" aria-label="Dữ liệu biểu đồ nhiệt độ">
         <button type="button" aria-pressed={!isAverage} onClick={() => { setDisplay('sensors'); setSelected(null); }}>Từng cảm biến</button>

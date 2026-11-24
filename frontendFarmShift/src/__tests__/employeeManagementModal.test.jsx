@@ -26,6 +26,7 @@ describe('Employee Creation & Auto-suggestion logic', () => {
   });
 
   it('auto-suggests email on name change, allows manual edit, and supports "↻ Đề xuất lại"', async () => {
+    sessionStorage.setItem('demo_mode', 'true');
     vi.spyOn(employeeService, 'getEmployees').mockResolvedValue([
       { id: 1, email: 'admin@smartfarm.com', fullName: 'Admin', role: 'ROLE_FARM_OWNER', isActive: true }
     ]);

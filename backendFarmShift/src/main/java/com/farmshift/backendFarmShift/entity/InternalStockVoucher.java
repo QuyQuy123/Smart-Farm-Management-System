@@ -73,5 +73,6 @@ public class InternalStockVoucher {
 
     @ToString.Exclude
     @OneToMany(mappedBy = "voucher", cascade = CascadeType.ALL, orphanRemoval = true)
+    @org.hibernate.annotations.BatchSize(size = 100)
     private List<InternalStockVoucherItem> items = new ArrayList<>();
 }

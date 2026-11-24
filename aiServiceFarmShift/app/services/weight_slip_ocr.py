@@ -15,10 +15,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config import settings
 from app.core.http_client import get_shared_http_client
-from app.core.observability import extract_token_usage, log_ai_event
+from app.core.observability import ProviderCircuitBreaker, extract_token_usage, log_ai_event
 from app.services.document_loader import render_document_to_jpeg_images
 
 logger = logging.getLogger(__name__)
+openai_weight_breaker = ProviderCircuitBreaker(
+    "openai_weight_vision", failure_threshold=5, reset_timeout_sec=30.0
+)
 
 _VN_WRITTEN_DATE_RE = re.compile(
     r"ng[aà]y\s+(\d{1,2})\s+th[aá]ng\s+(\d{1,2})\s+n[aă]m\s+(\d{4})",
@@ -273,6 +276,11 @@ async def _post_openai(payload: dict) -> httpx.Response:
 async def extract_weight_slip(content: bytes, mime: str):
     if not settings.OPENAI_API_KEY.strip():
         raise HTTPException(503, "Chưa cấu hình OpenAI cho dịch vụ OCR.")
+    if not openai_weight_breaker.allow_request():
+        raise HTTPException(
+            503,
+            "Dịch vụ AI OCR phiếu cân đang tạm ngưng để phục hồi sau sự cố kết nối. Vui lòng thử lại sau giây lát.",
+        )
 
     started_at = time.perf_counter()
     images, _ = await asyncio.to_thread(
@@ -297,6 +305,7 @@ async def extract_weight_slip(content: bytes, mime: str):
             {
                 "model": settings.OPENAI_MODEL,
                 "temperature": 0.0,
+                "max_tokens": 2500,
                 "messages": [{"role": "user", "content": parts}],
                 "response_format": {"type": "json_object"},
             }
@@ -305,6 +314,7 @@ async def extract_weight_slip(content: bytes, mime: str):
         body = response.json()
         choices = body.get("choices") or []
         if not choices:
+            openai_weight_breaker.record_failure()
             raise HTTPException(
                 502, "Không đọc được kết quả bóc tách từ AI. Vui lòng thử lại."
             )
@@ -319,6 +329,7 @@ async def extract_weight_slip(content: bytes, mime: str):
 
         doc_kind = str(result.get("documentKind") or "").strip().upper()
         if doc_kind == "PURCHASE_DOCUMENT":
+            openai_weight_breaker.record_success()
             raise HTTPException(
                 400,
                 "Chứng từ này là hóa đơn/phiếu nhập hàng, không phải chứng từ bán hàng. Vui lòng quét ở mục Hóa đơn nhập hàng.",
@@ -329,13 +340,18 @@ async def extract_weight_slip(content: bytes, mime: str):
             raw_sales_flag = result.get("isWeightSlip")
 
         if raw_sales_flag is not True:
+            openai_weight_breaker.record_success()
             raise HTTPException(
                 400,
                 "Không nhận diện được phiếu cân hoặc hóa đơn bán hàng. Vui lòng chọn đúng chứng từ bán hàng.",
             )
 
         result["isWeightSlip"] = True
+        if not isinstance(result.get("warnings"), list):
+            result["warnings"] = []
+        _sanitize_negative_weight_slip_numbers(result)
         draft = WeightSlipDraft.model_validate(result)
+        openai_weight_breaker.record_success()
 
         if (
             draft.documentKind == "SALES_INVOICE"
@@ -434,6 +450,8 @@ async def extract_weight_slip(content: bytes, mime: str):
         raise
     except httpx.HTTPStatusError as error:
         code = error.response.status_code
+        if code in (401, 403, 429) or code >= 500:
+            openai_weight_breaker.record_failure()
         logger.warning("Weight slip OCR provider returned HTTP %s", code)
         if code in (401, 403):
             raise HTTPException(
@@ -450,13 +468,38 @@ async def extract_weight_slip(content: bytes, mime: str):
             f"Dịch vụ OpenAI phản hồi lỗi HTTP {code}. Vui lòng thử lại.",
         )
     except httpx.TimeoutException:
+        openai_weight_breaker.record_failure()
         raise HTTPException(
             504,
             "OpenAI xử lý quá thời gian chờ. Vui lòng thử lại với ảnh rõ hơn.",
         )
     except Exception as error:
+        openai_weight_breaker.record_failure()
         logger.warning("Weight slip OCR failed: %s", type(error).__name__)
         raise HTTPException(
             502,
             "Không đọc được kết quả bóc tách từ AI. Vui lòng thử lại.",
         )
+
+
+def _sanitize_negative_weight_slip_numbers(result: dict) -> None:
+    had_negative = False
+    for key in ("quantity", "totalWeight", "unitPrice", "totalAmount", "paidAmount"):
+        as_int = key == "quantity"
+        parsed = _parse_vn_number(result.get(key), as_int=as_int, single_dot3_as_thousands=(key != "totalWeight"))
+        if isinstance(parsed, (int, float)) and parsed < 0:
+            result[key] = None
+            had_negative = True
+    weighings = result.get("weighings")
+    if isinstance(weighings, list):
+        for row in weighings:
+            if not isinstance(row, dict):
+                continue
+            for key in ("quantity", "cages", "grossWeight", "tareWeight", "netWeight"):
+                as_int = key in ("quantity", "cages")
+                parsed = _parse_vn_number(row.get(key), as_int=as_int, single_dot3_as_thousands=as_int)
+                if isinstance(parsed, (int, float)) and parsed < 0:
+                    row[key] = None
+                    had_negative = True
+    if had_negative:
+        result["warnings"].append("Một số giá trị âm bất thường trên phiếu cân đã được đặt lại để bạn kiểm tra.")

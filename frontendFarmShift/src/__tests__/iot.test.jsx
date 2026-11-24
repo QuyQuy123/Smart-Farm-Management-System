@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import { IotView } from '../features/farmshift/IotView';
 import { listBarns, listFarmAreas } from '../services/farmAreaService';
-import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics } from '../services/esp32MqttService';
+import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics, syncIotTelemetrySnapshot } from '../services/esp32MqttService';
 
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children }) => <main>{children}</main> }));
 vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(), listFarmAreas: vi.fn(), FARM_AREAS_CHANGED: 'farm-areas-changed' }));
@@ -20,7 +20,7 @@ afterAll(() => {
 });
 beforeEach(() => {
   vi.resetAllMocks();
-  localStorage.removeItem('farmshift-esp32-temperature');
+  localStorage.clear();
   connectEsp32.mockResolvedValue({ disconnect: vi.fn() });
   listFarmAreas.mockResolvedValue([{ id: 1, name: 'Khu Mía' }, { id: 2, name: 'Khu Hồ' }]);
   listBarns.mockResolvedValue([{ id: 11, name: 'Chuồng A1', areaId: 1 }, { id: 12, name: 'Chuồng B1', areaId: 2 }]);
@@ -172,4 +172,49 @@ it('displays MQTT readings from the two installed sensor channels', async () => 
   expect(chart.querySelectorAll('polyline')).toHaveLength(1);
   fireEvent.click(chart.querySelector('circle'));
   expect(within(environment).getByText(/Trung bình hai cảm biến · .* · 27,75 °C/)).toBeInTheDocument();
+});
+
+it('syncs first sensor snapshot immediately after relay status and syncs connected=false on disconnect', async () => {
+  let setConn;
+  let receive;
+  connectEsp32.mockImplementation(async ({ onConnection, onMessage }) => {
+    setConn = onConnection;
+    receive = onMessage;
+    onConnection('connected');
+    return { disconnect: vi.fn(), publishRelay: vi.fn() };
+  });
+  open();
+  fireEvent.click(await screen.findByRole('button', { name: 'Xem chi tiết Chuồng A1' }));
+  await screen.findByText('Đã kết nối thiết bị phần cứng');
+
+  // Relay arrives first, then sensor reading immediately after
+  act(() => {
+    receive({ topic: relayStatusTopics[3], payload: 'ON' });
+  });
+  act(() => {
+    receive({ topic: `${ESP32_TOPIC_PREFIX}/temp1`, payload: '31.5' });
+    receive({ topic: `${ESP32_TOPIC_PREFIX}/humi1`, payload: '70' });
+  });
+
+  await waitFor(() => {
+    expect(syncIotTelemetrySnapshot).toHaveBeenCalledWith(expect.objectContaining({
+      barnId: 11,
+      connected: true,
+      temp1: 31.5,
+      humi1: 70,
+    }));
+  });
+
+  // On disconnect, backend registry must be notified connected: false
+  act(() => {
+    setConn('disconnected');
+  });
+
+  await waitFor(() => {
+    expect(syncIotTelemetrySnapshot).toHaveBeenLastCalledWith({
+      barnId: 11,
+      connected: false,
+      source: 'ESP32_MQTT',
+    });
+  });
 });

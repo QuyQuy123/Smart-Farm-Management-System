@@ -24,6 +24,8 @@ public class AssistantExecutionContext {
     private String actionToken;
     private String sessionId;
     private Boolean confirmAction;
+    @Builder.Default
+    private boolean llmFallbackPhase = false;
 
     public boolean isWorker() {
         return isWorker;

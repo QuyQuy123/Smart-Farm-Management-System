@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Dữ liệu mẫu (Seed Data) chuẩn hóa cho FarmShift (Mô phỏng 79 ngày liên tục)
 -- Khoảng thời gian: 2026-09-06 đến 2026-11-23 (múi giờ Asia/Bangkok)
--- Đồng bộ 100% với docs/database.md & 47 bảng vật lý PostgreSQL 16.
+-- Đồng bộ 100% với docs/database.md & 48 bảng vật lý PostgreSQL 16.
 -- =====================================================================
 
 DO $$
@@ -4922,11 +4922,18 @@ INSERT INTO internal_stock_voucher_numbers (id) VALUES
   (5),
   (6);
 
--- 12. Đồng bộ lại toàn bộ PostgreSQL SERIAL/IDENTITY sequences
+-- 12. AI Data Flywheel Interaction Logs (ai_interaction_logs)
+INSERT INTO ai_interaction_logs (id, request_id, session_id, account_id, username, user_role, current_route, raw_message, normalized_message, intent, handler_tier, provider, confidence, executed, requires_confirmation, confirmed, latency_ms, reply_preview, extracted_payload, feedback_rating, feedback_note, feedback_corrected_intent, feedback_at, created_at) VALUES
+  (1, 'seed-req-ai-001', 'session_seed_worker_1', 4, 'congnhan@smartfarm.com', 'ROLE_FARM_WORKER', '/today-tasks', 'cho nhà a một ăn hai bao cám số 1', 'cho Nhà A1 ăn 50 kg Higro 01', 'LOG_FEED', 'RULE_ENGINE', 'LOCAL_DETERMINISTIC', 0.94, TRUE, TRUE, TRUE, 42, 'Đã ghi nhận cho Nhà A1 ăn 50 kg cám Cám Gà con CP 511.', '{"actionType":"LOG_FEED","barnId":1,"totalKg":50.0,"feedName":"Cám Gà con CP 511"}', 1, 'Chuẩn hóa nhanh và đúng chuồng phụ trách', NULL, TIMESTAMP '2026-11-22 07:35:00', TIMESTAMP '2026-11-22 07:34:00'),
+  (2, 'seed-req-ai-002', 'session_seed_worker_1', 4, 'congnhan@smartfarm.com', 'ROLE_FARM_WORKER', '/journal', 'Nhà A1 cân 50 con trung bình 1 ký rưỡi', 'Nhà A1 cân 50 con trung bình 1.5 kg', 'LOG_WEIGHT', 'RULE_ENGINE', 'LOCAL_DETERMINISTIC', 0.91, TRUE, TRUE, TRUE, 38, 'Đã ghi nhận cân mẫu Nhà A1: trung bình 1.5 kg/con (50 con).', '{"actionType":"LOG_WEIGHT","barnId":1,"avgWeight":1.5,"sampleSize":50}', 1, NULL, NULL, TIMESTAMP '2026-11-22 16:12:00', TIMESTAMP '2026-11-22 16:10:00'),
+  (3, 'seed-req-ai-003', 'session_seed_accountant_1', 3, 'ketoan@smartfarm.com', 'ROLE_ACCOUNTANT', '/debts', 'Công nợ nhà cung cấp Dabaco còn bao nhiêu', 'Công nợ nhà cung cấp Dabaco còn bao nhiêu', 'QUERY_SUPPLIER_DEBT', 'COMMAND_DISPATCHER', 'LOCAL_DETERMINISTIC', NULL, TRUE, FALSE, NULL, 29, 'Hiện tại tổng công nợ đối với nhà cung cấp Tập đoàn Dabaco Việt Nam...', '{"supplierName":"Tập đoàn Dabaco Việt Nam"}', 1, 'Số liệu khớp hóa đơn', NULL, TIMESTAMP '2026-11-23 08:25:00', TIMESTAMP '2026-11-23 08:20:00'),
+  (4, 'seed-req-ai-004', 'session_seed_owner_1', 2, 'mienbinh@smartfarm.com', 'ROLE_FARM_OWNER', '/barns/5', 'Đàn gà nhà tôi có triệu chứng thở khò khè ngáp gió xử lý thế nào?', 'Đàn gà nhà tôi có triệu chứng thở khò khè ngáp gió xử lý thế nào?', 'VET_DIAGNOSIS', 'RAG_FALLBACK', 'LOCAL_RAG', NULL, FALSE, FALSE, NULL, 115, 'Triệu chứng thở khò khè, ngáp gió gợi ý nhóm bệnh hô hấp CRD / hen gà...', '{"topic":"crd_hen_ga"}', 1, 'Gợi ý sát phác đồ thú y', NULL, TIMESTAMP '2026-11-23 09:05:00', TIMESTAMP '2026-11-23 09:00:00');
+
+-- 13. Đồng bộ lại toàn bộ PostgreSQL SERIAL/IDENTITY sequences
 DO $$
 DECLARE tbl TEXT; seq TEXT;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY['roles', 'accounts', 'customers', 'otp_tokens', 'push_subscriptions', 'farms', 'customer_contacts', 'product_types', 'suppliers', 'warehouse_categories', 'measurement_units', 'brands', 'specifications', 'product_categories', 'inventory_items', 'internal_stock_categories', 'transfer_categories', 'internal_stock_vouchers', 'internal_stock_voucher_items', 'internal_stock_voucher_numbers', 'purchase_tags', 'purchase_invoices', 'purchase_invoice_items', 'purchase_payments', 'farm_areas', 'barns', 'barn_workers', 'farming_cycles', 'flocks', 'flock_movements', 'feed_records', 'weight_samples', 'cycle_expenses', 'cycle_carried_expenses', 'farming_programs', 'farming_program_steps', 'daily_task_logs', 'work_tasks', 'work_task_checks', 'sales_invoice_numbers'] LOOP
+  FOREACH tbl IN ARRAY ARRAY['roles', 'accounts', 'customers', 'otp_tokens', 'push_subscriptions', 'farms', 'customer_contacts', 'product_types', 'suppliers', 'warehouse_categories', 'measurement_units', 'brands', 'specifications', 'product_categories', 'inventory_items', 'internal_stock_categories', 'transfer_categories', 'internal_stock_vouchers', 'internal_stock_voucher_items', 'internal_stock_voucher_numbers', 'purchase_tags', 'purchase_invoices', 'purchase_invoice_items', 'purchase_payments', 'farm_areas', 'barns', 'barn_workers', 'farming_cycles', 'flocks', 'flock_movements', 'feed_records', 'weight_samples', 'cycle_expenses', 'cycle_carried_expenses', 'farming_programs', 'farming_program_steps', 'daily_task_logs', 'work_tasks', 'work_task_checks', 'sales_invoice_numbers', 'ai_interaction_logs'] LOOP
     seq := pg_get_serial_sequence(tbl, 'id');
     IF seq IS NOT NULL THEN
       EXECUTE format('SELECT setval(%L, COALESCE((SELECT MAX(id) FROM %I), 1))', seq, tbl);

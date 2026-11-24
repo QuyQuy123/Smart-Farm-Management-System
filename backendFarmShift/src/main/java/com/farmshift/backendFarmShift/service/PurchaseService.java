@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.util.*;
@@ -125,8 +126,11 @@ public class PurchaseService {
                 if (itemReq.warehouseId() == null && category.getWarehouse() == null) throw new BadRequestException("Hàng hóa đã chọn chưa thuộc kho nào.");
             }
             if (!Double.isFinite(itemReq.qty())) throw new BadRequestException("Số lượng không hợp lệ.");
-            long lineAmount = Math.round(itemReq.qty() * itemReq.price());
-            itemsTotal += lineAmount;
+            long lineAmount = BigDecimal.valueOf(itemReq.qty())
+                    .multiply(BigDecimal.valueOf(itemReq.price()))
+                    .setScale(0, RoundingMode.HALF_UP)
+                    .longValueExact();
+            itemsTotal = Math.addExact(itemsTotal, lineAmount);
 
             PurchaseInvoiceItem item = new PurchaseInvoiceItem(
                     invoice,
@@ -164,7 +168,7 @@ public class PurchaseService {
                 paymentStatus = "Trả sau";
             }
         }
-        if ("Thanh toán một phần".equals(request.paymentStatus()) && (request.paidAmount() == null || request.paidAmount() <= 0 || request.paidAmount() > totalAmount))
+        if ("Thanh toán một phần".equalsIgnoreCase(request.paymentStatus()) && (request.paidAmount() == null || request.paidAmount() <= 0 || request.paidAmount() > totalAmount))
             throw new BadRequestException("Tiền trả trước phải lớn hơn 0 và không vượt quá tổng tiền.");
         invoice.setPaidAmount(paid);
         invoice.setPaymentStatus(paymentStatus);

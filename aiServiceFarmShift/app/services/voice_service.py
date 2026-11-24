@@ -81,7 +81,40 @@ def _extract_choice_content(payload: dict[str, Any]) -> str | None:
     return content if isinstance(content, str) else None
 
 
+def _extract_choice_tool_calls(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
+    choices = payload.get("choices") or []
+    if not choices or not isinstance(choices, list):
+        return None
+    first = choices[0] if isinstance(choices[0], dict) else {}
+    message = first.get("message") or {}
+    if not isinstance(message, dict):
+        return None
+    raw_calls = message.get("tool_calls")
+    if not isinstance(raw_calls, list) or not raw_calls:
+        return None
+    normalized_calls: list[dict[str, Any]] = []
+    for call in raw_calls:
+        if not isinstance(call, dict):
+            continue
+        fn = call.get("function") if isinstance(call.get("function"), dict) else {}
+        name = str(fn.get("name") or call.get("name") or "").strip()
+        if not name:
+            continue
+        raw_args = fn.get("arguments") if "arguments" in fn else call.get("arguments")
+        normalized_calls.append({
+            "id": str(call.get("id") or f"call_{len(normalized_calls) + 1}"),
+            "type": str(call.get("type") or "function"),
+            "function": {
+                "name": name,
+                "arguments": raw_args if isinstance(raw_args, (str, dict)) else "{}",
+            },
+        })
+    return normalized_calls or None
+
+
 def _wants_json_mode(req: AssistantChatRequest) -> bool:
+    if req.tools:
+        return False
     combined = f"{req.system_prompt or ''}\n{req.message or ''}"
     return "json" in combined.lower()
 
@@ -275,7 +308,7 @@ class VoiceService:
                     fallback=False,
                     duration_ms=duration_ms,
                 )
-            if response.status_code == 429 or response.status_code >= 500:
+            if response.status_code in (401, 403, 429) or response.status_code >= 500:
                 groq_stt_breaker.record_failure()
             logger.warning("Groq Whisper returned HTTP %s", response.status_code)
         except Exception as ex:
@@ -337,7 +370,10 @@ class VoiceService:
                         "temperature": 0.1,
                         "messages": messages,
                     }
-                    if use_json_mode:
+                    if req.tools:
+                        payload["tools"] = req.tools
+                        payload["tool_choice"] = req.tool_choice or "auto"
+                    elif use_json_mode:
                         payload["response_format"] = {"type": "json_object"}
 
                     response = await _post_json(
@@ -351,7 +387,8 @@ class VoiceService:
                     if response.status_code == 200:
                         data = response.json()
                         content = _extract_choice_content(data)
-                        if content is not None:
+                        tool_calls = _extract_choice_tool_calls(data)
+                        if content is not None or tool_calls is not None:
                             groq_chat_breaker.record_success()
                             provider_name = settings.GROQ_CHAT_MODEL or "llama-3.3-70b-versatile"
                             log_ai_event(
@@ -360,11 +397,13 @@ class VoiceService:
                                 provider=provider_name,
                                 duration_ms=duration_ms,
                                 json_mode=use_json_mode,
+                                tool_calls_count=len(tool_calls) if tool_calls else 0,
                                 history_turns=max(0, len(messages) - 2),
                                 **extract_token_usage(data),
                             )
                             return AssistantChatResponse(
-                                content=content,
+                                content=content or "",
+                                tool_calls=tool_calls,
                                 provider=provider_name,
                                 fallback=False,
                                 duration_ms=duration_ms,
@@ -372,7 +411,7 @@ class VoiceService:
                         groq_chat_breaker.record_failure()
                         logger.warning("Groq Chat LLM returned 200 with empty choices")
                     else:
-                        if response.status_code == 429 or response.status_code >= 500:
+                        if response.status_code in (401, 403, 429) or response.status_code >= 500:
                             groq_chat_breaker.record_failure()
                         logger.warning("Groq Chat LLM returned HTTP %s", response.status_code)
                 except Exception as ex:
@@ -399,7 +438,10 @@ class VoiceService:
                         "temperature": 0.1,
                         "messages": messages,
                     }
-                    if use_json_mode:
+                    if req.tools:
+                        payload["tools"] = req.tools
+                        payload["tool_choice"] = req.tool_choice or "auto"
+                    elif use_json_mode:
                         payload["response_format"] = {"type": "json_object"}
 
                     response = await _post_json(
@@ -413,7 +455,8 @@ class VoiceService:
                     if response.status_code == 200:
                         data = response.json()
                         content = _extract_choice_content(data)
-                        if content is not None:
+                        tool_calls = _extract_choice_tool_calls(data)
+                        if content is not None or tool_calls is not None:
                             openai_chat_breaker.record_success()
                             provider_name = settings.OPENAI_MODEL or "gpt-4o-mini"
                             log_ai_event(
@@ -423,11 +466,13 @@ class VoiceService:
                                 fallback_from="groq",
                                 duration_ms=duration_ms,
                                 json_mode=use_json_mode,
+                                tool_calls_count=len(tool_calls) if tool_calls else 0,
                                 history_turns=max(0, len(messages) - 2),
                                 **extract_token_usage(data),
                             )
                             return AssistantChatResponse(
-                                content=content,
+                                content=content or "",
+                                tool_calls=tool_calls,
                                 provider=provider_name,
                                 fallback=False,
                                 duration_ms=duration_ms,
@@ -435,7 +480,7 @@ class VoiceService:
                         openai_chat_breaker.record_failure()
                         logger.warning("OpenAI Chat fallback returned 200 with empty choices")
                     else:
-                        if response.status_code == 429 or response.status_code >= 500:
+                        if response.status_code in (401, 403, 429) or response.status_code >= 500:
                             openai_chat_breaker.record_failure()
                         logger.warning(
                             "OpenAI Chat fallback returned HTTP %s", response.status_code

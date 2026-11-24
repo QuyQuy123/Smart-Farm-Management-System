@@ -1,12 +1,21 @@
 package com.farmshift.backendFarmShift.repository;
 
 import com.farmshift.backendFarmShift.entity.InternalStockVoucher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import java.util.List;
 import java.util.Optional;
 
 public interface InternalStockVoucherRepository extends JpaRepository<InternalStockVoucher, Long>, JpaSpecificationExecutor<InternalStockVoucher> {
+    @Override
+    @EntityGraph(attributePaths = {"category", "sourceWarehouse", "targetWarehouse", "cycle", "expense"})
+    Page<InternalStockVoucher> findAll(Specification<InternalStockVoucher> spec, Pageable pageable);
+
+    boolean existsByExpense_Id(Long expenseId);
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("SELECT v FROM InternalStockVoucher v WHERE v.id = :id")
     Optional<InternalStockVoucher> findForUpdateById(@org.springframework.data.repository.query.Param("id") Long id);

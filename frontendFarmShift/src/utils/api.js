@@ -32,8 +32,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const method = response.config?.method?.toLowerCase();
-    if (['post', 'put', 'patch', 'delete'].includes(method)) {
-      dataCache.invalidateForMutation(response.config?.url, { source: 'api-mutation' });
+    const url = String(response.config?.url || '');
+    if (['post', 'put', 'patch', 'delete'].includes(method) && !url.includes('/phone-camera/')) {
+      dataCache.invalidateForMutation(url, { source: 'api-mutation' });
     }
     return response;
   },

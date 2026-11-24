@@ -2,8 +2,8 @@
 // Trình phát Camera CCTV Chuồng Trại Real-Time tích hợp OSD & Telemetry IoT
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Video, VideoOff, Camera, Maximize, Minimize, ZoomIn, ZoomOut,
-  Moon, Sun, RefreshCw, Eye, EyeOff, Sliders, Play, Pause,
+  Video, Camera, Maximize, Minimize, ZoomIn, ZoomOut,
+  Moon, Sun, Eye, EyeOff,
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check,
   Thermometer, Droplets, Fan, Lightbulb, Wifi, Activity
 } from 'lucide-react';

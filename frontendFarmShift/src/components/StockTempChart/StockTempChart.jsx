@@ -3,9 +3,8 @@
 // Tích hợp Động cơ Live Ticker: Chạy trực tiếp trên Frontend, phản ứng theo tốc độ Quạt IoT
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  TrendingUp, TrendingDown, Thermometer, Droplets, Clock,
-  Calendar, Zap, Activity, Info, ChevronRight, Sliders, Play,
-  Pause, RotateCcw, Radio
+  TrendingUp, TrendingDown, Thermometer, Droplets,
+  Play, Pause
 } from 'lucide-react';
 import styles from './StockTempChart.module.css';
 
@@ -34,6 +33,7 @@ export const StockTempChart = ({
   const onLiveTempChangeRef = useRef(onLiveTempChange);
   const liveHumidityRef = useRef(Number(currentHumidity));
   const prevBarnRef = useRef(barnName);
+  const flashTimerRef = useRef(null);
 
   useEffect(() => {
     fanRef.current = fan;
@@ -117,7 +117,8 @@ export const StockTempChart = ({
           setFlashClass(styles.flashDown);
         }
         prevTempRef.current = nextTemp;
-        setTimeout(() => setFlashClass(''), 600);
+        if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+        flashTimerRef.current = setTimeout(() => setFlashClass(''), 600);
 
         const humJitter = (Math.random() - 0.5) * 0.4;
         const humDrift = drift < 0 ? 0.12 : -0.12;
@@ -151,7 +152,10 @@ export const StockTempChart = ({
       });
     }, 1600);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    };
   }, [externalPoints, isLiveStreaming, timeframe, barnName]);
 
   // Flash animation khi nhận nhiệt độ mới từ externalPoints của parent

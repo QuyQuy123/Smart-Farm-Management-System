@@ -7,12 +7,9 @@ import { MemoryRouter } from 'react-router-dom';
 import {
   AccountView,
   validateProfileField,
-  validateAllProfile,
-  validatePasswordField,
-  validateAllPassword
+  validatePasswordField
 } from '../features/farmshift/AccountView';
 import * as userService from '../services/userService';
-import * as employeeService from '../services/employeeService';
 
 vi.mock('../utils/api', () => ({
   api: {

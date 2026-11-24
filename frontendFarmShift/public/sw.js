@@ -54,7 +54,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const rawUrl = event.notification?.data?.url || '/iot';
-  const targetUrl = typeof rawUrl === 'string' && rawUrl.startsWith('/') ? rawUrl : '/iot';
+  const targetUrl = typeof rawUrl === 'string' && rawUrl.startsWith('/') && !rawUrl.startsWith('//') ? rawUrl : '/iot';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windowClients) => {

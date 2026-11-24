@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -38,6 +38,15 @@ class AssistantChatRequest(BaseModel):
         max_length=30,
         description="Lịch sử hội thoại",
     )
+    tools: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Danh sách JSON Schema tools cho Native Function/Tool Calling",
+    )
+    tool_choice: Optional[Any] = Field(
+        default=None,
+        alias="toolChoice",
+        description="Chế độ chọn tool (auto | none | required | object)",
+    )
 
     model_config = {
         "populate_by_name": True
@@ -45,7 +54,12 @@ class AssistantChatRequest(BaseModel):
 
 
 class AssistantChatResponse(BaseModel):
-    content: str = Field("", description="Chuỗi JSON kết quả phân tích ý định và câu trả lời từ LLM")
+    content: str = Field("", description="Chuỗi JSON hoặc văn bản kết quả từ LLM")
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        serialization_alias="toolCalls",
+        description="Danh sách Native Tool Calls trả về từ LLM",
+    )
     provider: str = Field("GROQ_LLAMA_3_3_70B", description="Mô hình LLM đã xử lý")
     fallback: bool = Field(False, description="Đánh dấu nếu không gọi được LLM")
     duration_ms: int = Field(0, description="Thời gian xử lý tính bằng mili-giây", serialization_alias="durationMs")

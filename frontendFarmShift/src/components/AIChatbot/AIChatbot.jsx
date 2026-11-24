@@ -6,7 +6,7 @@ import {
   Sparkles, X, Send, RotateCcw, Plus, History, Trash2,
   PanelRightOpen, PanelRightClose, Mic, MicOff, ShieldCheck,
   Zap, ExternalLink, Volume2, VolumeX, Check, AlertCircle,
-  ArrowUpRight, PenLine
+  ArrowUpRight, PenLine, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import * as aiAssistantService from '../../services/aiAssistantService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
@@ -26,6 +26,16 @@ const resolveGetSuggestionsFn = () => {
   try {
     return typeof aiAssistantService?.getAiSuggestions === 'function'
       ? aiAssistantService.getAiSuggestions
+      : null;
+  } catch (_e) {
+    return null;
+  }
+};
+
+const resolveSubmitFeedbackFn = () => {
+  try {
+    return typeof aiAssistantService?.submitAiFeedback === 'function'
+      ? aiAssistantService.submitAiFeedback
       : null;
   } catch (_e) {
     return null;
@@ -632,7 +642,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   const sendQueryRef = useRef(null);
   const utteranceRef = useRef(null);
   const isVoiceDraftRef = useRef(false);
-  handsFreeModeRef.current = handsFreeMode;
+
+  useEffect(() => {
+    handsFreeModeRef.current = handsFreeMode;
+  }, [handsFreeMode]);
 
   const normalizeWebSpeechText = (raw) => {
     if (!raw) return '';
@@ -949,13 +962,8 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       }
     };
 
-    const handleAiActionCache = (event) => {
-      const detail = event?.detail;
-      if (!detail) return;
-      const isMutation = Boolean(detail.executed || detail.uiCommand === 'REFRESH_DATA');
-      if (isMutation) {
-        fetchSuggestions(true);
-      }
+    const handleAiActionCache = () => {
+      // useRealtimeRefresh handles suggestion refresh after cache invalidation (avoid duplicate request).
     };
 
     window.addEventListener('farmshift:open-ai-chat', handleOpenAiChat);
@@ -964,7 +972,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       window.removeEventListener('farmshift:open-ai-chat', handleOpenAiChat);
       window.removeEventListener('farmshift:ai-action', handleAiActionCache);
     };
-  }, [applyPromptTemplate, fetchSuggestions, setIsOpen]);
+  }, [applyPromptTemplate, setIsOpen]);
 
   // Đóng box chat khi bấm ra ngoài (ở chế độ popover) hoặc nhấn phím Escape
   useEffect(() => {
@@ -972,6 +980,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
 
     const handleClickOutside = (event) => {
       if (isExpanded) return;
+      if (!(event.target instanceof Element)) return;
       // Nếu bấm bên trong cửa sổ chat hoặc nút launcher thì không đóng
       if (
         chatWindowRef.current?.contains(event.target) ||
@@ -981,7 +990,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       }
 
       // Nếu bấm chuyển tab hoặc menu điều hướng (sidebar, tab bar...), giữ nguyên box chat mở
-      if (event.target.closest('nav, aside, [role="tab"], [class*="tab"], .farmshift-sidebar, a[href]')) {
+      if (event.target.closest('nav, aside, [role="tab"], .farmshift-tab-btn, .farmshift-tabs, .farmshift-sidebar, a[href]')) {
         return;
       }
 
@@ -1200,6 +1209,8 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
         navigateTo: response.navigateTo,
         requiresConfirmation: response.requiresConfirmation,
         pendingAction: response.pendingAction,
+        interactionId: response.interactionId ?? null,
+        feedbackRating: null,
         clarificationOptions: Array.isArray(response.clarificationOptions) && response.clarificationOptions.length > 0
           ? response.clarificationOptions
           : null,
@@ -1327,7 +1338,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       updateSessionMessages(targetSessionId, prev => [
         ...prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m),
         {
-          id: Date.now() + 1,
+          id: generateMessageId(),
           type: 'bot',
           text: textToShow,
           time: formatCurrentTime(),
@@ -1351,6 +1362,22 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   // Khôi phục lại thẻ xác nhận nếu lỡ tay bấm từ chối/hủy
   const handleRetryAction = (msgId) => {
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m));
+  };
+
+  // Gửi đánh giá chất lượng phản hồi AI (+1 / -1) cho Data Flywheel
+  const handleFeedback = async (msgId, interactionId, rating) => {
+    const targetSessionId = effectiveSessionId;
+    updateSessionMessages(targetSessionId, prev =>
+      prev.map(m => (m.id === msgId ? { ...m, feedbackRating: rating } : m))
+    );
+    const submitFn = resolveSubmitFeedbackFn();
+    if (submitFn && interactionId) {
+      try {
+        await submitFn({ interactionId, rating });
+      } catch (_err) {
+        // Giữ trạng thái lạc quan trên UI; không làm gián đoạn trải nghiệm trò chuyện
+      }
+    }
   };
 
   const toggleHandsFreeMode = () => {
@@ -1583,7 +1610,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     sendQuery(input, { fromVoice: originatedFromVoice });
   };
 
-  sendQueryRef.current = sendQuery;
+  useEffect(() => {
+    sendQueryRef.current = sendQuery;
+  });
 
   const displayedSuggestions = (Array.isArray(liveSuggestions) && liveSuggestions.length > 0)
     ? liveSuggestions
@@ -1992,24 +2021,57 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                     </button>
                   )}
 
-                  {/* ── Message Footer: Time and Speaker button for Bot ── */}
+                  {/* ── Message Footer: Speaker, Feedback (+1/-1) and Time ── */}
                   <div className={styles.messageFooter}>
-                    {msg.type === 'bot' && 'speechSynthesis' in window ? (
-                      <button
-                        type="button"
-                        className={`${styles.messageTtsBtn} ${speakingMsgId === msg.id ? styles.messageTtsBtnSpeaking : ''}`}
-                        onClick={() => speakText(msg.text, msg.id, {
-                          clarificationOptions: msg.clarificationOptions,
-                          pendingAction: msg.pendingAction,
-                          requiresConfirmation: Boolean(msg.requiresConfirmation && msg.confirmationStatus === 'pending' && msg.pendingAction),
-                        })}
-                        title={speakingMsgId === msg.id ? 'Dừng đọc' : 'Đọc câu trả lời bằng giọng nói'}
-                        data-testid="message-speaker-btn"
-                      >
-                        {speakingMsgId === msg.id ? <VolumeX size={13} /> : <Volume2 size={13} />}
-                        <span>{speakingMsgId === msg.id ? 'Đang đọc...' : 'Đọc'}</span>
-                      </button>
-                    ) : <span />}
+                    <div className={styles.messageFooterActions}>
+                      {msg.type === 'bot' && 'speechSynthesis' in window && (
+                        <button
+                          type="button"
+                          className={`${styles.messageTtsBtn} ${speakingMsgId === msg.id ? styles.messageTtsBtnSpeaking : ''}`}
+                          onClick={() => speakText(msg.text, msg.id, {
+                            clarificationOptions: msg.clarificationOptions,
+                            pendingAction: msg.pendingAction,
+                            requiresConfirmation: Boolean(msg.requiresConfirmation && msg.confirmationStatus === 'pending' && msg.pendingAction),
+                          })}
+                          title={speakingMsgId === msg.id ? 'Dừng đọc' : 'Đọc câu trả lời bằng giọng nói'}
+                          data-testid="message-speaker-btn"
+                        >
+                          {speakingMsgId === msg.id ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                          <span>{speakingMsgId === msg.id ? 'Đang đọc...' : 'Đọc'}</span>
+                        </button>
+                      )}
+                      {msg.type === 'bot' && msg.id !== 1 && msg.actionType !== 'RESET_SESSION' && msg.interactionId != null && (
+                        <div className={styles.feedbackGroup} data-testid="ai-feedback-group">
+                          <button
+                            type="button"
+                            className={`${styles.feedbackBtn} ${msg.feedbackRating === 1 ? styles.feedbackBtnUpActive : ''}`}
+                            aria-label="Phản hồi hữu ích"
+                            aria-pressed={msg.feedbackRating === 1}
+                            title="Hữu ích"
+                            data-testid="feedback-up-btn"
+                            onClick={() => handleFeedback(msg.id, msg.interactionId, 1)}
+                          >
+                            <ThumbsUp size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.feedbackBtn} ${msg.feedbackRating === -1 ? styles.feedbackBtnDownActive : ''}`}
+                            aria-label="Phản hồi chưa đúng"
+                            aria-pressed={msg.feedbackRating === -1}
+                            title="Chưa đúng"
+                            data-testid="feedback-down-btn"
+                            onClick={() => handleFeedback(msg.id, msg.interactionId, -1)}
+                          >
+                            <ThumbsDown size={13} />
+                          </button>
+                          {msg.feedbackRating !== null && msg.feedbackRating !== undefined && (
+                            <span className={styles.feedbackSavedHint} data-testid="feedback-saved-hint">
+                              {msg.feedbackRating === 1 ? 'Đã ghi nhận' : 'Cảm ơn góp ý'}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <div className={styles.messageTime}>{msg.time}</div>
                   </div>
                 </div>

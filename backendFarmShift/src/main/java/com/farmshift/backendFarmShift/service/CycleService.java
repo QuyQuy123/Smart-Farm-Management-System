@@ -9,6 +9,7 @@ import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -37,14 +38,29 @@ public class CycleService {
     private final CycleCarriedExpenseRepository carriedExpenseRepository;
     private final PurchaseInvoiceRepository invoiceRepository;
 
+    @Autowired(required = false)
+    private BarnRepository barnRepository;
+
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     public List<CycleSummaryResponse> list(Long barnId) {
         barnService.find(barnId);
-        return repository.findAllByBarnIdOrderByCycleNumberDesc(barnId).stream().map(this::summary).toList();
+        List<FarmingCycle> cycles = repository.findAllByBarnIdOrderByCycleNumberDesc(barnId);
+        if (cycles.isEmpty()) {
+            return List.of();
+        }
+        List<Long> cycleIds = cycles.stream().map(FarmingCycle::getId).toList();
+        Map<Long, List<Flock>> flocksByCycle = flockRepository.findByCycleIdInOrderByImportDateAscIdAsc(cycleIds).stream()
+                .collect(java.util.stream.Collectors.groupingBy(f -> f.getCycle().getId()));
+        return cycles.stream()
+                .map(cycle -> summary(cycle, flocksByCycle.getOrDefault(cycle.getId(), List.of())))
+                .toList();
     }
 
     @Transactional
     public CycleSummaryResponse start(Long barnId, StartCycleRequest request) {
-        Barn barn = barnService.find(barnId);
+        Barn barn = lockBarn(barnId);
         if (repository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE).isPresent()) {
             throw new ConflictException("Chuồng " + barn.getName() + " đang có lứa nuôi. Hãy kết thúc lứa hiện tại trước khi khai báo lứa mới.",
                     "CYCLE_ALREADY_ACTIVE", null);
@@ -145,7 +161,7 @@ public class CycleService {
     @Transactional
     public CycleSummaryResponse close(Long cycleId, CloseCycleRequest request) {
         FarmingCycle cycle = requireActive(cycleId);
-        Barn barn = cycle.getBarn();
+        Barn barn = lockBarn(cycle.getBarn().getId());
         int remaining = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycleId).stream().mapToInt(Flock::getQuantity).sum();
         if (remaining > 0) {
             throw new ConflictException("Lứa nuôi còn " + remaining + " con. Hãy xuất bán, chuyển đàn hoặc ghi hao hụt hết tồn đàn trước khi kết thúc lứa.",
@@ -411,6 +427,21 @@ public class CycleService {
 
     // ---------------------------------------------------------------- mapping
 
+    private Barn lockBarn(Long barnId) {
+        if (barnRepository != null) {
+            Barn locked = barnRepository.findByIdForUpdate(barnId)
+                    .or(() -> barnRepository.findById(barnId))
+                    .orElse(null);
+            if (locked != null) {
+                if (entityManager != null && entityManager.contains(locked)) {
+                    entityManager.refresh(locked);
+                }
+                return locked;
+            }
+        }
+        return barnService.find(barnId);
+    }
+
     private Long activeCycleId(Barn barn) {
         return repository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE).map(FarmingCycle::getId).orElse(null);
     }
@@ -420,7 +451,9 @@ public class CycleService {
     }
 
     private static BigDecimal rate(int part, int total) {
-        return total == 0 ? null : BigDecimal.valueOf(part * 100.0 / total).setScale(2, RoundingMode.HALF_UP);
+        return total == 0 ? null : BigDecimal.valueOf(part)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal money(BigDecimal value) { return value.setScale(0, RoundingMode.HALF_UP); }

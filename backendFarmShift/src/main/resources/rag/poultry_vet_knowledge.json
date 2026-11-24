@@ -1,0 +1,78 @@
+{
+  "version": "1.0.0",
+  "domain": "Vietnamese Broiler & Free-Range Poultry Husbandry & Veterinary Reference",
+  "documents": [
+    {
+      "id": "crd_hen_ga",
+      "category": "DISEASE",
+      "title": "Bệnh hô hấp mãn tính ở gà (CRD / Hen gà - Mycoplasma gallisepticum)",
+      "keywords": ["khò khè", "ngáp gió", "hen gà", "crd", "vẩy mỏ", "chảy nước mũi", "hô hấp", "mycoplasma"],
+      "symptoms": "Gà thở khò khè về đêm, ngáp gió, vẩy mỏ, chảy dịch mũi mắt, giảm ăn và chậm lớn.",
+      "content": "1. Cách ly ngay cá thể thở khò khè nặng, tăng cường thông thoáng chuồng nuôi nhưng tránh gió lùa trực tiếp và kiểm soát khí NH3 từ đệm lót.\n2. Rà soát sát trùng chuồng trại bằng dung dịch BKC 80% đúng liều khuyến cáo (phun sương khi chuồng thông thoáng).\n3. Hỗ trợ tăng sức đề kháng bằng Vitamin C + Điện giải (Gluco-K-C / Han-Electrolyte) pha nước uống và men tiêu hóa Bio-Zyme.\n4. Tham vấn bác sĩ thú y để kiểm tra chẩn đoán phân biệt CRD / IB / ORT trước khi dùng kháng sinh đặc hiệu (nhóm Tylosin / Doxycycline)."
+    },
+    {
+      "id": "coccidiosis_cau_trung",
+      "category": "DISEASE",
+      "title": "Bệnh cầu trùng manh tràng và ruột non ở gà (Coccidiosis)",
+      "keywords": ["cầu trùng", "phân sáp", "phân máu", "phân nâu", "ủ rũ", "xù lông", "toltrazuril", "han-coc"],
+      "symptoms": "Gà ủ rũ, xù lông, tụm đống, tiêu chảy phân sáp nâu hoặc lẫn máu tươi, tỷ lệ đồng đều giảm nhanh.",
+      "content": "1. Giữ đệm lót chuồng luôn khô ráo, thay ngay vùng trấu ẩm ướt quanh máng uống (nơi nang cầu trùng phát triển mạnh).\n2. Thuốc đặc trị thường dùng theo chỉ dẫn thú y: Toltrazuril 2.5% (Han-Coc) pha nước uống đúng liệu trình 2 ngày liên tục.\n3. Bổ sung Vitamin K, Vitamin C + Điện giải để hỗ trợ cầm máu niêm mạc ruột và phục hồi niêm mạc bằng men tiêu hóa Bio-Zyme.\n4. Tuyệt đối không tự ý tăng liều; liên hệ bác sĩ thú y nếu tỷ lệ chết tăng nhanh."
+    },
+    {
+      "id": "gumboro_ibd",
+      "category": "DISEASE",
+      "title": "Bệnh Gumboro truyền nhiễm ở gà (IBD)",
+      "keywords": ["gumboro", "phân trắng nhớt", "mổ khám túi fabricius", "xù lông", "suy giảm miễn dịch", "run rẩy"],
+      "symptoms": "Gà 3-6 tuần tuổi ủ rũ đột ngột, xù lông, tiêu chảy phân trắng nhớt dính hậu môn, mổ hậu môn cắn lẫn nhau, chết tăng nhanh ngày 2-4.",
+      "content": "1. Bệnh do virus gây suy giảm miễn dịch nên KHÔNG dùng kháng sinh diệt virus; tuyệt đối không tiêm vắc-xin hoặc gây stress thêm khi đàn đang phát bệnh.\n2. Tập trung hạ sốt, giải độc gan thận, bổ sung Điện giải + Gluco-K-C + Vitamin C liều hỗ trợ trong nước uống sạch.\n3. Sát trùng chuồng trại định kỳ bằng BKC 80% hoặc vôi bột lối đi để giảm áp lực mầm bệnh.\n4. Phòng ngừa chủ động bằng vắc-xin Gumboro đúng lịch ngày 10-14 và nhắc lại ngày 21."
+    },
+    {
+      "id": "newcastle_ga_ru",
+      "category": "DISEASE",
+      "title": "Bệnh Newcastle (Dịch tả gà / Gà rù)",
+      "keywords": ["newcastle", "gà rù", "dịch tả", "lasota", "phân xanh trắng", "ngoẹo cổ", "liệt chân", "khò khè"],
+      "symptoms": "Gà bỏ ăn, diều căng hơi/nước, thở khò khè, đi ngoài phân xanh loãng lẫn trắng, giai đoạn muộn có biểu hiện thần kinh ngoẹo cổ, liệt cánh.",
+      "content": "1. Cách ly triệt để ô chuồng nghi nhiễm, kiểm soát ra vào an toàn sinh học và tiêu độc bằng BKC 80%.\n2. Nếu đàn chưa nhiễm toàn bộ và được bác sĩ thú y chỉ định, có thể xem xét giải pháp khẩn cấp kết hợp tăng cường điện giải Vitamin C.\n3. Phòng bệnh bắt buộc bằng vắc-xin nhỏ mắt/mũi Lasota (ND-IB) ở ngày 3-5, nhắc lại ngày 18-21 và tiêm nhắc đối với gà nuôi dài ngày (Gà Mía, Gà Ta)."
+    },
+    {
+      "id": "coryza_sung_phu_dau",
+      "category": "DISEASE",
+      "title": "Bệnh sổ mũi truyền nhiễm (Coryza - Sưng phù đầu)",
+      "keywords": ["coryza", "sưng phù đầu", "sưng mặt", "nước mũi hôi", "dính mắt", "khò khè"],
+      "symptoms": "Gà sưng phù vùng mặt quanh mắt, chảy nước mũi đặc có mùi hôi khắm đặc trưng, gà vẩy mỏ và giảm ăn.",
+      "content": "1. Vệ sinh máng uống và khử trùng nguồn nước sạch hằng ngày.\n2. Tách riêng gà sưng mặt nặng để tránh lây lan qua nước uống chung.\n3. Bổ sung Vitamin C + Điện giải chống stress và liên hệ bác sĩ thú y để kê phác đồ kháng sinh phù hợp (tránh dùng kháng sinh bừa bãi gây nhờn thuốc)."
+    },
+    {
+      "id": "vaccine_schedule",
+      "category": "VACCINE",
+      "title": "Lịch phòng vắc-xin chuẩn cho gà thịt thương phẩm (Mía, J-Dabaco, Gà Ta)",
+      "keywords": ["vắc-xin", "vac xin", "tiêm phòng", "lịch tiêm", "marek", "lasota", "gumboro", "đậu gà", "h5n1", "cúm gia cầm"],
+      "symptoms": "Hướng dẫn lịch nhỏ/uống/tiêm vắc-xin theo ngày tuổi đàn gà thịt.",
+      "content": "Lịch vắc-xin tham khảo cho gà thịt an toàn sinh học:\n• Ngày 1: Vắc-xin Marek (HVT) tiêm dưới da cổ tại lò ấp.\n• Ngày 3–5: Nhỏ mắt/mũi vắc-xin Newcastle Lasota + IB lần 1.\n• Ngày 7: Chủng màng cánh vắc-xin Đậu gà hoặc tiêm phòng Cúm gia cầm H5N1 (tùy vùng dịch tễ).\n• Ngày 10–14: Nhỏ/uống vắc-xin Gumboro lần 1 (cắt nước 1.5–2 giờ trước khi pha).\n• Ngày 18–21: Nhắc lại Newcastle Lasota và Gumboro lần 2.\n• Lưu ý: Trước và sau ngày làm vắc-xin 1–2 ngày nên pha Vitamin C + Điện giải (Han-Electrolyte) để giảm stress."
+    },
+    {
+      "id": "brooding_temperature",
+      "category": "MANAGEMENT",
+      "title": "Kỹ thuật úm gà con & Biểu đồ nhiệt độ - độ ẩm theo tuần tuổi",
+      "keywords": ["úm gà", "nhiệt độ úm", "gà con", "quây úm", "đèn sưởi", "tụm đống", "tản đều"],
+      "symptoms": "Hướng dẫn điều chỉnh nhiệt độ quây úm, độ ẩm và quan sát hành vi đàn gà con.",
+      "content": "Chuẩn nhiệt độ úm gà con thương phẩm:\n• Ngày 1–3: 32–34°C, độ ẩm 65–70%.\n• Ngày 4–7: 30–32°C, độ ẩm 60–70%.\n• Tuần 2 (ngày 8–14): 28–30°C.\n• Tuần 3 trở đi: 24–26°C, mở rộng dần quây úm và tăng thông thoáng.\nQuan sát đàn gà: Gà tản đều, ăn ngủ yên tĩnh là đủ nhiệt; tụm đống dưới chụp sưởi là bị lạnh; tản ra sát thành quây, há mỏ thở là quá nóng."
+    },
+    {
+      "id": "heat_stress",
+      "category": "MANAGEMENT",
+      "title": "Biện pháp chống nóng và giảm stress nhiệt cho đàn gà",
+      "keywords": ["chống nóng", "sốc nhiệt", "stress nhiệt", "oi bức", "nắng nóng", "quạt hút", "giàn mát"],
+      "symptoms": "Gà há mỏ thở dốc, dang cánh, uống nước nhiều nhưng bỏ ăn khi nhiệt độ chuồng vượt 32°C.",
+      "content": "1. Bật quạt thông gió và vận hành giàn mát Cooling Pad / phun sương mái chuồng (tránh phun trực tiếp làm ướt nền đệm lót).\n2. Pha Vitamin C + Điện giải (Han-Electrolyte / Gluco-K-C) vào nước mát cho gà uống từ 9h sáng đến 16h chiều.\n3. Dồn lịch cho ăn chính vào sáng sớm mát mẻ (5h–8h) và chiều tối, treo máng cám cao hoặc rút cám giờ cao điểm trưa nắng để giảm sinh nhiệt tiêu hóa.\n4. Kiểm tra mật độ đàn, tách giãn chuồng nếu mật độ quá dày."
+    },
+    {
+      "id": "fcr_optimization",
+      "category": "MANAGEMENT",
+      "title": "Kiểm soát hệ số tiêu tốn thức ăn (FCR) và tốc độ tăng trọng (ADG)",
+      "keywords": ["fcr", "tiêu tốn thức ăn", "adg", "tăng trọng", "rơi vãi cám", "đồng đều", "hiệu suất"],
+      "symptoms": "FCR tăng cao bất thường, gà chậm lớn hoặc hao hụt thức ăn.",
+      "content": "1. Kiểm soát rơi vãi: Điều chỉnh chiều cao máng ăn ngang lưng gà, không đổ cám đầy quá 1/3–1/2 máng.\n2. Đúng giai đoạn dinh dưỡng: Chuyển đổi mượt từ cám úm (CP 511) sang cám phát triển (Higro 510) và vỗ béo (Cargill 1502) theo ngày tuổi trong chương trình nuôi.\n3. Bảo quản kho cám khô ráo, xuất theo nguyên tắc nhập trước xuất trước (FIFO) để tránh cám ẩm mốc.\n4. Định kỳ tẩy giun, phòng cầu trùng (Toltrazuril) và cân mẫu 50 con mỗi tuần để theo dõi ADG thực tế."
+    }
+  ]
+}
