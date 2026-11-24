@@ -7,6 +7,7 @@ import com.farmshift.backendFarmShift.entity.Supplier;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.repository.ProductCategoryRepository;
 import com.farmshift.backendFarmShift.repository.SupplierRepository;
+import com.farmshift.backendFarmShift.service.CycleService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,13 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 
 /**
- * Extracts a draft purchase invoice from an uploaded invoice image / PDF using RapidOCR (PaddleOCR),
+ * Extracts a draft purchase invoice from an uploaded invoice image / PDF using aiServiceFarmShift (OpenCV + Vision LLM),
  * then matches the result against existing suppliers and product categories.
  * The output is only a draft (MSG30) – the user must review it before saving.
  */
@@ -38,8 +41,6 @@ public class PurchaseOcrService {
             "jpeg", "image/jpeg",
             "png", "image/png",
             "webp", "image/webp",
-            "heic", "image/heic",
-            "heif", "image/heif",
             "pdf", "application/pdf"
     );
 
@@ -59,16 +60,28 @@ public class PurchaseOcrService {
         JsonNode json = visionClient.extractJson("", bytes, mimeType, responseSchema());
 
         if (!json.path("isInvoice").asBoolean(true)) {
-            throw new BadRequestException(
-                    "Không nhận diện được hóa đơn / phiếu nhập hàng trong tệp đã tải lên. Vui lòng chọn đúng chứng từ.",
-                    "OCR_NOT_INVOICE"
-            );
+            String message = "Không nhận diện được hóa đơn / phiếu nhập hàng trong tệp đã tải lên. Vui lòng chọn đúng chứng từ.";
+            JsonNode warningsNode = json.path("warnings");
+            if (warningsNode.isArray()) {
+                for (JsonNode warning : warningsNode) {
+                    if (warning.isTextual() && !warning.asText().isBlank()) {
+                        message = warning.asText().strip();
+                        break;
+                    }
+                }
+            }
+            throw new BadRequestException(message, "OCR_NOT_INVOICE");
+        }
+
+        List<String> warnings = new ArrayList<>();
+        for (JsonNode w : json.path("warnings")) {
+            if (!w.asText("").isBlank()) warnings.add(w.asText().strip());
         }
 
         List<ProductCategory> categories = productCategoryRepository.findAll();
         List<PurchaseInvoiceItemRequest> items = new ArrayList<>();
         for (JsonNode node : json.path("items")) {
-            PurchaseInvoiceItemRequest item = toItem(node, categories);
+            PurchaseInvoiceItemRequest item = toItem(node, categories, warnings);
             if (item != null) items.add(item);
         }
         if (items.isEmpty()) {
@@ -85,18 +98,21 @@ public class PurchaseOcrService {
         long discount = money(json, "discountAmount");
         long vat = money(json, "vatAmount");
         long otherCost = money(json, "otherCost") + vat;
-        long itemsTotal = items.stream().mapToLong(it -> Math.round(it.qty() * it.price())).sum();
+        BigDecimal itemsTotalDec = items.stream()
+                .map(it -> BigDecimal.valueOf(it.qty()).multiply(BigDecimal.valueOf(it.price())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long itemsTotal = itemsTotalDec.setScale(0, RoundingMode.HALF_UP).longValue();
         long computedTotal = Math.max(0L, itemsTotal - discount + otherCost);
 
-        List<String> warnings = new ArrayList<>();
-        for (JsonNode w : json.path("warnings")) {
-            if (!w.asText("").isBlank()) warnings.add(w.asText().strip());
-        }
         long invoiceTotal = money(json, "totalAmount");
         if (invoiceTotal > 0 && Math.abs(invoiceTotal - computedTotal) > 1000) {
-            warnings.add(String.format(Locale.ROOT,
-                    "Tổng tiền trên chứng từ (%,d đ) chưa khớp với tổng tính lại (%,d đ). Vui lòng kiểm tra lại.",
-                    invoiceTotal, computedTotal).replace(',', '.'));
+            boolean alreadyFlaggedTotal = warnings.stream()
+                    .anyMatch(w -> w.startsWith("Tổng tiền") && w.contains("chưa khớp"));
+            if (!alreadyFlaggedTotal) {
+                warnings.add(String.format(Locale.ROOT,
+                        "Tổng tiền trên chứng từ (%,d đ) chưa khớp với tổng tính lại (%,d đ). Vui lòng kiểm tra lại.",
+                        invoiceTotal, computedTotal).replace(',', '.'));
+            }
         }
         if (supplierName != null && matched == null) {
             warnings.add("Nhà cung cấp \"" + supplierName + "\" chưa khớp duy nhất với danh mục. Vui lòng chọn đúng nhà cung cấp và nhóm trước khi lưu.");
@@ -150,7 +166,7 @@ public class PurchaseOcrService {
                 matched != null ? matched.getId() : null,
                 matched != null ? matched.getName() : name,
                 "0300645678",
-                LocalDate.now(),
+                LocalDate.now(CycleService.VN_ZONE),
                 "HD-CP-2026-9921",
                 List.of(
                         new PurchaseInvoiceItemRequest(null, "Cám Gà úm Higro 01", 50.0, "Bao (25kg)", 345000L, 0.0),
@@ -162,7 +178,7 @@ public class PurchaseOcrService {
                 "Thanh toán hoàn tất",
                 37350000L,
                 96.8,
-                "Trích xuất tự động OpenAI gpt-5.6-sol từ hóa đơn mẫu C.P. Việt Nam",
+                "Dữ liệu hóa đơn mẫu C.P. Việt Nam",
                 List.of(),
                 "MSG30"
         );
@@ -188,20 +204,53 @@ public class PurchaseOcrService {
             if (mime != null) return mime;
         }
         throw new BadRequestException(
-                "Định dạng tệp không được hỗ trợ. Vui lòng chọn ảnh JPG, PNG, WEBP, HEIC hoặc tệp PDF.",
+                "Định dạng tệp không được hỗ trợ. Vui lòng chọn ảnh JPG, PNG, WEBP hoặc tệp PDF.",
                 "OCR_UNSUPPORTED_FILE"
         );
     }
 
-    private PurchaseInvoiceItemRequest toItem(JsonNode node, List<ProductCategory> categories) {
+    private PurchaseInvoiceItemRequest toItem(JsonNode node, List<ProductCategory> categories, List<String> warnings) {
         String name = text(node, "name");
         if (name == null) return null;
 
-        double qty = node.path("qty").asDouble(0);
-        double amount = node.path("amount").asDouble(0);
-        double unitPrice = node.path("unitPrice").asDouble(0);
-        if (qty <= 0) qty = 1;
-        if (unitPrice <= 0 && amount > 0) unitPrice = amount / qty;
+        double rawQty = node.path("qty").asDouble(0);
+        double rawAmount = node.path("amount").asDouble(0);
+        double rawUnitPrice = node.path("unitPrice").asDouble(0);
+        double qty = rawQty <= 0 ? 1.0 : rawQty;
+
+        BigDecimal qtyDec = BigDecimal.valueOf(qty);
+        BigDecimal unitPriceDec = rawUnitPrice > 0 ? BigDecimal.valueOf(rawUnitPrice) : BigDecimal.ZERO;
+        BigDecimal amountDec = rawAmount > 0 ? BigDecimal.valueOf(rawAmount) : BigDecimal.ZERO;
+
+        if (unitPriceDec.compareTo(BigDecimal.ZERO) > 0
+                && unitPriceDec.compareTo(new BigDecimal("1000")) < 0
+                && amountDec.compareTo(new BigDecimal("10000")) >= 0) {
+            BigDecimal scaledUnit = unitPriceDec.multiply(new BigDecimal("1000"));
+            BigDecimal rawExpected = qtyDec.multiply(unitPriceDec);
+            BigDecimal scaledExpected = qtyDec.multiply(scaledUnit);
+            BigDecimal tolerance = new BigDecimal("1000");
+            if (amountDec.subtract(scaledExpected).abs().compareTo(tolerance) <= 0
+                    && amountDec.subtract(rawExpected).abs().compareTo(tolerance) > 0) {
+                unitPriceDec = scaledUnit;
+            }
+        }
+
+        if (unitPriceDec.compareTo(BigDecimal.ZERO) <= 0 && amountDec.compareTo(BigDecimal.ZERO) > 0) {
+            unitPriceDec = amountDec.divide(qtyDec, 0, RoundingMode.HALF_UP);
+        } else if (unitPriceDec.compareTo(BigDecimal.ZERO) > 0 && amountDec.compareTo(BigDecimal.ZERO) > 0 && warnings != null) {
+            BigDecimal expectedLine = qtyDec.multiply(unitPriceDec);
+            if (expectedLine.subtract(amountDec).abs().compareTo(new BigDecimal("1000")) > 0) {
+                boolean alreadyFlaggedLine = warnings.stream()
+                        .anyMatch(w -> w.contains(name) && w.contains("chưa khớp"));
+                if (!alreadyFlaggedLine) {
+                    warnings.add(String.format(Locale.ROOT,
+                            "Dòng hàng \"%s\": thành tiền (%,d đ) chưa khớp số lượng × đơn giá (%,d đ). Vui lòng kiểm tra lại.",
+                            name,
+                            amountDec.setScale(0, RoundingMode.HALF_UP).longValue(),
+                            expectedLine.setScale(0, RoundingMode.HALF_UP).longValue()).replace(',', '.'));
+                }
+            }
+        }
 
         String unit = text(node, "unit");
         Double vatRate = node.hasNonNull("vatRate") ? node.get("vatRate").asDouble() : null;
@@ -212,7 +261,7 @@ public class PurchaseOcrService {
                 name,
                 qty,
                 unit != null ? unit : "Cái",
-                Math.max(0L, Math.round(unitPrice)),
+                Math.max(0L, unitPriceDec.setScale(0, RoundingMode.HALF_UP).longValue()),
                 vatRate
         );
     }

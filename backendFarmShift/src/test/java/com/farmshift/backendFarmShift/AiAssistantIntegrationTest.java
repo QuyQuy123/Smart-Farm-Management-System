@@ -34,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class AiAssistantIntegrationTest {
 
     private static final String ASSISTANT_API = "/api/ai/assistant";
+    private static final String CONFIRM_API = "/api/ai/confirm";
     private static final String TRANSCRIBE_API = "/api/ai/transcribe";
 
     @Autowired MockMvc mvc;
@@ -912,28 +913,56 @@ public class AiAssistantIntegrationTest {
                 .andExpect(jsonPath("$.navigateTo").value("/barns"));
     }
 
+    private ResultActions confirmPendingAction(String stepJson) throws Exception {
+        JsonNode pendingNode = mapper.readTree(stepJson).path("pendingAction");
+        String actionId = pendingNode.path("actionId").asText();
+        String actionToken = pendingNode.path("actionToken").asText();
+        Map<String, Object> payload = mapper.convertValue(
+                pendingNode.path("payload"),
+                new com.fasterxml.jackson.core.type.TypeReference<>() {}
+        );
+        return mvc.perform(post(CONFIRM_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Xác nhận",
+                        "actionId", actionId,
+                        "actionToken", actionToken,
+                        "pendingActionPayload", payload
+                ))));
+    }
+
     @Test
     void testUpdateBarnInfo_WithDiffAndDirectConfirmation() throws Exception {
-        // 1. Pending Action Card with Old -> New diff
+        // 1. Pending Action Card with Old -> New diff (default autoExecute=false)
         mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                        "message", "Sửa sức chứa Nhà A1 thành 6000 con",
+                        "message", "Sửa sức chứa Nhà A1 thành 6000 con"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.actionType").value("UPDATE_BARN_INFO"))
+                .andExpect(jsonPath("$.pendingAction.actionId").isNotEmpty())
+                .andExpect(jsonPath("$.pendingAction.actionToken").isNotEmpty())
+                .andExpect(jsonPath("$.pendingAction.details['Sức chứa']").value("5.000 con → 6.000 con"));
+
+        // 2. Even with "luôn nhé", autoExecute=false must STILL require two-step HMAC PendingActionCard
+        String stepJson = mvc.perform(post(ASSISTANT_API)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "message", "Sửa sức chứa Nhà A1 thành 6000 con luôn nhé",
                         "autoExecute", false
                 ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(false))
                 .andExpect(jsonPath("$.requiresConfirmation").value(true))
                 .andExpect(jsonPath("$.actionType").value("UPDATE_BARN_INFO"))
-                .andExpect(jsonPath("$.pendingAction.details['Sức chứa']").value("5.000 con → 6.000 con"));
+                .andExpect(jsonPath("$.pendingAction.actionId").isNotEmpty())
+                .andExpect(jsonPath("$.pendingAction.actionToken").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
 
-        // 2. Direct confirmation keyword ("luôn nhé") bypasses confirmation card
-        mvc.perform(post(ASSISTANT_API)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(mapper.writeValueAsString(Map.of(
-                        "message", "Sửa sức chứa Nhà A1 thành 6000 con luôn nhé",
-                        "autoExecute", false
-                ))))
+        confirmPendingAction(stepJson)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true))
                 .andExpect(jsonPath("$.actionType").value("UPDATE_BARN_INFO"));
@@ -954,13 +983,22 @@ public class AiAssistantIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true));
 
-        // Now, update feed to 60 kg with direct confirmation
-        mvc.perform(post(ASSISTANT_API)
+        // Now, update feed to 60 kg: even with "xác nhận luôn", autoExecute=false requires HMAC confirmation card first
+        String stepJson = mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                         "message", "Sửa lượng cám Nhà A1 thành 60 kg xác nhận luôn",
                         "autoExecute", false
                 ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.actionType").value("LOG_OR_UPDATE_FEED"))
+                .andExpect(jsonPath("$.pendingAction.actionId").isNotEmpty())
+                .andExpect(jsonPath("$.pendingAction.actionToken").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+
+        confirmPendingAction(stepJson)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true))
                 .andExpect(jsonPath("$.actionType").value("LOG_OR_UPDATE_FEED"));
@@ -975,13 +1013,20 @@ public class AiAssistantIntegrationTest {
         // Initial state: Flock has 2000, Barn has 2000
         assertEquals(2000, barnA1.getCurrentQuantity());
 
-        // 1. Log mortality of 10 birds
-        mvc.perform(post(ASSISTANT_API)
+        // 1. Log mortality of 10 birds (even with "chốt luôn", autoExecute=false requires HMAC card + /confirm)
+        String step1 = mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                         "message", "Nhà A1 chết 10 con chốt luôn",
                         "autoExecute", false
                 ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.actionId").isNotEmpty())
+                .andExpect(jsonPath("$.pendingAction.actionToken").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        confirmPendingAction(step1)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true));
 
@@ -989,12 +1034,19 @@ public class AiAssistantIntegrationTest {
         assertEquals(1990, bAfterDeath.getCurrentQuantity());
 
         // 2. Update mortality from 10 to 15 birds
-        mvc.perform(post(ASSISTANT_API)
+        String step2 = mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                         "message", "Sửa hao hụt Nhà A1 thành 15 con luôn nhé",
                         "autoExecute", false
                 ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.actionId").isNotEmpty())
+                .andExpect(jsonPath("$.pendingAction.actionToken").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        confirmPendingAction(step2)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true));
 
@@ -1002,12 +1054,19 @@ public class AiAssistantIntegrationTest {
         assertEquals(1985, bAfterUpdate.getCurrentQuantity());
 
         // 3. Harvest 100 birds
-        mvc.perform(post(ASSISTANT_API)
+        String step3 = mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                         "message", "Xuất bán 100 con ở Nhà A1 luôn nhé",
                         "autoExecute", false
                 ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.actionId").isNotEmpty())
+                .andExpect(jsonPath("$.pendingAction.actionToken").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        confirmPendingAction(step3)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true));
 
@@ -1015,12 +1074,19 @@ public class AiAssistantIntegrationTest {
         assertEquals(1885, bAfterHarvest.getCurrentQuantity());
 
         // 4. Update harvest from 100 to 120 birds
-        mvc.perform(post(ASSISTANT_API)
+        String step4 = mvc.perform(post(ASSISTANT_API)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                         "message", "Sửa xuất bán Nhà A1 thành 120 con luôn",
                         "autoExecute", false
                 ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executed").value(false))
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingAction.actionId").isNotEmpty())
+                .andExpect(jsonPath("$.pendingAction.actionToken").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        confirmPendingAction(step4)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executed").value(true));
 

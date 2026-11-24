@@ -7,6 +7,8 @@ import {
   subscribeUserToPush,
   unsubscribeUserFromPush,
   sendTestPushNotification,
+  saveLocalNotificationPrefs,
+  loadLocalNotificationPrefs,
 } from '../services/webPushClient';
 import { api } from '../utils/api';
 import { FarmShiftLayout } from '../layouts/FarmShiftLayout';
@@ -21,6 +23,7 @@ vi.mock('../utils/api', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
   },
 }));
 
@@ -370,5 +373,109 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
         })
       );
     });
+  });
+
+  it('IotView skips client-side local notification when iotAlertEnabled is false while FarmShiftLayout respects inAppEnabled', async () => {
+    const { registration } = setupPushBrowserMocks({ permission: 'granted' });
+    saveLocalNotificationPrefs(
+      { inAppEnabled: false, iotAlertEnabled: false, taskVaccineReminderEnabled: true, debtReminderEnabled: true },
+      'owner@farmshift.local'
+    );
+
+    const publishRelay = vi.fn().mockResolvedValue(undefined);
+    let receive;
+    connectEsp32.mockImplementation(async ({ onConnection, onMessage }) => {
+      receive = onMessage;
+      onConnection('connected');
+      return { disconnect: vi.fn(), publishRelay };
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/iot?barn=11']}>
+        <AuthProvider>
+          <NotificationProvider>
+            <IotView />
+          </NotificationProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Đã kết nối thiết bị phần cứng');
+    const group = screen.getByRole('switch', { name: 'Bật tắt toàn bộ Quạt gió' }).closest('article');
+    group.querySelector('details').open = true;
+    fireEvent.click(within(group).getByRole('button', { name: 'Chỉnh sửa' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Relay ESP32'), { target: { value: '1' } });
+    fireEvent.click(within(dialog).getByLabelText('Điều khiển tự động'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thiết bị' }));
+
+    act(() => {
+      receive({ topic: `${ESP32_TOPIC_PREFIX}/temp1`, payload: '41' });
+      receive({ topic: `${ESP32_TOPIC_PREFIX}/temp3`, payload: '43' });
+    });
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/push/iot-alert',
+        expect.objectContaining({ barnId: 11 })
+      );
+    });
+
+    // Because both inAppEnabled and iotAlertEnabled are false, no floating IoT toast or local SW alert should fire
+    expect(document.querySelector('.farmshift-floating-toast')).toBeNull();
+    expect(screen.queryByText(/Nhiệt độ cao/i)).not.toBeInTheDocument();
+    expect(registration.showNotification).not.toHaveBeenCalled();
+  });
+
+  it('NotificationContext and FarmShiftLayout suppress floating toast and unread counter when inAppEnabled is false', async () => {
+    setupPushBrowserMocks({ permission: 'granted' });
+    localStorage.setItem('farmshift_alerts', JSON.stringify([]));
+    localStorage.setItem('farmshift_unread_alerts', '0');
+    saveLocalNotificationPrefs(
+      { inAppEnabled: false, iotAlertEnabled: true, taskVaccineReminderEnabled: true, debtReminderEnabled: true },
+      'owner@farmshift.local'
+    );
+
+    render(
+      <MemoryRouter initialEntries={['/general-settings?tab=notifications']}>
+        <AuthProvider>
+          <NotificationProvider>
+            <FarmShiftLayout pageTitle="Thiết lập chung">
+              <GeneralSettingsView />
+            </FarmShiftLayout>
+          </NotificationProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    // Wait for Tab 4 and toggle a setting then save (calling showToast('MSG20', 'success'))
+    await screen.findByText(/Cấu hình kênh & Loại thông báo hệ thống/i);
+    api.put.mockResolvedValue({
+      data: { inAppEnabled: false, iotAlertEnabled: true, taskVaccineReminderEnabled: false, debtReminderEnabled: true },
+    });
+    fireEvent.click(screen.getByLabelText(/Nhắc lịch tiêm phòng vắc-xin/i));
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thiết lập thông báo/i }));
+
+    await screen.findByText(/Đã lưu cài đặt thông báo!/i);
+    // Toast popup and header bell unread badge must stay suppressed while inAppEnabled is false
+    expect(document.querySelector('.farmshift-floating-toast')).toBeNull();
+    expect(document.querySelector('.farmshift-badge-counter')).toBeNull();
+  });
+
+  it('decodes Base64URL JWT payloads with - and _ without falling back to default scope', () => {
+    localStorage.removeItem('user');
+    const base64UrlPayload = btoa('{"sub":"user-a?1@farm.vn"}')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(base64UrlPayload).toMatch(/[-_]/);
+    localStorage.setItem('token', `hdr.${base64UrlPayload}.sig`);
+    localStorage.setItem(
+      'farmshift_notif_prefs:user-a?1@farm.vn',
+      JSON.stringify({ inAppEnabled: false, iotAlertEnabled: false, taskVaccineReminderEnabled: true, debtReminderEnabled: false })
+    );
+    const loaded = loadLocalNotificationPrefs();
+    expect(loaded.inAppEnabled).toBe(false);
+    expect(loaded.iotAlertEnabled).toBe(false);
   });
 });

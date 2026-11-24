@@ -67,6 +67,13 @@
   --fs-header-height: 70px;
   --fs-sidebar-width: 272px;
   --fs-sidebar-collapsed-width: 72px;
+  --fs-ai-drawer-width: 0px;
+}
+
+@media (min-width: 1100px) {
+  :root.farmshift-ai-drawer-open {
+    --fs-ai-drawer-width: 440px;
+  }
 }
 
 /* Base resets & typography */
@@ -154,8 +161,9 @@ h6 {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
+  right: var(--fs-ai-drawer-width);
   height: var(--fs-header-height);
+  transition: right 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   background-color: var(--color-canvas);
   color: var(--color-ink);
   border-bottom: 1px solid var(--color-hairline);
@@ -175,6 +183,8 @@ h6 {
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .farmshift-toggle-btn,
@@ -188,6 +198,7 @@ h6 {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -208,14 +219,33 @@ h6 {
   color: var(--fs-teal-dark);
   font-size: 15.5px;
   font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 300px;
   border: 1px solid rgba(1, 151, 136, 0.15);
 }
 
+.farmshift-header-brand-tag > span:first-child,
+.farmgo-header-brand-tag > span:first-child {
+  flex-shrink: 0;
+}
+
+.farmshift-header-brand-tag > span:last-child,
+.farmgo-header-brand-tag > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .farmshift-header-center {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 0;
   display: flex;
   justify-content: center;
-  padding: 0 20px;
+  padding: 0 16px;
 }
 
 .farmshift-header-right,
@@ -223,6 +253,41 @@ h6 {
   display: flex;
   align-items: center;
   gap: 14px;
+  flex-shrink: 0;
+}
+
+@media (min-width: 1100px) and (max-width: 1380px) {
+  :root.farmshift-ai-drawer-open .farmshift-header,
+  :root.farmshift-ai-drawer-open .farmgo-header {
+    padding: 0 16px;
+    gap: 10px;
+  }
+
+  :root.farmshift-ai-drawer-open .farmshift-header-left,
+  :root.farmshift-ai-drawer-open .farmgo-header-left {
+    gap: 10px;
+  }
+
+  :root.farmshift-ai-drawer-open .farmshift-header-brand-tag,
+  :root.farmshift-ai-drawer-open .farmgo-header-brand-tag {
+    max-width: 190px;
+    padding: 5px 11px;
+    font-size: 13.5px;
+  }
+
+  :root.farmshift-ai-drawer-open .farmshift-header-center {
+    padding: 0 8px;
+  }
+
+  :root.farmshift-ai-drawer-open .farmshift-header-right,
+  :root.farmshift-ai-drawer-open .farmgo-header-right {
+    gap: 8px;
+  }
+
+  :root.farmshift-ai-drawer-open .farmshift-main,
+  :root.farmshift-ai-drawer-open .farmgo-main {
+    padding: 22px 20px 80px 20px;
+  }
 }
 
 .farmshift-header-icon-btn,
@@ -612,13 +677,15 @@ h6 {
 .farmgo-main {
   margin-top: var(--fs-header-height);
   margin-left: var(--fs-sidebar-width);
+  margin-right: var(--fs-ai-drawer-width);
   flex: 1 1 0%;
   min-width: 0;
-  width: calc(100% - var(--fs-sidebar-width));
-  max-width: calc(100% - var(--fs-sidebar-width));
+  width: calc(100% - var(--fs-sidebar-width) - var(--fs-ai-drawer-width));
+  max-width: calc(100% - var(--fs-sidebar-width) - var(--fs-ai-drawer-width));
   padding: 28px 36px 80px 36px;
   min-height: calc(100vh - var(--fs-header-height));
   transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-right 0.22s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
     max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
@@ -629,8 +696,8 @@ h6 {
 .farmshift-main.collapsed,
 .farmgo-main.collapsed {
   margin-left: var(--fs-sidebar-collapsed-width);
-  width: calc(100% - var(--fs-sidebar-collapsed-width));
-  max-width: calc(100% - var(--fs-sidebar-collapsed-width));
+  width: calc(100% - var(--fs-sidebar-collapsed-width) - var(--fs-ai-drawer-width));
+  max-width: calc(100% - var(--fs-sidebar-collapsed-width) - var(--fs-ai-drawer-width));
 }
 
 /* ── Content Header & Breadcrumbs ────────────────────────── */
@@ -1462,14 +1529,14 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
   .farmshift-main,
   .farmgo-main {
     padding: 32px 48px 90px 48px;
-    width: calc(100vw - var(--fs-sidebar-width));
-    max-width: calc(100vw - var(--fs-sidebar-width));
+    width: calc(100vw - var(--fs-sidebar-width) - var(--fs-ai-drawer-width));
+    max-width: calc(100vw - var(--fs-sidebar-width) - var(--fs-ai-drawer-width));
   }
 
   .farmshift-main.collapsed,
   .farmgo-main.collapsed {
-    width: calc(100vw - var(--fs-sidebar-collapsed-width));
-    max-width: calc(100vw - var(--fs-sidebar-collapsed-width));
+    width: calc(100vw - var(--fs-sidebar-collapsed-width) - var(--fs-ai-drawer-width));
+    max-width: calc(100vw - var(--fs-sidebar-collapsed-width) - var(--fs-ai-drawer-width));
   }
 
   .farmshift-shortcuts,

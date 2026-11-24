@@ -16,6 +16,15 @@ import { Plus, Search, FileSpreadsheet, X, Printer, Pencil, ScanText, Loader2 } 
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
+const broadcastFarmAreasChanged = () => {
+  window.dispatchEvent(new Event('farm-areas-changed'));
+  try {
+    localStorage.setItem('farm-areas-changed', `${Date.now()}-${Math.random()}`);
+  } catch (_err) {
+    // Ignore storage quota or private-mode errors
+  }
+};
+
 export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = ['orders', 'customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'create';
@@ -184,13 +193,14 @@ export const SalesView = () => {
       const selectedFlockId = matched ? matched.id : '';
 
       const numeric = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? String(value) : '';
+      const integerMoney = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? String(Math.round(value)) : '';
       const ocrStatus = ['PAID', 'DEBT', 'PARTIAL'].includes(draft.status) ? draft.status : 'DEBT';
       const ocrMethod = ocrStatus === 'DEBT' ? '' : (draft.paymentMethod || 'Tiền mặt');
       setNewSale(previous => ({ ...previous, customer: draft.customer || '', phone: String(draft.phone || '').replace(/[^0-9]/g, ''),
-        address: draft.address || '', taxCode: draft.taxCode || '', date: draft.date || '',
-        quantity: numeric(draft.quantity), totalWeight: numeric(draft.totalWeight), unitPrice: numeric(draft.unitPrice),
+        address: draft.address || '', taxCode: draft.taxCode || '', date: draft.date || previous.date || '',
+        quantity: numeric(draft.quantity), totalWeight: numeric(draft.totalWeight), unitPrice: integerMoney(draft.unitPrice),
         paymentMethod: ocrMethod, paymentStatus: ocrStatus,
-        paidAmount: numeric(draft.paidAmount), flock: selectedFlockId, note: previous.note || '' }));
+        paidAmount: integerMoney(draft.paidAmount), flock: selectedFlockId, note: previous.note || '' }));
     } catch (error) {
       if (!controller.signal.aborted) setOcrError(error.response?.data?.message || error.message || 'Không bóc tách được phiếu cân. Vui lòng thử lại.');
     } finally { if (!controller.signal.aborted) setOcrBusy(false); }
@@ -289,8 +299,7 @@ export const SalesView = () => {
       setShowAddModal(false);
       if (!editingSale) setActiveTab('orders');
       setNewSale(previous => ({ ...previous, customer: '', phone: '', address: '', taxCode: '', paymentMethod: 'Tiền mặt', quantity: '', totalWeight: '', unitPrice: '', note: '', paymentStatus: 'PAID', paidAmount: '' }));
-      window.dispatchEvent(new Event('farm-areas-changed'));
-      try { localStorage.setItem('farm-areas-changed', `${Date.now()}-${Math.random()}`); } catch {}
+      broadcastFarmAreasChanged();
     } catch (error) {
       setSaveError(error.response?.data?.message || 'Không thể lưu đơn bán. Vui lòng thử lại.');
     } finally { setSaving(false); }

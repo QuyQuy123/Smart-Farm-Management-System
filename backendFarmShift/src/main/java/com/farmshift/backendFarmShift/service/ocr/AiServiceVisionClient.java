@@ -3,9 +3,8 @@ package com.farmshift.backendFarmShift.service.ocr;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -33,6 +32,9 @@ public class AiServiceVisionClient implements VisionClient {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String aiServiceUrl;
+
+    @Value("${ai-service.internal-token:${AI_INTERNAL_TOKEN:farmshift-local-ai-token}}")
+    private String internalAiToken = "farmshift-local-ai-token";
 
     public AiServiceVisionClient(
             ObjectMapper objectMapper,
@@ -71,70 +73,56 @@ public class AiServiceVisionClient implements VisionClient {
         try {
             byte[] multipartBody = createMultipartPayload(boundary, "file", filename, mimeType, document);
 
-            HttpRequest request = HttpRequest.newBuilder()
+            String requestId = resolveRequestId();
+            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(aiServiceUrl + "/api/ocr/extract-invoice"))
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(Duration.ofSeconds(65))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("X-Request-ID", requestId);
+            if (internalAiToken != null && !internalAiToken.isBlank()) {
+                reqBuilder.header("X-Internal-AI-Token", internalAiToken);
+            }
+            HttpRequest request = reqBuilder
                     .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
                     .build();
 
-            log.info("Sending invoice extraction request to aiServiceFarmShift at {}/api/ocr/extract-invoice", aiServiceUrl);
+            log.info("Sending invoice extraction request [requestId={}] to aiServiceFarmShift at {}/api/ocr/extract-invoice", requestId, aiServiceUrl);
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
             if (response.statusCode() == 200) {
                 JsonNode parsed = objectMapper.readTree(response.body());
-                log.info("Successfully extracted invoice from aiServiceFarmShift, confidence={}", parsed.path("confidence").asDouble(0));
+                log.info("Successfully extracted invoice [requestId={}] from aiServiceFarmShift, confidence={}", requestId, parsed.path("confidence").asDouble(0));
                 return parsed;
-            } else {
-                log.warn("aiServiceFarmShift returned status {}: {}", response.statusCode(), response.body());
-                throw new BadRequestException("Dịch vụ AI (aiServiceFarmShift) phản hồi lỗi: " + response.statusCode(), "AI_SERVICE_ERROR");
             }
+
+            String message = "Dịch vụ AI (aiServiceFarmShift) phản hồi lỗi: " + response.statusCode();
+            try {
+                JsonNode detail = objectMapper.readTree(response.body()).path("detail");
+                if (detail.isTextual() && !detail.asText().isBlank() && detail.asText().length() <= 500) {
+                    message = detail.asText();
+                }
+            } catch (Exception ignored) {
+                // Non-JSON error body from upstream/proxy
+            }
+            log.warn("aiServiceFarmShift returned status {} [requestId={}] for invoice OCR", response.statusCode(), requestId);
+            throw new BadRequestException(message, "AI_SERVICE_ERROR");
         } catch (BadRequestException e) {
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BadRequestException("Đã ngắt xử lý bóc tách hóa đơn.", "AI_SERVICE_ERROR");
         } catch (Exception ex) {
-            log.warn("Failed to communicate with aiServiceFarmShift ({}), using emergency fallback: {}", aiServiceUrl, ex.getMessage());
-            return emergencyFallback();
+            log.warn("Failed to communicate with aiServiceFarmShift ({}): {}", aiServiceUrl, ex.getMessage());
+            throw new BadRequestException(
+                    "Không kết nối được dịch vụ AI OCR. Vui lòng thử lại sau.",
+                    "AI_SERVICE_ERROR"
+            );
         }
     }
 
-    private JsonNode emergencyFallback() {
-        ObjectNode root = objectMapper.createObjectNode();
-        root.put("isInvoice", true);
-        root.put("supplierName", "Công ty CP Chăn nuôi C.P. Việt Nam");
-        root.put("supplierTaxCode", "0300645678");
-        root.put("invoiceDate", java.time.LocalDate.now().toString());
-        root.put("referenceCode", "HD-CP-2026-9921");
-
-        ArrayNode items = root.putArray("items");
-        ObjectNode item1 = items.addObject();
-        item1.put("name", "Cám Gà úm Higro 01");
-        item1.put("qty", 50.0);
-        item1.put("unit", "Bao (25kg)");
-        item1.put("unitPrice", 345000L);
-        item1.put("amount", 17250000L);
-        item1.put("vatRate", 0.0);
-
-        ObjectNode item2 = items.addObject();
-        item2.put("name", "Cám Gà thịt Higro 02");
-        item2.put("qty", 60.0);
-        item2.put("unit", "Bao (25kg)");
-        item2.put("unitPrice", 335000L);
-        item2.put("amount", 20100000L);
-        item2.put("vatRate", 0.0);
-
-        root.put("discountAmount", 0L);
-        root.put("vatAmount", 0L);
-        root.put("otherCost", 0L);
-        root.put("totalAmount", 37350000L);
-        root.put("paidAmount", 37350000L);
-        root.put("paymentStatus", "Thanh toán hoàn tất");
-        root.put("confidence", 95.0);
-        root.put("engine", "aiServiceFarmShift (Fallback)");
-
-        ArrayNode warnings = root.putArray("warnings");
-        warnings.add("Dịch vụ aiServiceFarmShift hiện chưa phản hồi tại " + aiServiceUrl + " - Hệ thống đã áp dụng dữ liệu mẫu dự phòng.");
-
-        return root;
+    private static String resolveRequestId() {
+        String cid = MDC.get("requestId");
+        return (cid != null && !cid.isBlank()) ? cid.trim() : UUID.randomUUID().toString();
     }
 
     private byte[] createMultipartPayload(String boundary, String fieldName, String filename, String mimeType, byte[] fileBytes) throws IOException {

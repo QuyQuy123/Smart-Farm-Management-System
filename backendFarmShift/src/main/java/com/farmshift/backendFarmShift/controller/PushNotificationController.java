@@ -1,9 +1,11 @@
 package com.farmshift.backendFarmShift.controller;
 
 import com.farmshift.backendFarmShift.dto.request.PushIotAlertRequest;
+import com.farmshift.backendFarmShift.dto.request.PushPreferencesRequest;
 import com.farmshift.backendFarmShift.dto.request.PushSubscribeRequest;
 import com.farmshift.backendFarmShift.dto.request.PushTestRequest;
 import com.farmshift.backendFarmShift.dto.request.PushUnsubscribeRequest;
+import com.farmshift.backendFarmShift.dto.response.PushPreferencesResponse;
 import com.farmshift.backendFarmShift.entity.Barn;
 import com.farmshift.backendFarmShift.entity.PushSubscription;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
@@ -54,6 +56,19 @@ public class PushNotificationController {
     @GetMapping("/status")
     public WebPushService.StatusResult status(Authentication authentication) {
         return webPushService.status(authentication.getName());
+    }
+
+    @GetMapping("/preferences")
+    public PushPreferencesResponse getPreferences(Authentication authentication) {
+        return webPushService.getPreferences(authentication.getName());
+    }
+
+    @PutMapping("/preferences")
+    public PushPreferencesResponse updatePreferences(
+            @Valid @RequestBody PushPreferencesRequest request,
+            Authentication authentication
+    ) {
+        return webPushService.updatePreferences(authentication.getName(), request);
     }
 
     @PostMapping("/test")

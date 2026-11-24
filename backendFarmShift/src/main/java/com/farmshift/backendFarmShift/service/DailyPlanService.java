@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.service;
 import com.farmshift.backendFarmShift.dto.request.DailyTaskConfirmRequest;
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
 import com.farmshift.backendFarmShift.dto.response.DashboardResponse;
+import com.farmshift.backendFarmShift.dto.response.WorkBoard;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ConflictException;
@@ -48,6 +49,28 @@ public class DailyPlanService {
     private final WorkAssignmentService workAssignment;
     private final FarmService farmService;
     private final DailyStockSources stockSources;
+    private final FarmingProgramRepository programRepository;
+
+    record DashboardPlanData(
+            List<FarmingCycle> cycles,
+            List<BarnDayPlan> todayPlans,
+            List<DashboardResponse.DayTasks> history,
+            Map<Long, List<Flock>> flocksByCycle,
+            Map<Long, List<FlockMovement>> movementsByCycle
+    ) { }
+
+    private record PlanBatchContext(
+            Map<Long, List<WorkBoard.WorkerRef>> workersByBarn,
+            List<FarmingCycle> cycles,
+            Map<Long, List<Flock>> flocksByCycle,
+            Map<Long, FarmingProgram> programsById,
+            Map<Long, List<FlockMovement>> movementsByCycle,
+            Map<LocalDate, Map<Long, List<DailyTaskLog>>> logsByDateAndCycle,
+            Map<LocalDate, Map<Long, List<WorkBoard.AssignedTask>>> assignedByDateAndBarn,
+            List<InventoryItem> preloadedInventory,
+            Map<Long, Set<Long>> barnStoreIds,
+            LocalTime firstMeal
+    ) { }
 
     /** Phiếu việc của mọi chuồng đang có lứa nuôi trong một ngày (mặc định hôm nay). */
     public List<BarnDayPlan> farm(LocalDate date, boolean canSeeFinance) {
@@ -62,21 +85,137 @@ public class DailyPlanService {
     public List<BarnDayPlan> farm(LocalDate date, boolean canSeeFinance, String workerEmail, boolean resolveStock) {
         LocalDate day = date == null ? today() : date;
         if (day.isAfter(today())) throw new BadRequestException("Chỉ xem được phiếu việc đến hôm nay.", "DAILY_PLAN_FUTURE");
-        Set<Long> barns = workerEmail == null ? null : workAssignment.barnIdsOf(workerEmail);
-        List<InventoryItem> preloadedInventory = resolveStock
-                ? inventoryRepository.findAllWithDetailsBy(Sort.by("createdAt", "id"))
-                : null;
-        Map<Long, Set<Long>> barnStoreIds = resolveStock ? new HashMap<>() : null;
-        Map<String, BigDecimal> sharedAverages = resolveStock && canSeeFinance ? new HashMap<>() : null;
-        return cycleRepository.findAllByStatus(CycleStatus.ACTIVE).stream()
-                .filter(cycle -> !day.isBefore(cycle.getStartDate()))
+        PlanBatchContext ctx = loadPlanBatchContext(day, day, day, workerEmail, resolveStock, true);
+        return buildPlansForDay(ctx, day, canSeeFinance, resolveStock);
+    }
+
+    DashboardPlanData dashboardPlanData(LocalDate today, boolean canSeeFinance, String workerEmail, int historyDays) {
+        LocalDate from = today.minusDays(historyDays - 1);
+        PlanBatchContext ctx = loadPlanBatchContext(today, from, today, workerEmail, true, true);
+        List<BarnDayPlan> todayPlans = buildPlansForDay(ctx, today, canSeeFinance, true);
+        List<DashboardResponse.DayTasks> history = buildTaskHistory(ctx, today, historyDays);
+        Set<Long> activePlanCycleIds = new HashSet<>();
+        for (BarnDayPlan plan : todayPlans) {
+            activePlanCycleIds.add(plan.cycleId());
+        }
+        List<FarmingCycle> activePlanCycles = ctx.cycles().stream()
+                .filter(cycle -> activePlanCycleIds.contains(cycle.getId()))
+                .toList();
+        return new DashboardPlanData(activePlanCycles, todayPlans, history, ctx.flocksByCycle(), ctx.movementsByCycle());
+    }
+
+    private PlanBatchContext loadPlanBatchContext(
+            LocalDate filterStartCutoff, LocalDate rangeFrom, LocalDate rangeTo,
+            String workerEmail, boolean resolveStock, boolean needTodayDetails) {
+        Map<Long, List<WorkBoard.WorkerRef>> workersByBarn = workAssignment.workersByBarn();
+        Set<Long> barns = workerEmail == null ? null : workerBarnIds(workerEmail, workersByBarn);
+        List<FarmingCycle> cycles = cycleRepository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE).stream()
+                .filter(cycle -> filterStartCutoff == null || !filterStartCutoff.isBefore(cycle.getStartDate()))
                 .filter(cycle -> barns == null || barns.contains(cycle.getBarn().getId()))
                 .sorted(Comparator.comparing((FarmingCycle cycle) -> cycle.getBarn().getArea().getName())
                         .thenComparing(cycle -> cycle.getBarn().getName()))
-                .map(cycle -> response(cycle, day, compute(cycle, day, workerEmail, resolveStock, preloadedInventory, barnStoreIds),
-                        canSeeFinance, workerEmail, resolveStock, sharedAverages))
-                .filter(plan -> !plan.flocks().isEmpty() || !plan.tasks().isEmpty() || !plan.assignedTasks().isEmpty())
                 .toList();
+        if (cycles.isEmpty()) {
+            return new PlanBatchContext(workersByBarn, List.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), null, null, null);
+        }
+
+        List<Long> cycleIds = new ArrayList<>(cycles.size());
+        Set<Long> barnIds = new LinkedHashSet<>();
+        for (FarmingCycle cycle : cycles) {
+            cycleIds.add(cycle.getId());
+            barnIds.add(cycle.getBarn().getId());
+        }
+
+        Map<Long, List<Flock>> flocksByCycle = new HashMap<>();
+        for (Flock f : flockRepository.findByCycleIdInOrderByImportDateAscIdAsc(cycleIds)) {
+            if (f.getCycle() != null) {
+                flocksByCycle.computeIfAbsent(f.getCycle().getId(), ignored -> new ArrayList<>()).add(f);
+            }
+        }
+        Map<Long, FarmingProgram> programsById = preloadPrograms(flocksByCycle);
+
+        Map<Long, List<FlockMovement>> movementsByCycle = new HashMap<>();
+        for (FlockMovement m : movementRepository.findByFlock_Cycle_IdInOrderByMovementDateAscIdAsc(cycleIds)) {
+            if (m.getFlock() != null && m.getFlock().getCycle() != null) {
+                movementsByCycle.computeIfAbsent(m.getFlock().getCycle().getId(), ignored -> new ArrayList<>()).add(m);
+            }
+        }
+
+        Map<LocalDate, Map<Long, List<DailyTaskLog>>> logsByDateAndCycle = new HashMap<>();
+        for (DailyTaskLog log : logRepository.findAllWithDetailsByCycleIdInAndTaskDateBetween(cycleIds, rangeFrom, rangeTo)) {
+            logsByDateAndCycle.computeIfAbsent(log.getTaskDate(), ignored -> new HashMap<>())
+                    .computeIfAbsent(log.getCycle().getId(), ignored -> new ArrayList<>())
+                    .add(log);
+        }
+
+        Map<LocalDate, Map<Long, List<WorkBoard.AssignedTask>>> assignedByDateAndBarn =
+                workAssignment.tasksByBarnInRange(barnIds, rangeFrom, rangeTo, workerEmail);
+
+        List<InventoryItem> preloadedInventory = resolveStock
+                ? inventoryRepository.findAllWithDetailsBy(Sort.by("createdAt", "id"))
+                : null;
+        Map<Long, Set<Long>> barnStoreIds = resolveStock ? stockSources.preloadBarnStoreIds(cycles) : null;
+        LocalTime firstMeal = needTodayDetails ? farmService.firstMealTime() : null;
+
+        return new PlanBatchContext(workersByBarn, cycles, flocksByCycle, programsById, movementsByCycle,
+                logsByDateAndCycle, assignedByDateAndBarn, preloadedInventory, barnStoreIds, firstMeal);
+    }
+
+    private List<BarnDayPlan> buildPlansForDay(PlanBatchContext ctx, LocalDate day, boolean canSeeFinance, boolean resolveStock) {
+        if (ctx.cycles().isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<DailyTaskLog>> dayLogsByCycle = ctx.logsByDateAndCycle().getOrDefault(day, Map.of());
+        Map<Long, List<WorkBoard.AssignedTask>> dayAssignedByBarn = ctx.assignedByDateAndBarn().getOrDefault(day, Map.of());
+        Map<String, BigDecimal> sharedAverages = resolveStock && canSeeFinance ? new HashMap<>() : null;
+        List<BarnDayPlan> result = new ArrayList<>();
+        for (FarmingCycle cycle : ctx.cycles()) {
+            if (day.isBefore(cycle.getStartDate())) continue;
+            Plan plan = computeWithData(
+                    cycle, day, null, resolveStock, ctx.preloadedInventory(), ctx.barnStoreIds(),
+                    ctx.flocksByCycle().getOrDefault(cycle.getId(), List.of()),
+                    ctx.movementsByCycle().getOrDefault(cycle.getId(), List.of()),
+                    ctx.programsById());
+            BarnDayPlan mapped = responseWithData(
+                    cycle, day, plan, canSeeFinance, resolveStock, sharedAverages, ctx.preloadedInventory(),
+                    dayLogsByCycle.getOrDefault(cycle.getId(), List.of()),
+                    ctx.workersByBarn().getOrDefault(cycle.getBarn().getId(), List.of()),
+                    dayAssignedByBarn.getOrDefault(cycle.getBarn().getId(), List.of()),
+                    ctx.firstMeal());
+            if (!mapped.flocks().isEmpty() || !mapped.tasks().isEmpty() || !mapped.assignedTasks().isEmpty()) {
+                result.add(mapped);
+            }
+        }
+        return result;
+    }
+
+    private static Set<Long> workerBarnIds(String workerEmail, Map<Long, List<WorkBoard.WorkerRef>> workersByBarn) {
+        Set<Long> ids = new HashSet<>();
+        workersByBarn.forEach((barnId, workers) -> {
+            if (workers.stream().anyMatch(w -> w.email() != null && w.email().equalsIgnoreCase(workerEmail))) {
+                ids.add(barnId);
+            }
+        });
+        return ids;
+    }
+
+    private Map<Long, FarmingProgram> preloadPrograms(Map<Long, List<Flock>> flocksByCycle) {
+        Set<Long> programIds = new LinkedHashSet<>();
+        for (List<Flock> flocks : flocksByCycle.values()) {
+            for (Flock flock : flocks) {
+                if (flock.getProgram() != null && flock.getProgram().getId() != null) {
+                    programIds.add(flock.getProgram().getId());
+                }
+            }
+        }
+        if (programIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, FarmingProgram> map = new HashMap<>();
+        for (FarmingProgram program : programRepository.findAllWithStepsByIdIn(programIds)) {
+            map.put(program.getId(), program);
+        }
+        return map;
     }
 
     public BarnDayPlan barn(Long cycleId, LocalDate date, boolean canSeeFinance) {
@@ -277,49 +416,34 @@ public class DailyPlanService {
 
     /**
      * Lấy lịch sử công việc các ngày qua cho Bảng tin với số lượng DB queries tối thiểu.
-     * Tái sử dụng đàn và biến động của chuồng, gom log trong khoảng ngày bằng 1 query duy nhất.
+     * Nạp hàng loạt đàn, biến động, nhật ký việc và việc được giao bằng batch queries.
      */
     public List<DashboardResponse.DayTasks> taskHistory(LocalDate today, boolean canSeeFinance, String workerEmail, int historyDays) {
-        Set<Long> barns = workerEmail == null ? null : workAssignment.barnIdsOf(workerEmail);
-        List<FarmingCycle> cycles = cycleRepository.findAllByStatus(CycleStatus.ACTIVE).stream()
-                .filter(cycle -> barns == null || barns.contains(cycle.getBarn().getId())).toList();
-        if (cycles.isEmpty()) {
+        LocalDate from = today.minusDays(historyDays - 1);
+        LocalDate to = today.minusDays(1);
+        PlanBatchContext ctx = loadPlanBatchContext(null, from, to, workerEmail, false, false);
+        return buildTaskHistory(ctx, today, historyDays);
+    }
+
+    private List<DashboardResponse.DayTasks> buildTaskHistory(PlanBatchContext ctx, LocalDate today, int historyDays) {
+        if (ctx.cycles().isEmpty()) {
             List<DashboardResponse.DayTasks> empty = new ArrayList<>();
             for (int back = historyDays - 1; back >= 1; back--) {
                 empty.add(new DashboardResponse.DayTasks(today.minusDays(back), 0, 0, 0));
             }
             return empty;
         }
-
-        Map<Long, List<Flock>> flocksByCycle = new HashMap<>();
-        Map<Long, List<FlockMovement>> movementsByCycle = new HashMap<>();
-        List<Long> cycleIds = new ArrayList<>();
-        for (FarmingCycle cycle : cycles) {
-            cycleIds.add(cycle.getId());
-            flocksByCycle.put(cycle.getId(), flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId()));
-            movementsByCycle.put(cycle.getId(), movementRepository.findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(cycle.getId()));
-        }
-
-        LocalDate from = today.minusDays(historyDays - 1);
-        LocalDate to = today.minusDays(1);
-        List<DailyTaskLog> allLogs = logRepository.findAllByCycleIdInAndTaskDateBetween(cycleIds, from, to);
-        Map<LocalDate, Map<Long, List<DailyTaskLog>>> logsByDate = new HashMap<>();
-        for (DailyTaskLog log : allLogs) {
-            logsByDate.computeIfAbsent(log.getTaskDate(), d -> new HashMap<>())
-                    .computeIfAbsent(log.getCycle().getId(), c -> new ArrayList<>())
-                    .add(log);
-        }
-
         List<DashboardResponse.DayTasks> days = new ArrayList<>();
         for (int back = historyDays - 1; back >= 1; back--) {
             LocalDate day = today.minusDays(back);
             int done = 0, total = 0;
-            Map<Long, List<DailyTaskLog>> dayLogs = logsByDate.getOrDefault(day, Map.of());
-            for (FarmingCycle cycle : cycles) {
+            Map<Long, List<DailyTaskLog>> dayLogs = ctx.logsByDateAndCycle().getOrDefault(day, Map.of());
+            Map<Long, List<WorkBoard.AssignedTask>> dayAssigned = ctx.assignedByDateAndBarn().getOrDefault(day, Map.of());
+            for (FarmingCycle cycle : ctx.cycles()) {
                 if (day.isBefore(cycle.getStartDate())) continue;
-                List<Flock> flocks = flocksByCycle.get(cycle.getId());
-                List<FlockMovement> movements = movementsByCycle.get(cycle.getId());
-                Plan plan = computeWithPreloaded(cycle, day, workerEmail, flocks, movements);
+                List<Flock> flocks = ctx.flocksByCycle().getOrDefault(cycle.getId(), List.of());
+                List<FlockMovement> movements = ctx.movementsByCycle().getOrDefault(cycle.getId(), List.of());
+                Plan plan = computeWithPreloaded(cycle, day, flocks, movements, ctx.programsById());
                 total += plan.tasks().size();
                 List<DailyTaskLog> cycleLogs = dayLogs.getOrDefault(cycle.getId(), List.of());
                 done += cycleLogs.size();
@@ -328,7 +452,7 @@ public class DailyPlanService {
                 for (DailyTaskLog l : cycleLogs) {
                     if (!plannedKeys.contains(l.getTaskKey())) total++;
                 }
-                var assigned = workAssignment.tasksOf(cycle.getBarn().getId(), day, workerEmail);
+                List<WorkBoard.AssignedTask> assigned = dayAssigned.getOrDefault(cycle.getBarn().getId(), List.of());
                 total += assigned.size();
                 done += (int) assigned.stream().filter(t -> t.done() != null).count();
             }
@@ -337,8 +461,9 @@ public class DailyPlanService {
         return days;
     }
 
-    private Plan computeWithPreloaded(FarmingCycle cycle, LocalDate day, String workerEmail,
-                                     List<Flock> flocks, List<FlockMovement> movements) {
+    private Plan computeWithPreloaded(FarmingCycle cycle, LocalDate day,
+                                      List<Flock> flocks, List<FlockMovement> movements,
+                                      Map<Long, FarmingProgram> programsById) {
         List<String> warnings = new ArrayList<>();
         List<FlockDay> present = new ArrayList<>();
         for (Flock flock : flocks) {
@@ -353,7 +478,10 @@ public class DailyPlanService {
 
         Map<String, Planned> groups = new LinkedHashMap<>();
         for (FlockDay flockDay : present) {
-            FarmingProgram program = flockDay.flock().getProgram();
+            FarmingProgram rawProgram = flockDay.flock().getProgram();
+            FarmingProgram program = rawProgram != null && programsById != null
+                    ? programsById.getOrDefault(rawProgram.getId(), rawProgram)
+                    : rawProgram;
             if (program == null) continue;
             List<FarmingProgramStep> steps = program.getSteps().stream()
                     .filter(step -> step.getCategory() != ProgramStepCategory.WORK)
@@ -363,7 +491,7 @@ public class DailyPlanService {
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             for (FarmingProgramStep step : steps) {
                 String groupKey = step.getCategory().name() + ":" + identity(step);
-                Planned group = groups.computeIfAbsent(groupKey, key -> newGroup(key, step, cycle, workerEmail, false, null, null));
+                Planned group = groups.computeIfAbsent(groupKey, key -> newGroup(key, step, cycle, null, false, null, null));
                 if (step.getMealsPerDay() != null) group.meals = Math.max(group.meals == null ? 1 : group.meals, step.getMealsPerDay());
                 if (step.getQuantity() != null) group.doses.add(step.getQuantity().stripTrailingZeros());
                 BigDecimal share = share(step, flockDay, feedKg);
@@ -390,21 +518,23 @@ public class DailyPlanService {
             } else {
                 Planned task = copy(group);
                 task.key = group.groupKey;
-                group.shares.forEach(task.shares::put);
-                tasks.add(task);
+                    group.shares.forEach(task.shares::put);
+                    tasks.add(task);
             }
         }
         return new Plan(present, tasks, warnings);
     }
 
     private Plan compute(FarmingCycle cycle, LocalDate day, String workerEmail) {
-        return compute(cycle, day, workerEmail, true, null, null);
+        return computeWithData(cycle, day, workerEmail, true, null, null, null, null, null);
     }
 
-    private Plan compute(FarmingCycle cycle, LocalDate day, String workerEmail, boolean resolveStock,
-                         List<InventoryItem> preloadedInventory, Map<Long, Set<Long>> barnStoreIds) {
-        List<Flock> flocks = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId());
-        List<FlockMovement> movements = movementRepository.findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(cycle.getId());
+    private Plan computeWithData(FarmingCycle cycle, LocalDate day, String workerEmail, boolean resolveStock,
+                               List<InventoryItem> preloadedInventory, Map<Long, Set<Long>> barnStoreIds,
+                               List<Flock> preloadedFlocks, List<FlockMovement> preloadedMovements,
+                               Map<Long, FarmingProgram> programsById) {
+        List<Flock> flocks = preloadedFlocks != null ? preloadedFlocks : flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId());
+        List<FlockMovement> movements = preloadedMovements != null ? preloadedMovements : movementRepository.findAllByFlock_Cycle_IdOrderByMovementDateAscIdAsc(cycle.getId());
         List<String> warnings = new ArrayList<>();
         List<FlockDay> present = new ArrayList<>();
         for (Flock flock : flocks) {
@@ -419,7 +549,10 @@ public class DailyPlanService {
 
         Map<String, Planned> groups = new LinkedHashMap<>();
         for (FlockDay flockDay : present) {
-            FarmingProgram program = flockDay.flock().getProgram();
+            FarmingProgram rawProgram = flockDay.flock().getProgram();
+            FarmingProgram program = rawProgram != null && programsById != null
+                    ? programsById.getOrDefault(rawProgram.getId(), rawProgram)
+                    : rawProgram;
             if (program == null) continue;
             // Công việc (WORK) không thuộc chương trình nuôi nữa; bỏ qua nếu còn sót trong dữ liệu cũ.
             List<FarmingProgramStep> steps = program.getSteps().stream()
@@ -591,18 +724,27 @@ public class DailyPlanService {
     // ---------------------------------------------------------------- response
 
     private BarnDayPlan response(FarmingCycle cycle, LocalDate day, Plan plan, boolean canSeeFinance, String workerEmail) {
-        return response(cycle, day, plan, canSeeFinance, workerEmail, true, null);
+        return responseWithData(
+                cycle, day, plan, canSeeFinance, true, null, null,
+                logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day),
+                workAssignment.workersOf(cycle.getBarn().getId()),
+                workAssignment.tasksOf(cycle.getBarn().getId(), day, workerEmail),
+                farmService.firstMealTime());
     }
 
-    private BarnDayPlan response(FarmingCycle cycle, LocalDate day, Plan plan, boolean canSeeFinance, String workerEmail,
-                                 boolean resolveStock, Map<String, BigDecimal> sharedAverages) {
+    private BarnDayPlan responseWithData(
+            FarmingCycle cycle, LocalDate day, Plan plan, boolean canSeeFinance,
+            boolean resolveStock, Map<String, BigDecimal> sharedAverages,
+            List<InventoryItem> preloadedInventory,
+            List<DailyTaskLog> allLogs,
+            List<WorkBoard.WorkerRef> workers,
+            List<WorkBoard.AssignedTask> assignedTasks,
+            LocalTime firstMeal) {
         Barn barn = cycle.getBarn();
         Map<Long, FlockDay> flocks = new LinkedHashMap<>();
         for (FlockDay flockDay : plan.flocks()) flocks.put(flockDay.flock().getId(), flockDay);
         Map<String, DailyTaskLog> logs = new LinkedHashMap<>();
-        List<DailyTaskLog> allLogs = logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day);
         for (DailyTaskLog log : allLogs) logs.put(log.getTaskKey(), log);
-        LocalTime firstMeal = farmService.firstMealTime();
 
         List<String> warnings = new ArrayList<>(plan.warnings());
         Map<Long, BigDecimal> remainingByItem = new LinkedHashMap<>();
@@ -624,7 +766,7 @@ public class DailyPlanService {
                 InventoryItem priced = task.item != null ? task.item : task.sources.isEmpty() ? null : task.sources.getFirst().getFirst();
                 pricedStock = stock != null ? stock : priced != null && task.total != null
                         ? UsageMath.toStock(task.total, task.unit, priced, task.category == ProgramStepCategory.VACCINE) : null;
-                averagePrice = canSeeFinance && priced != null ? averagePrice(priced, averages) : null;
+                averagePrice = canSeeFinance && priced != null ? averagePrice(priced, averages, preloadedInventory) : null;
                 plannedCost = averagePrice != null && pricedStock != null
                         ? pricedStock.multiply(averagePrice).setScale(0, RoundingMode.HALF_UP) : null;
                 if (plannedCost != null) plannedTotal = plannedTotal.add(plannedCost);
@@ -678,15 +820,17 @@ public class DailyPlanService {
                 plan.flocks().stream().mapToInt(FlockDay::heads).sum(),
                 plan.flocks().stream().map(f -> new BarnDayPlan.FlockLine(f.flock().getId(), flockCode(f.flock()), f.flock().getName(),
                         f.flock().getProgram() == null ? null : f.flock().getProgram().getName(), f.age(), f.heads())).toList(),
-                tasks, all.size(), cost, canSeeFinance ? plannedTotal : null, warnings, workAssignment.workersOf(barn.getId()),
-                workAssignment.tasksOf(barn.getId(), day, workerEmail));
+                tasks, all.size(), cost, canSeeFinance ? plannedTotal : null, warnings, workers, assignedTasks);
     }
 
     /** Giá trung bình một đơn vị tồn của mặt hàng (cùng quy cách) trong kho nguồn: bình quân theo tồn, hết tồn thì trung bình giá. */
-    private BigDecimal averagePrice(InventoryItem item, Map<String, BigDecimal> cache) {
+    private BigDecimal averagePrice(InventoryItem item, Map<String, BigDecimal> cache, List<InventoryItem> preloadedInventory) {
         Long unitId = item.getUnit() == null ? null : item.getUnit().getId();
         return cache.computeIfAbsent(item.getWarehouse().getId() + ":" + item.getProduct().getId() + ":" + unitId, ignored -> {
-            List<InventoryItem> same = inventoryRepository.findByProduct_Id(item.getProduct().getId()).stream()
+            List<InventoryItem> candidates = preloadedInventory != null
+                    ? preloadedInventory.stream().filter(other -> other.getProduct().getId().equals(item.getProduct().getId())).toList()
+                    : inventoryRepository.findByProduct_Id(item.getProduct().getId());
+            List<InventoryItem> same = candidates.stream()
                     .filter(other -> other.getWarehouse().getId().equals(item.getWarehouse().getId()))
                     .filter(other -> Objects.equals(other.getUnit() == null ? null : other.getUnit().getId(), unitId)).toList();
             List<InventoryItem> inStock = same.stream().filter(other -> other.getStock().signum() > 0).toList();

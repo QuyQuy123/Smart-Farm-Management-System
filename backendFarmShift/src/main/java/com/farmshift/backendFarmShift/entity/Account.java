@@ -35,6 +35,18 @@ public class Account {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "notify_in_app", nullable = false)
+    private Boolean notifyInApp = true;
+
+    @Column(name = "notify_iot_alert", nullable = false)
+    private Boolean notifyIotAlert = true;
+
+    @Column(name = "notify_task_vaccine", nullable = false)
+    private Boolean notifyTaskVaccine = true;
+
+    @Column(name = "notify_debt_overdue", nullable = false)
+    private Boolean notifyDebtOverdue = true;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

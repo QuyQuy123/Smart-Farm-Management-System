@@ -17,6 +17,9 @@ public interface FarmingCycleRepository extends JpaRepository<FarmingCycle, Long
     @Query("select c from FarmingCycle c order by c.startDate desc, c.id desc")
     List<FarmingCycle> findAllWithBarnAndAreaForReport();
 
+    @EntityGraph(attributePaths = {"barn", "barn.area"})
+    List<FarmingCycle> findAllWithBarnAndAreaByStatus(CycleStatus status);
+
     Optional<FarmingCycle> findFirstByBarnIdAndStatus(Long barnId, CycleStatus status);
     List<FarmingCycle> findAllByBarnIdOrderByCycleNumberDesc(Long barnId);
     List<FarmingCycle> findAllByStatus(CycleStatus status);

@@ -4,6 +4,7 @@ import { getProfile } from '../services/userService';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../utils/authStorage';
 import { dataCache } from '../services/dataCache';
 import { realtimeSocket } from '../services/realtimeSocket';
+import { clearAiChatStorage } from '../utils/aiChatStorage';
 
 const AuthContext = createContext(null);
 
@@ -18,12 +19,14 @@ const getInitialUser = () => {
       } else {
         clearAuthToken();
         dataCache.clearAll();
+        clearAiChatStorage();
         sessionStorage.removeItem('demo_mode');
         return null;
       }
     } catch {
       clearAuthToken();
       dataCache.clearAll();
+      clearAiChatStorage();
       sessionStorage.removeItem('demo_mode');
       return null;
     }
@@ -53,6 +56,7 @@ export const AuthProvider = ({ children }) => {
     realtimeSocket.disconnect(true);
     clearAuthToken();
     dataCache.clearAll();
+    clearAiChatStorage();
     sessionStorage.removeItem('demo_mode');
     setUser(null);
     setActiveToken(null);
@@ -62,6 +66,8 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const syncSession = (event) => {
       if (event.storageArea !== localStorage || (event.key !== 'token' && event.key !== null)) return;
+      dataCache.clearAll();
+      clearAiChatStorage();
       const nextUser = getInitialUser();
       setUser(nextUser);
       setActiveToken(getAuthToken());
@@ -123,6 +129,8 @@ export const AuthProvider = ({ children }) => {
   }, [activeToken, logout]);
 
   const login = async (token, email, role) => {
+    dataCache.clearAll();
+    clearAiChatStorage();
     setAuthToken(token);
     sessionStorage.removeItem('demo_mode');
     setUser({ email, role });
@@ -132,6 +140,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const loginDemo = (role = 'ROLE_FARM_OWNER', name = 'Admin FarmShift', email = 'admin@farmshift.local') => {
+    dataCache.clearAll();
+    clearAiChatStorage();
     sessionStorage.setItem('demo_mode', 'true');
     setUser({
       name,

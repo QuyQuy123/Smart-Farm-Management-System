@@ -1,8 +1,124 @@
 // src/services/webPushClient.js
 // W3C Web Push + VAPID Service Worker Client Utility for FarmShift PWA
 import { api } from '../utils/api';
+import { dataCache } from './dataCache';
 
 const SW_PATH = '/sw.js';
+export const NOTIFICATION_PREFS_EVENT = 'farmshift:notif-prefs-updated';
+const NOTIF_PREFS_KEY_PREFIX = 'farmshift_notif_prefs:';
+
+export const DEFAULT_NOTIFICATION_PREFS = {
+  inAppEnabled: true,
+  iotAlertEnabled: true,
+  taskVaccineReminderEnabled: true,
+  debtReminderEnabled: true,
+};
+
+function resolveActiveEmail() {
+  if (typeof window === 'undefined') return 'default';
+  try {
+    const rawUser = window.localStorage?.getItem('user');
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser);
+      if (parsed?.email) return parsed.email;
+    }
+    const token = window.localStorage?.getItem('token') || window.sessionStorage?.getItem('token');
+    if (token) {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+        const payload = JSON.parse(atob(padded));
+        if (payload?.sub || payload?.email) return payload.sub || payload.email;
+      }
+    }
+  } catch {
+    // Ignore storage/token decode errors
+  }
+  return 'default';
+}
+
+export function normalizeNotificationPrefs(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const hasCanonical = typeof raw.inAppEnabled === 'boolean'
+    || typeof raw.iotAlertEnabled === 'boolean'
+    || typeof raw.taskVaccineReminderEnabled === 'boolean'
+    || typeof raw.debtReminderEnabled === 'boolean';
+  const hasLegacy = typeof raw.push === 'boolean'
+    || typeof raw.critical === 'boolean'
+    || typeof raw.tasks === 'boolean'
+    || typeof raw.debt === 'boolean';
+  if (!hasCanonical && !hasLegacy) return null;
+
+  return {
+    inAppEnabled: typeof raw.inAppEnabled === 'boolean'
+      ? raw.inAppEnabled
+      : (typeof raw.push === 'boolean' ? raw.push : DEFAULT_NOTIFICATION_PREFS.inAppEnabled),
+    iotAlertEnabled: typeof raw.iotAlertEnabled === 'boolean'
+      ? raw.iotAlertEnabled
+      : (typeof raw.critical === 'boolean' ? raw.critical : DEFAULT_NOTIFICATION_PREFS.iotAlertEnabled),
+    taskVaccineReminderEnabled: typeof raw.taskVaccineReminderEnabled === 'boolean'
+      ? raw.taskVaccineReminderEnabled
+      : (typeof raw.tasks === 'boolean' ? raw.tasks : DEFAULT_NOTIFICATION_PREFS.taskVaccineReminderEnabled),
+    debtReminderEnabled: typeof raw.debtReminderEnabled === 'boolean'
+      ? raw.debtReminderEnabled
+      : (typeof raw.debt === 'boolean' ? raw.debt : DEFAULT_NOTIFICATION_PREFS.debtReminderEnabled),
+  };
+}
+
+export function loadLocalNotificationPrefs(email) {
+  if (typeof window === 'undefined') return { ...DEFAULT_NOTIFICATION_PREFS };
+  try {
+    const key = `${NOTIF_PREFS_KEY_PREFIX}${email || resolveActiveEmail()}`;
+    const raw = window.localStorage?.getItem(key);
+    if (!raw) return { ...DEFAULT_NOTIFICATION_PREFS };
+    return normalizeNotificationPrefs(JSON.parse(raw)) || { ...DEFAULT_NOTIFICATION_PREFS };
+  } catch {
+    return { ...DEFAULT_NOTIFICATION_PREFS };
+  }
+}
+
+export function saveLocalNotificationPrefs(prefs, email) {
+  const normalized = normalizeNotificationPrefs(prefs) || { ...DEFAULT_NOTIFICATION_PREFS };
+  if (typeof window !== 'undefined') {
+    try {
+      const key = `${NOTIF_PREFS_KEY_PREFIX}${email || resolveActiveEmail()}`;
+      window.localStorage?.setItem(key, JSON.stringify(normalized));
+    } catch {
+      // Ignore storage errors
+    }
+    window.dispatchEvent(new CustomEvent(NOTIFICATION_PREFS_EVENT, { detail: normalized }));
+  }
+  return normalized;
+}
+
+export async function getNotificationPreferences(email) {
+  const res = await api.get('/push/preferences');
+  const raw = res?.data?.data ?? res?.data;
+  const normalized = normalizeNotificationPrefs(raw);
+  if (!normalized) return null;
+  saveLocalNotificationPrefs(normalized, email);
+  return normalized;
+}
+
+export async function updateNotificationPreferences(prefs, email) {
+  const payload = {
+    inAppEnabled: Boolean(prefs?.inAppEnabled ?? DEFAULT_NOTIFICATION_PREFS.inAppEnabled),
+    iotAlertEnabled: Boolean(prefs?.iotAlertEnabled ?? DEFAULT_NOTIFICATION_PREFS.iotAlertEnabled),
+    taskVaccineReminderEnabled: Boolean(prefs?.taskVaccineReminderEnabled ?? DEFAULT_NOTIFICATION_PREFS.taskVaccineReminderEnabled),
+    debtReminderEnabled: Boolean(prefs?.debtReminderEnabled ?? DEFAULT_NOTIFICATION_PREFS.debtReminderEnabled),
+  };
+  const res = await api.put('/push/preferences', payload);
+  const saved = normalizeNotificationPrefs(res?.data?.data ?? res?.data) || payload;
+  dataCache.set('/push/preferences', {
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config: {},
+    data: saved,
+  });
+  return saveLocalNotificationPrefs(saved, email);
+}
 
 /**
  * Converts a Base64URL VAPID public key string into a Uint8Array expected by PushManager.

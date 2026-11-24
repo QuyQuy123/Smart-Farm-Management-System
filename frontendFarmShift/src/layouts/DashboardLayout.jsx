@@ -423,7 +423,11 @@ export const DashboardLayout = ({
       />
 
       {/* Floating AI Chatbot */}
-      <AIChatbot />
+      <AIChatbot
+        key={user?.email || 'anonymous'}
+        userRole={user?.role}
+        userScope={user?.email}
+      />
     </div>
   );
 };

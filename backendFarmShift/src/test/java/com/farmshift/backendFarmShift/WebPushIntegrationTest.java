@@ -1,9 +1,11 @@
 package com.farmshift.backendFarmShift;
 
+import com.farmshift.backendFarmShift.dto.response.PushPayloadDto;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.repository.*;
 import com.farmshift.backendFarmShift.security.JwtProvider;
 import com.farmshift.backendFarmShift.service.WebPushDeliveryClient;
+import com.farmshift.backendFarmShift.service.WebPushService;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -48,6 +51,7 @@ class WebPushIntegrationTest {
     @Autowired FarmAreaRepository farmAreaRepository;
     @Autowired BarnRepository barnRepository;
     @Autowired PushService pushService;
+    @Autowired WebPushService webPushService;
 
     @MockitoBean
     WebPushDeliveryClient deliveryClient;
@@ -286,6 +290,134 @@ class WebPushIntegrationTest {
         verify(deliveryClient, timeout(3000)).send(eq(ownerEndpoint), anyString(), anyString(), contains("35.5"));
         verify(deliveryClient, timeout(3000)).send(eq(worker1Endpoint), anyString(), anyString(), contains("35.5"));
         verify(deliveryClient, after(200).never()).send(eq(worker2Endpoint), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testNotificationPreferences_GetAndUpdatePersistsAndEnforcesWorkerRbac() throws Exception {
+        // Reset preferences to default
+        owner.setNotifyInApp(true);
+        owner.setNotifyIotAlert(true);
+        owner.setNotifyTaskVaccine(true);
+        owner.setNotifyDebtOverdue(true);
+        accountRepository.saveAndFlush(owner);
+
+        mockMvc.perform(get("/api/push/preferences"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/push/preferences")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inAppEnabled").value(true))
+                .andExpect(jsonPath("$.iotAlertEnabled").value(true))
+                .andExpect(jsonPath("$.taskVaccineReminderEnabled").value(true))
+                .andExpect(jsonPath("$.debtReminderEnabled").value(true));
+
+        String updateBody = """
+                {
+                  "inAppEnabled": false,
+                  "iotAlertEnabled": false,
+                  "taskVaccineReminderEnabled": true,
+                  "debtReminderEnabled": false
+                }
+                """;
+        mockMvc.perform(put("/api/push/preferences")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inAppEnabled").value(false))
+                .andExpect(jsonPath("$.iotAlertEnabled").value(false))
+                .andExpect(jsonPath("$.taskVaccineReminderEnabled").value(true))
+                .andExpect(jsonPath("$.debtReminderEnabled").value(false));
+
+        Account reloadedOwner = accountRepository.findById(owner.getId()).orElseThrow();
+        assertFalse(reloadedOwner.getNotifyInApp());
+        assertFalse(reloadedOwner.getNotifyIotAlert());
+        assertTrue(reloadedOwner.getNotifyTaskVaccine());
+        assertFalse(reloadedOwner.getNotifyDebtOverdue());
+
+        // Worker cannot enable debtReminderEnabled even via direct API request
+        String workerUpdate = """
+                {
+                  "inAppEnabled": true,
+                  "iotAlertEnabled": false,
+                  "taskVaccineReminderEnabled": false,
+                  "debtReminderEnabled": true
+                }
+                """;
+        mockMvc.perform(put("/api/push/preferences")
+                        .header("Authorization", "Bearer " + assignedWorkerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(workerUpdate))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inAppEnabled").value(true))
+                .andExpect(jsonPath("$.iotAlertEnabled").value(false))
+                .andExpect(jsonPath("$.taskVaccineReminderEnabled").value(false))
+                .andExpect(jsonPath("$.debtReminderEnabled").value(false));
+    }
+
+    @Test
+    void testPreferenceEnforcement_SkipsDisabledAccountsForIotTaskAndDebtCategories() throws Exception {
+        String ownerEndpoint = "https://fcm.googleapis.com/fcm/send/pref-owner-" + UUID.randomUUID();
+        String worker1Endpoint = "https://fcm.googleapis.com/fcm/send/pref-w1-" + UUID.randomUUID();
+
+        subscribeAccount(ownerToken, ownerEndpoint);
+        subscribeAccount(assignedWorkerToken, worker1Endpoint);
+
+        // Owner disables IoT alert; Worker1 keeps IoT alert enabled
+        mockMvc.perform(put("/api/push/preferences")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inAppEnabled\":true,\"iotAlertEnabled\":false,\"taskVaccineReminderEnabled\":false,\"debtReminderEnabled\":true}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/push/preferences")
+                        .header("Authorization", "Bearer " + assignedWorkerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inAppEnabled\":true,\"iotAlertEnabled\":true,\"taskVaccineReminderEnabled\":true,\"debtReminderEnabled\":true}"))
+                .andExpect(status().isOk());
+
+        String alertBody = """
+                {
+                  "barnId": %d,
+                  "title": "Cảnh báo nhiệt độ Nhà Push A1",
+                  "body": "Nhiệt độ đạt 36.2°C",
+                  "severity": "CRITICAL"
+                }
+                """.formatted(assignedBarn.getId());
+
+        mockMvc.perform(post("/api/push/iot-alert")
+                        .header("Authorization", "Bearer " + assignedWorkerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(alertBody))
+                .andExpect(status().isOk());
+
+        verify(deliveryClient, timeout(3000)).send(eq(worker1Endpoint), anyString(), anyString(), contains("36.2"));
+        verify(deliveryClient, after(200).never()).send(eq(ownerEndpoint), anyString(), anyString(), anyString());
+
+        // Task/Vaccine reminder: Owner has taskVaccineReminderEnabled=false (skipped), Worker1 has true (sent)
+        reset(deliveryClient);
+        when(deliveryClient.send(anyString(), anyString(), anyString(), anyString())).thenReturn(201);
+        Account freshOwner = accountRepository.findById(owner.getId()).orElseThrow();
+        Account freshWorker1 = accountRepository.findById(assignedWorker.getId()).orElseThrow();
+        webPushService.sendToAccounts(
+                List.of(freshOwner, freshWorker1),
+                PushPayloadDto.of("Nhắc lịch tiêm vắc-xin", "Lasota ngày 7", "task-vaccine", "/today-tasks", "INFO"),
+                WebPushService.NotificationCategory.TASK_VACCINE
+        );
+        verify(deliveryClient, timeout(3000)).send(eq(worker1Endpoint), anyString(), anyString(), contains("Lasota"));
+        verify(deliveryClient, after(200).never()).send(eq(ownerEndpoint), anyString(), anyString(), anyString());
+
+        // Debt reminder: Owner has debtReminderEnabled=true (sent), Worker1 is ROLE_FARM_WORKER (always blocked)
+        reset(deliveryClient);
+        when(deliveryClient.send(anyString(), anyString(), anyString(), anyString())).thenReturn(201);
+        webPushService.sendToAccounts(
+                List.of(freshOwner, freshWorker1),
+                PushPayloadDto.of("Nhắc công nợ quá hạn", "Hóa đơn NCC quá hạn 7 ngày", "debt-alert", "/purchases", "WARN"),
+                WebPushService.NotificationCategory.DEBT_OVERDUE
+        );
+        verify(deliveryClient, timeout(3000)).send(eq(ownerEndpoint), anyString(), anyString(), contains("quá hạn"));
+        verify(deliveryClient, after(200).never()).send(eq(worker1Endpoint), anyString(), anyString(), anyString());
     }
 
     private void subscribeAccount(String token, String endpoint) throws Exception {

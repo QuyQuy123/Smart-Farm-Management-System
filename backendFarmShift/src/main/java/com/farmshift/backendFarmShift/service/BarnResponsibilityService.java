@@ -8,7 +8,6 @@ import com.farmshift.backendFarmShift.exception.*;
 import com.farmshift.backendFarmShift.repository.*;
 import com.farmshift.backendFarmShift.security.RoleNames;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
@@ -25,22 +24,79 @@ public class BarnResponsibilityService {
     private final BarnWorkerRepository links;
     private final AccountRepository accounts;
     private final WorkTaskRepository tasks;
+    private final WarehouseCategoryRepository warehouses;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.beans.factory.ObjectProvider<com.farmshift.backendFarmShift.service.ai.VoiceContextPromptBuilder> voiceContextPromptBuilder;
 
     public BarnResponsibilities settings() {
         Map<Long, List<BarnWorker>> direct = directLinks();
         Map<Long, List<Barn>> byArea = barns.findAllByOrderByCreatedAtAscIdAsc().stream()
                 .collect(Collectors.groupingBy(barn -> barn.getArea().getId()));
+        List<FarmArea> orderedAreas = areas.findAllWithWorkersByOrderByCreatedAtAscIdAsc();
+        Map<Long, List<BarnResponsibilities.WarehouseRef>> warehousesByAreaId = buildWarehousesByAreaId();
+
         return new BarnResponsibilities(activeWorkers().stream().map(BarnResponsibilityService::ref).toList(),
-                areas.findAll(Sort.by("createdAt", "id")).stream().map(area -> new BarnResponsibilities.Area(
+                orderedAreas.stream().map(area -> new BarnResponsibilities.Area(
                         area.getId(), area.getName(), area.getWorkers().stream().map(BarnResponsibilityService::ref).toList(),
                         byArea.getOrDefault(area.getId(), List.of()).stream().map(barn -> {
                             List<BarnWorker> own = direct.getOrDefault(barn.getId(), List.of());
                             return new BarnResponsibilities.Barn(barn.getId(), barn.getName(), inherits(barn, own),
                                     effective(barn, own).stream().map(BarnResponsibilityService::ref).toList());
-                        }).toList())).toList());
+                        }).toList(),
+                        warehousesByAreaId.getOrDefault(area.getId(), List.of()))).toList());
+    }
+
+    private Map<Long, List<BarnResponsibilities.WarehouseRef>> buildWarehousesByAreaId() {
+        if (warehouses == null) {
+            return Map.of();
+        }
+        List<WarehouseCategory> allWarehouses = warehouses.findAllWithAreasForReport().stream()
+                .sorted(Comparator.comparing(WarehouseCategory::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(WarehouseCategory::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+
+        Map<Long, BarnResponsibilities.WarehouseRef> refsByWarehouseId = new LinkedHashMap<>();
+        Map<Long, Map<Long, BarnResponsibilities.WarehouseRef>> indexed = new HashMap<>();
+
+        for (WarehouseCategory warehouse : allWarehouses) {
+            BarnResponsibilities.WarehouseRef ref = new BarnResponsibilities.WarehouseRef(
+                    warehouse.getId(), warehouse.getName(), warehouse.getKind());
+            refsByWarehouseId.put(warehouse.getId(), ref);
+
+            if (warehouse.getArea() != null && warehouse.getArea().getId() != null) {
+                indexed.computeIfAbsent(warehouse.getArea().getId(), ignored -> new LinkedHashMap<>())
+                        .putIfAbsent(warehouse.getId(), ref);
+            }
+            if (warehouse.getAreas() != null) {
+                for (FarmArea linkedArea : warehouse.getAreas()) {
+                    if (linkedArea != null && linkedArea.getId() != null) {
+                        indexed.computeIfAbsent(linkedArea.getId(), ignored -> new LinkedHashMap<>())
+                                .putIfAbsent(warehouse.getId(), ref);
+                    }
+                }
+            }
+        }
+
+        // Also resolve join rows from farm_area_warehouses directly so same-transaction L1 cache writes are included.
+        for (Object[] pair : areas.findAreaWarehousePairs()) {
+            if (pair == null || pair.length < 2 || !(pair[0] instanceof Long areaId) || !(pair[1] instanceof Long warehouseId)) {
+                continue;
+            }
+            BarnResponsibilities.WarehouseRef ref = refsByWarehouseId.get(warehouseId);
+            if (ref != null) {
+                indexed.computeIfAbsent(areaId, ignored -> new LinkedHashMap<>())
+                        .putIfAbsent(warehouseId, ref);
+            }
+        }
+
+        Map<Long, List<BarnResponsibilities.WarehouseRef>> result = new HashMap<>();
+        indexed.forEach((areaId, map) -> result.put(areaId, List.copyOf(map.values())));
+        return result;
     }
 
     public Map<Long, List<Account>> effectiveByBarn() {
+        areas.findAllWithWorkersByOrderByCreatedAtAscIdAsc();
         Map<Long, List<BarnWorker>> direct = directLinks();
         Map<Long, List<Account>> result = new LinkedHashMap<>();
         for (Barn barn : barns.findAllByOrderByCreatedAtAscIdAsc()) {
@@ -87,6 +143,7 @@ public class BarnResponsibilityService {
         barn.setWorkersOverride(true);
         barns.save(barn);
         links.flush();
+        evictVoiceContextCache();
         return chosen.stream().map(BarnResponsibilityService::ref).toList();
     }
 
@@ -97,6 +154,7 @@ public class BarnResponsibilityService {
         links.deleteAllByBarnId(barnId);
         barn.setWorkersOverride(false);
         barns.save(barn);
+        evictVoiceContextCache();
     }
 
     @Transactional
@@ -112,6 +170,7 @@ public class BarnResponsibilityService {
         area.getWorkers().clear();
         area.getWorkers().addAll(chosen);
         areas.save(area);
+        evictVoiceContextCache();
     }
 
     private List<Account> validate(List<Long> ids) {
@@ -157,12 +216,22 @@ public class BarnResponsibilityService {
         area.getWorkers().clear();
         area.getWorkers().addAll(chosen);
         areas.save(area);
+        evictVoiceContextCache();
+    }
+
+    private void evictVoiceContextCache() {
+        if (voiceContextPromptBuilder != null) {
+            var builder = voiceContextPromptBuilder.getIfAvailable();
+            if (builder != null) {
+                builder.evictLexiconCache();
+            }
+        }
     }
 
     private void guardRemoval(Barn barn, List<Account> current, List<Account> chosen) {
         Set<Long> wanted = chosen.stream().map(Account::getId).collect(Collectors.toSet());
         for (Account worker : current) {
-            if (!wanted.contains(worker.getId()) && tasks.existsByBarnIdAndAssigneeIdAndEndDateGreaterThanEqual(barn.getId(), worker.getId(), LocalDate.now())) {
+            if (!wanted.contains(worker.getId()) && tasks.existsByBarnIdAndAssigneeIdAndEndDateGreaterThanEqual(barn.getId(), worker.getId(), LocalDate.now(CycleService.VN_ZONE))) {
                 throw new ConflictException("Công nhân " + worker.getFullName() + " còn việc được giao ở chuồng " + barn.getName()
                         + ". Hãy giao lại hoặc xóa các việc đó trước khi bỏ phân công.", "WORKER_HAS_TASKS", null);
             }

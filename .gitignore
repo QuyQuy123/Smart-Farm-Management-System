@@ -51,6 +51,7 @@ scratch/
 /.agents
 .playwright-mcp/
 AGENTS.md
+_tmp_*
 
 # AI Microservice (Python / FastAPI)
 aiServiceFarmShift/.env
@@ -63,3 +64,4 @@ aiServiceFarmShift/**/__pycache__/
 aiServiceFarmShift/*.pyc
 aiServiceFarmShift/**/*.pyc
 aiServiceFarmShift/.pytest_cache/
+/_study

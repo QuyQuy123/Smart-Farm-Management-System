@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.controller;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.DashboardResponse;
 import com.farmshift.backendFarmShift.security.RoleNames;
+import com.farmshift.backendFarmShift.service.CycleService;
 import com.farmshift.backendFarmShift.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -20,6 +21,6 @@ public class DashboardController {
     @GetMapping("/api/dashboard")
     public ApiResponse<DashboardResponse> get(Authentication authentication) {
         boolean worker = authentication.getAuthorities().stream().anyMatch(authority -> RoleNames.FARM_WORKER.equals(authority.getAuthority()));
-        return ApiResponse.success("Bảng tin", service.get(CycleController.canSeeFinance(authentication), worker ? authentication.getName() : null, LocalTime.now()));
+        return ApiResponse.success("Bảng tin", service.get(CycleController.canSeeFinance(authentication), worker ? authentication.getName() : null, LocalTime.now(CycleService.VN_ZONE)));
     }
 }

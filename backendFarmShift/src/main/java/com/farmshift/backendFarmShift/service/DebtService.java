@@ -262,7 +262,7 @@ public class DebtService {
         record RawEvent(String type, LocalDate date, int order, String code, String desc, long debit, long credit, Long invoiceId, String status) {}
         List<RawEvent> rawEvents = new ArrayList<>();
         if (openingDebt > 0) {
-            LocalDate openDate = supplier.getCreatedAt() != null ? supplier.getCreatedAt().toLocalDate() : LocalDate.now();
+            LocalDate openDate = supplier.getCreatedAt() != null ? supplier.getCreatedAt().toLocalDate() : LocalDate.now(CycleService.VN_ZONE);
             rawEvents.add(new RawEvent("OPENING_DEBT", openDate, 0, "DK", "Nợ đầu kỳ chuyển sang", openingDebt, 0L, null, "Đầu kỳ"));
         }
         for (PurchaseInvoice inv : allInvoices) {

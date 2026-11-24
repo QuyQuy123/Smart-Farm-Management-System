@@ -29,5 +29,9 @@ public class PushSubscriptionSchemaUpgrade implements ApplicationRunner {
                 )
                 """);
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_push_sub_account_active ON push_subscriptions(account_id, is_active)");
+        jdbc.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS notify_in_app BOOLEAN NOT NULL DEFAULT TRUE");
+        jdbc.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS notify_iot_alert BOOLEAN NOT NULL DEFAULT TRUE");
+        jdbc.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS notify_task_vaccine BOOLEAN NOT NULL DEFAULT TRUE");
+        jdbc.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS notify_debt_overdue BOOLEAN NOT NULL DEFAULT TRUE");
     }
 }

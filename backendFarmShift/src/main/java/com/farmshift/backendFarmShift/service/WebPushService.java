@@ -2,9 +2,11 @@ package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.config.AsyncConfig;
 import com.farmshift.backendFarmShift.config.WebPushConfig;
+import com.farmshift.backendFarmShift.dto.request.PushPreferencesRequest;
 import com.farmshift.backendFarmShift.dto.request.PushSubscribeRequest;
 import com.farmshift.backendFarmShift.dto.request.PushTestRequest;
 import com.farmshift.backendFarmShift.dto.response.PushPayloadDto;
+import com.farmshift.backendFarmShift.dto.response.PushPreferencesResponse;
 import com.farmshift.backendFarmShift.entity.Account;
 import com.farmshift.backendFarmShift.entity.Barn;
 import com.farmshift.backendFarmShift.entity.PushSubscription;
@@ -92,6 +94,24 @@ public class WebPushService {
         return new StatusResult(count > 0, (int) count);
     }
 
+    public PushPreferencesResponse getPreferences(String userEmail) {
+        return toPreferencesResponse(requireAccount(userEmail));
+    }
+
+    @Transactional
+    public PushPreferencesResponse updatePreferences(String userEmail, PushPreferencesRequest request) {
+        Account account = requireAccount(userEmail);
+        account.setNotifyInApp(Boolean.TRUE.equals(request.inAppEnabled()));
+        account.setNotifyIotAlert(Boolean.TRUE.equals(request.iotAlertEnabled()));
+        account.setNotifyTaskVaccine(Boolean.TRUE.equals(request.taskVaccineReminderEnabled()));
+        if (isWorkerAccount(account)) {
+            account.setNotifyDebtOverdue(false);
+        } else if (request.debtReminderEnabled() != null) {
+            account.setNotifyDebtOverdue(request.debtReminderEnabled());
+        }
+        return toPreferencesResponse(accountRepository.save(account));
+    }
+
     @Transactional
     public TestPushResult sendTestNotification(String userEmail, PushTestRequest request) {
         Account account = requireAccount(userEmail);
@@ -126,8 +146,36 @@ public class WebPushService {
     }
 
     public void sendToAccount(Long accountId, PushPayloadDto payload) {
+        sendToAccount(accountId, payload, NotificationCategory.GENERAL);
+    }
+
+    public void sendToAccount(Long accountId, PushPayloadDto payload, NotificationCategory category) {
         if (accountId == null || payload == null) return;
+        if (category != null && category != NotificationCategory.GENERAL) {
+            Account account = accountRepository.findById(accountId).orElse(null);
+            if (!isPreferenceEnabled(account, category)) {
+                return;
+            }
+        }
         List<SubscriptionSnapshot> targets = subscriptionRepository.findAllByAccount_IdAndActiveTrue(accountId)
+                .stream()
+                .map(WebPushService::toSnapshot)
+                .toList();
+        dispatchAsync(targets, payload);
+    }
+
+    public void sendToAccounts(Collection<Account> recipients, PushPayloadDto payload, NotificationCategory category) {
+        if (recipients == null || recipients.isEmpty() || payload == null) return;
+        Set<Long> eligibleAccountIds = new LinkedHashSet<>();
+        for (Account account : recipients) {
+            if (isPreferenceEnabled(account, category) && account.getId() != null) {
+                eligibleAccountIds.add(account.getId());
+            }
+        }
+        if (eligibleAccountIds.isEmpty()) return;
+
+        List<SubscriptionSnapshot> targets = subscriptionRepository
+                .findAllByAccount_IdInAndActiveTrue(eligibleAccountIds)
                 .stream()
                 .map(WebPushService::toSnapshot)
                 .toList();
@@ -142,20 +190,10 @@ public class WebPushService {
     public void sendIoTAlertToAuthorizedUsers(Barn barn, String title, String body, String severity, String url) {
         if (barn == null || barn.getId() == null) return;
 
-        Set<Long> recipientAccountIds = new LinkedHashSet<>();
-        accountRepository.findAllByRole_NameAndIsActiveTrueOrderByFullNameAsc(RoleNames.FARM_OWNER)
-                .forEach(acc -> recipientAccountIds.add(acc.getId()));
-        barnResponsibilityService.workersOf(barn.getId())
-                .forEach(worker -> recipientAccountIds.add(worker.getId()));
-
-        if (recipientAccountIds.isEmpty()) return;
-
-        List<SubscriptionSnapshot> targets = subscriptionRepository
-                .findAllByAccount_IdInAndActiveTrue(recipientAccountIds)
-                .stream()
-                .map(WebPushService::toSnapshot)
-                .toList();
-        if (targets.isEmpty()) return;
+        List<Account> recipients = new ArrayList<>();
+        recipients.addAll(accountRepository.findAllByRole_NameAndIsActiveTrueOrderByFullNameAsc(RoleNames.FARM_OWNER));
+        recipients.addAll(barnResponsibilityService.workersOf(barn.getId()));
+        if (recipients.isEmpty()) return;
 
         PushPayloadDto payload = PushPayloadDto.of(
                 title,
@@ -164,7 +202,7 @@ public class WebPushService {
                 notBlank(url) ? url : "/iot?barn=" + barn.getId(),
                 notBlank(severity) ? severity : "CRITICAL"
         );
-        dispatchAsync(targets, payload);
+        sendToAccounts(recipients, payload, NotificationCategory.IOT_ALERT);
     }
 
     private void dispatchAsync(List<SubscriptionSnapshot> targets, PushPayloadDto payload) {
@@ -229,6 +267,43 @@ public class WebPushService {
 
     private static boolean notBlank(String s) {
         return s != null && !s.isBlank();
+    }
+
+    public static boolean isPreferenceEnabled(Account account, NotificationCategory category) {
+        if (account == null || Boolean.FALSE.equals(account.getIsActive())) {
+            return false;
+        }
+        if (category == null || category == NotificationCategory.GENERAL) {
+            return true;
+        }
+        return switch (category) {
+            case IOT_ALERT -> !Boolean.FALSE.equals(account.getNotifyIotAlert());
+            case TASK_VACCINE -> !Boolean.FALSE.equals(account.getNotifyTaskVaccine());
+            case DEBT_OVERDUE -> !isWorkerAccount(account) && !Boolean.FALSE.equals(account.getNotifyDebtOverdue());
+            case GENERAL -> true;
+        };
+    }
+
+    private static boolean isWorkerAccount(Account account) {
+        return account != null && account.getRole() != null
+                && RoleNames.FARM_WORKER.equals(account.getRole().getName());
+    }
+
+    private static PushPreferencesResponse toPreferencesResponse(Account account) {
+        boolean isWorker = isWorkerAccount(account);
+        return new PushPreferencesResponse(
+                !Boolean.FALSE.equals(account.getNotifyInApp()),
+                !Boolean.FALSE.equals(account.getNotifyIotAlert()),
+                !Boolean.FALSE.equals(account.getNotifyTaskVaccine()),
+                !isWorker && !Boolean.FALSE.equals(account.getNotifyDebtOverdue())
+        );
+    }
+
+    public enum NotificationCategory {
+        IOT_ALERT,
+        TASK_VACCINE,
+        DEBT_OVERDUE,
+        GENERAL
     }
 
     public record StatusResult(boolean hasActiveSubscription, int deviceCount) {}

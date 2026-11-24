@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -24,6 +25,8 @@ public class AiAssistantResponse {
     private Map<String, Object> dataCard;
     private boolean requiresConfirmation;
     private Map<String, Object> pendingAction;
+    /** Danh sách phương án gợi ý / xác nhận làm rõ ý định (Disambiguation Options) khi lệnh có thể gây hiểu nhầm hoặc thiếu tham số. */
+    private List<Map<String, Object>> clarificationOptions;
     /** Ngữ cảnh ngắn hạn để client gửi lại ở lượt sau (câu kiểu "à nhầm, sửa lại thành 65kg"). */
     private Map<String, Object> actionContext;
 }

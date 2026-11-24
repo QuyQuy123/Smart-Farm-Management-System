@@ -4,6 +4,7 @@ import com.farmshift.backendFarmShift.entity.DailyTaskLog;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,6 +14,9 @@ public interface DailyTaskLogRepository extends JpaRepository<DailyTaskLog, Long
 
     @EntityGraph(attributePaths = {"cycle", "cycle.barn", "cycle.barn.area", "expense"})
     List<DailyTaskLog> findTop500ByTaskDateBetweenOrderByDoneAtDescIdDesc(LocalDate from, LocalDate to);
+
+    @EntityGraph(attributePaths = {"cycle", "inventoryItem", "inventoryItem.product", "inventoryItem.unit"})
+    List<DailyTaskLog> findAllWithDetailsByCycleIdInAndTaskDateBetween(Collection<Long> cycleIds, LocalDate from, LocalDate to);
 
     List<DailyTaskLog> findAllByCycleIdAndTaskDate(Long cycleId, LocalDate taskDate);
     List<DailyTaskLog> findAllByCycleIdInAndTaskDateBetween(List<Long> cycleIds, LocalDate from, LocalDate to);

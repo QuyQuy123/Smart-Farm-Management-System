@@ -1,6 +1,7 @@
 // src/services/dataCache.js
 // Centralized Smart Client-Side Data Cache Engine for FarmShift
 // Supports RAM (Map) + sessionStorage, in-flight deduplication, and cross-module invalidation matrix.
+import { clearAiChatStorage } from '../utils/aiChatStorage';
 
 export const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const STORAGE_PREFIX = 'farmshift_cache:';
@@ -38,7 +39,8 @@ export const INVALIDATION_MATRIX = {
     '/flocks',
     '/barns',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/suppliers': [
     '/suppliers',
@@ -58,7 +60,8 @@ export const INVALIDATION_MATRIX = {
     '/product-categories',
     '/cycles',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/inventory-items': [
     '/inventory-items',
@@ -74,7 +77,8 @@ export const INVALIDATION_MATRIX = {
     '/purchases',
     '/internal-stock',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/warehouse-categories': [
     '/warehouse-categories',
@@ -83,7 +87,8 @@ export const INVALIDATION_MATRIX = {
     '/inventory-items',
     '/inventory',
     '/internal-stock',
-    '/purchases'
+    '/purchases',
+    '/ai/suggestions'
   ],
   '/warehouses': [
     '/warehouse-categories',
@@ -92,14 +97,16 @@ export const INVALIDATION_MATRIX = {
     '/inventory-items',
     '/inventory',
     '/internal-stock',
-    '/purchases'
+    '/purchases',
+    '/ai/suggestions'
   ],
   '/product-categories': [
     '/product-categories',
     '/inventory-items',
     '/inventory',
     '/purchases',
-    '/internal-stock'
+    '/internal-stock',
+    '/ai/suggestions'
   ],
   '/product-types': [
     '/product-types',
@@ -131,7 +138,8 @@ export const INVALIDATION_MATRIX = {
     '/today-tasks',
     '/daily-plans',
     '/dashboard',
-    '/reports'
+    '/reports',
+    '/ai/suggestions'
   ],
   '/farm-areas': [
     '/farm-areas',
@@ -148,7 +156,8 @@ export const INVALIDATION_MATRIX = {
     '/barn-responsibilities',
     '/work-assignments',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/areas': [
     '/farm-areas',
@@ -165,7 +174,8 @@ export const INVALIDATION_MATRIX = {
     '/barn-responsibilities',
     '/work-assignments',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/cycles': [
     '/daily-plan',
@@ -178,7 +188,8 @@ export const INVALIDATION_MATRIX = {
     '/today-tasks',
     '/daily-plans',
     '/dashboard',
-    '/reports'
+    '/reports',
+    '/ai/suggestions'
   ],
   '/flocks': [
     '/flocks',
@@ -188,7 +199,8 @@ export const INVALIDATION_MATRIX = {
     '/today-tasks',
     '/daily-plans',
     '/dashboard',
-    '/reports'
+    '/reports',
+    '/ai/suggestions'
   ],
   '/journal': [
     '/journal',
@@ -199,7 +211,8 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/cycles',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/today-tasks': [
     '/today-tasks',
@@ -210,7 +223,8 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/cycles',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/daily-plans': [
     '/daily-plans',
@@ -221,7 +235,8 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/cycles',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/sales-orders': [
     '/sales-orders',
@@ -231,7 +246,8 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/cycles',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/sales': [
     '/sales-orders',
@@ -241,7 +257,8 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/cycles',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/customer-contacts': [
     '/customer-contacts',
@@ -275,7 +292,8 @@ export const INVALIDATION_MATRIX = {
     '/daily-plans',
     '/today-tasks',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/work-assignments': [
     '/work-assignments',
@@ -283,14 +301,16 @@ export const INVALIDATION_MATRIX = {
     '/daily-plans',
     '/today-tasks',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/debts': [
     '/debts',
     '/purchases',
     '/suppliers',
     '/reports',
-    '/dashboard'
+    '/dashboard',
+    '/ai/suggestions'
   ],
   '/transfer-categories': [
     '/transfer-categories',
@@ -302,7 +322,11 @@ export const INVALIDATION_MATRIX = {
     '/daily-plan',
     '/daily-plans',
     '/today-tasks',
-    '/barns'
+    '/barns',
+    '/ai/suggestions'
+  ],
+  '/iot': [
+    '/ai/suggestions'
   ],
   '/specifications': [
     '/specifications',
@@ -315,7 +339,11 @@ export const INVALIDATION_MATRIX = {
     '/warehouses'
   ],
   '/farm': [
-    '/farm'
+    '/farm',
+    '/settings'
+  ],
+  '/push/preferences': [
+    '/push/preferences'
   ]
 };
 
@@ -351,7 +379,7 @@ export const shouldSkipCache = (url, config = {}) => {
   if (config.skipCache === true) return true;
   const lowerUrl = String(url).toLowerCase();
   if (lowerUrl.includes('/auth/')) return true;
-  if (lowerUrl.includes('/ai/') || lowerUrl.includes('/voice/')) return true;
+  if ((lowerUrl.includes('/ai/') && !lowerUrl.includes('/ai/suggestions')) || lowerUrl.includes('/voice/')) return true;
   if (lowerUrl.includes('/files/upload') || lowerUrl.includes('/export')) return true;
   if (config.responseType === 'blob' || config.responseType === 'arraybuffer') return true;
   return false;
@@ -359,7 +387,7 @@ export const shouldSkipCache = (url, config = {}) => {
 
 export const getPersistedTab = (key, defaultTab) => {
   if (typeof window === 'undefined') return defaultTab;
-  if (typeof process !== 'undefined' && (process.env?.NODE_ENV === 'test' || process.env?.VITEST)) {
+  if (globalThis.process?.env?.NODE_ENV === 'test' || globalThis.process?.env?.VITEST) {
     return defaultTab;
   }
   try {
@@ -371,12 +399,14 @@ export const getPersistedTab = (key, defaultTab) => {
 
 export const setPersistedTab = (key, tab) => {
   if (typeof window === 'undefined') return;
-  if (typeof process !== 'undefined' && (process.env?.NODE_ENV === 'test' || process.env?.VITEST)) {
+  if (globalThis.process?.env?.NODE_ENV === 'test' || globalThis.process?.env?.VITEST) {
     return;
   }
   try {
     window.sessionStorage?.setItem(key, tab);
-  } catch {}
+  } catch {
+    /* ignore storage errors */
+  }
 };
 
 export class DataCache {
@@ -619,13 +649,15 @@ export class DataCache {
       '/customer-contacts',
       '/customers',
       '/reports',
-      '/dashboard'
+      '/dashboard',
+      '/ai/suggestions'
     ], meta);
   }
 
   clearAll() {
     this.memoryCache.clear();
     this.inFlightPromises.clear();
+    this.currentScope = null;
     try {
       if (typeof window !== 'undefined' && window.sessionStorage) {
         const keysToRemove = [];
@@ -640,6 +672,7 @@ export class DataCache {
     } catch {
       // Ignore
     }
+    clearAiChatStorage();
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('farmshift:cache-cleared'));
     }

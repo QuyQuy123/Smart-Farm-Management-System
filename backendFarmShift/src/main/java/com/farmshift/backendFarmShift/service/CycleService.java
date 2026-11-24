@@ -170,6 +170,79 @@ public class CycleService {
         return summary(repository.saveAndFlush(cycle));
     }
 
+    record DashboardCycleSnapshot(
+            CycleMetrics metrics,
+            CycleFinance finance,
+            List<Flock> flocks,
+            List<FlockMovement> movements,
+            List<WeightSample> weightSamples,
+            List<FarmingProgramResponse> programs
+    ) { }
+
+    Map<Long, DashboardCycleSnapshot> dashboardSnapshots(
+            List<FarmingCycle> cycles,
+            Map<Long, List<Flock>> flocksByCycle,
+            Map<Long, List<FlockMovement>> movementsByCycle,
+            boolean canSeeFinance) {
+        if (cycles == null || cycles.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> cycleIds = cycles.stream().map(FarmingCycle::getId).toList();
+        Map<Long, List<FeedRecord>> feedsByCycle = new HashMap<>();
+        for (FeedRecord record : feedRepository.findByCycleIdInOrderByRecordDateDescIdDesc(cycleIds)) {
+            if (record.getCycle() != null) {
+                feedsByCycle.computeIfAbsent(record.getCycle().getId(), ignored -> new ArrayList<>()).add(record);
+            }
+        }
+        Map<Long, List<WeightSample>> samplesByCycle = new HashMap<>();
+        for (WeightSample sample : weightRepository.findByCycleIdInOrderBySampleDateDescIdDesc(cycleIds)) {
+            if (sample.getCycle() != null) {
+                samplesByCycle.computeIfAbsent(sample.getCycle().getId(), ignored -> new ArrayList<>()).add(sample);
+            }
+        }
+        Map<Long, List<CycleExpense>> expensesByCycle = new HashMap<>();
+        Map<Long, List<CycleCarriedExpense>> carriedByCycle = new HashMap<>();
+        if (canSeeFinance) {
+            for (CycleExpense expense : expenseRepository.findWithCycleByCycleIdIn(cycleIds)) {
+                if (expense.getCycle() != null) {
+                    expensesByCycle.computeIfAbsent(expense.getCycle().getId(), ignored -> new ArrayList<>()).add(expense);
+                }
+            }
+            for (CycleCarriedExpense carried : carriedExpenseRepository.findWithCycleByCycleIdIn(cycleIds)) {
+                if (carried.getCycle() != null) {
+                    carriedByCycle.computeIfAbsent(carried.getCycle().getId(), ignored -> new ArrayList<>()).add(carried);
+                }
+            }
+        }
+
+        Map<Long, DashboardCycleSnapshot> snapshots = new LinkedHashMap<>();
+        for (FarmingCycle cycle : cycles) {
+            Long id = cycle.getId();
+            Barn barn = cycle.getBarn();
+            List<Flock> flocks = flocksByCycle.getOrDefault(id, List.of());
+            List<FlockMovement> movements = movementsByCycle.getOrDefault(id, List.of());
+            List<FeedRecord> feeds = feedsByCycle.getOrDefault(id, List.of());
+            List<WeightSample> samples = samplesByCycle.getOrDefault(id, List.of());
+            List<CycleExpense> expenses = expensesByCycle.getOrDefault(id, List.of());
+            List<CycleCarriedExpense> carried = carriedByCycle.getOrDefault(id, List.of());
+
+            LocalDate reference = reference(cycle);
+            CycleMetrics metrics = metrics(cycle, barn, flocks, movements, feeds, samples);
+            CycleFinance cycleFinance = canSeeFinance ? finance(cycle, movements, feeds, expenses, carried, metrics) : null;
+
+            Map<Long, FarmingProgramResponse> programs = new LinkedHashMap<>();
+            for (Flock flock : flocks) {
+                FarmingProgram program = flock.getProgram();
+                if (program == null || programs.containsKey(program.getId())) continue;
+                long active = flocks.stream().filter(f -> f.getProgram() == program && f.getStatus() == FlockStatus.ACTIVE).count();
+                programs.put(program.getId(), FarmingProgramService.response(program, active, ageOn(flock, reference)));
+            }
+
+            snapshots.put(id, new DashboardCycleSnapshot(metrics, cycleFinance, flocks, movements, samples, List.copyOf(programs.values())));
+        }
+        return snapshots;
+    }
+
     public CycleDetailResponse detail(Long cycleId, boolean canSeeFinance) {
         FarmingCycle cycle = find(cycleId);
         Barn barn = cycle.getBarn();
@@ -299,6 +372,11 @@ public class CycleService {
     }
 
     private CycleFinance finance(FarmingCycle cycle, List<FlockMovement> movements, List<FeedRecord> feeds, List<CycleExpense> expenses, CycleMetrics metrics) {
+        return finance(cycle, movements, feeds, expenses, carriedExpenseRepository.findAllByCycleId(cycle.getId()), metrics);
+    }
+
+    private CycleFinance finance(FarmingCycle cycle, List<FlockMovement> movements, List<FeedRecord> feeds, List<CycleExpense> expenses,
+                                 List<CycleCarriedExpense> carriedExpenses, CycleMetrics metrics) {
         BigDecimal chicks = BigDecimal.ZERO, revenue = BigDecimal.ZERO;
         for (FlockMovement m : movements) {
             BigDecimal unitPrice = m.getFlock() != null && m.getFlock().getUnitPrice() != null ? m.getFlock().getUnitPrice() : BigDecimal.ZERO;
@@ -318,7 +396,7 @@ public class CycleService {
         Map<String, BigDecimal> byCategory = new LinkedHashMap<>();
         for (ExpenseCategory category : ExpenseCategory.values()) byCategory.put(category.name(), BigDecimal.ZERO);
         for (CycleExpense e : expenses) byCategory.merge(e.getCategory().name(), e.getAmount(), BigDecimal::add);
-        carriedExpenseRepository.findAllByCycleId(cycle.getId()).forEach(e -> byCategory.merge(e.getCategory().name(), e.getAmount(), BigDecimal::add));
+        carriedExpenses.forEach(e -> byCategory.merge(e.getCategory().name(), e.getAmount(), BigDecimal::add));
         byCategory.replaceAll((key, value) -> money(value));
         BigDecimal total = byCategory.entrySet().stream()
             .filter(entry -> ExpenseCategory.valueOf(entry.getKey()).countsInCycleCost())

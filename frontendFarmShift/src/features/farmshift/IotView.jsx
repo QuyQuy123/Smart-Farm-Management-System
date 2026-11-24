@@ -5,7 +5,7 @@ import { ArrowLeft, Camera, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Plus
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { FARM_AREAS_CHANGED, listBarns, listFarmAreas } from '../../services/farmAreaService';
 import { useOptionalNotification } from '../../context/NotificationContext';
-import { dispatchBarnIotAlert } from '../../services/webPushClient';
+import { dispatchBarnIotAlert, loadLocalNotificationPrefs } from '../../services/webPushClient';
 import { apiErrorMessage } from './farmAreaOptions';
 import { Dialog } from './FarmAreaDialogs';
 import { api } from '../../utils/api';
@@ -279,13 +279,16 @@ export function IotView() {
             const thrFmt = threshold.toFixed(1);
             const alertTitle = `⚠️ Cảnh báo nhiệt độ ${barn.name}`;
             const alertBody = `Nhiệt độ trung bình tại ${barn.name} đạt ${avgFmt}°C, vượt ngưỡng an toàn (${thrFmt}°C).`;
-            notification?.sendNotification?.({
-              barn: barn.name,
-              type: 'Nhiệt độ cao',
-              value: `${avgFmt}°C (Ngưỡng ${thrFmt}°C)`,
-              level: 'Cảnh báo',
-              status: `Tự động bật ${device.name}`,
-            });
+            const isIotAlertEnabled = (notification?.notifPrefs?.iotAlertEnabled ?? loadLocalNotificationPrefs().iotAlertEnabled) !== false;
+            if (isIotAlertEnabled) {
+              notification?.sendNotification?.({
+                barn: barn.name,
+                type: 'Nhiệt độ cao',
+                value: `${avgFmt}°C (Ngưỡng ${thrFmt}°C)`,
+                level: 'Cảnh báo',
+                status: `Tự động bật ${device.name}`,
+              });
+            }
             dispatchBarnIotAlert({
               barnId: barn.id,
               title: alertTitle,

@@ -4,7 +4,7 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
-- File dữ liệu mẫu tương ứng là [insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`), làm sạch toàn bộ 47 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu giả lập xuyên suốt từ `01/01/2026` đến `17/11/2026` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
+- File dữ liệu mẫu tương ứng là [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`, `barns.target_weight`), làm sạch toàn bộ 47 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu mô phỏng liên tục 79 ngày từ `01/09/2026` đến `18/11/2026` theo múi giờ `Asia/Bangkok` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
 - Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **14 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`, `PushSubscriptionSchemaUpgrade`.
 - **Kiểm kê 47 bảng vật lý trong PostgreSQL:**
   - **41 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `push_subscriptions`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `work_tasks`, `work_task_checks`, `sales_orders`, `sales_invoice_numbers`.
@@ -113,6 +113,10 @@ Entity: `Account`. Quản lý thông tin xác thực, đăng nhập và trạng 
 | `full_name` | VARCHAR(100) | Họ và tên hiển thị của tài khoản. |
 | `avatar_url` | TEXT | Đường dẫn URL ảnh đại diện cá nhân (local `/img/avatars/...` hoặc Cloudflare R2). |
 | `is_active` | BOOLEAN | DEFAULT TRUE. Trạng thái hoạt động (`TRUE`: cho phép đăng nhập, `FALSE`: khóa). |
+| `notify_in_app` | BOOLEAN | NOT NULL, DEFAULT TRUE. Bật/tắt thông báo trong ứng dụng (Chuông & Toast) cho tài khoản. |
+| `notify_iot_alert` | BOOLEAN | NOT NULL, DEFAULT TRUE. Bật/tắt cảnh báo môi trường / thiết bị IoT (Web Push & Client Alert). |
+| `notify_task_vaccine` | BOOLEAN | NOT NULL, DEFAULT TRUE. Bật/tắt nhắc lịch tiêm phòng vắc-xin & công việc. |
+| `notify_debt_overdue` | BOOLEAN | NOT NULL, DEFAULT TRUE. Bật/tắt nhắc công nợ & đến hạn thanh toán (luôn `FALSE` với `ROLE_FARM_WORKER`). |
 | `created_at` | TIMESTAMP | Thời điểm tạo tài khoản. |
 
 ### 1.3 Bảng `customers` — Hồ sơ người dùng / nhân sự
@@ -170,8 +174,9 @@ Entity: `PushSubscription` (`PushSubscriptionSchemaUpgrade`). Lưu thông tin đ
 **API (`PushNotificationController` — `/api/push`):**
 - `GET /api/push/vapid-public-key`: Trả `{ publicKey }` Base64URL P-256 cho trình duyệt đăng ký `pushManager.subscribe(...)` (tự sinh cặp khóa xác định nếu chưa cấu hình `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`).
 - `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `GET /api/push/status`: Quản lý đăng ký thiết bị theo tài khoản đang đăng nhập.
+- `GET /api/push/preferences`, `PUT /api/push/preferences`: Đọc và lưu tùy chọn nhận thông báo cá nhân (`inAppEnabled`, `iotAlertEnabled`, `taskVaccineReminderEnabled`, `debtReminderEnabled`) vào bảng `accounts` (luôn cưỡng chế `debtReminderEnabled = false` đối với `ROLE_FARM_WORKER`). Các luồng gửi Web Push trong `WebPushService` kiểm tra các cờ này theo từng nhóm thông báo (`IOT_ALERT`, `TASK_VACCINE`, `DEBT_OVERDUE`) trước khi phát.
 - `POST /api/push/test`: Gửi ngay thông báo thử nghiệm tới các thiết bị đang hoạt động của người dùng.
-- `POST /api/push/iot-alert`: Điều phối cảnh báo IoT tới toàn bộ `ROLE_FARM_OWNER` và `ROLE_FARM_WORKER` phụ trách chuồng/khu nuôi đó.
+- `POST /api/push/iot-alert`: Điều phối cảnh báo IoT tới toàn bộ `ROLE_FARM_OWNER` và `ROLE_FARM_WORKER` phụ trách chuồng/khu nuôi đó (lọc theo `notify_iot_alert`).
 
 ---
 
@@ -260,7 +265,12 @@ Entity: `Supplier`. Quản lý đối tác cung ứng tại **Thiết lập danh
 | `note` | VARCHAR(1000) | Ghi chú thêm về năng lực, thỏa thuận cung ứng. |
 | `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
 
-**Bảng liên kết N-N:** `supplier_tag_mappings` liên kết `supplier_id` (FK `suppliers`) và `tag_id` (FK `purchase_tags`).
+**Bảng liên kết N-N `supplier_tag_mappings`:**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `supplier_id` | BIGINT | NOT NULL, FOREIGN KEY → `suppliers.id`. |
+| `tag_id` | BIGINT | NOT NULL, FOREIGN KEY → `purchase_tags.id`. Khóa chính `(supplier_id, tag_id)`. |
+
 **Thuộc tính tính toán trả về qua API:**
 - `totalPurchased`: Tổng lũy kế giá trị các đơn nhập hàng từ nhà cung cấp này (loại trừ các đơn `Đã hủy`).
 - `debt`: Tổng dư nợ hiện tại = `openingDebt` + (tổng `totalAmount` - tổng `paidAmount` của các đơn chưa trả hết).
@@ -450,7 +460,7 @@ Entity: `InternalStockVoucher`. Quản lý chứng từ xuất tiêu hao/xuất 
 | `code` | VARCHAR(30) | NOT NULL, UNIQUE. Mã chứng từ tự sinh: `XNB000001`, `XNB000002`... |
 | `movement_type` | VARCHAR(20) | NOT NULL. Chỉ hỗ trợ `EXPORT` (Xuất kho) và `TRANSFER` (Chuyển kho nội bộ). |
 | `category_id` | BIGINT | NOT NULL, FOREIGN KEY → `internal_stock_categories.id`. |
-| `source_warehouse_id` | BIGINT | NOT NULL, FOREIGN KEY → `warehouse_categories.id`. Kho xuất (bắt buộc với cả `EXPORT` và `TRANSFER`). |
+| `source_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc tại tầng nghiệp vụ với cả `EXPORT` và `TRANSFER`. |
 | `target_warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Bắt buộc với `TRANSFER`; NULL với `EXPORT`. |
 | `cycle_id` | BIGINT | FOREIGN KEY → `farming_cycles.id` (nullable). Lứa nuôi nhận chi phí khi xuất hủy thuốc/vật tư. |
 | `expense_id` | BIGINT | FOREIGN KEY → `cycle_expenses.id` (nullable). Khoản chi phát sinh tự động nếu xuất hủy gắn với lứa. |
@@ -542,7 +552,11 @@ Entity: `PurchaseInvoice`. Quản lý các chứng từ mua vật tư, cám, v�
 
 **Hóa đơn con giống (tự tạo khi nhập đàn):** `POST /api/cycles/{id}/flocks` có `supplierId` và `unitPrice > 0` thì tạo một hóa đơn: nhà cung cấp của đàn, `invoice_date` = ngày nhập, một dòng `Con giống <giống> (đàn Hxxxx)` = số con × giá con giống (đơn vị `Con`), `stock_status = 'Đã nhập chuồng'`, `payment_status` = `Trả sau` (mặc định) hoặc `Thanh toán hoàn tất`. Hóa đơn này chỉ được ghi thanh toán; sửa / xóa / hủy / nhập kho trả 400 `PURCHASE_FLOCK_LINKED` vì số lượng và giá thuộc về đàn. API trả thêm `flockId`, `flockCode`, `flockName`, `cycleId`, `cycleNumber`, `barnId`, `barnName`.
 
-**Bảng liên kết N-N:** `purchase_invoice_tag_mappings` liên kết `invoice_id` (FK `purchase_invoices`) và `tag_id` (FK `purchase_tags`).
+**Bảng liên kết N-N `purchase_invoice_tag_mappings`:**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `invoice_id` | BIGINT | NOT NULL, FOREIGN KEY → `purchase_invoices.id`. |
+| `tag_id` | BIGINT | NOT NULL, FOREIGN KEY → `purchase_tags.id`. Khóa chính `(invoice_id, tag_id)`. |
 
 ### 5.3 Bảng `purchase_invoice_items` — Chi tiết mặt hàng hóa đơn nhập
 
@@ -630,12 +644,12 @@ Entity: `Barn`. Quản lý chuồng trại cụ thể trong từng phân khu.
 | `capacity` | INT | NOT NULL. Sức chứa thiết kế tối đa (số con). |
 | `current_quantity` | INT | NOT NULL, DEFAULT 0. Tổng số con hiện đang nuôi trong chuồng (tính từ các đàn thuộc lứa ACTIVE). |
 | `area_m2` | NUMERIC(10,2) | Diện tích thực tế của chuồng (m²). Dùng để tính mật độ nuôi (con/m²). |
-| `target_weight` | NUMERIC(5,2) | Trọng lượng mục tiêu xuất chuồng bình quân (kg/con). |
 | `description` | VARCHAR(1000) | Mô tả quy cách chuồng, trang thiết bị giàn mát/quạt hút. |
 | `workers_override` | BOOLEAN | Cờ phân công công nhân riêng cho chuồng (nâng cấp bởi `BarnResponsibilitySchemaUpgrade`): `NULL` hoặc `FALSE` để kế thừa danh sách công nhân của Khu nuôi (`farm_area_workers`); `TRUE` để dùng danh sách công nhân riêng của chuồng (`barn_workers`). |
-| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+| `created_at` | TIMESTAMP | Thời điểm tạo chuồng. |
+| `updated_at` | TIMESTAMP | Thời điểm cập nhật gần nhất. |
 
-**Quy tắc:** Khi tạo chuồng gợi ý mật độ 8 con/m²; không chuyển khu khi chuồng đang có lứa nuôi; không xóa chuồng khi đang có vật nuôi hoặc có lịch sử lứa nuôi.
+**Quy tắc:** Khi tạo chuồng gợi ý mật độ 8 con/m²; trọng lượng mục tiêu xuất chuồng (`target_weight_min`, `target_weight_max`) được quản lý tập trung theo giống tại `farming_programs` (không lưu trên `barns`); không chuyển khu khi chuồng đang có lứa nuôi; không xóa chuồng khi đang có vật nuôi hoặc có lịch sử lứa nuôi.
 **API:** `GET /api/barns?areaId=...`, `GET /api/barns/{id}` (công nhân chỉ thấy chuồng được phân công), `POST /api/barns`, `PUT /api/barns/{id}`, `DELETE /api/barns/{id}` (`ROLE_FARM_OWNER`).
 
 ### 6.3 Bảng `farming_cycles` — Lứa nuôi
@@ -782,9 +796,11 @@ Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm só
 | `name_key` | VARCHAR(150) | NOT NULL, UNIQUE. Tên chuẩn hóa chống trùng. |
 | `breed` | VARCHAR(100) | NOT NULL. Giống gà áp dụng. |
 | `duration_days` | INT | NOT NULL. Chu kỳ nuôi dự kiến (ngày). |
-| `target_weight_min`, `max` | NUMERIC(5,2) | Trọng lượng xuất chuồng mục tiêu (kg/con). |
+| `target_weight_min` | NUMERIC(5,2) | Trọng lượng xuất chuồng mục tiêu tối thiểu (kg/con). |
+| `target_weight_max` | NUMERIC(5,2) | Trọng lượng xuất chuồng mục tiêu tối đa (kg/con). |
 | `description` | VARCHAR(1000) | Mô tả quy trình. |
-| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo và cập nhật. |
+| `created_at` | TIMESTAMP | Thời điểm tạo chương trình nuôi. |
+| `updated_at` | TIMESTAMP | Thời điểm cập nhật chương trình nuôi. |
 
 **Bảng `farming_program_steps`:**
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
@@ -793,12 +809,14 @@ Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm só
 | `program_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_programs.id` ON DELETE CASCADE. |
 | `category` | VARCHAR(20) | NOT NULL. `FEED` (cám), `VACCINE` (vắc-xin), `MEDICINE` (thuốc), `TEMPERATURE` (nhiệt độ úm). `WORK` (công việc) chỉ còn trong dữ liệu cũ: chương trình nuôi không nhận bước công việc (`PROGRAM_WORK_NOT_ALLOWED`), việc chăm sóc được giao riêng. |
 | `name` | VARCHAR(200) | NOT NULL. Tên thuốc / vắc-xin / loại cám / công việc. |
-| `day_from`, `day_to` | INT | NOT NULL. Giai đoạn ngày tuổi áp dụng (`day_from` ≤ `day_to`). |
+| `day_from` | INT | NOT NULL. Ngày tuổi bắt đầu áp dụng (`day_from` ≤ `day_to`). |
+| `day_to` | INT | NOT NULL. Ngày tuổi kết thúc áp dụng. |
 | `quantity` | NUMERIC(14,3) | Định mức cám (g/con/ngày) hoặc liều dùng thuốc/vắc-xin. |
 | `unit` | VARCHAR(50) | Đơn vị định mức (VD: `g/con/ngày`, `liều/con`, `ml/lít nước`). |
 | `meals_per_day` | INT | Số cữ ăn trong ngày (đối với FEED). |
 | `method` | VARCHAR(20) | Phương pháp: `EYE_NOSE` (nhỏ mắt mũi), `MOUTH` (uống), `DRINKING_WATER` (pha nước), `INJECTION` (tiêm), `WING_WEB` (chủng cánh), `MIX_FEED` (trộn cám), `MIX_WATER` (pha nước uống). |
-| `temp_min`, `temp_max` | NUMERIC(4,1) | Nhiệt độ ngưỡng chuồng nuôi (°C) đối với `TEMPERATURE`. |
+| `temp_min` | NUMERIC(4,1) | Nhiệt độ ngưỡng dưới (°C) đối với `TEMPERATURE`. |
+| `temp_max` | NUMERIC(4,1) | Nhiệt độ ngưỡng trên (°C) đối với `TEMPERATURE`. |
 | `note` | VARCHAR(1000) | Hướng dẫn thực hiện chi tiết cho công nhân. |
 | `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`, có thể NULL. Hàng hóa kho dùng cho bước cám / thuốc / vắc-xin để trừ kho và tính chi phí khi xác nhận phiếu việc. Hàng hóa phải có quy cách đơn vị cùng loại đại lượng với định mức (cám → khối lượng; thuốc, vắc-xin → tử số của đơn vị liều: `g/...`, `ml/...`, `liều/...`). Thuốc gắn hàng hóa phải ghi rõ liều theo `kg cám`, `lít nước` hoặc `con`. |
 
@@ -920,6 +938,7 @@ Entity: `SalesOrder`. Quản lý chứng từ xuất bán gà thương phẩm, t
 | `unit_price` | NUMERIC(19,2) | Đơn giá bán (VNĐ/kg). |
 | `total_amount` | NUMERIC(19,2) | Tổng thành tiền của đơn hàng = `total_weight * unit_price` (VNĐ). |
 | `paid_amount` | NUMERIC(19,2) | Số tiền khách đã thanh toán (VNĐ). |
+| `payment_method` | VARCHAR(100) | Hình thức thanh toán (VD: `Tiền mặt`, `Chuyển khoản`). Bổ sung qua `SalesOrderSchemaUpgrade`. |
 | `status` | VARCHAR(255) | Trạng thái thanh toán (mã enum lưu DB): `PAID` (Đã thanh toán), `DEBT` (Chưa thanh toán / Trả sau), `PARTIAL` (Thanh toán một phần). |
 | `weight_slip_url` | VARCHAR(500) | Đường dẫn tệp ảnh phiếu cân đính kèm (`/weigh-slips/<UUID>.<ext>`). |
 | `note` | TEXT | Ghi chú chi tiết của đơn xuất bán. |
@@ -1056,4 +1075,4 @@ Phân hệ **Thiết bị IoT** **không tạo bảng riêng trong PostgreSQL** 
 | `GET /health`, `GET /api/health` | Endpoint `GET` / `HEAD` kiểm tra trạng thái sống của AI microservice và `OCR_ENGINE`. |
 
 > [!NOTE]
-> **Ghi chú loại bỏ phân hệ Sổ quỹ (`Cashbook`):** Toàn bộ phân hệ **Sổ quỹ** đã được gỡ bỏ hoàn toàn khỏi cơ sở dữ liệu, backend (`Cashbook` entities/controllers/services), frontend và dữ liệu mẫu [insert_data.txt](file:///d:/Smart-Farm-Management-System/insert_data.txt). Dòng tiền nhập – xuất – công nợ được quản lý tập trung qua `purchase_invoices`, `purchase_payments`, `sales_orders`, `customer_contacts`, `suppliers` và `cycle_expenses`.
+> **Ghi chú loại bỏ phân hệ Sổ quỹ (`Cashbook`):** Toàn bộ phân hệ **Sổ quỹ** đã được gỡ bỏ hoàn toàn khỏi cơ sở dữ liệu, backend (`Cashbook` entities/controllers/services), frontend và dữ liệu mẫu [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt). Dòng tiền nhập – xuất – công nợ được quản lý tập trung qua `purchase_invoices`, `purchase_payments`, `sales_orders`, `customer_contacts`, `suppliers` và `cycle_expenses`.

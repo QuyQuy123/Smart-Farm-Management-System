@@ -36,11 +36,12 @@ Mô hình chăn nuôi trang trại tại Việt Nam đang phát triển nhanh v�
 
 | Thành phần | Công nghệ |
 |------------|-----------|
-| Frontend | React.js, Vite, TailwindCSS / Ant Design, Axios, React Router DOM |
-| Backend Core | Java 17/21, Spring Boot 3.x, Spring Data JPA, Lombok, Spring Security |
-| AI Service | Python 3.10+, FastAPI, OpenCV, EasyOCR, Tesseract, Whisper, SpeechRecognition, LLM API |
-| Database | PostgreSQL |
-| IoT Hardware | ESP32 / Arduino, DHT22, SHT30 |
+| Edge Gateway | Nginx 1.27 Alpine (Rate limit 3 tầng, SPA micro-cache, REST & `/api/ws` STOMP) |
+| Frontend | React 19, Vite 8, React Router 7, CSS Modules (`*.module.css`), `lucide-react`, Axios, STOMP WS, MQTT |
+| Backend Core | Java 21 LTS, Spring Boot 3.4.1, Spring Data JPA, Spring Security (Stateless JWT), Lombok, PDFBox, Web Push VAPID |
+| AI Service | Python 3.11+, FastAPI, OpenCV, Pillow, PyMuPDF, Groq (`whisper-large-v3`, `llama-3.3-70b-versatile`), OpenAI Vision (`gpt-4o-mini`) |
+| Database | PostgreSQL 16 (`ddl-auto=none` + idempotent `ApplicationRunner` upgrades) |
+| IoT Hardware | ESP32 / Arduino, DHT22, SHT30 (MQTT) |
 
 ---
 
@@ -132,25 +133,23 @@ cd backendFarmShift
 
 ### 2. Cấu hình Database
 
-Mở file:
+Mở file cấu hình local (không commit lên Git):
 
 ```text
-src/main/resources/application.yml
+backendFarmShift/src/main/resources/application-local.properties
 ```
 
-Cập nhật cấu hình:
+Hoặc truyền qua biến môi trường tương ứng với `application.properties`:
 
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/farmshift_db
-    username: postgres
-    password: your_password
-
-  jpa:
-    hibernate:
-      ddl-auto: update
+```properties
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=farmshift_db
+DB_USERNAME=postgres
+DB_PASSWORD=your_password
 ```
+
+*(Schema PostgreSQL sử dụng `spring.jpa.hibernate.ddl-auto=none` và được nâng cấp tự động, idempotent qua các `ApplicationRunner` khi khởi động backend.)*
 
 ### 3. Khởi chạy Spring Boot
 
@@ -299,10 +298,10 @@ http://localhost:5173
 
 - [x] Quản lý lứa nuôi
 - [x] Quản lý kho
-- [x] OCR hóa đơn
+- [x] OCR hóa đơn & phiếu cân bán gà
 - [x] AI Chatbot
-- [ ] Voice-to-Data
-- [ ] IoT Real-time Monitoring
+- [x] Voice-to-Data
+- [x] IoT Real-time Monitoring
 - [ ] Mobile App (Android/iOS)
 - [ ] AI Predictive Analytics
 

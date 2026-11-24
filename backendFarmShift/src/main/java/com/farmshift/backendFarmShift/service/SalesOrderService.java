@@ -203,7 +203,7 @@ public class SalesOrderService {
      f.setGender(FlockGender.MIXED);
      f.setSourceType(FlockSource.PURCHASE);
      f.setSourceNote("Tạo từ đơn bán");
-     f.setImportDate(order.getDate() != null ? order.getDate() : LocalDate.now());
+     f.setImportDate(order.getDate() != null ? order.getDate() : LocalDate.now(CycleService.VN_ZONE));
      f.setAgeAtImport(1);
      int initialQty = barn != null ? Math.max(barn.getCurrentQuantity(), order.getQuantity()) : order.getQuantity();
      f.setImportQuantity(initialQty);
@@ -237,7 +237,7 @@ public class SalesOrderService {
   }
   movement.setFlock(targetFlock);
   movement.setType(FlockMovementType.HARVEST);
-  movement.setMovementDate(order.getDate() != null ? order.getDate() : LocalDate.now());
+  movement.setMovementDate(order.getDate() != null ? order.getDate() : LocalDate.now(CycleService.VN_ZONE));
   movement.setQuantity(deductQty);
   movement.setWeightKg(order.getTotalWeight());
   movement.setUnitPrice(order.getUnitPrice());

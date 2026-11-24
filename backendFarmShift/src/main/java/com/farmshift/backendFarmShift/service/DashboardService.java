@@ -1,20 +1,17 @@
 package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
-import com.farmshift.backendFarmShift.dto.response.CycleDetailResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleFinance;
 import com.farmshift.backendFarmShift.dto.response.DashboardResponse;
 import com.farmshift.backendFarmShift.dto.response.DashboardResponse.*;
 import com.farmshift.backendFarmShift.dto.response.FarmingProgramResponse;
-import com.farmshift.backendFarmShift.dto.response.CycleRecordResponse;
-import com.farmshift.backendFarmShift.dto.response.FlockMovementResponse;
-import com.farmshift.backendFarmShift.dto.response.FlockResponse;
 import com.farmshift.backendFarmShift.dto.response.ProgramStepResponse;
 import com.farmshift.backendFarmShift.dto.response.WorkBoard;
+import com.farmshift.backendFarmShift.entity.Flock;
+import com.farmshift.backendFarmShift.entity.FlockMovement;
 import com.farmshift.backendFarmShift.entity.FlockMovementType;
-import com.farmshift.backendFarmShift.entity.InventoryItem;
 import com.farmshift.backendFarmShift.entity.ProgramStepCategory;
-import com.farmshift.backendFarmShift.repository.InventoryItemRepository;
+import com.farmshift.backendFarmShift.entity.WeightSample;
 import com.farmshift.backendFarmShift.repository.PurchaseInvoiceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -51,12 +48,15 @@ public class DashboardService {
     private final DailyPlanService dailyPlanService;
     private final CycleService cycleService;
     private final PurchaseInvoiceRepository invoiceRepository;
-    private final InventoryItemRepository inventoryRepository;
 
     /** workerEmail khác null: chỉ các chuồng công nhân đó phụ trách. now: giờ hiện tại để tính việc quá giờ. */
     public DashboardResponse get(boolean canSeeFinance, String workerEmail, LocalTime now) {
         LocalDate today = CycleService.today();
-        List<BarnDayPlan> plans = dailyPlanService.farm(today, canSeeFinance, workerEmail);
+        DailyPlanService.DashboardPlanData planData = dailyPlanService.dashboardPlanData(today, canSeeFinance, workerEmail, HISTORY_DAYS);
+        List<BarnDayPlan> plans = planData.todayPlans();
+        Map<Long, CycleService.DashboardCycleSnapshot> snapshots = cycleService.dashboardSnapshots(
+                planData.cycles(), planData.flocksByCycle(), planData.movementsByCycle(), canSeeFinance);
+
         List<Alert> alerts = new ArrayList<>();
         List<BarnCard> barns = new ArrayList<>();
         List<Upcoming> upcoming = new ArrayList<>();
@@ -65,10 +65,11 @@ public class DashboardService {
         int live = 0, lossToday = 0, loss7d = 0, tasksDone = 0, tasksTotal = 0, overdueTotal = 0;
 
         for (BarnDayPlan plan : plans) {
-            CycleDetailResponse detail = cycleService.detail(plan.cycleId(), canSeeFinance);
-            int quantity = detail.metrics().currentQuantity();
-            int barnLossToday = losses(detail.movements(), today, today);
-            int barnLoss7d = losses(detail.movements(), today.minusDays(6), today);
+            CycleService.DashboardCycleSnapshot snapshot = snapshots.get(plan.cycleId());
+            if (snapshot == null) continue;
+            int quantity = snapshot.metrics().currentQuantity();
+            int barnLossToday = losses(snapshot.movements(), today, today);
+            int barnLoss7d = losses(snapshot.movements(), today.minusDays(6), today);
             List<String> overdue = new ArrayList<>();
             int done = 0;
             for (BarnDayPlan.Task task : plan.tasks()) {
@@ -97,14 +98,14 @@ public class DashboardService {
                         "Vào Việc hôm nay › Phân công để giao chuồng cho công nhân.", plan.barnId()));
             }
 
-            upcoming.addAll(upcoming(detail.programs(), today, plan));
-            growth.add(growth(detail, today, plan));
-            barns.add(new BarnCard(plan.barnId(), plan.cycleId(), plan.barnName(), plan.areaName(), detail.metrics().ageDays(), quantity,
-                    detail.metrics().avgWeightKg(), detail.metrics().fcr(), detail.metrics().lossRate(), barnLossToday, done, total, overdue.size(),
+            upcoming.addAll(upcoming(snapshot.programs(), today, plan));
+            growth.add(growth(snapshot, today, plan));
+            barns.add(new BarnCard(plan.barnId(), plan.cycleId(), plan.barnName(), plan.areaName(), snapshot.metrics().ageDays(), quantity,
+                    snapshot.metrics().avgWeightKg(), snapshot.metrics().fcr(), snapshot.metrics().lossRate(), barnLossToday, done, total, overdue.size(),
                     plan.workers() == null ? List.of() : plan.workers().stream().map(WorkBoard.WorkerRef::fullName).toList(), status,
-                    detail.metrics().totalIn(), detail.metrics().deaths(), detail.metrics().culls()));
+                    snapshot.metrics().totalIn(), snapshot.metrics().deaths(), snapshot.metrics().culls()));
 
-            CycleFinance finance = detail.finance();
+            CycleFinance finance = snapshot.finance();
             if (finance != null) {
                 money[0] = money[0].add(nz(finance.chickCost()));
                 money[1] = money[1].add(nz(finance.feedCost()));
@@ -134,7 +135,7 @@ public class DashboardService {
         Finance finance = canSeeFinance ? new Finance(money[0], money[1], money[2], money[3], money[3].subtract(money[2]),
                 money[2].subtract(money[0]).subtract(money[1]).max(BigDecimal.ZERO)) : null;
         Kpis kpis = new Kpis(live, plans.size(), lossToday, loss7d, rate(loss7d, live + loss7d), tasksDone, tasksTotal, overdueTotal, debt, unpaid);
-        List<DayTasks> history = new ArrayList<>(taskHistory(today, canSeeFinance, workerEmail));
+        List<DayTasks> history = new ArrayList<>(planData.history());
         history.add(new DayTasks(today, tasksDone, tasksTotal, overdueTotal));
         return new DashboardResponse(today, kpis, alerts, barns, upcoming.stream().limit(15).toList(), finance, history, growth, restock(plans));
     }
@@ -175,32 +176,30 @@ public class DashboardService {
         return result;
     }
 
-    /** 6 ngày trước hôm nay: việc đã xong / tổng việc; việc không làm tính là "bỏ lỡ". */
-    private List<DayTasks> taskHistory(LocalDate today, boolean canSeeFinance, String workerEmail) {
-        return dailyPlanService.taskHistory(today, canSeeFinance, workerEmail, HISTORY_DAYS);
-    }
-
     /** Cân TB lúc nhập đàn đầu tiên và các lần cân mẫu, đổi ngày cân ra ngày tuổi; mục tiêu = ngày kết thúc chương trình nuôi. */
-    private static Growth growth(CycleDetailResponse detail, LocalDate today, BarnDayPlan plan) {
-        Integer ageToday = detail.metrics().ageDays();
+    private static Growth growth(CycleService.DashboardCycleSnapshot snapshot, LocalDate today, BarnDayPlan plan) {
+        Integer ageToday = snapshot.metrics().ageDays();
         List<WeightPoint> points = new ArrayList<>();
-        detail.flocks().stream().min(Comparator.comparing(FlockResponse::importDate)).ifPresent(first ->
-                points.add(new WeightPoint(first.ageAtImport(), first.importDate(), first.importAvgWeight())));
+        snapshot.flocks().stream().min(Comparator.comparing(Flock::getImportDate)).ifPresent(first ->
+                points.add(new WeightPoint(first.getAgeAtImport(), first.getImportDate(), first.getImportAvgWeight())));
         if (ageToday != null) {
-            detail.weightSamples().stream().filter(sample -> sample.quantity() != null).sorted(Comparator.comparing(CycleRecordResponse::date))
-                    .forEach(sample -> points.add(new WeightPoint(ageToday - (int) ChronoUnit.DAYS.between(sample.date(), today), sample.date(), sample.quantity())));
+            snapshot.weightSamples().stream().filter(sample -> sample.getAvgWeightKg() != null)
+                    .sorted(Comparator.comparing(WeightSample::getSampleDate))
+                    .forEach(sample -> points.add(new WeightPoint(
+                            ageToday - (int) ChronoUnit.DAYS.between(sample.getSampleDate(), today),
+                            sample.getSampleDate(), sample.getAvgWeightKg())));
         }
         points.sort(Comparator.comparingInt(WeightPoint::ageDays));
-        FarmingProgramResponse program = detail.programs().isEmpty() ? null : detail.programs().get(0);
+        FarmingProgramResponse program = snapshot.programs().isEmpty() ? null : snapshot.programs().get(0);
         // Mục tiêu cân nặng thuộc chương trình nuôi, không đặt theo chuồng.
         BigDecimal target = program == null ? null : program.targetWeightMax() != null ? program.targetWeightMax() : program.targetWeightMin();
         return new Growth(plan.barnId(), plan.barnName(), points, program == null ? null : program.durationDays(), target);
     }
 
-    private static int losses(List<FlockMovementResponse> movements, LocalDate from, LocalDate to) {
-        return movements.stream().filter(m -> LOSSES.contains(m.type()))
-                .filter(m -> !m.movementDate().isBefore(from) && !m.movementDate().isAfter(to))
-                .mapToInt(FlockMovementResponse::quantity).sum();
+    private static int losses(List<FlockMovement> movements, LocalDate from, LocalDate to) {
+        return movements.stream().filter(m -> LOSSES.contains(m.getType()))
+                .filter(m -> !m.getMovementDate().isBefore(from) && !m.getMovementDate().isAfter(to))
+                .mapToInt(FlockMovement::getQuantity).sum();
     }
 
     /** Mốc trong 7 ngày tới theo ngày tuổi: vắc-xin, thuốc, đổi cám bắt đầu, và ngày kết thúc chương trình (dự kiến xuất chuồng). */

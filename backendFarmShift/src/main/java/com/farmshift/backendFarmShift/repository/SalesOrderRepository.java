@@ -20,4 +20,7 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, String> 
  @EntityGraph(attributePaths = {"cycle", "cycle.barn", "cycle.barn.area", "harvestMovement"})
  @Query("select o from SalesOrder o where o.date between :from and :to order by o.date desc, o.id desc")
  List<SalesOrder> findInDateRangeForReport(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+ @Query("select o from SalesOrder o where o.totalAmount > coalesce(o.paidAmount, 0) order by o.date desc, o.id desc")
+ List<SalesOrder> findUnpaidOrders();
 }

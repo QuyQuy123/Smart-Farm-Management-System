@@ -5,8 +5,8 @@ services:
     build:
       context: ./aiServiceFarmShift
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     env_file:
       - path: ./aiServiceFarmShift/.env
         required: false
@@ -14,6 +14,7 @@ services:
       PORT: "8000"
       HOST: "0.0.0.0"
       DEBUG: "true"
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-farmshift-local-ai-token}
       WATCHFILES_FORCE_POLLING: "true"
     volumes:
       - ./aiServiceFarmShift:/app
@@ -48,6 +49,7 @@ services:
       TZ: Asia/Bangkok
       SPRING_PROFILES_ACTIVE: local
       AI_SERVICE_URL: http://ai-service:8000
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-farmshift-local-ai-token}
       AI_SERVICE_AUTOSTART_ENABLED: "false"
       SALES_WEIGHT_SLIPS_DIRECTORY: /shared/frontend-public/weigh-slips
       STORAGE_LOCAL_DIRECTORY: /shared/frontend-public/img
