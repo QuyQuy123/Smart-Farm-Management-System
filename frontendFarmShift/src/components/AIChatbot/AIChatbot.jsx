@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import * as aiAssistantService from '../../services/aiAssistantService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { useViewport } from '../../hooks/useViewport';
 import { createAdaptiveVoiceRecorder, NO_SPEECH_HINT, VAD_CONFIG } from '../../utils/audioRecorder';
 import {
   resolveAiChatOwnerScope,
@@ -536,14 +537,26 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     && lastMountedOwnerScope === ownerScope
   ));
 
-  // Sync Side-Drawer layout offset synchronously before paint so route transitions never flicker
+  const { isMobile, isTablet, isDesktop } = useViewport();
+
+  // Sync Side-Drawer layout offset synchronously before paint (Desktop only)
   useLayoutEffect(() => {
-    const active = Boolean(isOpen && isExpanded);
+    const active = Boolean(isDesktop && isOpen && isExpanded);
     document.documentElement.classList.toggle('farmshift-ai-drawer-open', active);
     return () => {
       document.documentElement.classList.remove('farmshift-ai-drawer-open');
     };
-  }, [isOpen, isExpanded]);
+  }, [isDesktop, isOpen, isExpanded]);
+
+  // Lock background scroll while full-screen Mobile sheet is open
+  useEffect(() => {
+    if (!isOpen || !isMobile) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, isMobile]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const effectiveSessionId = activeSession?.id;
@@ -1683,12 +1696,27 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   };
 
   return (
-    <div className={styles.chatbotWidget}>
+    <div className={`${styles.chatbotWidget} ${isMobile ? styles.chatbotWidgetMobile : ''}`}>
+      {isOpen && isTablet && (
+        <div
+          className={styles.aiBackdrop}
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+          data-testid="ai-tablet-backdrop"
+        />
+      )}
       {isOpen && (
         <div
-          className={`${styles.chatWindow} ${isExpanded ? styles.chatWindowExpanded : ''} ${skipMountPopAnim ? styles.chatWindowNoAnim : ''}`}
+          className={[
+            styles.chatWindow,
+            isDesktop && isExpanded ? styles.chatWindowExpanded : '',
+            isTablet ? styles.chatWindowTabletDrawer : '',
+            isMobile ? styles.chatWindowMobileSheet : '',
+            skipMountPopAnim ? styles.chatWindowNoAnim : '',
+          ].filter(Boolean).join(' ')}
           ref={chatWindowRef}
           data-testid="ai-chat-window"
+          data-mode={isMobile ? 'mobile-sheet' : isTablet ? 'tablet-drawer' : (isExpanded ? 'desktop-drawer' : 'desktop-popover')}
         >
           {/* ── Header ── */}
           <div className={styles.header}>
@@ -1736,15 +1764,17 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
               >
                 <Plus size={17} />
               </button>
-              <button
-                type="button"
-                className={styles.iconBtn}
-                title={isExpanded ? 'Thu về cửa sổ nổi' : 'Ghim thành ngăn bên phải (Side-Drawer)'}
-                data-testid="expand-chat-btn"
-                onClick={() => setIsExpanded(prev => !prev)}
-              >
-                {isExpanded ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-              </button>
+              {isDesktop && (
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  title={isExpanded ? 'Thu về cửa sổ nổi' : 'Ghim thành ngăn bên phải (Side-Drawer)'}
+                  data-testid="expand-chat-btn"
+                  onClick={() => setIsExpanded(prev => !prev)}
+                >
+                  {isExpanded ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.iconBtn}
@@ -2224,12 +2254,12 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
               {/* Voice-to-Text Button */}
               <button
                 type="button"
-                className={`${styles.micBtn} ${isListening ? styles.micBtnActive : ''}`}
+                className={`${styles.micBtn} ${isMobile ? styles.micBtnMobile : ''} ${isListening ? styles.micBtnActive : ''}`}
                 onClick={toggleListening}
                 title={isListening ? 'Đang lắng nghe... Bấm để dừng và gửi' : 'Nói để ra lệnh bằng giọng nói (Voice Command)'}
                 data-testid="voice-mic-button"
               >
-                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                {isListening ? <MicOff size={isMobile ? 20 : 16} /> : <Mic size={isMobile ? 20 : 16} />}
               </button>
 
               <button
@@ -2247,17 +2277,19 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       )}
 
       {/* ── Floating Action Launcher Button ── */}
-      <button
-        type="button"
-        className={styles.chatButton}
-        ref={chatButtonRef}
-        onClick={() => setIsOpen(!isOpen)}
-        title={isOpen ? 'Đóng Trợ lý AI' : 'Mở Trợ lý AI FarmShift'}
-        data-testid="ai-chatbot-launcher"
-      >
-        <span className={styles.pulseRing} />
-        {isOpen ? <X size={26} /> : <Sparkles size={26} />}
-      </button>
+      {!(isMobile && isOpen) && (
+        <button
+          type="button"
+          className={styles.chatButton}
+          ref={chatButtonRef}
+          onClick={() => setIsOpen(!isOpen)}
+          title={isOpen ? 'Đóng Trợ lý AI' : 'Mở Trợ lý AI FarmShift'}
+          data-testid="ai-chatbot-launcher"
+        >
+          <span className={styles.pulseRing} />
+          {isOpen ? <X size={26} /> : <Sparkles size={26} />}
+        </button>
+      )}
     </div>
   );
 };

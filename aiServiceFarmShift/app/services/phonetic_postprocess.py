@@ -178,7 +178,6 @@ _HIGRO_BASE = re.compile(
 )
 
 _SHARED_LEXICON_CANDIDATES = (
-    Path(__file__).resolve().parents[3] / "shared" / "phonetic_lexicon.json",
     Path(__file__).resolve().parents[1] / "resources" / "phonetic_lexicon.json",
 )
 

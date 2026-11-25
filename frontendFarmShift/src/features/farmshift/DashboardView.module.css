@@ -168,16 +168,26 @@ a.alertMain:hover { background: #f8fbfa; }
 @media (max-width: 1380px) {
   :global(:root.farmshift-ai-drawer-open) .columns { grid-template-columns: 1fr; }
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .columns { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 640px) {
+@media (max-width: 767px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi { padding: 12px; gap: 8px; flex-direction: column; }
+  .kpi strong { font-size: 20px; }
+  .kpi span { font-size: 12.5px; }
+  .kpiIcon { width: 32px; height: 32px; flex: 0 0 32px; }
   .card > header, .upcoming li { padding-left: 14px; padding-right: 14px; }
   .alertMain { padding-left: 14px; }
-  .barns, .finance { padding: 12px; }
+  .askAiBtn { min-height: 36px; padding: 5px 10px; white-space: nowrap; flex-shrink: 0; }
+  .finance { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 8px; }
+  .farmPlan { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+  .plan { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .notebook .paper > header { padding: 36px 16px 12px; }
+  .notebook .alertMain { padding: 10px 6px 10px 12px; }
+  .notebook .alertRow { padding-right: 10px; gap: 6px; }
 }
-@media (max-width: 640px) {
-  .notebook .paper > header { padding: 14px 44px 10px 46px; }
-  .notebook .alertMain { padding: 10px 6px 10px 10px; }
-  .notebook .alertRow { padding-right: 10px; }
+@media (min-width: 410px) and (max-width: 767px) {
+  .plan { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

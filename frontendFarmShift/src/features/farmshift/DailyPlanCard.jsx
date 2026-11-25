@@ -126,7 +126,28 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         {isEditing && <div className={styles.editor}>
           {MEASURED.includes(task.category) && <label>Lượng thực tế ({task.unit || 'đơn vị'})
             <input type="number" min="0" step="0.001" inputMode="decimal" className="farmshift-form-control" value={editing.quantity}
-              onChange={event => setEditing({ ...editing, quantity: event.target.value })} autoFocus /></label>}
+              onChange={event => setEditing({ ...editing, quantity: event.target.value })} autoFocus />
+            {task.category === 'FEED' && (() => {
+              const bagUnitKg = (task.plannedQuantity > 0 && task.plannedStock > 0)
+                ? Number(task.plannedQuantity) / Number(task.plannedStock)
+                : 25;
+              const currentQty = Number(editing.quantity || 0);
+              const bumpBy = (bags) => {
+                const nextVal = Math.round((Math.max(0, currentQty) + bags * bagUnitKg) * 1000) / 1000;
+                setEditing({ ...editing, quantity: String(nextVal) });
+              };
+              return <div className={styles.quickChips} data-testid="feed-quick-chips">
+                {task.plannedQuantity != null && (
+                  <button type="button" className={styles.quickChip}
+                    onClick={() => setEditing({ ...editing, quantity: String(task.plannedQuantity) })}>
+                    Đúng kế hoạch
+                  </button>
+                )}
+                <button type="button" className={styles.quickChip} onClick={() => bumpBy(0.5)}>+0.5 bao</button>
+                <button type="button" className={styles.quickChip} onClick={() => bumpBy(1)}>+1 bao</button>
+              </div>;
+            })()}
+          </label>}
           <label>Lý do / ghi chú
             <input className="farmshift-form-control" value={editing.note} maxLength={1000} placeholder="Ví dụ: gà bỏ ăn do nóng"
               onChange={event => setEditing({ ...editing, note: event.target.value })} /></label>

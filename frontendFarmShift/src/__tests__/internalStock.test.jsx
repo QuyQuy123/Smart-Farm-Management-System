@@ -15,7 +15,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../layouts/FarmShiftLayout', () => ({
-  FarmShiftLayout: ({ children }) => <div data-testid="layout">{children}</div>
+  FarmShiftLayout: ({ pageTitle, children }) => (
+    <div data-testid="layout">
+      <h1 data-testid="layout-h1">{pageTitle}</h1>
+      <div data-testid="layout-body">{children}</div>
+    </div>
+  )
 }));
 
 vi.mock('../context/AuthContext', () => ({
@@ -126,6 +131,44 @@ describe('InternalStockView workspace', () => {
     });
   });
 
+  it('delegates the single h1 heading to FarmShiftLayout across all tabs and print preview without rendering duplicate h1 tags', async () => {
+    const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {});
+    try {
+      render(<InternalStockView />);
+
+      await waitFor(() => {
+        expect(screen.getByText('XK000001')).toBeInTheDocument();
+      });
+
+      const assertSingleH1 = () => {
+        const allH1s = screen.getAllByRole('heading', { level: 1 });
+        expect(allH1s).toHaveLength(1);
+        expect(allH1s[0]).toHaveTextContent('Xuất nhập nội bộ');
+        expect(within(screen.getByTestId('layout-body')).queryAllByRole('heading', { level: 1 })).toHaveLength(0);
+      };
+
+      assertSingleH1();
+      expect(screen.getByText(/Quản lý điều chuyển thức ăn/i)).toBeInTheDocument();
+
+      // Trigger Print Voucher (mounts PrintableInternalVoucher portal in document.body)
+      const printBtn = screen.getByTitle(/In phiếu/i);
+      fireEvent.click(printBtn);
+      await waitFor(() => {
+        expect(document.getElementById('farmshift-printable-voucher')).toBeInTheDocument();
+      });
+      assertSingleH1();
+
+      // Switch through Tab 1 (Tạo phiếu) and Tab 3 (Danh mục)
+      fireEvent.click(screen.getByRole('button', { name: /^Tạo phiếu$/i }));
+      assertSingleH1();
+
+      fireEvent.click(screen.getByRole('button', { name: /Danh mục/i }));
+      assertSingleH1();
+    } finally {
+      printSpy.mockRestore();
+    }
+  });
+
   it('masks financial fields for ROLE_FARM_WORKER in the voucher list', async () => {
     mocks.currentUser = { role: 'ROLE_FARM_WORKER' };
     render(<InternalStockView />);
@@ -215,12 +258,14 @@ describe('InternalStockView workspace', () => {
     expect(options.map(o => o.value)).toEqual(['EXPORT', 'TRANSFER']);
   });
 
-  it('renders PrintableInternalVoucher with standard A4 header and items', () => {
+  it('renders PrintableInternalVoucher with standard A4 header and items without using h1', () => {
     const voucher = sampleVouchers[0];
     const { container } = render(
       <PrintableInternalVoucher voucher={voucher} onScreenPreview={true} />
     );
 
+    expect(container.querySelectorAll('h1')).toHaveLength(0);
+    expect(within(container).getByRole('heading', { level: 2 })).toHaveTextContent('PHIẾU XUẤT KHO NỘI BỘ');
     expect(container).toHaveTextContent('TRANG TRẠI MIỀN BÍNH');
     expect(container).toHaveTextContent('PHIẾU XUẤT KHO NỘI BỘ');
     expect(container).toHaveTextContent('XK000001');

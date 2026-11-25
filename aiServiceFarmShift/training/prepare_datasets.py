@@ -27,7 +27,6 @@ from app.services.voice_service import DOMAIN_PROMPT  # noqa: E402
 
 DEFAULT_GOLDEN_PATH = AI_SERVICE_ROOT / "eval" / "eval_golden_dataset.jsonl"
 DEFAULT_LEXICON_CANDIDATES = (
-    REPO_ROOT / "shared" / "phonetic_lexicon.json",
     AI_SERVICE_ROOT / "app" / "resources" / "phonetic_lexicon.json",
 )
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent / "artifacts" / "datasets"
@@ -228,7 +227,7 @@ def _build_whisper_manifest(
                 "source": "golden_stt",
             })
 
-    # Synthetic phonetic-anchor templates from shared/phonetic_lexicon.json
+    # Synthetic phonetic-anchor templates from app/resources/phonetic_lexicon.json
     templates = [
         "Kiểm tra {term} cho Nhà A1",
         "Chuẩn bị {term} tại Chuồng B2",

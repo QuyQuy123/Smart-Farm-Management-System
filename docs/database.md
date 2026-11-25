@@ -1073,7 +1073,7 @@ Phân hệ **Thiết bị IoT** **không tạo bảng riêng trong PostgreSQL** 
 | Endpoint | Mục đích & Tích hợp |
 | :--- | :--- |
 | `POST /api/extract-invoice`, `POST /api/extract-weight-slip`, `POST /api/preprocess`, `GET /api/sample` | Bóc tách chứng từ hóa đơn mua hàng, phiếu cân xuất bán gà (kèm tiền xử lý nghiêng ảnh & tọa độ bounding box), được Spring Boot gọi qua HTTP. |
-| `POST /api/voice/transcribe` (alias `/api/ai/transcribe`), `POST /api/voice/chat` (alias `/api/ai/chat`) | Chuyển đổi giọng nói tiếng Việt sang văn bản (STT), chuẩn hóa từ điển ngữ âm dùng chung (`shared/phonetic_lexicon.json`) và phân tích ý định NLU / Native Tool Calling (`tools`, `tool_calls`) qua LLM. |
+| `POST /api/voice/transcribe`, `POST /api/voice/chat` | Chuyển đổi giọng nói tiếng Việt sang văn bản (STT), chuẩn hóa từ điển ngữ âm (`phonetic_lexicon.json`) và phân tích ý định NLU / LLM-First Native Tool Calling (`tools`, `tool_calls`, `toolMessages`) qua LLM. |
 | `GET /health`, `GET /api/health` | Endpoint `GET` / `HEAD` kiểm tra trạng thái sống của AI microservice và `OCR_ENGINE`. |
 
 ### 11.3 Bảng `ai_interaction_logs` — Data Flywheel & Huấn luyện Trợ lý AI

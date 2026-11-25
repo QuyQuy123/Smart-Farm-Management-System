@@ -67,6 +67,7 @@ public class RealtimeSyncInterceptor implements HandlerInterceptor {
                 || path.startsWith("/api/voice/")
                 || path.startsWith("/api/files/")
                 || path.startsWith("/api/phone-camera/")
+                || path.startsWith("/api/iot/")
                 || path.startsWith("/api/push/")
                 || path.startsWith("/api/ws");
     }

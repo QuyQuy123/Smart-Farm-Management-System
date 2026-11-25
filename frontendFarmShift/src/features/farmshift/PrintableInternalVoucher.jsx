@@ -79,9 +79,9 @@ export const PrintableInternalVoucher = ({ voucher, farmInfo = null, onScreenPre
 
       {/* ── 2. Tiêu đề chính ── */}
       <div style={{ textAlign: 'center', marginBottom: '18px' }}>
-        <h1 style={{ margin: '0 0 4px 0', fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <h2 style={{ margin: '0 0 4px 0', fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
           {title}
-        </h1>
+        </h2>
         <div style={{ fontStyle: 'italic', fontSize: '13px', color: '#333' }}>
           Ngày {day < 10 ? `0${day}` : day} tháng {month < 10 ? `0${month}` : month} năm {year}
         </div>
@@ -268,6 +268,8 @@ export const PrintableInternalVoucher = ({ voucher, farmInfo = null, onScreenPre
   if (onScreenPreview) {
     return <div style={screenContainerStyle}>{voucherBody}</div>;
   }
+
+  if (typeof document === 'undefined') return null;
 
   // Chế độ in trình duyệt A4 (sử dụng container farmshift-printable-voucher)
   return createPortal(

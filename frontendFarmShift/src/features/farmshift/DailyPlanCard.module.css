@@ -57,19 +57,21 @@
   color: #52796f; font: inherit; font-size: 14px; cursor: pointer; }
 .otherButton:hover:not(:disabled), .undoButton:hover:not(:disabled) { background: #e9f6ec; color: #1b4332; }
 
-.editor { display: grid; grid-template-columns: 180px 1fr; gap: 10px; margin-top: 8px; padding: 10px; border-radius: 10px; background: #f3faf4; }
+.editor { display: grid; grid-template-columns: 220px 1fr; gap: 10px; margin-top: 8px; padding: 10px; border-radius: 10px; background: #f3faf4; }
 .editor label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 600; color: #1b4332; }
+.quickChips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.quickChip { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 4px 10px; border-radius: 999px; border: 1px solid #a7d9be; background: #ffffff; color: #1b4332; font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease; }
+.quickChip:hover { background: #e6f7ec; border-color: #2d6a4f; }
 .editorActions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 
-@media (max-width: 640px) {
-  .task { flex-direction: column; }
-  .actions { flex-direction: row; align-items: center; width: 100%; }
-  .doneButton { flex: 1; }
+@media (max-width: 767px) {
+  .task { flex-direction: column; padding: 14px; }
+  .actions { flex-direction: row; align-items: center; width: 100%; gap: 8px; }
+  .doneButton { flex: 1; min-height: 44px; }
+  .otherButton, .undoButton { min-height: 44px; padding: 8px 12px; border: 1px solid #d7ecdc; background: #ffffff; }
+  .quickChip { min-height: 40px; padding: 6px 12px; font-size: 13px; }
   .editor { grid-template-columns: 1fr; }
   .header, .section, .warnings { padding-left: 14px; padding-right: 14px; }
-}
-
-@media (max-width: 640px) {
   .schedule { margin: 10px 8px 12px; }
   .slot { grid-template-columns: 1fr; gap: 6px; }
   .slotTime { flex-direction: row; gap: 10px; min-height: 0; padding: 8px 12px; }
@@ -109,8 +111,11 @@
 .compact .editor label { font-size: 12.5px; }
 .compact .empty { padding: 14px; font-size: 13px; }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .compact .slot { grid-template-columns: 1fr; }
   .compact .slotTime { border-right: 0; padding: 6px 10px; }
+  .compact .doneButton { min-height: 44px; padding: 8px 12px; font-size: 13.5px; }
+  .compact .otherButton, .compact .undoButton { min-height: 44px; padding: 8px 12px; font-size: 13.5px; }
+  .compact .editor { grid-template-columns: 1fr; }
 }
 .planned { color: #0f5f8c; font-weight: 600; }

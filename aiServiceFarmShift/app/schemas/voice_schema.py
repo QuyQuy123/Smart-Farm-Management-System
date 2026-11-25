@@ -47,6 +47,35 @@ class AssistantChatRequest(BaseModel):
         alias="toolChoice",
         description="Chế độ chọn tool (auto | none | required | object)",
     )
+    user_role: Optional[str] = Field(
+        default=None,
+        alias="userRole",
+        max_length=40,
+        description="Vai trò RBAC của người dùng (ROLE_FARM_OWNER | ROLE_ACCOUNTANT | ROLE_FARM_WORKER)",
+    )
+    current_route: Optional[str] = Field(
+        default=None,
+        alias="currentRoute",
+        max_length=200,
+        description="Màn hình frontend đang mở",
+    )
+    use_default_tools: bool = Field(
+        default=False,
+        alias="useDefaultTools",
+        description="Tự động nạp bộ 10 Core Tools chuẩn FarmShift theo userRole nếu tools không truyền tường minh",
+    )
+    tool_messages: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        alias="toolMessages",
+        max_length=12,
+        description="Chuỗi tin nhắn assistant(tool_calls) + tool(result) cho lượt tổng hợp kết quả Read Tool",
+    )
+    temperature: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Nhiệt độ sinh văn bản LLM (mặc định 0.1 khi route tool, 0.25 khi tổng hợp)",
+    )
 
     model_config = {
         "populate_by_name": True

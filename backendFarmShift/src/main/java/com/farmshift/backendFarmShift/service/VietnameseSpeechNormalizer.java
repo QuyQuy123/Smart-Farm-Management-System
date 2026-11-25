@@ -6,8 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -206,24 +204,12 @@ public final class VietnameseSpeechNormalizer {
         List<SharedPhoneticRule> rules = new ArrayList<>();
         ObjectMapper mapper = new ObjectMapper();
         JsonNode root = null;
-        for (Path candidate : List.of(Path.of("..", "shared", "phonetic_lexicon.json"), Path.of("shared", "phonetic_lexicon.json"))) {
-            if (Files.isRegularFile(candidate)) {
-                try (InputStream in = Files.newInputStream(candidate)) {
-                    root = mapper.readTree(in);
-                    break;
-                } catch (Exception ignored) {
-                    // Fallback to classpath
-                }
+        try (InputStream in = VietnameseSpeechNormalizer.class.getResourceAsStream("/phonetic_lexicon.json")) {
+            if (in != null) {
+                root = mapper.readTree(in);
             }
-        }
-        if (root == null) {
-            try (InputStream in = VietnameseSpeechNormalizer.class.getResourceAsStream("/phonetic_lexicon.json")) {
-                if (in != null) {
-                    root = mapper.readTree(in);
-                }
-            } catch (Exception ignored) {
-                // Keep empty if unavailable
-            }
+        } catch (Exception ignored) {
+            // Keep empty if unavailable
         }
         if (root != null && root.path("rules").isArray()) {
             for (JsonNode item : root.path("rules")) {

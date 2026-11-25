@@ -27,12 +27,16 @@ import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { PrintableInternalVoucher } from './PrintableInternalVoucher';
 import styles from './InternalStockView.module.css';
 import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
+import { useViewport } from '../../hooks/useViewport';
+import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
+import { MobileFilterSheet } from '../../components/common/MobileFilterSheet';
 
 const MSG27 = 'Số lượng xuất kho vượt quá số lượng tồn kho khả dụng hiện tại.';
 
 export const InternalStockView = () => {
   const { user } = useAuth();
   const { showToast } = useNotification();
+  const { isMobile } = useViewport();
   const isWorker = user?.role === 'ROLE_FARM_WORKER';
   const canMutate = user?.role === 'ROLE_FARM_OWNER' || user?.role === 'ROLE_ACCOUNTANT';
 
@@ -440,7 +444,6 @@ export const InternalStockView = () => {
         {/* ── Page Header ── */}
         <div className={styles.header}>
           <div className={styles.titleArea}>
-            <h1>Xuất nhập nội bộ</h1>
             <p className={styles.subtitle}>
               Quản lý điều chuyển thức ăn, vắc-xin, thuốc và vật tư trong nội bộ trang trại
             </p>
@@ -825,55 +828,102 @@ export const InternalStockView = () => {
                   <option value="TRANSFER">Chuyển kho</option>
                 </select>
 
-                {/* Lọc danh mục */}
-                <select
-                  className={styles.filterSelect}
-                  value={filterCategory}
-                  onChange={e => {
-                    setFilterCategory(e.target.value);
+                <MobileFilterSheet
+                  title="Bộ lọc phiếu xuất nhập"
+                  activeCount={
+                    (filterCategory !== 'ALL' ? 1 : 0) +
+                    (filterWarehouse !== 'ALL' ? 1 : 0) +
+                    (filterStatus !== 'ALL' ? 1 : 0) +
+                    (filterFrom ? 1 : 0) +
+                    (filterTo ? 1 : 0)
+                  }
+                  onReset={() => {
+                    setFilterCategory('ALL');
+                    setFilterWarehouse('ALL');
+                    setFilterStatus('ALL');
+                    setFilterFrom('');
+                    setFilterTo('');
                     setPage(0);
                   }}
-                  aria-label="Lọc theo danh mục"
                 >
-                  <option value="ALL">Tất cả danh mục</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  {/* Lọc danh mục */}
+                  <select
+                    className={styles.filterSelect}
+                    value={filterCategory}
+                    onChange={e => {
+                      setFilterCategory(e.target.value);
+                      setPage(0);
+                    }}
+                    aria-label="Lọc theo danh mục"
+                  >
+                    <option value="ALL">Tất cả danh mục</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
 
-                {/* Lọc kho */}
-                <select
-                  className={styles.filterSelect}
-                  value={filterWarehouse}
-                  onChange={e => {
-                    setFilterWarehouse(e.target.value);
-                    setPage(0);
-                  }}
-                  aria-label="Lọc theo kho"
-                >
-                  <option value="ALL">Tất cả kho hàng</option>
-                  {warehouses.map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
+                  {/* Lọc kho */}
+                  <select
+                    className={styles.filterSelect}
+                    value={filterWarehouse}
+                    onChange={e => {
+                      setFilterWarehouse(e.target.value);
+                      setPage(0);
+                    }}
+                    aria-label="Lọc theo kho"
+                  >
+                    <option value="ALL">Tất cả kho hàng</option>
+                    {warehouses.map(w => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
 
-                {/* Lọc trạng thái */}
-                <select
-                  className={styles.filterSelect}
-                  value={filterStatus}
-                  onChange={e => {
-                    setFilterStatus(e.target.value);
-                    setPage(0);
-                  }}
-                  aria-label="Lọc theo trạng thái"
-                >
-                  <option value="ALL">Tất cả trạng thái</option>
-                  <option value="COMPLETED">Đã hoàn thành</option>
-                  <option value="CANCELLED">Đã hủy</option>
-                </select>
+                  {/* Lọc trạng thái */}
+                  <select
+                    className={styles.filterSelect}
+                    value={filterStatus}
+                    onChange={e => {
+                      setFilterStatus(e.target.value);
+                      setPage(0);
+                    }}
+                    aria-label="Lọc theo trạng thái"
+                  >
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="COMPLETED">Đã hoàn thành</option>
+                    <option value="CANCELLED">Đã hủy</option>
+                  </select>
+
+                  {isMobile && (
+                    <>
+                      <div className={styles.dateInput}>
+                        <span>Từ ngày:</span>
+                        <input
+                          type="date"
+                          value={filterFrom}
+                          onChange={e => {
+                            setFilterFrom(e.target.value);
+                            setPage(0);
+                          }}
+                        />
+                      </div>
+                      <div className={styles.dateInput}>
+                        <span>Đến ngày:</span>
+                        <input
+                          type="date"
+                          value={filterTo}
+                          onChange={e => {
+                            setFilterTo(e.target.value);
+                            setPage(0);
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </MobileFilterSheet>
               </div>
 
-              {/* Hàng lọc ngày */}
+              {/* Hàng lọc ngày (Desktop & Tablet inline) */}
+              {!isMobile && (
               <div className={styles.filterRow}>
                 <div className={styles.dateInput}>
                   <span>Từ ngày:</span>
@@ -918,9 +968,72 @@ export const InternalStockView = () => {
                   </button>
                 )}
               </div>
+              )}
             </div>
 
-            {/* Vouchers Table */}
+            {/* Vouchers Table / Mobile 3-Tier Cards */}
+            {isMobile ? (
+              <ResponsiveDataTable
+                data={vouchers}
+                rowKey={v => v.id}
+                mode="card-on-mobile"
+                loading={vouchersLoading}
+                emptyState="Chưa có phiếu xuất nhập nội bộ."
+                pagination={totalPages > 1 ? {
+                  page: page + 1,
+                  totalPages,
+                  totalItems: totalElements,
+                  onPageChange: (nextPage) => setPage(nextPage - 1),
+                } : null}
+                renderMobileCard={v => (
+                  <div style={{ background: '#fff', border: '1px solid #e3ebe8', borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <strong style={{ fontFamily: 'monospace', color: '#047857', fontSize: 15 }}>{v.code}</strong>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <span className={`${styles.badge} ${v.movementType === 'IMPORT' ? styles.badgeImport : v.movementType === 'EXPORT' ? styles.badgeExport : styles.badgeTransfer}`}>
+                          {INTERNAL_STOCK_TYPES[v.movementType] || v.movementType}
+                        </span>
+                        <span className={`${styles.badge} ${v.status === 'COMPLETED' ? styles.badgeCompleted : styles.badgeCancelled}`}>
+                          {INTERNAL_STOCK_STATUS[v.status] || v.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: 10, background: '#f8fafc', borderRadius: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 11.5, color: '#64748b' }}>Danh mục</div>
+                        <strong style={{ fontSize: 13.5, color: '#181d26' }}>{v.categoryName || '—'}</strong>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11.5, color: '#64748b' }}>Ngày lập</div>
+                        <strong style={{ fontSize: 13.5, color: '#181d26' }}>{v.movementDate || v.date}</strong>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11.5, color: '#64748b' }}>Kho xuất → Nhập</div>
+                        <strong style={{ fontSize: 13, color: '#334155' }}>{v.sourceWarehouseName || '—'} → {v.targetWarehouseName || '—'}</strong>
+                      </div>
+                      {!isWorker && (
+                        <div>
+                          <div style={{ fontSize: 11.5, color: '#64748b' }}>Tổng giá trị</div>
+                          <strong style={{ fontSize: 13.5, color: '#181d26' }}>
+                            {v.totalAmount === null ? '—' : `${Math.round(Number(v.totalAmount)).toLocaleString('vi-VN')} đ`}
+                          </strong>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eef2f4', paddingTop: 8 }}>
+                      <span style={{ fontSize: 12.5, color: '#64748b' }}>{v.createdBy || '—'}</span>
+                      <div className={styles.actions}>
+                        <button type="button" className={`${styles.iconBtn} ${styles.iconBtnPrimary}`} style={{ minWidth: 44, minHeight: 44 }} onClick={() => setSelectedVoucher(v)} aria-label={`Xem chi tiết ${v.code}`}><Eye size={16} /></button>
+                        <button type="button" className={styles.iconBtn} style={{ minWidth: 44, minHeight: 44 }} onClick={() => handlePrint(v)} aria-label={`In phiếu ${v.code}`}><Printer size={16} /></button>
+                        {canMutate && v.status === 'COMPLETED' && (
+                          <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} style={{ minWidth: 44, minHeight: 44 }} onClick={() => setVoucherToCancel(v)} aria-label={`Hủy phiếu ${v.code}`}><Ban size={16} /></button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              />
+            ) : (
             <div className="farmshift-table-container">
               <table className="farmshift-table">
                 <thead>
@@ -1047,9 +1160,10 @@ export const InternalStockView = () => {
                 </tbody>
               </table>
             </div>
+            )}
 
             {/* Pagination */}
-            {totalPages > 1 && (
+            {!isMobile && totalPages > 1 && (
               <div className={styles.pagination}>
                 <div>
                   Hiển thị trang <strong>{page + 1}</strong> / <strong>{totalPages}</strong> ({totalElements} phiếu)

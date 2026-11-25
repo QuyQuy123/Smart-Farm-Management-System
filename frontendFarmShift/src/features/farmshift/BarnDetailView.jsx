@@ -23,6 +23,7 @@ import { DailyPlanCard } from './DailyPlanCard';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { getBarnDailyPlan } from '../../services/dailyPlanService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { useViewport } from '../../hooks/useViewport';
 import {
   EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
@@ -30,7 +31,7 @@ import {
 import styles from './BarnDetailView.module.css';
 
 const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
-const money = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN')}đ`;
+const money = value => value == null ? '—' : `${Math.round(Number(value)).toLocaleString('vi-VN')}đ`;
 const isInt = value => value !== '' && Number.isInteger(Number(value));
 const IMPORT_PAYMENT_OPTIONS = [{ value: 'Trả sau', label: 'Trả sau (ghi công nợ)' }, { value: 'Thanh toán hoàn tất', label: 'Đã trả đủ tiền' }];
 
@@ -75,6 +76,7 @@ export const BarnDetailView = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useNotification();
+  const { isMobile } = useViewport();
   const role = user?.role;
   const isOwner = role === 'ROLE_FARM_OWNER';
   const canDaily = isOwner || role === 'ROLE_FARM_WORKER';
@@ -463,8 +465,8 @@ export const BarnDetailView = () => {
       </table></div>}
   </Card>;
 
-  const renderNoCycle = () => {
-    return <div className={styles.columns}>
+  const renderNoCycle = () => (
+    <div className={styles.columns}>
       <div className={styles.left}>{barnInfo}</div>
       <div className={styles.right}>
         <section className={`${styles.card} ${styles.emptyCycle}`}>
@@ -475,8 +477,8 @@ export const BarnDetailView = () => {
         </section>
         {history}
       </div>
-    </div>;
-  };
+    </div>
+  );
 
   // Chỉ số chính luôn hiện; các chỉ số phụ nằm sau nút "Xem thêm chỉ số" cho gọn.
   // Mục tiêu cân nặng lấy từ chương trình nuôi của lứa (không đặt theo chuồng).
@@ -518,7 +520,39 @@ export const BarnDetailView = () => {
     const harvests = detail.movements.filter(item => item.type === 'HARVEST');
     const expenses = (detail.expenses || []).filter(item => item.category === expenseTab);
 
-    return <div className={styles.columns}>
+    const activeFlockForQuickLoss = detail.flocks.find(flock => flock.status === 'ACTIVE' && flock.quantity > 0);
+
+    return <>
+      {isMobile && active && canDaily && (
+        <div className={styles.mobileQuickBar} data-testid="barn-mobile-quick-actions" aria-label="Thao tác nhanh chuồng nuôi">
+          <Link
+            to={barn?.activeCycleId ? `/today-tasks?cycle=${encodeURIComponent(barn.activeCycleId)}` : '/today-tasks'}
+            className={styles.quickActionBtn}
+          >
+            <CalendarDays size={16} />
+            <span>Ghi cám</span>
+          </Link>
+          {activeFlockForQuickLoss && (
+            <button
+              type="button"
+              className={styles.quickActionBtn}
+              onClick={() => openLoss(activeFlockForQuickLoss)}
+            >
+              <Skull size={16} />
+              <span>Hao hụt</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.quickActionBtn}
+            onClick={openWeight}
+          >
+            <Gauge size={16} />
+            <span>Cân mẫu</span>
+          </button>
+        </div>
+      )}
+      <div className={styles.columns}>
       <div className={styles.left}>
         <Card title="Thông tin lứa nuôi" icon={Flag}>
           <div className={styles.cycleInfo}>
@@ -680,7 +714,7 @@ export const BarnDetailView = () => {
 
         {history}
       </div>
-    </div>;
+    </div></>;
   };
 
   return <FarmShiftLayout pageTitle={barn ? barn.name : 'Chi tiết chuồng'} showShortcuts environmentHref={`/iot?barn=${encodeURIComponent(id)}`}

@@ -315,9 +315,9 @@
 }
 
 /* ── Responsive ── */
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .searchWrapper {
-    max-width: 260px;
+    max-width: 280px;
   }
   .searchPlaceholder {
     font-size: 13.5px;
@@ -325,16 +325,19 @@
   .shortcutBadge {
     display: none;
   }
+  .modalInput {
+    font-size: 16px;
+  }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .searchWrapper {
-    max-width: 38px;
+    max-width: 44px;
     margin: 0;
   }
   .searchBar {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     justify-content: center;
     border-radius: var(--rounded-full, 9999px);
@@ -345,12 +348,15 @@
   }
   .dropdownModal {
     position: fixed;
-    top: 62px;
+    top: calc(var(--fs-header-height, 56px) + 6px);
     left: 12px;
     right: 12px;
     width: auto;
     max-width: none;
     box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
+  }
+  .dropdownFooter {
+    display: none;
   }
 }
 

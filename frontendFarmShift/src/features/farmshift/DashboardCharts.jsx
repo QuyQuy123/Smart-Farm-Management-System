@@ -10,7 +10,7 @@ import styles from './DashboardCharts.module.css';
  */
 const C = { green: '#2d8a5e', blue: '#2a78d6', earth: '#b5654a', sage: '#7d968a', loss: '#9b3d2e', grid: '#e3ebe8', axis: '#c3cfca' };
 const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
-const money = value => `${num(value)}đ`;
+const money = value => `${Math.round(Number(value || 0)).toLocaleString('vi-VN')} đ`;
 const short = value => value >= 1e9 ? `${num(value / 1e9, 1)} tỷ` : value >= 1e6 ? `${num(value / 1e6, 1)} tr` : value >= 1e3 ? `${num(value / 1e3, 1)}k` : num(value);
 
 /** Mốc trục y "tròn" (1, 2, 5 × 10^n) từ 0 đến >= max. */
@@ -78,7 +78,7 @@ function LossRates({ barns }) {
           const over = r.rate > LOSS_THRESHOLD;
           const show = () => setTip({ x: (Math.min(X(r.rate), width - 70) / width) * 100, y: y - 4, title: r.barnName,
             lines: [`Hao hụt ${num(r.rate, 2)}% · ${num(r.deaths + r.culls)} con`, `Chết ${num(r.deaths)} · loại thải ${num(r.culls)} / nhập ${num(r.totalIn)}`] });
-          return <g key={r.barnId} onMouseEnter={show} onFocus={show} tabIndex={0}>
+          return <g key={r.barnId} onMouseEnter={show} onFocus={show} onClick={show} onTouchStart={show} tabIndex={0} style={{ cursor: 'pointer' }}>
             <rect x={0} y={T + i * rowH} width={width} height={rowH} fill="transparent" />
             <text x={L - 8} y={y + h / 2 + 4} textAnchor="end" className={styles.axisText}>{r.barnName.length > 11 ? `${r.barnName.slice(0, 10)}…` : r.barnName}</text>
             {w > 0 && <path d={`M${L},${y}H${L + w - Math.min(4, w)}Q${L + w},${y} ${L + w},${y + Math.min(4, w)}V${y + h - Math.min(4, w)}Q${L + w},${y + h} ${L + w - Math.min(4, w)},${y + h}H${L}Z`}
@@ -119,7 +119,7 @@ function CostDonut({ finance }) {
           {arcs.map(a => {
             const show = () => setTip({ x: ((cx + (R + 6) * Math.cos(a.mid)) / 220) * 100, y: cy + (R + 6) * Math.sin(a.mid) - 10, title: a.label,
               lines: [money(a.value), `${num((a.value / total) * 100, 1)}% tổng chi`] });
-            return <path key={a.label} d={a.d} fill={a.color} stroke="#fff" strokeWidth="2" onMouseEnter={show} onFocus={show} tabIndex={0} />;
+            return <path key={a.label} d={a.d} fill={a.color} stroke="#fff" strokeWidth="2" onMouseEnter={show} onFocus={show} onClick={show} onTouchStart={show} tabIndex={0} style={{ cursor: 'pointer' }} />;
           })}
           <text x={cx} y={cy - 2} textAnchor="middle" className={styles.donutValue}>{short(total)}</text>
           <text x={cx} y={cy + 16} textAnchor="middle" className={styles.axisText}>tổng chi</text>
@@ -180,7 +180,7 @@ function GrowthChart({ growth }) {
             {g.points.map((p, idx) => {
               const show = () => setTip({ x: (X(p.ageDays) / GW) * 100, y: Y(Number(p.avgWeightKg)) - 10, title: `${g.barnName} · ngày tuổi ${p.ageDays}`,
                 lines: [`${num(p.avgWeightKg, 3)} kg/con`, formatDay(p.date)] });
-              return <g key={`${p.ageDays}-${p.date}-${idx}`} onMouseEnter={show} onFocus={show} tabIndex={0}>
+              return <g key={`${p.ageDays}-${p.date}-${idx}`} onMouseEnter={show} onFocus={show} onClick={show} onTouchStart={show} tabIndex={0} style={{ cursor: 'pointer' }}>
                 <circle cx={X(p.ageDays)} cy={Y(Number(p.avgWeightKg))} r="10" fill="transparent" />
                 <circle cx={X(p.ageDays)} cy={Y(Number(p.avgWeightKg))} r="4" fill={g.color} stroke="#fff" strokeWidth="1.5" />
               </g>;

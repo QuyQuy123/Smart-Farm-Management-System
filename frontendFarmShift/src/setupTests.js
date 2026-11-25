@@ -1,6 +1,9 @@
 // src/setupTests.js
 import '@testing-library/jest-dom';
 
+// Keep the default jsdom viewport in the desktop navigation layout.
+Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1280 });
+
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

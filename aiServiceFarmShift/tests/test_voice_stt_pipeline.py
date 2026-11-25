@@ -388,14 +388,14 @@ class VoiceServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
         from pathlib import Path
 
         repo_root = Path(__file__).resolve().parents[2]
-        shared_path = repo_root / "shared" / "phonetic_lexicon.json"
         ai_res_path = repo_root / "aiServiceFarmShift" / "app" / "resources" / "phonetic_lexicon.json"
         be_res_path = repo_root / "backendFarmShift" / "src" / "main" / "resources" / "phonetic_lexicon.json"
 
-        self.assertTrue(shared_path.is_file())
-        shared_data = json.loads(shared_path.read_text(encoding="utf-8"))
-        self.assertEqual(shared_data, json.loads(ai_res_path.read_text(encoding="utf-8")))
-        self.assertEqual(shared_data, json.loads(be_res_path.read_text(encoding="utf-8")))
+        self.assertTrue(ai_res_path.is_file())
+        self.assertTrue(be_res_path.is_file())
+        ai_data = json.loads(ai_res_path.read_text(encoding="utf-8"))
+        be_data = json.loads(be_res_path.read_text(encoding="utf-8"))
+        self.assertEqual(ai_data, be_data)
 
         norm, _ = postprocess_vietnamese_phonetic(
             "tiêm ma réc, pha gờ lu cô ka xê, trị hàn cốc và xịt bê ka xê 80% cho gà lạc thủy"
@@ -474,6 +474,158 @@ class VoiceServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sample_tools, sent_payload["tools"])
             self.assertEqual("auto", sent_payload["tool_choice"])
             self.assertNotIn("response_format", sent_payload)
+
+    async def test_llm_first_default_tools_rbac_and_turn2_synthesis_and_error_logging(self):
+        from app.services.agent_tools import get_core_tools_for_role
+
+        owner_tools = {t["function"]["name"] for t in get_core_tools_for_role("ROLE_FARM_OWNER")}
+        self.assertEqual(
+            {
+                "get_dashboard_summary",
+                "get_barn_status",
+                "get_today_tasks",
+                "get_inventory_stock",
+                "get_financial_and_debts",
+                "search_vet_knowledge",
+                "log_feed_consumption",
+                "log_flock_loss",
+                "log_weight_sample",
+                "complete_daily_task",
+            },
+            owner_tools,
+        )
+
+        worker_tools = {t["function"]["name"] for t in get_core_tools_for_role("ROLE_FARM_WORKER")}
+        self.assertNotIn("get_financial_and_debts", worker_tools)
+        self.assertIn("get_dashboard_summary", worker_tools)
+        self.assertIn("log_feed_consumption", worker_tools)
+
+        accountant_tools = {t["function"]["name"] for t in get_core_tools_for_role("ROLE_ACCOUNTANT")}
+        self.assertIn("get_financial_and_debts", accountant_tools)
+        self.assertNotIn("log_feed_consumption", accountant_tools)
+        self.assertNotIn("log_flock_loss", accountant_tools)
+
+        with (
+            patch("app.services.voice_service.settings.GROQ_API_KEY", "groq-key"),
+            patch("app.services.voice_service.settings.OPENAI_API_KEY", "openai-key"),
+            patch("app.services.voice_service.get_shared_http_client", return_value=None),
+            patch("app.services.voice_service.httpx.AsyncClient") as factory,
+        ):
+            http_mock = AsyncMock()
+            factory.return_value.__aenter__.return_value = http_mock
+
+            # 1. Groq 400 tool_use_failed logs status_code + error_message and falls back to OpenAI
+            groq_400 = MagicMock()
+            groq_400.status_code = 400
+            groq_400.json.return_value = {"error": {"message": "tool_use_failed: bad schema"}}
+            groq_400.text = '{"error":{"message":"tool_use_failed: bad schema"}}'
+
+            openai_tool_ok = MagicMock()
+            openai_tool_ok.status_code = 200
+            openai_tool_ok.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_dash_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "get_dashboard_summary",
+                                        "arguments": "{}",
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+            http_mock.post.side_effect = [groq_400, openai_tool_ok]
+
+            with self.assertLogs("aiServiceFarmShift.voice", level="ERROR") as cm:
+                res1 = await voice_service.chat_completion(
+                    AssistantChatRequest(
+                        message="hôm nay có gì mới",
+                        userRole="ROLE_FARM_OWNER",
+                        useDefaultTools=True,
+                    )
+                )
+            self.assertFalse(res1.fallback)
+            self.assertEqual("gpt-4o-mini", res1.provider)
+            self.assertEqual("get_dashboard_summary", res1.tool_calls[0]["function"]["name"])
+            self.assertTrue(any("status_code=400" in line and "tool_use_failed" in line for line in cm.output))
+
+            sent_turn1 = http_mock.post.call_args.kwargs["json"]
+            self.assertEqual(10, len(sent_turn1["tools"]))
+            self.assertNotIn("response_format", sent_turn1)
+            self.assertIn("ROLE_FARM_OWNER", sent_turn1["messages"][0]["content"])
+
+            # 1b. Groq HTTP 404 (unavailable/deprecated model) opens groq_chat_breaker after 3 failures
+            from app.services.voice_service import groq_chat_breaker
+            voice_service.reset_circuit_breakers()
+            groq_404 = MagicMock()
+            groq_404.status_code = 404
+            groq_404.json.return_value = {"error": {"message": "model not found"}}
+            groq_404.text = '{"error":{"message":"model not found"}}'
+            http_mock.post.side_effect = [
+                groq_404, openai_tool_ok,
+                groq_404, openai_tool_ok,
+                groq_404, openai_tool_ok,
+                openai_tool_ok,
+            ]
+            for _ in range(3):
+                await voice_service.chat_completion(
+                    AssistantChatRequest(message="hôm nay có gì mới", userRole="ROLE_FARM_OWNER", useDefaultTools=True)
+                )
+            self.assertEqual("OPEN", groq_chat_breaker.state)
+            res_fast = await voice_service.chat_completion(
+                AssistantChatRequest(message="hôm nay có gì mới", userRole="ROLE_FARM_OWNER", useDefaultTools=True)
+            )
+            self.assertFalse(res_fast.fallback)
+            self.assertEqual("gpt-4o-mini", res_fast.provider)
+            voice_service.reset_circuit_breakers()
+
+            # 2. Turn 2 synthesis with toolMessages omits tools & response_format
+            groq_synth = MagicMock()
+            groq_synth.status_code = 200
+            groq_synth.json.return_value = {
+                "choices": [{"message": {"content": "Hôm nay có 2 việc quá giờ và Nhà B2 FCR cao 2.15."}}]
+            }
+            http_mock.post.side_effect = [groq_synth]
+
+            res2 = await voice_service.chat_completion(
+                AssistantChatRequest(
+                    message="hôm nay có gì mới",
+                    systemPrompt="Bạn là Trợ lý AI FarmShift",
+                    toolMessages=[
+                        {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_dash_1",
+                                    "type": "function",
+                                    "function": {"name": "get_dashboard_summary", "arguments": "{}"},
+                                }
+                            ],
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": "call_dash_1",
+                            "name": "get_dashboard_summary",
+                            "content": '{"overdueTasks":2,"highFcrBarns":["Nhà B2 (2.15)"]}',
+                        },
+                    ],
+                )
+            )
+            self.assertFalse(res2.fallback)
+            self.assertIn("Nhà B2", res2.content)
+            sent_turn2 = http_mock.post.call_args.kwargs["json"]
+            self.assertNotIn("tools", sent_turn2)
+            self.assertNotIn("response_format", sent_turn2)
+            self.assertEqual("tool", sent_turn2["messages"][-1]["role"])
+            self.assertEqual("call_dash_1", sent_turn2["messages"][-1]["tool_call_id"])
 
 
 if __name__ == "__main__":

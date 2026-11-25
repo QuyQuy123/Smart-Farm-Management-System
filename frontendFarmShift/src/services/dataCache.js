@@ -340,9 +340,6 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/ai/suggestions'
   ],
-  '/iot': [
-    '/ai/suggestions'
-  ],
   '/specifications': [
     '/specifications',
     '/inventory-items',

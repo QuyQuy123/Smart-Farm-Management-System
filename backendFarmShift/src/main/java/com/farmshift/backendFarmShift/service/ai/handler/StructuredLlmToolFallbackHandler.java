@@ -26,6 +26,19 @@ import java.util.function.Function;
 public class StructuredLlmToolFallbackHandler implements AssistantCommandHandler {
 
     private static final Map<String, String> TOOL_NAME_TO_INTENT = Map.ofEntries(
+            // Core 10 LLM-First Tools (Read)
+            Map.entry("get_dashboard_summary", "GET_DASHBOARD_SUMMARY"),
+            Map.entry("get_barn_status", "GET_BARN_STATUS"),
+            Map.entry("get_today_tasks", "GET_TODAY_TASKS"),
+            Map.entry("get_inventory_stock", "GET_INVENTORY_STOCK"),
+            Map.entry("get_financial_and_debts", "GET_FINANCIAL_AND_DEBTS"),
+            Map.entry("search_vet_knowledge", "SEARCH_VET_KNOWLEDGE"),
+            // Core 10 LLM-First Tools (Write)
+            Map.entry("log_feed_consumption", "LOG_FEED"),
+            Map.entry("log_flock_loss", "LOG_MORTALITY"),
+            Map.entry("log_weight_sample", "LOG_WEIGHT"),
+            Map.entry("complete_daily_task", "COMPLETE_DAILY_TASKS"),
+            // Legacy / extended tool aliases
             Map.entry("log_feed", "LOG_FEED"),
             Map.entry("log_weight", "LOG_WEIGHT"),
             Map.entry("log_mortality", "LOG_MORTALITY"),
@@ -245,6 +258,206 @@ public class StructuredLlmToolFallbackHandler implements AssistantCommandHandler
     }
 
     /**
+     * Builds the lean 10 Core Tools (OpenAI/Groq JSON Schema) for LLM-First Tool Calling,
+     * filtered strictly by RBAC role (ROLE_FARM_WORKER never receives financial tools;
+     * ROLE_ACCOUNTANT never receives barn-ops write tools).
+     */
+    public List<Map<String, Object>> buildCoreLlmFirstToolSchemas(boolean isWorker, boolean isAccountant) {
+        List<Map<String, Object>> tools = new ArrayList<>();
+
+        // Group A: Read-Only Tools (Auto-executed against PostgreSQL with RBAC filtering)
+        tools.add(coreFunctionTool(
+                "get_dashboard_summary",
+                "Lấy bản tin tổng quan trang trại hôm nay: tổng đàn, hao hụt, việc quá giờ, cảnh báo FCR, tồn kho thấp, công nợ (ẩn tiền & công nợ với Công nhân). Gọi khi user hỏi 'hôm nay có gì mới', 'tình hình trại', 'có biến gì không', 'báo cáo nhanh', 'cần xử lý gì trước'.",
+                orderedMap(
+                        "date", prop("string", "Ngày cần xem định dạng YYYY-MM-DD (tùy chọn, mặc định hôm nay)")
+                ),
+                List.of()
+        ));
+
+        tools.add(coreFunctionTool(
+                "get_barn_status",
+                "Xem chi tiết tình trạng 1 chuồng hoặc tất cả chuồng: số con, ngày tuổi, cân mẫu gần nhất, FCR, tỷ lệ hao hụt, nhiệt độ mục tiêu. Gọi khi hỏi 'nhà B2 sao rồi', 'chuồng nào đang toang FCR nhất', 'chuồng nào hao hụt cao nhất'.",
+                orderedMap(
+                        "barn_name", prop("string", "Tên chuồng cần xem (tùy chọn, bỏ trống để xem tất cả chuồng)"),
+                        "sort_by", enumProp("string", "Sắp xếp danh sách chuồng giảm dần theo chỉ số", List.of("fcr", "mortality", "age"))
+                ),
+                List.of()
+        ));
+
+        tools.add(coreFunctionTool(
+                "get_today_tasks",
+                "Lấy danh sách việc hôm nay (cữ cám, vắc-xin, thuốc, việc giao thêm), lọc theo trạng thái chưa làm / quá giờ / đã xong.",
+                orderedMap(
+                        "barn_name", prop("string", "Tên chuồng cần lọc (tùy chọn)"),
+                        "status", enumProp("string", "Trạng thái công việc cần lọc", List.of("pending", "overdue", "done", "all")),
+                        "date", prop("string", "Ngày YYYY-MM-DD (tùy chọn, mặc định hôm nay)")
+                ),
+                List.of()
+        ));
+
+        tools.add(coreFunctionTool(
+                "get_inventory_stock",
+                "Kiểm tra tồn kho cám, thuốc, vắc-xin theo kho hoặc sản phẩm, lọc hàng sắp cạn (ẩn giá vốn với Công nhân).",
+                orderedMap(
+                        "product_name", prop("string", "Tên sản phẩm / loại cám / thuốc (tùy chọn)"),
+                        "warehouse_name", prop("string", "Tên kho cần lọc (tùy chọn)"),
+                        "low_stock_only", prop("boolean", "True nếu chỉ lấy mặt hàng sắp cạn / tồn thấp")
+                ),
+                List.of()
+        ));
+
+        if (!isWorker) {
+            tools.add(coreFunctionTool(
+                    "get_financial_and_debts",
+                    "Tra cứu công nợ nhà cung cấp (nợ NCC nào nhiều nhất), công nợ khách hàng, hóa đơn quá hạn, doanh thu và lãi/lỗ P&L trang trại theo toàn kỳ hoặc khoảng ngày. Dành cho Chủ trại và Kế toán.",
+                    orderedMap(
+                            "scope", enumProp("string", "Phạm vi tra cứu tài chính / công nợ", List.of("supplier_debt", "customer_debt", "pnl", "summary")),
+                            "partner_name", prop("string", "Tên nhà cung cấp hoặc khách hàng cụ thể (tùy chọn)"),
+                            "from_date", prop("string", "Ngày bắt đầu lọc P&L định dạng YYYY-MM-DD (tùy chọn)"),
+                            "to_date", prop("string", "Ngày kết thúc lọc P&L định dạng YYYY-MM-DD (tùy chọn)")
+                    ),
+                    List.of("scope")
+            ));
+        }
+
+        tools.add(coreFunctionTool(
+                "search_vet_knowledge",
+                "Tra cứu phác đồ thú y, bệnh gia cầm (khò khè, vẩy mỏ, CRD, ORT, Coryza, cầu trùng, Gumboro, Newcastle), lịch vắc-xin, kỹ thuật úm trong kho tài liệu RAG nội bộ của trại trước khi tư vấn.",
+                orderedMap(
+                        "query", prop("string", "Triệu chứng, tên bệnh, độ tuổi gà hoặc kỹ thuật chăn nuôi cần tra cứu")
+                ),
+                List.of("query")
+        ));
+
+        // Group B: Write Tools (Always produce signed 2-step HITL confirmation cards)
+        if (!isAccountant) {
+            tools.add(coreFunctionTool(
+                    "log_feed_consumption",
+                    "Ghi nhận cho chuồng ăn cám (tự quy đổi 1 bao = 25 kg). Chỉ cần barn_name, quantity và unit là gọi tool NGAY; feed_name là TÙY CHỌN (tuyệt đối KHÔNG hỏi lại tên loại cám nếu người dùng không nêu, hệ thống tự chọn theo chương trình nuôi). Chỉ hỏi lại khi thiếu chuồng hoặc số lượng.",
+                    orderedMap(
+                            "barn_name", prop("string", "Tên chuồng nuôi (VD: Nhà A1, Nhà B2)"),
+                            "quantity", prop("number", "Số lượng cám (> 0)"),
+                            "unit", enumProp("string", "Đơn vị tính", List.of("kg", "bao")),
+                            "feed_name", prop("string", "Tên loại cám nếu người dùng nêu rõ (tùy chọn, bỏ trống để hệ thống tự lấy theo chương trình nuôi)")
+                    ),
+                    List.of("barn_name", "quantity", "unit")
+            ));
+
+            tools.add(coreFunctionTool(
+                    "log_flock_loss",
+                    "Báo cáo gà chết (DEATH) hoặc loại thải (CULL) tại một chuồng nuôi.",
+                    orderedMap(
+                            "barn_name", prop("string", "Tên chuồng nuôi"),
+                            "quantity", prop("integer", "Số con gà chết hoặc loại thải (> 0)"),
+                            "loss_type", enumProp("string", "Loại hao hụt", List.of("DEATH", "CULL")),
+                            "reason", prop("string", "Nguyên nhân hao hụt")
+                    ),
+                    List.of("barn_name", "quantity", "loss_type", "reason")
+            ));
+
+            tools.add(coreFunctionTool(
+                    "log_weight_sample",
+                    "Ghi nhận kết quả cân mẫu định kỳ của chuồng nuôi.",
+                    orderedMap(
+                            "barn_name", prop("string", "Tên chuồng nuôi"),
+                            "avg_weight_kg", prop("number", "Trọng lượng trung bình mỗi con tính bằng kg (> 0)"),
+                            "sample_size", prop("integer", "Số con lấy mẫu cân (mặc định 50 nếu không nêu)")
+                    ),
+                    List.of("barn_name", "avg_weight_kg")
+            ));
+
+            tools.add(coreFunctionTool(
+                    "complete_daily_task",
+                    "Xác nhận hoàn thành một phiếu việc hôm nay hoặc công việc được giao tại chuồng nuôi.",
+                    orderedMap(
+                            "barn_name", prop("string", "Tên chuồng nuôi"),
+                            "task_description", prop("string", "Mô tả công việc cần hoàn thành")
+                    ),
+                    List.of("barn_name", "task_description")
+            ));
+        }
+
+        return List.copyOf(tools);
+    }
+
+    /**
+     * Parses ALL native OpenAI/Groq `toolCalls` emitted in a single LLM response (supports parallel tool calls).
+     */
+    public List<JsonNode> extractAllNativeToolCalls(JsonNode rootResponse, ObjectMapper mapper) {
+        if (rootResponse == null || mapper == null) {
+            return List.of();
+        }
+        JsonNode toolCallsNode = rootResponse.has("toolCalls")
+                ? rootResponse.path("toolCalls")
+                : rootResponse.path("tool_calls");
+        if (toolCallsNode == null || !toolCallsNode.isArray() || toolCallsNode.isEmpty()) {
+            return List.of();
+        }
+        String assistantText = rootResponse.path("content").asText("");
+        List<JsonNode> results = new ArrayList<>();
+        for (int i = 0; i < toolCallsNode.size(); i++) {
+            JsonNode callNode = toolCallsNode.get(i);
+            JsonNode parsedCall = parseSingleNativeToolCall(callNode, i + 1, assistantText, mapper);
+            if (parsedCall != null) {
+                results.add(parsedCall);
+            }
+        }
+        return results;
+    }
+
+    private JsonNode parseSingleNativeToolCall(
+            JsonNode callNode,
+            int index,
+            String assistantText,
+            ObjectMapper mapper
+    ) {
+        if (callNode == null || !callNode.isObject()) {
+            return null;
+        }
+        JsonNode fnNode = callNode.path("function");
+        String toolCallId = callNode.path("id").asText("call_" + index).trim();
+        String toolName = fnNode.path("name").asText(callNode.path("name").asText("")).trim();
+        if (toolName.isBlank()) {
+            return null;
+        }
+        String mappedIntent = TOOL_NAME_TO_INTENT.getOrDefault(
+                toolName.toLowerCase(Locale.ROOT),
+                toolName.toUpperCase(Locale.ROOT)
+        );
+        JsonNode rawArgs = fnNode.has("arguments") ? fnNode.get("arguments") : callNode.get("arguments");
+        String rawArgsStr = "{}";
+        ObjectNode argsObj;
+        if (rawArgs != null && rawArgs.isObject()) {
+            argsObj = rawArgs.deepCopy();
+            rawArgsStr = rawArgs.toString();
+        } else if (rawArgs != null && rawArgs.isTextual() && !rawArgs.asText("").isBlank()) {
+            rawArgsStr = rawArgs.asText();
+            try {
+                JsonNode parsedArgs = mapper.readTree(rawArgsStr);
+                argsObj = parsedArgs.isObject() ? (ObjectNode) parsedArgs : mapper.createObjectNode();
+            } catch (Exception ex) {
+                log.warn("Malformed native tool_call arguments for tool={}: {}", toolName, ex.getMessage());
+                argsObj = mapper.createObjectNode();
+            }
+        } else {
+            argsObj = mapper.createObjectNode();
+        }
+        argsObj.put("intent", mappedIntent);
+        argsObj.put("_source", "NATIVE_TOOL_CALL");
+        argsObj.put("_toolCallId", toolCallId);
+        argsObj.put("_rawToolName", toolName);
+        argsObj.put("_rawArguments", rawArgsStr);
+        if (!argsObj.hasNonNull("reply") && argsObj.hasNonNull("adviceSummary")) {
+            argsObj.put("reply", argsObj.path("adviceSummary").asText());
+        }
+        if (!argsObj.hasNonNull("reply") && assistantText != null && !assistantText.isBlank()) {
+            argsObj.put("reply", assistantText);
+        }
+        return normalizeAliases(argsObj);
+    }
+
+    /**
      * Parses either native OpenAI/Groq `toolCalls` OR raw JSON `content` into a canonical JsonNode
      * aligned with AiAssistantService.executeActionFromLlm().
      */
@@ -252,43 +465,9 @@ public class StructuredLlmToolFallbackHandler implements AssistantCommandHandler
         if (rootResponse == null || mapper == null) {
             return null;
         }
-        JsonNode toolCallsNode = rootResponse.has("toolCalls")
-                ? rootResponse.path("toolCalls")
-                : rootResponse.path("tool_calls");
-
-        if (toolCallsNode != null && toolCallsNode.isArray() && !toolCallsNode.isEmpty()) {
-            JsonNode firstCall = toolCallsNode.get(0);
-            JsonNode fnNode = firstCall.path("function");
-            String toolName = fnNode.path("name").asText(firstCall.path("name").asText("")).trim();
-            String mappedIntent = TOOL_NAME_TO_INTENT.getOrDefault(
-                    toolName.toLowerCase(Locale.ROOT),
-                    toolName.toUpperCase(Locale.ROOT)
-            );
-            JsonNode rawArgs = fnNode.has("arguments") ? fnNode.get("arguments") : firstCall.get("arguments");
-            ObjectNode argsObj;
-            if (rawArgs != null && rawArgs.isObject()) {
-                argsObj = rawArgs.deepCopy();
-            } else if (rawArgs != null && rawArgs.isTextual() && !rawArgs.asText("").isBlank()) {
-                try {
-                    JsonNode parsedArgs = mapper.readTree(rawArgs.asText());
-                    argsObj = parsedArgs.isObject() ? (ObjectNode) parsedArgs : mapper.createObjectNode();
-                } catch (Exception ex) {
-                    log.warn("Malformed native tool_call arguments for tool={}: {}", toolName, ex.getMessage());
-                    argsObj = mapper.createObjectNode();
-                }
-            } else {
-                argsObj = mapper.createObjectNode();
-            }
-            argsObj.put("intent", mappedIntent);
-            argsObj.put("_source", "NATIVE_TOOL_CALL");
-            if (!argsObj.hasNonNull("reply") && argsObj.hasNonNull("adviceSummary")) {
-                argsObj.put("reply", argsObj.path("adviceSummary").asText());
-            }
-            String assistantText = rootResponse.path("content").asText("");
-            if (!argsObj.hasNonNull("reply") && !assistantText.isBlank()) {
-                argsObj.put("reply", assistantText);
-            }
-            return normalizeAliases(argsObj);
+        List<JsonNode> nativeCalls = extractAllNativeToolCalls(rootResponse, mapper);
+        if (!nativeCalls.isEmpty()) {
+            return nativeCalls.get(0);
         }
 
         String content = rootResponse.has("content")
@@ -316,13 +495,16 @@ public class StructuredLlmToolFallbackHandler implements AssistantCommandHandler
     }
 
     /**
-     * Ensures canonical schema fields and legacy aliases are populated consistently in both directions.
+     * Ensures canonical schema fields and legacy/snake_case aliases are populated consistently in both directions.
      */
     private static ObjectNode normalizeAliases(ObjectNode node) {
         if (node == null) {
             return null;
         }
-        // Barn name alias
+        // Barn name alias (barn_name <-> targetBarnName <-> barnName)
+        if (!hasText(node, "targetBarnName") && hasText(node, "barn_name")) {
+            node.put("targetBarnName", node.path("barn_name").asText());
+        }
         if (!hasText(node, "targetBarnName") && hasText(node, "barnName")) {
             node.put("targetBarnName", node.path("barnName").asText());
         } else if (!hasText(node, "barnName") && hasText(node, "targetBarnName")) {
@@ -331,11 +513,30 @@ public class StructuredLlmToolFallbackHandler implements AssistantCommandHandler
         if (!hasText(node, "reply") && hasText(node, "adviceSummary")) {
             node.put("reply", node.path("adviceSummary").asText());
         }
-        // Item / feed name alias
+        // Item / feed name alias (feed_name / product_name <-> itemName <-> feedName)
+        if (!hasText(node, "itemName") && hasText(node, "feed_name")) {
+            node.put("itemName", node.path("feed_name").asText());
+        }
+        if (!hasText(node, "itemName") && hasText(node, "product_name")) {
+            node.put("itemName", node.path("product_name").asText());
+        }
         if (!hasText(node, "itemName") && hasText(node, "feedName")) {
             node.put("itemName", node.path("feedName").asText());
         } else if (!hasText(node, "feedName") && hasText(node, "itemName")) {
             node.put("feedName", node.path("itemName").asText());
+        }
+        // Weight / sample size / loss type / task description snake_case aliases
+        if (!node.hasNonNull("avgWeightKg") && node.hasNonNull("avg_weight_kg") && node.path("avg_weight_kg").isNumber()) {
+            node.put("avgWeightKg", node.path("avg_weight_kg").asDouble());
+        }
+        if (!node.hasNonNull("sampleSize") && node.hasNonNull("sample_size") && node.path("sample_size").isNumber()) {
+            node.put("sampleSize", node.path("sample_size").asInt());
+        }
+        if (!hasText(node, "lossType") && hasText(node, "loss_type")) {
+            node.put("lossType", node.path("loss_type").asText());
+        }
+        if (!hasText(node, "taskDescription") && hasText(node, "task_description")) {
+            node.put("taskDescription", node.path("task_description").asText());
         }
         // Invoice code alias
         if (!hasText(node, "targetCode") && hasText(node, "invoiceCode")) {
@@ -387,6 +588,28 @@ public class StructuredLlmToolFallbackHandler implements AssistantCommandHandler
             return AiRbacPolicy.isAllowedForRole("ROLE_ACCOUNTANT", intent);
         }
         return true;
+    }
+
+    private static Map<String, Object> coreFunctionTool(
+            String name,
+            String description,
+            Map<String, Object> properties,
+            List<String> required
+    ) {
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("type", "object");
+        parameters.put("properties", properties);
+        parameters.put("required", required);
+
+        Map<String, Object> fn = new LinkedHashMap<>();
+        fn.put("name", name);
+        fn.put("description", description);
+        fn.put("parameters", parameters);
+
+        Map<String, Object> tool = new LinkedHashMap<>();
+        tool.put("type", "function");
+        tool.put("function", fn);
+        return tool;
     }
 
     private static Map<String, Object> functionTool(

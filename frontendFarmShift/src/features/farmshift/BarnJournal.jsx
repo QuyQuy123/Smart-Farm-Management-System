@@ -7,6 +7,7 @@ import { addWeightSample, getCycle, recordLoss } from '../../services/cycleServi
 import { fileService } from '../../services/fileService';
 import { apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
 import styles from './BarnJournal.module.css';
 
 /** Nguyên nhân hay gặp, bấm để ghi nhanh vào ghi chú. */
@@ -276,37 +277,60 @@ function WeightForm({ detail, latest, onSaved }) {
 function LossHistory({ movements }) {
   const rows = movements.filter(item => item.type === 'DEATH' || item.type === 'CULL')
     .sort((a, b) => b.movementDate.localeCompare(a.movementDate) || b.id - a.id);
+  const columns = [
+    { key: 'movementDate', label: 'Ngày', render: (_, row) => formatDay(row.movementDate) },
+    { key: 'flockCode', label: 'Đàn' },
+    { key: 'type', label: 'Loại', isBadge: true, render: (_, row) => <span className={row.type === 'DEATH' ? styles.death : styles.cull}>{row.type === 'DEATH' ? 'Chết' : 'Loại thải'}</span> },
+    { key: 'quantity', label: 'Số con', render: (_, row) => <strong>{num(row.quantity)}</strong> },
+    { key: 'note', label: 'Ghi chú', hideOnTablet: true, render: (_, row) => row.note || '—' },
+    { key: 'photoUrls', label: 'Ảnh', hideOnTablet: true, render: (_, row) => row.photoUrls?.length ? <span className={styles.rowPhotos}>{row.photoUrls.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer" title={`Xem ảnh ${index + 1}`}><img src={url} alt={`Ảnh ${index + 1}`} /></a>)}</span> : '—' },
+    { key: 'createdBy', label: 'Người ghi', hideOnTablet: true, render: (_, row) => row.createdBy || '—' },
+  ];
   return <section className={styles.history}>
     <h3><History size={18} /> Lịch sử chết / loại thải</h3>
     {rows.length === 0 ? <p className={styles.empty}>Chưa ghi nhận con chết hay loại thải nào.</p>
-      : <div className="farmshift-table-container"><table className="farmshift-table">
-        <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Ghi chú</th><th>Ảnh</th><th>Người ghi</th></tr></thead>
-        <tbody>{rows.map(row => <tr key={row.id}>
-          <td>{formatDay(row.movementDate)}</td><td>{row.flockCode}</td>
-          <td><span className={row.type === 'DEATH' ? styles.death : styles.cull}>{row.type === 'DEATH' ? 'Chết' : 'Loại thải'}</span></td>
-          <td><strong>{num(row.quantity)}</strong></td><td>{row.note || '—'}</td>
-          <td>{row.photoUrls?.length ? <span className={styles.rowPhotos}>{row.photoUrls.map((url, index) =>
-            <a key={url} href={url} target="_blank" rel="noreferrer" title={`Xem ảnh ${index + 1}`}><img src={url} alt={`Ảnh ${index + 1}`} /></a>)}</span> : '—'}</td>
-          <td>{row.createdBy || '—'}</td>
-        </tr>)}</tbody>
-      </table></div>}
+      : <ResponsiveDataTable
+          columns={columns}
+          data={rows}
+          rowKey={row => row.id}
+          mode="timeline"
+          getTimelineDate={row => formatDay(row.movementDate)}
+          tableClassName="farmshift-table"
+          renderTimelineItem={row => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <strong>Đàn {row.flockCode} · {num(row.quantity)} con</strong>
+                <span className={row.type === 'DEATH' ? styles.death : styles.cull}>{row.type === 'DEATH' ? 'Chết' : 'Loại thải'}</span>
+              </div>
+              {row.note && <div style={{ fontSize: '13.5px', color: '#42545c' }}>{row.note}</div>}
+              {row.photoUrls?.length > 0 && <span className={styles.rowPhotos}>{row.photoUrls.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer" title={`Xem ảnh ${index + 1}`}><img src={url} alt={`Ảnh ${index + 1}`} /></a>)}</span>}
+              {row.createdBy && <small style={{ color: '#64748b' }}>Người ghi: {row.createdBy}</small>}
+            </div>
+          )}
+        />}
   </section>;
 }
 
 function WeightHistory({ rows }) {
+  const columns = [
+    { key: 'date', label: 'Ngày cân', primary: true, render: (_, row) => formatDay(row.date) },
+    { key: 'sampleSize', label: 'Số con cân', render: (_, row) => (row.sampleSize ? num(row.sampleSize) : '—') },
+    { key: 'quantity', label: 'Cân nặng TB', render: (_, row) => <strong>{formatAmount(row.quantity)} kg</strong> },
+    { key: 'gainKg', label: 'Tăng so với lần trước', render: (_, row) => (row.gainKg == null ? '—' : `${row.gainKg >= 0 ? '+' : '−'}${grams(Math.abs(row.gainKg))}`) },
+    { key: 'dailyGainG', label: 'Tăng / ngày', render: (_, row) => (row.dailyGainG == null ? '—' : `${Math.round(row.dailyGainG).toLocaleString('vi-VN')} g`) },
+    { key: 'note', label: 'Ghi chú', hideOnTablet: true, render: (_, row) => row.note || '—' },
+    { key: 'createdBy', label: 'Người ghi', hideOnTablet: true, render: (_, row) => row.createdBy || '—' },
+  ];
   return <section className={styles.history}>
     <h3><History size={18} /> Lịch sử cân mẫu</h3>
     {rows.length === 0 ? <p className={styles.empty}>Chưa có lần cân mẫu nào.</p>
-      : <div className="farmshift-table-container"><table className="farmshift-table">
-        <thead><tr><th>Ngày cân</th><th>Số con cân</th><th>Cân nặng TB</th><th>Tăng so với lần trước</th><th>Tăng / ngày</th><th>Ghi chú</th><th>Người ghi</th></tr></thead>
-        <tbody>{rows.map(row => <tr key={row.id}>
-          <td>{formatDay(row.date)}</td><td>{row.sampleSize ? num(row.sampleSize) : '—'}</td>
-          <td><strong>{formatAmount(row.quantity)} kg</strong></td>
-          <td>{row.gainKg == null ? '—' : `${row.gainKg >= 0 ? '+' : '−'}${grams(Math.abs(row.gainKg))}`}</td>
-          <td>{row.dailyGainG == null ? '—' : `${Math.round(row.dailyGainG).toLocaleString('vi-VN')} g`}</td>
-          <td>{row.note || '—'}</td><td>{row.createdBy || '—'}</td>
-        </tr>)}</tbody>
-      </table></div>}
+      : <ResponsiveDataTable
+          columns={columns}
+          data={rows}
+          rowKey={row => row.id}
+          mode="card-on-mobile"
+          tableClassName="farmshift-table"
+        />}
   </section>;
 }
 

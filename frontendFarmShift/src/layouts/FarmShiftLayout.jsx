@@ -8,12 +8,14 @@ import {
     ArrowLeftRight, FileText, ShoppingCart,
     Users, BarChart3, Layers, Settings, Sliders, Radio,
     Utensils, HeartPulse, Thermometer, CheckSquare, X,
-    CheckCircle, AlertTriangle, AlertCircle, ListChecks
+    CheckCircle, AlertTriangle, AlertCircle, ListChecks,
+    ChevronLeft, MoreHorizontal
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification, formatNotificationTime, renderNotificationContent } from '../context/NotificationContext';
 import { getNotificationPreferences, registerServiceWorker } from '../services/webPushClient';
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
+import { useViewport } from '../hooks/useViewport';
 import { AIChatbot } from '../components/AIChatbot/AIChatbot';
 import { GlobalSearch } from '../components/GlobalSearch/GlobalSearch';
 import { getFarmInfo, saveFarmInfo } from '../data/farmshiftMockData';
@@ -164,10 +166,23 @@ export const FarmShiftLayout = ({
         }
     });
 
-    const [mobileOpen, setMobileOpen] = useState(false);
+    const [mobileOpenState, setMobileOpen] = useState(false);
+    const [moreDrawerOpenState, setMoreDrawerOpen] = useState(false);
+    const [prevPathname, setPrevPathname] = useState(location.pathname);
+    const { isMobile, isTablet, isDesktop } = useViewport();
+    const isDrawerViewport = !isDesktop;
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+
+    if (prevPathname !== location.pathname) {
+        setPrevPathname(location.pathname);
+        if (mobileOpenState) setMobileOpen(false);
+        if (moreDrawerOpenState) setMoreDrawerOpen(false);
+    }
+
+    const mobileOpen = mobileOpenState && !isDesktop;
+    const moreDrawerOpen = moreDrawerOpenState && isMobile;
 
     useEffect(() => {
         if (!user?.email) return;
@@ -179,6 +194,13 @@ export const FarmShiftLayout = ({
 
     const notifRef = useRef(null);
     const userMenuRef = useRef(null);
+
+    useEffect(() => {
+        if (!mobileOpen && !moreDrawerOpen) return undefined;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = previousOverflow; };
+    }, [mobileOpen, moreDrawerOpen]);
 
     // Xử lý nhấp chuột ra ngoài (click outside) để tự động đóng dropdown thông báo & user menu
     useEffect(() => {
@@ -208,17 +230,19 @@ export const FarmShiftLayout = ({
             if (e.key === 'Escape') {
                 setNotifOpen(false);
                 setUserMenuOpen(false);
+                setMobileOpen(false);
+                setMoreDrawerOpen(false);
             }
         };
 
-        if (notifOpen || userMenuOpen) {
+        if (notifOpen || userMenuOpen || mobileOpen || moreDrawerOpen) {
             document.addEventListener('keydown', handleKeyDown);
         }
 
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [notifOpen, userMenuOpen]);
+    }, [notifOpen, userMenuOpen, mobileOpen, moreDrawerOpen]);
 
     // Cập nhật thời gian tương đối ("Vừa xong", "X phút trước") động theo thời gian thực mỗi 15s
     const [, setTick] = useState(0);
@@ -336,31 +360,126 @@ export const FarmShiftLayout = ({
     const visibleNavItems = navMenuItems.filter(item => !item.roles || item.roles.includes(userRole));
     const visibleSettingsItems = settingsMenuItems.filter(item => !item.roles || item.roles.includes(userRole));
     const defaultHomeRoute = userRole === 'ROLE_FARM_WORKER' ? '/today-tasks' : '/dashboard';
+    // Desktop: honors user collapsed toggle; Tablet: 64px Mini Icon Rail unless overlay drawer is open
+    const sidebarCollapsed = isDesktop ? collapsed : (isTablet && !mobileOpen);
+
+    // Fix duplicate trailing breadcrumb (e.g., "Mien Binh > Kho hàng hóa > Kho hàng hóa")
+    const normalizedTitle = String(breadcrumbTitle || '').trim().toLowerCase();
+    const effectiveBreadcrumbs = (breadcrumbs || []).filter((bc, idx, arr) => {
+        if (idx === arr.length - 1 && normalizedTitle && String(bc?.label || '').trim().toLowerCase() === normalizedTitle) {
+            return false;
+        }
+        return true;
+    });
+    const mobileBackCrumb = [...effectiveBreadcrumbs].reverse().find(bc => bc?.path);
+
+    // Strictly RBAC-filtered Mobile Bottom Nav (max 5 slots: 4 primary + "Thêm")
+    const MOBILE_PRIMARY_SPEC = {
+        ROLE_FARM_OWNER: [
+            { id: 'dashboard', shortLabel: 'Bảng tin' },
+            { id: 'areas', shortLabel: 'Khu nuôi' },
+            { id: 'today-tasks', shortLabel: 'Việc hôm nay' },
+            { id: 'inventory', shortLabel: 'Kho' },
+        ],
+        ROLE_ACCOUNTANT: [
+            { id: 'dashboard', shortLabel: 'Bảng tin' },
+            { id: 'inventory', shortLabel: 'Kho' },
+            { id: 'purchases', shortLabel: 'Nhập hàng' },
+            { id: 'sales', shortLabel: 'Bán hàng' },
+        ],
+        ROLE_FARM_WORKER: [
+            { id: 'today-tasks', shortLabel: 'Việc hôm nay' },
+            { id: 'journal', shortLabel: 'Nhật ký' },
+            { id: 'areas', shortLabel: 'Khu nuôi' },
+            { id: 'transfers', shortLabel: 'Nội bộ' },
+        ],
+    };
+
+    const primarySpec = MOBILE_PRIMARY_SPEC[userRole] || MOBILE_PRIMARY_SPEC.ROLE_FARM_WORKER;
+    const mobilePrimaryItems = primarySpec
+        .map(spec => {
+            const matched = visibleNavItems.find(item => item.id === spec.id);
+            return matched ? { ...matched, shortLabel: spec.shortLabel } : null;
+        })
+        .filter(Boolean);
+    const mobilePrimaryIds = new Set(mobilePrimaryItems.map(item => item.id));
+    const mobileMoreItems = [
+        ...visibleNavItems.filter(item => !mobilePrimaryIds.has(item.id)),
+        ...visibleSettingsItems,
+        {
+            id: 'profile',
+            label: 'Hồ sơ cá nhân',
+            path: userRole === 'ROLE_FARM_OWNER' ? '/account?tab=profile' : '/profile',
+            icon: User,
+        },
+        ...(userRole !== 'ROLE_FARM_OWNER' ? [{
+            id: 'notifications',
+            label: 'Thông báo & ĐT',
+            path: '/notifications',
+            icon: Bell,
+        }] : []),
+    ];
+
+    const isItemActive = (item) => {
+        const itemPathOnly = String(item.path || '').split('?')[0];
+        if (item.path?.includes('?')) {
+            return `${location.pathname}${location.search}` === item.path;
+        }
+        return (
+            location.pathname === itemPathOnly
+            || (itemPathOnly === '/dashboard' && location.pathname === '/')
+            || (item.id === 'areas' && inAreaPages)
+            || (item.id === 'transfers' && location.pathname === '/internal-stock')
+        );
+    };
+    const isMoreActive = mobileMoreItems.some(item => isItemActive(item));
 
     return (
         <div className="farmshift-app">
             {/* ── Top Header (DESIGN.md Editorial Clean Bar) ─────── */}
             <header className="farmshift-header">
                 <div className="farmshift-header-left">
-                    <button
-                        className={`farmshift-toggle-btn ${collapsed ? 'is-collapsed' : ''}`}
-                        title={collapsed ? "Mở rộng thanh điều hướng (Sidebar)" : "Thu gọn thanh điều hướng (Sidebar)"}
-                        aria-label="Đóng mở thanh điều hướng"
-                        onClick={() => {
-                            if (window.innerWidth <= 768) {
-                                setMobileOpen(!mobileOpen);
-                            } else {
-                                toggleCollapsed();
-                            }
-                        }}
-                    >
-                        <Menu size={20} />
-                    </button>
+                    {!isMobile ? (
+                        <>
+                            <button
+                                className={`farmshift-toggle-btn ${collapsed ? 'is-collapsed' : ''}`}
+                                aria-controls="farmshift-primary-navigation"
+                                aria-expanded={isDrawerViewport ? mobileOpen : !collapsed}
+                                title={isDrawerViewport ? (mobileOpen ? "Đóng menu điều hướng" : "Mở menu điều hướng") : collapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
+                                aria-label={isDrawerViewport ? (mobileOpen ? "Đóng menu điều hướng" : "Mở menu điều hướng") : collapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
+                                onClick={() => {
+                                    if (isDrawerViewport) {
+                                        setMobileOpen(!mobileOpen);
+                                    } else {
+                                        toggleCollapsed();
+                                    }
+                                }}
+                            >
+                                <Menu size={20} />
+                            </button>
 
-                    <div className="farmshift-header-brand-tag">
-                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#019788' }}></span>
-                        <span>{farmInfo.name}</span>
-                    </div>
+                            <div className="farmshift-header-brand-tag">
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#019788' }}></span>
+                                <span>{farmInfo.name}</span>
+                            </div>
+                        </>
+                    ) : (
+                        <div className={styles.mobileHeaderTitleWrap}>
+                            {mobileBackCrumb && (
+                                <Link
+                                    to={mobileBackCrumb.path}
+                                    className={styles.mobileBackBtn}
+                                    aria-label={`Quay lại ${mobileBackCrumb.label}`}
+                                    title={`Quay lại ${mobileBackCrumb.label}`}
+                                >
+                                    <ChevronLeft size={20} />
+                                </Link>
+                            )}
+                            <h1 className={styles.mobileHeaderTitle} data-testid="mobile-header-title">
+                                {pageTitle || farmInfo.name}
+                            </h1>
+                        </div>
+                    )}
                 </div>
 
                 {/* ── Center: Quick Feature Search (Omnibar) ────────── */}
@@ -635,11 +754,15 @@ export const FarmShiftLayout = ({
             {/* ── Secondary Sidebar ─────────────────────────────── */}
             <aside
                 ref={sidebarRef}
+                id="farmshift-primary-navigation"
+                aria-label="Điều hướng chính"
+                aria-hidden={isMobile && !mobileOpen}
+                inert={isMobile && !mobileOpen}
                 onScroll={event => { sidebarScrollTop = event.currentTarget.scrollTop; }}
-                className={`farmshift-sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
+                className={`farmshift-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${isTablet && !mobileOpen ? 'tablet-rail' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
             >
                 <div className="farmshift-sidebar-header">
-                    {!collapsed ? (
+                    {!sidebarCollapsed ? (
                         <Link to={defaultHomeRoute} className="farmshift-wordmark" aria-label={`FarmShift - ${farmInfo.name}`}>
                             farm<span>Shift</span>{farmInitials && <small>{farmInitials}</small>}
                         </Link>
@@ -674,22 +797,21 @@ export const FarmShiftLayout = ({
                 <ul className="farmshift-menu">
                     {visibleNavItems.map(item => {
                         const Icon = item.icon;
-                        const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/')
-                            || (item.id === 'areas' && inAreaPages);
+                        const isActive = isItemActive(item);
                         return (
                             <li key={item.id}>
                                 <NavLink
                                     to={item.path}
                                     className={`farmshift-menu-item ${isActive ? 'active' : ''}`}
                                     onClick={() => {
-                                        if (window.innerWidth <= 768) setMobileOpen(false);
+                                        if (isDrawerViewport) setMobileOpen(false);
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
                                         <Icon size={19} />
                                     </span>
-                                    {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
-                                    {collapsed && (
+                                    {!sidebarCollapsed && <span className="farmshift-menu-label">{item.label}</span>}
+                                    {sidebarCollapsed && (
                                         <span className="farmshift-tooltip">
                                             {item.label}
                                         </span>
@@ -710,14 +832,14 @@ export const FarmShiftLayout = ({
                                     to={item.path}
                                     className={`farmshift-menu-item ${isActive ? 'active' : ''}`}
                                     onClick={() => {
-                                        if (window.innerWidth <= 768) setMobileOpen(false);
+                                        if (isDrawerViewport) setMobileOpen(false);
                                     }}
                                 >
                                     <span className="farmshift-menu-icon">
                                         <Icon size={19} />
                                     </span>
-                                    {!collapsed && <span className="farmshift-menu-label">{item.label}</span>}
-                                    {collapsed && (
+                                    {!sidebarCollapsed && <span className="farmshift-menu-label">{item.label}</span>}
+                                    {sidebarCollapsed && (
                                         <span className="farmshift-tooltip">
                                             {item.label}
                                         </span>
@@ -731,28 +853,32 @@ export const FarmShiftLayout = ({
 
             {/* ── Main Content Area ─────────────────────────────── */}
             <main className={`farmshift-main ${collapsed ? 'collapsed' : ''}`}>
-                <div className="farmshift-content-header">
-                    <div className="farmshift-header-row">
-                        <div>
-                            <h1 className="farmshift-page-title">
-                                {pageTitle}
-                            </h1>
-                            <div className="farmshift-breadcrumbs">
-                                <Link to={defaultHomeRoute}>{farmInfo.name}</Link>
-                                <span>›</span>
-                                {breadcrumbs.map((bc, idx) => (
-                                    <Fragment key={idx}>
-                                        {bc.path ? <Link to={bc.path}>{bc.label}</Link> : <span>{bc.label}</span>}
+                {(!isMobile || actions) && (
+                    <div className={`farmshift-content-header ${isMobile ? styles.mobileActionsOnlyHeader : ''}`}>
+                        <div className="farmshift-header-row">
+                            {!isMobile && (
+                                <div>
+                                    <h1 className="farmshift-page-title">
+                                        {pageTitle}
+                                    </h1>
+                                    <div className="farmshift-breadcrumbs">
+                                        <Link to={defaultHomeRoute}>{farmInfo.name}</Link>
                                         <span>›</span>
-                                    </Fragment>
-                                ))}
-                                <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
-                            </div>
-                        </div>
+                                        {effectiveBreadcrumbs.map((bc, idx) => (
+                                            <Fragment key={idx}>
+                                                {bc.path ? <Link to={bc.path}>{bc.label}</Link> : <span>{bc.label}</span>}
+                                                <span>›</span>
+                                            </Fragment>
+                                        ))}
+                                        <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
+                                    </div>
+                                </div>
+                            )}
 
-                        {actions && <div>{actions}</div>}
+                            {actions && <div>{actions}</div>}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* 4 Quick Shortcut Cards */}
                 {showShortcuts && (
@@ -809,6 +935,93 @@ export const FarmShiftLayout = ({
                     setActiveToast={setActiveToast}
                     setNotifOpen={setNotifOpen}
                 />
+            )}
+
+            {/* Mobile "Thêm" Bottom Sheet Drawer (< 768px) */}
+            {isMobile && moreDrawerOpen && (
+                <>
+                    <div
+                        className={styles.moreBackdrop}
+                        onClick={() => setMoreDrawerOpen(false)}
+                        aria-hidden="true"
+                    />
+                    <div
+                        id="mobile-more-drawer"
+                        className={styles.moreSheet}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Chức năng khác"
+                        data-testid="mobile-more-drawer"
+                    >
+                        <div className={styles.moreSheetHandle} aria-hidden="true" />
+                        <div className={styles.moreSheetHeader}>
+                            <span className={styles.moreSheetTitle}>Chức năng khác</span>
+                            <button
+                                type="button"
+                                className={styles.moreSheetClose}
+                                onClick={() => setMoreDrawerOpen(false)}
+                                aria-label="Đóng menu thêm"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className={styles.moreGrid}>
+                            {mobileMoreItems.map(item => {
+                                const Icon = item.icon;
+                                const active = isItemActive(item);
+                                return (
+                                    <Link
+                                        key={item.id}
+                                        to={item.path}
+                                        className={`${styles.moreTile} ${active ? styles.moreTileActive : ''}`}
+                                        onClick={() => setMoreDrawerOpen(false)}
+                                    >
+                                        <span className={styles.moreTileIcon}>
+                                            <Icon size={20} />
+                                        </span>
+                                        <span className={styles.moreTileLabel}>{item.label}</span>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* Mobile Bottom Navigation Bar (< 768px) */}
+            {isMobile && (
+                <nav
+                    className={styles.bottomNav}
+                    aria-label="Điều hướng di động"
+                    data-testid="mobile-bottom-nav"
+                >
+                    {mobilePrimaryItems.map(item => {
+                        const Icon = item.icon;
+                        const active = isItemActive(item) && !moreDrawerOpen;
+                        return (
+                            <Link
+                                key={item.id}
+                                to={item.path}
+                                className={`${styles.bottomNavItem} ${active ? styles.bottomNavItemActive : ''}`}
+                                onClick={() => setMoreDrawerOpen(false)}
+                            >
+                                <Icon size={20} className={styles.bottomNavIcon} />
+                                <span className={styles.bottomNavLabel}>{item.shortLabel || item.label}</span>
+                            </Link>
+                        );
+                    })}
+                    <button
+                        type="button"
+                        className={`${styles.bottomNavItem} ${moreDrawerOpen || isMoreActive ? styles.bottomNavItemActive : ''}`}
+                        aria-expanded={moreDrawerOpen}
+                        aria-controls="mobile-more-drawer"
+                        data-testid="mobile-more-btn"
+                        onClick={() => setMoreDrawerOpen(prev => !prev)}
+                    >
+                        <MoreHorizontal size={20} className={styles.bottomNavIcon} />
+                        <span className={styles.bottomNavLabel}>Thêm</span>
+                    </button>
+                </nav>
             )}
 
             {/* Floating AI Assistant FAB (DESIGN.md Pill CTA) */}
