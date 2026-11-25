@@ -9,6 +9,7 @@ import com.farmshift.backendFarmShift.entity.Flock;
 import com.farmshift.backendFarmShift.entity.ProgramStepCategory;
 import com.farmshift.backendFarmShift.repository.BarnRepository;
 import com.farmshift.backendFarmShift.repository.FarmingCycleRepository;
+import com.farmshift.backendFarmShift.repository.FarmingProgramStepRepository;
 import com.farmshift.backendFarmShift.repository.FlockRepository;
 import com.farmshift.backendFarmShift.service.CycleService;
 import com.farmshift.backendFarmShift.service.VietnameseSpeechNormalizer;
@@ -56,6 +57,9 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
     @Autowired(required = false)
     private FlockRepository flockRepository;
 
+    @Autowired(required = false)
+    private FarmingProgramStepRepository programStepRepository;
+
     @Override
     public int getOrder() {
         return 50;
@@ -86,11 +90,37 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
         barns.sort((b1, b2) -> Integer.compare(b2.getName().length(), b1.getName().length()));
         Barn targetBarn = barns.stream()
                 .filter(b -> {
-                    String bNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(b.getName()).toLowerCase(Locale.ROOT);
-                    return norm.matches(".*\\b" + java.util.regex.Pattern.quote(bNorm) + "\\b.*") || norm.contains(bNorm);
+                    String bNorm = VietnameseSpeechNormalizer.removeVietnameseDiacritics(b.getName()).toLowerCase(Locale.ROOT).trim();
+                    if (bNorm.isEmpty()) return false;
+                    return norm.matches(".*(?<![a-z0-9])" + java.util.regex.Pattern.quote(bNorm) + "(?![a-z0-9]).*");
                 })
                 .findFirst()
                 .orElse(null);
+
+        boolean explicitMissingBarnRef = targetBarn == null && (
+                norm.matches(".*\\b(?:nha|chuong)\\s+(?:[a-z]+\\s*\\d+|\\d+|[a-z](?![a-z]))\\b.*")
+                        || norm.matches(".*\\b[a-z]\\d+\\b.*")
+        );
+        if (explicitMissingBarnRef) {
+            List<Barn> visibleBarns = barns;
+            if (context.isWorker() && workAssignmentService != null) {
+                Set<Long> allowed = workAssignmentService.barnIdsOf(context.getUsername());
+                visibleBarns = barns.stream().filter(b -> allowed.contains(b.getId())).toList();
+            }
+            String avail = visibleBarns.isEmpty()
+                    ? "Chưa có chuồng nào khả dụng."
+                    : visibleBarns.stream().map(Barn::getName).sorted().collect(java.util.stream.Collectors.joining(", "));
+            Map<String, Object> notFoundCard = new LinkedHashMap<>();
+            notFoundCard.put("type", "IOT_TELEMETRY");
+            notFoundCard.put("status", "BARN_NOT_FOUND");
+            return AiAssistantResponse.builder()
+                    .reply("⚠️ Không tìm thấy chuồng được nhắc đến trong phạm vi trang trại. Các chuồng khả dụng: **" + avail + "**.")
+                    .actionType("QUERY_IOT_TELEMETRY")
+                    .executed(false)
+                    .navigateTo(context.isOwner() ? "/iot" : null)
+                    .dataCard(notFoundCard)
+                    .build();
+        }
 
         boolean asksAllBarns = targetBarn == null && (norm.contains("cac chuong") || norm.contains("toan trai") || norm.contains("tat ca"));
         if (asksAllBarns) {
@@ -117,6 +147,13 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
             }
             if (targetBarn == null) {
                 targetBarn = barns.stream().filter(b -> allowed.contains(b.getId())).findFirst().orElse(null);
+            }
+            if (targetBarn == null) {
+                return AiAssistantResponse.builder()
+                        .reply("⚠️ Bạn chưa được phân công chuồng nuôi nào nên không thể xem thông số cảm biến IoT (MSG51).")
+                        .actionType("BARN_NOT_ASSIGNED")
+                        .executed(false)
+                        .build();
             }
         } else if (targetBarn == null && !barns.isEmpty()) {
             targetBarn = barns.get(0);
@@ -234,6 +271,8 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
 
     private AiAssistantResponse buildMultiBarnSummaryResponse(List<Barn> scopedBarns, boolean isOwner) {
         LocalDateTime now = LocalDateTime.now(CycleService.VN_ZONE);
+        LocalDate today = LocalDate.now(CycleService.VN_ZONE);
+        Map<Long, TargetTempBand> tempTargetByBarnId = resolveProgramTempTargetsBatch(scopedBarns, today);
         StringBuilder reply = new StringBuilder("📡 **Tổng hợp thông số cảm biến IoT các chuồng:**\n");
         List<Map<String, Object>> barnCards = new ArrayList<>();
         int liveCount = 0;
@@ -241,7 +280,7 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
         for (Barn b : scopedBarns) {
             Optional<IotTelemetryRegistry.BarnTelemetrySnapshot> snapOpt =
                     telemetryRegistry != null ? telemetryRegistry.get(b.getId()) : Optional.empty();
-            TargetTempBand band = resolveProgramTempTarget(b.getId());
+            TargetTempBand band = tempTargetByBarnId.get(b.getId());
             if (snapOpt.isEmpty() || (snapOpt.get().avgTemperature() == null && snapOpt.get().avgHumidity() == null)) {
                 reply.append("- **").append(b.getName()).append(":** Chưa có dữ liệu trực tuyến từ ESP32");
                 if (band != null) {
@@ -312,6 +351,82 @@ public class IoTTelemetryCommandHandler implements AssistantCommandHandler {
     }
 
     private record TargetTempBand(int ageDays, BigDecimal min, BigDecimal max, String label) {}
+
+    private Map<Long, TargetTempBand> resolveProgramTempTargetsBatch(List<Barn> scopedBarns, LocalDate today) {
+        Map<Long, TargetTempBand> result = new HashMap<>();
+        if (cycleRepository == null || flockRepository == null || scopedBarns == null || scopedBarns.isEmpty()) {
+            return result;
+        }
+        try {
+            Set<Long> barnIds = scopedBarns.stream().map(Barn::getId).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+            Map<Long, FarmingCycle> activeCycleByBarnId = new HashMap<>();
+            for (FarmingCycle c : cycleRepository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE)) {
+                if (c.getBarn() != null && barnIds.contains(c.getBarn().getId())) {
+                    activeCycleByBarnId.putIfAbsent(c.getBarn().getId(), c);
+                }
+            }
+            if (activeCycleByBarnId.isEmpty()) {
+                return result;
+            }
+            List<Long> cycleIds = activeCycleByBarnId.values().stream().map(FarmingCycle::getId).toList();
+            Map<Long, List<Flock>> flocksByCycleId = new HashMap<>();
+            for (Flock f : flockRepository.findByCycleIdInOrderByImportDateAscIdAsc(cycleIds)) {
+                if (f.getCycle() != null && f.getCycle().getId() != null) {
+                    flocksByCycleId.computeIfAbsent(f.getCycle().getId(), k -> new ArrayList<>()).add(f);
+                }
+            }
+            Map<Long, List<FarmingProgramStep>> stepsByProgramId = new HashMap<>();
+            if (programStepRepository != null) {
+                for (FarmingProgramStep step : programStepRepository.findAllByOrderByProgramIdAscDayFromAscIdAsc()) {
+                    if (step.getProgram() != null && step.getProgram().getId() != null
+                            && step.getCategory() == ProgramStepCategory.TEMPERATURE) {
+                        stepsByProgramId.computeIfAbsent(step.getProgram().getId(), k -> new ArrayList<>()).add(step);
+                    }
+                }
+            }
+            for (Map.Entry<Long, FarmingCycle> entry : activeCycleByBarnId.entrySet()) {
+                Long barnId = entry.getKey();
+                FarmingCycle cycle = entry.getValue();
+                LocalDate ref = cycle.getHatchDate() != null ? cycle.getHatchDate() : cycle.getStartDate();
+                if (ref == null) continue;
+                int ageDays = Math.max(1, (int) ChronoUnit.DAYS.between(ref, today) + 1
+                        + (cycle.getHatchDate() == null ? cycle.getCarriedDays() : 0));
+                List<Flock> flocks = flocksByCycleId.getOrDefault(cycle.getId(), List.of());
+                for (Flock flock : flocks) {
+                    if (flock.getProgram() == null) continue;
+                    List<FarmingProgramStep> steps = programStepRepository != null
+                            ? stepsByProgramId.getOrDefault(flock.getProgram().getId(), List.of())
+                            : (flock.getProgram().getSteps() != null ? flock.getProgram().getSteps() : List.of());
+                    TargetTempBand matched = findTempBandForAge(steps, ageDays);
+                    if (matched != null) {
+                        result.put(barnId, matched);
+                        break;
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.debug("Could not batch-resolve target temp bands: {}", ex.getMessage());
+        }
+        return result;
+    }
+
+    private static TargetTempBand findTempBandForAge(List<FarmingProgramStep> steps, int ageDays) {
+        for (FarmingProgramStep step : steps) {
+            if (step.getCategory() == ProgramStepCategory.TEMPERATURE
+                    && ageDays >= step.getDayFrom()
+                    && ageDays <= step.getDayTo()
+                    && step.getTempMin() != null
+                    && step.getTempMax() != null) {
+                return new TargetTempBand(
+                        ageDays,
+                        step.getTempMin(),
+                        step.getTempMax(),
+                        step.getTempMin() + " – " + step.getTempMax() + "°C"
+                );
+            }
+        }
+        return null;
+    }
 
     private TargetTempBand resolveProgramTempTarget(Long barnId) {
         if (cycleRepository == null || flockRepository == null || barnId == null) {

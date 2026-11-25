@@ -113,11 +113,12 @@ def run_training(
     if dry_run:
         return plan
 
+    import inspect
     import torch
     from datasets import load_dataset
     from peft import LoraConfig
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, TrainingArguments
-    from trl import SFTTrainer
+    from trl import SFTConfig, SFTTrainer
 
     torch.manual_seed(cfg.seed)
     tokenizer = AutoTokenizer.from_pretrained(cfg.base_model, use_fast=True)
@@ -153,7 +154,8 @@ def run_training(
         lambda row: {"text": format_chatml_messages(row["messages"], tokenizer)},
         remove_columns=ds["train"].column_names,
     )
-    args = TrainingArguments(
+    sft_trainer_params = inspect.signature(SFTTrainer.__init__).parameters
+    common_args = dict(
         output_dir=str(output_dir),
         learning_rate=cfg.learning_rate,
         num_train_epochs=cfg.num_train_epochs,
@@ -168,16 +170,35 @@ def run_training(
         bf16=torch.cuda.is_bf16_supported(),
         report_to="none",
     )
-    trainer = SFTTrainer(
-        model=model,
-        args=args,
-        train_dataset=ds["train"],
-        eval_dataset=ds["validation"],
-        peft_config=peft_config,
-        processing_class=tokenizer,
-        dataset_text_field="text",
-        max_seq_length=cfg.max_seq_length,
-    )
+    if "dataset_text_field" in sft_trainer_params:
+        args = TrainingArguments(**common_args)
+        trainer = SFTTrainer(
+            model=model,
+            args=args,
+            train_dataset=ds["train"],
+            eval_dataset=ds["validation"],
+            peft_config=peft_config,
+            processing_class=tokenizer,
+            dataset_text_field="text",
+            max_seq_length=cfg.max_seq_length,
+        )
+    else:
+        sft_cfg_params = inspect.signature(SFTConfig.__init__).parameters
+        if "dataset_text_field" in sft_cfg_params:
+            common_args["dataset_text_field"] = "text"
+        if "max_seq_length" in sft_cfg_params:
+            common_args["max_seq_length"] = cfg.max_seq_length
+        elif "max_length" in sft_cfg_params:
+            common_args["max_length"] = cfg.max_seq_length
+        args = SFTConfig(**common_args)
+        trainer = SFTTrainer(
+            model=model,
+            args=args,
+            train_dataset=ds["train"],
+            eval_dataset=ds["validation"],
+            peft_config=peft_config,
+            processing_class=tokenizer,
+        )
     trainer.train()
     trainer.save_model(str(output_dir / "adapter"))
     return plan

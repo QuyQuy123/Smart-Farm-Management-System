@@ -40,6 +40,9 @@ INTENT_TO_TOOL_NAME = {
     "PAY_PURCHASE_INVOICE": "pay_purchase_invoice",
     "CANCEL_PURCHASE_INVOICE": "cancel_purchase_invoice",
     "IMPORT_PURCHASE_STOCK": "import_purchase_stock",
+    "UPDATE_BARN_INFO": "update_barn_info",
+    "UPDATE_INVENTORY_ITEM": "update_inventory_item",
+    "UPDATE_SUPPLIER_INFO": "update_supplier_info",
     "COMPLETE_DAILY_TASKS": "complete_daily_tasks",
     "NAVIGATE_AND_PREFILL": "navigate_screen",
     "VET_DIAGNOSIS": "vet_diagnosis",
@@ -115,6 +118,7 @@ def _build_sft_record(
             ),
         }
 
+    clean_user = re.sub(r"^\s*<user_input>(.*)</user_input>\s*$", r"\1", user_text.strip(), flags=re.DOTALL)
     return {
         "id": source_id,
         "intent": intent,
@@ -122,7 +126,7 @@ def _build_sft_record(
         "source": source,
         "messages": [
             {"role": "system", "content": system_msg},
-            {"role": "user", "content": f"<user_input>{user_text}</user_input>"},
+            {"role": "user", "content": f"<user_input>{clean_user}</user_input>"},
             assistant_msg,
         ],
     }
@@ -142,6 +146,11 @@ def _convert_flywheel_row(row: dict[str, Any], idx: int) -> dict[str, Any] | Non
     except json.JSONDecodeError:
         return None
     intent = str(assistant_obj.get("intent") or "GENERAL_QNA")
+    if intent == "SECURITY_BLOCKED":
+        return None
+    rating = meta.get("feedbackRating")
+    if isinstance(rating, (int, float)) and rating < 0 and not meta.get("hasCorrection"):
+        return None
     params = assistant_obj.get("arguments") or {}
     reply = str(assistant_obj.get("reply") or "")
     return _build_sft_record(

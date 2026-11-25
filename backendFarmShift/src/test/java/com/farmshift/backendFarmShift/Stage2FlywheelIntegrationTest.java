@@ -141,6 +141,46 @@ class Stage2FlywheelIntegrationTest {
         assertTrue(exportedRow.path("messages").isArray());
         assertEquals(3, exportedRow.path("messages").size());
         assertEquals("data_flywheel", exportedRow.path("metadata").path("source").asText());
+
+        // 6. Negative feedback (-1) on a confirmed interaction without correctedIntent MUST be excluded from curated SFT export
+        AiInteractionLog negativeConfirmed = new AiInteractionLog();
+        negativeConfirmed.setRequestId("req-neg-confirmed");
+        negativeConfirmed.setSessionId("flywheel_sess_neg");
+        negativeConfirmed.setUsername("owner@farm.test");
+        negativeConfirmed.setUserRole("ROLE_FARM_OWNER");
+        negativeConfirmed.setRawMessage("Câu lệnh bị hiểu nhầm dù đã bấm");
+        negativeConfirmed.setNormalizedMessage("Câu lệnh bị hiểu nhầm dù đã bấm");
+        negativeConfirmed.setIntent("LOG_FEED");
+        negativeConfirmed.setHandlerTier("RULE_ENGINE");
+        negativeConfirmed.setProvider("LOCAL_DETERMINISTIC");
+        negativeConfirmed.setRequiresConfirmation(true);
+        negativeConfirmed.setConfirmed(true);
+        negativeConfirmed.setFeedbackRating((short) -1);
+        negativeConfirmed.setCreatedAt(java.time.LocalDateTime.now(CycleService.VN_ZONE));
+        negativeConfirmed = logRepository.saveAndFlush(negativeConfirmed);
+
+        AiInteractionLog negativeCorrected = new AiInteractionLog();
+        negativeCorrected.setRequestId("req-neg-corrected");
+        negativeCorrected.setSessionId("flywheel_sess_corr");
+        negativeCorrected.setUsername("owner@farm.test");
+        negativeCorrected.setUserRole("ROLE_FARM_OWNER");
+        negativeCorrected.setRawMessage("Ghi 2 bao cám sang kho B");
+        negativeCorrected.setNormalizedMessage("Ghi 2 bao cám sang kho B");
+        negativeCorrected.setIntent("LOG_FEED");
+        negativeCorrected.setFeedbackCorrectedIntent("INTERNAL_STOCK_VOUCHER");
+        negativeCorrected.setHandlerTier("RULE_ENGINE");
+        negativeCorrected.setProvider("LOCAL_DETERMINISTIC");
+        negativeCorrected.setFeedbackRating((short) -1);
+        negativeCorrected.setCreatedAt(java.time.LocalDateTime.now(CycleService.VN_ZONE));
+        negativeCorrected = logRepository.saveAndFlush(negativeCorrected);
+
+        String filteredJsonl = mvc.perform(get("/api/ai/flywheel/export?minRating=1"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertFalse(filteredJsonl.contains("Câu lệnh bị hiểu nhầm dù đã bấm"),
+                "Downvoted sample without correction must be excluded from curated SFT export");
+        assertTrue(filteredJsonl.contains("INTERNAL_STOCK_VOUCHER"),
+                "Downvoted sample WITH owner correctedIntent must be exported with the corrected intent");
     }
 
     @Test

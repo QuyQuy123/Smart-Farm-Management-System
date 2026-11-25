@@ -248,6 +248,17 @@ class Stage3HybridRagAndDynamicRetrievalTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.actionType").value("GENERAL_QNA"))
                 .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("Gumboro")));
+
+        // 5. RAG trigger recognizes "gà bị hen" and veterinary/disinfection terms, and ageBoost does not hijack unrelated disease queries
+        assertTrue(FarmKnowledgeRagService.shouldInjectRagContext("Gà bị hen phải làm sao?"));
+        assertTrue(FarmKnowledgeRagService.shouldInjectRagContext("Gà bị viêm ruột tiêu chảy thì xử lý thế nào?"));
+        assertTrue(FarmKnowledgeRagService.shouldInjectRagContext("Hướng dẫn khử trùng chuồng trại định kỳ"));
+        List<FarmKnowledgeRagService.RagHit> henHits = ragService.retrieveHybrid("Gà bị hen phải làm sao?", 12, null, false, 3);
+        assertTrue(henHits.stream().anyMatch(h -> "crd_hen_ga".equals(h.document().id())));
+        List<FarmKnowledgeRagService.RagHit> coryzaHits = ragService.retrieveHybrid("Gà bị sưng phù đầu Coryza chảy nước mũi hôi", 12, null, false, 3);
+        assertFalse(coryzaHits.isEmpty());
+        assertEquals("coryza_sung_phu_dau", coryzaHits.get(0).document().id(),
+                "In-range FEED step must not outrank exact Coryza VET_DOC");
     }
 
     private ResultActions postJson(String url, Object body) throws Exception {

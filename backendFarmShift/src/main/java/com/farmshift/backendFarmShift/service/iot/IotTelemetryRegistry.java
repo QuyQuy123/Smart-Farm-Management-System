@@ -64,6 +64,33 @@ public class IotTelemetryRegistry {
         if (barnId == null) {
             throw new IllegalArgumentException("barnId is required");
         }
+        BarnTelemetrySnapshot prev = snapshots.get(barnId);
+        boolean noIncomingSensors = temp1 == null && humi1 == null && temp3 == null && humi3 == null;
+        if (!connected && noIncomingSensors && prev != null) {
+            Map<Integer, Boolean> safeRelays = (relayStates != null && !relayStates.isEmpty())
+                    ? Collections.unmodifiableMap(new LinkedHashMap<>(relayStates))
+                    : prev.relayStates();
+            List<String> safeLabels = (activeDeviceLabels != null && !activeDeviceLabels.isEmpty())
+                    ? List.copyOf(activeDeviceLabels)
+                    : prev.activeDeviceLabels();
+            BarnTelemetrySnapshot disconnectedSnap = new BarnTelemetrySnapshot(
+                    barnId,
+                    barnName != null && !barnName.isBlank() ? barnName : prev.barnName(),
+                    false,
+                    prev.temp1(),
+                    prev.humi1(),
+                    prev.temp3(),
+                    prev.humi3(),
+                    prev.avgTemperature(),
+                    prev.avgHumidity(),
+                    safeRelays,
+                    safeLabels,
+                    source != null && !source.isBlank() ? source.trim() : prev.source(),
+                    LocalDateTime.now(CycleService.VN_ZONE)
+            );
+            snapshots.put(barnId, disconnectedSnap);
+            return disconnectedSnap;
+        }
         BigDecimal avgTemp = averageScale(temp1, temp3, 1);
         BigDecimal avgHumi = averageScale(humi1, humi3, 0);
         Map<Integer, Boolean> safeRelays = relayStates != null

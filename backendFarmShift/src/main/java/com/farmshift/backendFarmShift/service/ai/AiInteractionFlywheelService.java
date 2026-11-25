@@ -203,12 +203,14 @@ public class AiInteractionFlywheelService {
                 boolean hasPositive = row.getFeedbackRating() != null && row.getFeedbackRating() >= (minRating != null ? minRating : 1);
                 boolean hasConfirmed = Boolean.TRUE.equals(row.getConfirmed());
                 boolean hasCorrection = row.getFeedbackCorrectedIntent() != null && !row.getFeedbackCorrectedIntent().isBlank();
-                if (!hasPositive && !hasConfirmed && !hasCorrection) {
+                boolean negativeWithoutCorrection = row.getFeedbackRating() != null && row.getFeedbackRating() < 0 && !hasCorrection;
+                if (negativeWithoutCorrection || (!hasPositive && !hasConfirmed && !hasCorrection)) {
                     continue;
                 }
             }
 
-            String targetIntent = (row.getFeedbackCorrectedIntent() != null && !row.getFeedbackCorrectedIntent().isBlank())
+            boolean hasCorrection = row.getFeedbackCorrectedIntent() != null && !row.getFeedbackCorrectedIntent().isBlank();
+            String targetIntent = hasCorrection
                     ? row.getFeedbackCorrectedIntent()
                     : (row.getIntent() != null ? row.getIntent() : "GENERAL_QNA");
 
@@ -230,6 +232,7 @@ public class AiInteractionFlywheelService {
             metadata.put("provider", row.getProvider());
             metadata.put("feedbackRating", row.getFeedbackRating());
             metadata.put("confirmed", row.getConfirmed());
+            metadata.put("hasCorrection", hasCorrection);
             metadata.put("source", "data_flywheel");
 
             Map<String, Object> record = new LinkedHashMap<>();

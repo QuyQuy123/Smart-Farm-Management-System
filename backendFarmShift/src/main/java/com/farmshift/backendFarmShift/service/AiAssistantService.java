@@ -136,6 +136,9 @@ public class AiAssistantService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private FarmKnowledgeRagService ragService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.service.iot.IotTelemetryRegistry telemetryRegistry;
+
     private static final ThreadLocal<String[]> LAST_LLM_META = new ThreadLocal<>();
 
     @jakarta.annotation.PostConstruct
@@ -724,6 +727,16 @@ public class AiAssistantService {
                 d.put("Hóa đơn", inv.getCode());
                 d.put("Đã thanh toán", change(vn(inv.getPaidAmount()), vn(inv.getPaidAmount() + amount), "đ"));
                 d.put("Còn nợ", change(vn(remain), vn(Math.max(0, remain - amount)), "đ"));
+                return d;
+            }
+            case "CANCEL_PURCHASE_INVOICE": {
+                PurchaseInvoice inv = payload.get("invoiceId") != null ? invoiceRepository.findById(Long.valueOf(String.valueOf(payload.get("invoiceId")))).orElse(null)
+                        : invoiceRepository.findByCode(String.valueOf(payload.get("invoiceCode"))).orElse(null);
+                if (inv == null) return d;
+                d.put("Hóa đơn", inv.getCode());
+                if (inv.getSupplier() != null) d.put("Nhà cung cấp", inv.getSupplier().getName());
+                d.put("Trạng thái kho", inv.getStockStatus() != null ? inv.getStockStatus() : "-");
+                d.put("Tổng tiền", vn(inv.getTotalAmount()) + " đ");
                 return d;
             }
             case "UPDATE_FEED": {
@@ -4600,6 +4613,12 @@ public class AiAssistantService {
         }
 
         List<FarmingCycle> targetCycles = activeCycles.stream().limit(10).toList();
+        List<Long> targetCycleIds = targetCycles.stream().map(FarmingCycle::getId).toList();
+        Map<Long, List<Flock>> flocksByCycleId = targetCycleIds.isEmpty()
+                ? Map.of()
+                : flockRepository.findByCycleIdInOrderByImportDateAscIdAsc(targetCycleIds).stream()
+                .filter(f -> f.getCycle() != null && f.getCycle().getId() != null)
+                .collect(Collectors.groupingBy(f -> f.getCycle().getId()));
         StringBuilder sb = new StringBuilder("📊 **Đánh giá hiệu suất FCR & tăng trưởng (ADG) theo 3 giai đoạn sinh trưởng:**\n");
 
         for (FarmingCycle cycle : targetCycles) {
@@ -4616,7 +4635,7 @@ public class AiAssistantService {
             if (m == null) continue;
 
             int age = m.ageDays() != null ? m.ageDays() : m.dayOfCycle();
-            List<Flock> flocks = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId());
+            List<Flock> flocks = flocksByCycleId.getOrDefault(cycle.getId(), List.of());
             String breed = flocks.stream()
                     .filter(f -> f.getProgram() != null)
                     .map(f -> f.getProgram().getBreed() != null && !f.getProgram().getBreed().isBlank()
@@ -5143,10 +5162,54 @@ public class AiAssistantService {
                 && !norm.contains("cam bien") && !norm.contains("do am")
                 && !norm.contains("chuong") && !norm.contains("nha ");
         if (!isBroodingGuideQuery && (norm.contains("tinh trang") || norm.contains("nhiet do") || norm.contains("the nao"))) {
+            Set<Long> allowedIds = (isWorker && workAssignmentService != null && username != null)
+                    ? workAssignmentService.barnIdsOf(username)
+                    : null;
+            List<Barn> visibleBarns = barnRepository.findAll().stream()
+                    .filter(b -> allowedIds == null || allowedIds.contains(b.getId()))
+                    .sorted(Comparator.comparing(Barn::getName, String.CASE_INSENSITIVE_ORDER))
+                    .toList();
+            if (isWorker && visibleBarns.isEmpty()) {
+                return AiAssistantResponse.builder()
+                        .reply("⚠️ Bạn chưa được phân công chuồng nuôi nào để xem tình trạng hoạt động (MSG51).")
+                        .actionType("BARN_NOT_ASSIGNED")
+                        .executed(false)
+                        .build();
+            }
+            long activeCyclesCount = cycleRepository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE).stream()
+                    .filter(c -> c.getBarn() != null && (allowedIds == null || allowedIds.contains(c.getBarn().getId())))
+                    .count();
+            int totalBirds = visibleBarns.stream().mapToInt(Barn::getCurrentQuantity).sum();
+            LocalDateTime now = LocalDateTime.now(CycleService.VN_ZONE);
+            List<String> liveSensorLines = new ArrayList<>();
+            if (telemetryRegistry != null) {
+                for (Barn b : visibleBarns) {
+                    telemetryRegistry.get(b.getId()).ifPresent(snap -> {
+                        if (snap.avgTemperature() != null || snap.avgHumidity() != null) {
+                            boolean live = snap.connected() && snap.isFresh(now);
+                            liveSensorLines.add("- **" + b.getName() + "**: "
+                                    + (snap.avgTemperature() != null ? snap.avgTemperature() + "°C" : "—")
+                                    + " · Độ ẩm " + (snap.avgHumidity() != null ? snap.avgHumidity() + "%" : "—")
+                                    + (live ? " *(Trực tuyến)*" : " *(Dữ liệu cũ)*"));
+                        }
+                    });
+                }
+            }
+            StringBuilder sb = new StringBuilder("🏡 **Tổng hợp tình trạng trang trại thực tế")
+                    .append(isWorker ? " (chuồng được phân công)" : "").append(":**\n");
+            sb.append("- Số chuồng trong phạm vi: **").append(visibleBarns.size()).append("** • Lứa đang nuôi (`ACTIVE`): **")
+                    .append(activeCyclesCount).append("** • Tổng đàn hiện tại: **").append(vn(totalBirds)).append(" con**\n");
+            if (!liveSensorLines.isEmpty()) {
+                sb.append("- **Thông số cảm biến ESP32 đã đồng bộ:**\n");
+                liveSensorLines.forEach(line -> sb.append("  ").append(line).append("\n"));
+            } else {
+                sb.append("- **Cảm biến IoT:** Hiện chưa có dữ liệu trực tuyến từ cảm biến ESP32 (chưa kết nối hoặc chưa đồng bộ từ màn hình Thiết bị IoT).");
+            }
             return AiAssistantResponse.builder()
-                    .reply("Dữ liệu trang trại hiện đang ở trạng thái ổn định. Nhiệt độ trung bình các chuồng từ 27°C - 29.5°C, độ ẩm 68% - 74%.")
+                    .reply(sb.toString().trim())
                     .actionType("QUERY_FARM_STATUS")
                     .executed(false)
+                    .navigateTo(sanitizeNavigateTo(isWorker ? "/today-tasks" : "/barns", isWorker, false))
                     .build();
         }
         return null;
@@ -5525,15 +5588,16 @@ public class AiAssistantService {
 
         String norm = normalizeText(message);
         String barnNameCandidate = parsed.path("barnName").asText(parsed.path("targetBarnName").asText(""));
+        boolean hasExplicitBarnName = !barnNameCandidate.isBlank() && !"null".equalsIgnoreCase(barnNameCandidate);
         Barn barn = null;
-        if (!barnNameCandidate.isBlank() && !"null".equalsIgnoreCase(barnNameCandidate)) {
-            barn = resolveBarn(normalizeText(barnNameCandidate), barnNameCandidate, currentRoute);
+        if (hasExplicitBarnName) {
+            barn = resolveBarn(normalizeText(barnNameCandidate), barnNameCandidate, null);
         }
-        if (barn == null && !parsed.path("targetBarnId").isMissingNode() && !parsed.path("targetBarnId").isNull()) {
+        if (barn == null && !parsed.path("targetBarnId").isMissingNode() && !parsed.path("targetBarnId").isNull() && parsed.path("targetBarnId").asLong(0) > 0) {
             barn = barnRepository.findById(parsed.path("targetBarnId").asLong()).orElse(null);
         }
-        if (barn == null) {
-            barn = resolveBarn(norm, message, currentRoute);
+        if (barn == null && !hasExplicitBarnName) {
+            barn = resolveBarn(norm, message, hasBarnMention(norm, null) ? null : currentRoute);
         }
         if (barn != null && !isWorkerAllowedForBarn(username, isWorker, barn)) {
             return barnNotAssignedResponse(barn);
@@ -5542,22 +5606,34 @@ public class AiAssistantService {
         switch (intent) {
             case "UPDATE_BARN_INFO": {
                 if (isWorker) return workerBlocked("UPDATE_BARN_INFO");
+                if (barn == null && hasExplicitBarnName) {
+                    return barnNotFoundResponse(normalizeText(barnNameCandidate), username, isWorker);
+                }
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("actionType", "UPDATE_BARN_INFO");
-                if (barn != null) payload.put("barnId", barn.getId());
-                if (!parsed.path("targetBarnId").isMissingNode() && !parsed.path("targetBarnId").isNull() && parsed.path("targetBarnId").asLong(0) > 0) {
-                    payload.put("barnId", parsed.path("targetBarnId").asLong());
+                if (barn != null) {
+                    payload.put("barnId", barn.getId());
                 }
                 String field = parsed.path("fieldToUpdate").asText("");
                 String val = parsed.path("newValue").asText("");
                 try {
-                    if ("capacity".equalsIgnoreCase(field) || parsed.path("capacity").asInt(0) > 0) {
-                        int cap = parsed.path("capacity").asInt(0) > 0 ? parsed.path("capacity").asInt() : Integer.parseInt(val.replaceAll("[^0-9-]", ""));
-                        if (cap > 0) payload.put("capacity", cap);
+                    if ("capacity".equalsIgnoreCase(field) || (parsed.has("capacity") && !parsed.path("capacity").isNull())) {
+                        int cap = parsed.has("capacity") && parsed.path("capacity").isNumber()
+                                ? parsed.path("capacity").asInt()
+                                : (int) Math.round(parseFlexibleLlmNumber(val, false));
+                        if (cap <= 0) {
+                            return buildInvalidPositiveQtyResponse("Sức chứa chuồng (con)", cap);
+                        }
+                        payload.put("capacity", cap);
                     }
-                    if ("areaM2".equalsIgnoreCase(field) || parsed.path("areaM2").asDouble(0) > 0) {
-                        double area = parsed.path("areaM2").asDouble(0) > 0 ? parsed.path("areaM2").asDouble() : Double.parseDouble(val.replace(',', '.'));
-                        if (area > 0) payload.put("areaM2", area);
+                    if ("areaM2".equalsIgnoreCase(field) || (parsed.has("areaM2") && !parsed.path("areaM2").isNull())) {
+                        double area = parsed.has("areaM2") && parsed.path("areaM2").isNumber()
+                                ? parsed.path("areaM2").asDouble()
+                                : parseFlexibleLlmNumber(val, false);
+                        if (area <= 0) {
+                            return buildInvalidPositiveQtyResponse("Diện tích chuồng (m²)", area);
+                        }
+                        payload.put("areaM2", area);
                     }
                     if ("name".equalsIgnoreCase(field) && !val.isBlank()) {
                         payload.put("name", val.trim());
@@ -5579,24 +5655,49 @@ public class AiAssistantService {
                 if (isWorker) return workerBlocked("UPDATE_INVENTORY_ITEM");
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("actionType", "UPDATE_INVENTORY_ITEM");
+                InventoryItem matchedItem = null;
                 if (!parsed.path("targetEntityId").isMissingNode() && !parsed.path("targetEntityId").isNull() && parsed.path("targetEntityId").asLong(0) > 0) {
-                    payload.put("itemId", parsed.path("targetEntityId").asLong());
+                    matchedItem = inventoryRepository.findById(parsed.path("targetEntityId").asLong()).orElse(null);
                 }
                 String pName = parsed.path("itemName").asText("");
-                if (pName.isBlank() || "null".equalsIgnoreCase(pName)) {
-                    pName = "vật tư kho";
+                if (matchedItem == null && !pName.isBlank() && !"null".equalsIgnoreCase(pName)) {
+                    matchedItem = FuzzyEntityResolver.findEntityInText(
+                            pName, inventoryRepository.findAll(), i -> i.getProduct() != null ? i.getProduct().getName() : "", 0.35);
+                }
+                if (matchedItem != null) {
+                    payload.put("itemId", matchedItem.getId());
+                    String canonicalName = matchedItem.getProduct() != null ? matchedItem.getProduct().getName() : pName;
+                    pName = canonicalName;
+                    payload.put("productName", canonicalName);
                 } else {
-                    payload.put("productName", pName);
+                    if (!pName.isBlank() && !"null".equalsIgnoreCase(pName)) {
+                        return AiAssistantResponse.builder()
+                                .reply("🤔 Không tìm thấy vật tư **" + pName + "** trong kho. Vui lòng nêu đúng tên sản phẩm đang có trong kho.")
+                                .actionType("CLARIFICATION_REQUIRED")
+                                .executed(false)
+                                .build();
+                    }
+                    pName = "vật tư kho";
                 }
                 String field = parsed.path("fieldToUpdate").asText("");
                 String val = parsed.path("newValue").asText("");
                 try {
-                    if ("price".equalsIgnoreCase(field) || parsed.path("amount").asLong(0) > 0) {
-                        double pVal = parsed.path("amount").asLong(0) > 0 ? parsed.path("amount").asLong() : Double.parseDouble(val.replace(',', '.'));
+                    if ("price".equalsIgnoreCase(field) || (parsed.has("amount") && !parsed.path("amount").isNull())) {
+                        double pVal = (parsed.has("amount") && parsed.path("amount").isNumber())
+                                ? parsed.path("amount").asDouble()
+                                : parseFlexibleLlmNumber(val, true);
+                        if (pVal <= 0) {
+                            return buildInvalidPositiveQtyResponse("Đơn giá vật tư", pVal);
+                        }
                         payload.put("price", pVal);
                     }
-                    if ("stock".equalsIgnoreCase(field) || parsed.path("quantity").asDouble(0) > 0) {
-                        double sVal = parsed.path("quantity").asDouble(0) > 0 ? parsed.path("quantity").asDouble() : Double.parseDouble(val.replace(',', '.'));
+                    if ("stock".equalsIgnoreCase(field) || (parsed.has("quantity") && !parsed.path("quantity").isNull())) {
+                        double sVal = (parsed.has("quantity") && parsed.path("quantity").isNumber())
+                                ? parsed.path("quantity").asDouble()
+                                : parseFlexibleLlmNumber(val, false);
+                        if (sVal < 0) {
+                            return buildInvalidPositiveQtyResponse("Số lượng tồn kho", sVal);
+                        }
                         payload.put("stock", sVal);
                     }
                 } catch (NumberFormatException ex) {
@@ -5606,9 +5707,9 @@ public class AiAssistantService {
                             .executed(false)
                             .build();
                 }
-                if (!payload.containsKey("price") && !payload.containsKey("stock")) {
+                if (!payload.containsKey("itemId") || (!payload.containsKey("price") && !payload.containsKey("stock"))) {
                     return AiAssistantResponse.builder()
-                            .reply("🤔 Giá trị cập nhật cho vật tư **" + pName + "** chưa rõ ràng. Vui lòng nhập đơn giá hoặc tồn kho cụ thể.")
+                            .reply("🤔 Giá trị cập nhật cho vật tư **" + pName + "** chưa rõ ràng. Vui lòng nhập tên vật tư và đơn giá hoặc tồn kho cụ thể.")
                             .actionType("CLARIFICATION_REQUIRED")
                             .executed(false)
                             .build();
@@ -5663,14 +5764,68 @@ public class AiAssistantService {
                             .executed(false)
                             .build();
                 }
+                String upperCode = code.toUpperCase(Locale.ROOT);
+                Optional<PurchaseInvoice> invOpt = invoiceRepository.findByCode(upperCode);
+                if (invOpt.isEmpty()) {
+                    return AiAssistantResponse.builder()
+                            .reply("⚠️ Không tìm thấy hóa đơn nhập hàng **" + upperCode + "** trong hệ thống.")
+                            .actionType("CLARIFICATION_REQUIRED")
+                            .executed(false)
+                            .build();
+                }
+                PurchaseInvoice inv = invOpt.get();
+                long totalAmt = inv.getTotalAmount() != null ? inv.getTotalAmount() : 0L;
+                long paidAmt = inv.getPaidAmount() != null ? inv.getPaidAmount() : 0L;
+                long remain = Math.max(0L, totalAmt - paidAmt);
+                if (remain <= 0L) {
+                    return AiAssistantResponse.builder()
+                            .reply("ℹ️ Hóa đơn **" + inv.getCode() + "** đã được thanh toán đủ trước đó.")
+                            .actionType("PAY_PURCHASE_INVOICE")
+                            .executed(false)
+                            .build();
+                }
+
+                long payAmount = parsed.has("amount") && !parsed.path("amount").isNull()
+                        ? parsed.path("amount").asLong(0)
+                        : 0L;
+                if (parsed.has("amount") && !parsed.path("amount").isNull() && payAmount <= 0L) {
+                    return buildInvalidPositiveQtyResponse("Số tiền thanh toán", payAmount);
+                }
+                if (payAmount <= 0L) {
+                    if (norm.contains("tra het") || norm.contains("toan bo") || norm.contains("tat toan")) {
+                        payAmount = remain;
+                    } else {
+                        Long signedPay = extractSignedMoneyWithOrWithoutUnit(norm);
+                        if (signedPay != null && signedPay <= 0) {
+                            return buildInvalidPositiveQtyResponse("Số tiền thanh toán", signedPay);
+                        }
+                        if (signedPay != null) {
+                            payAmount = signedPay;
+                        }
+                    }
+                }
+                if (payAmount <= 0L) {
+                    return AiAssistantResponse.builder()
+                            .reply("🤔 Bạn muốn thanh toán bao nhiêu **VNĐ** cho hóa đơn **" + inv.getCode() + "** (còn nợ **"
+                                    + NumberFormat.getInstance(VI_LOCALE).format(remain) + " đ**)?")
+                            .actionType("CLARIFICATION_REQUIRED")
+                            .executed(false)
+                            .clarificationOptions(List.of(
+                                    buildClarificationOption("Trả hết", "💰 Thanh toán toàn bộ (" + NumberFormat.getInstance(VI_LOCALE).format(remain) + " đ)",
+                                            "Tất toán phần công nợ còn lại của " + inv.getCode(),
+                                            "Thanh toán hết hóa đơn " + inv.getCode(), true)
+                            ))
+                            .build();
+                }
+
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("actionType", "PAY_PURCHASE_INVOICE");
-                payload.put("invoiceCode", code.toUpperCase(Locale.ROOT));
-                if (parsed.path("amount").asLong(0) > 0) {
-                    payload.put("amount", parsed.path("amount").asLong());
-                }
-                return confirmOrExecute(payload, "Thanh toán hóa đơn: " + code.toUpperCase(Locale.ROOT),
-                        "Bạn có muốn ghi nhận thanh toán cho hóa đơn **" + code.toUpperCase(Locale.ROOT) + "** không?", autoExecute, username);
+                payload.put("invoiceId", inv.getId());
+                payload.put("invoiceCode", inv.getCode());
+                payload.put("amount", payAmount);
+                String formattedPay = NumberFormat.getInstance(VI_LOCALE).format(payAmount) + " đ";
+                return confirmOrExecute(payload, "Thanh toán hóa đơn: " + inv.getCode(),
+                        "Bạn có muốn ghi nhận thanh toán **" + formattedPay + "** cho hóa đơn **" + inv.getCode() + "** không?", autoExecute, username);
             }
 
             case "CANCEL_PURCHASE_INVOICE": {
@@ -5683,11 +5838,29 @@ public class AiAssistantService {
                             .executed(false)
                             .build();
                 }
+                String upperCode = code.toUpperCase(Locale.ROOT);
+                Optional<PurchaseInvoice> invOpt = invoiceRepository.findByCode(upperCode);
+                if (invOpt.isEmpty()) {
+                    return AiAssistantResponse.builder()
+                            .reply("⚠️ Không tìm thấy hóa đơn nhập hàng **" + upperCode + "** trong hệ thống.")
+                            .actionType("CLARIFICATION_REQUIRED")
+                            .executed(false)
+                            .build();
+                }
+                PurchaseInvoice inv = invOpt.get();
+                if ("Đã hủy".equalsIgnoreCase(inv.getStockStatus())) {
+                    return AiAssistantResponse.builder()
+                            .reply("ℹ️ Hóa đơn **" + inv.getCode() + "** đã bị hủy trước đó.")
+                            .actionType("CANCEL_PURCHASE_INVOICE")
+                            .executed(false)
+                            .build();
+                }
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("actionType", "CANCEL_PURCHASE_INVOICE");
-                payload.put("invoiceCode", code.toUpperCase(Locale.ROOT));
-                return confirmOrExecute(payload, "Hủy hóa đơn: " + code.toUpperCase(Locale.ROOT),
-                        "Bạn có chắc chắn muốn hủy đơn hàng **" + code.toUpperCase(Locale.ROOT) + "** không?", autoExecute, username);
+                payload.put("invoiceId", inv.getId());
+                payload.put("invoiceCode", inv.getCode());
+                return confirmOrExecute(payload, "Hủy hóa đơn: " + inv.getCode(),
+                        "Bạn có chắc chắn muốn hủy đơn hàng **" + inv.getCode() + "** không?", autoExecute, username);
             }
 
             case "LOG_FEED": {
@@ -6696,6 +6869,28 @@ public class AiAssistantService {
         }
         String unitName = item.getUnit().getName() != null ? item.getUnit().getName().toLowerCase(Locale.ROOT) : "";
         return unitName.contains("bao") ? 25.0 : 1.0;
+    }
+
+    private static double parseFlexibleLlmNumber(String raw, boolean preferThousandsSeparators) {
+        if (raw == null || raw.isBlank()) {
+            throw new NumberFormatException("empty number");
+        }
+        String cleaned = raw.trim()
+                .replaceAll("(?iu)(?:vnđ|vnd|đồng|đ|m²|m2|con|kg|bao|lít|lọ|gói)", "")
+                .replaceAll("\\s+", "");
+        if (cleaned.isEmpty()) {
+            throw new NumberFormatException("empty number");
+        }
+        if (cleaned.matches("^-?\\d{1,3}(?:\\.\\d{3})+$")) {
+            cleaned = cleaned.replace(".", "");
+        } else if (cleaned.matches("^-?\\d{1,3}(?:,\\d{3})+$")) {
+            cleaned = cleaned.replace(",", "");
+        } else if (preferThousandsSeparators && cleaned.matches("^-?\\d+[.,]\\d{3}$")) {
+            cleaned = cleaned.replace(".", "").replace(",", "");
+        } else {
+            cleaned = cleaned.replace(',', '.');
+        }
+        return Double.parseDouble(cleaned);
     }
 
     private static String normalizeText(String text) {

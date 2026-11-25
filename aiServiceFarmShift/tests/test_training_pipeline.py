@@ -33,7 +33,37 @@ class TrainingPipelineTests(unittest.TestCase):
                         },
                     ],
                     "metadata": {"interactionId": 501, "userRole": "ROLE_FARM_WORKER", "feedbackRating": 1},
-                }
+                },
+                {
+                    "messages": [
+                        {"role": "system", "content": "FarmShift AI Assistant (ROLE_FARM_OWNER)"},
+                        {"role": "user", "content": "Câu lệnh bị đánh giá sai chưa sửa nhãn"},
+                        {
+                            "role": "assistant",
+                            "content": json.dumps({
+                                "intent": "LOG_FEED",
+                                "arguments": {"targetBarnName": "Nhà A1"},
+                                "reply": "Sai",
+                            }, ensure_ascii=False),
+                        },
+                    ],
+                    "metadata": {"interactionId": 502, "userRole": "ROLE_FARM_OWNER", "feedbackRating": -1, "hasCorrection": False},
+                },
+                {
+                    "messages": [
+                        {"role": "system", "content": "FarmShift AI Assistant (ROLE_FARM_OWNER)"},
+                        {"role": "user", "content": "<user_input>Đổi sức chứa Nhà C2 thành 6000 con</user_input>"},
+                        {
+                            "role": "assistant",
+                            "content": json.dumps({
+                                "intent": "UPDATE_BARN_INFO",
+                                "arguments": {"targetBarnName": "Nhà C2", "fieldToUpdate": "capacity", "newValue": "6000"},
+                                "reply": "Đã chuẩn bị cập nhật sức chứa Nhà C2",
+                            }, ensure_ascii=False),
+                        },
+                    ],
+                    "metadata": {"interactionId": 503, "userRole": "ROLE_FARM_OWNER", "feedbackRating": 1},
+                },
             ]
             flywheel_file.write_text(
                 "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in flywheel_rows),
@@ -62,6 +92,18 @@ class TrainingPipelineTests(unittest.TestCase):
                 if line.strip()
             }
             self.assertTrue(train_users.isdisjoint(test_users), "Train and Test sets must have zero prompt leakage")
+            all_sft_prompts = train_users | test_users
+            self.assertFalse(any("bị đánh giá sai" in p for p in all_sft_prompts))
+            self.assertFalse(any("<user_input><user_input>" in p for p in all_sft_prompts))
+            all_sft_rows = [
+                json.loads(line)
+                for split_name in ("sft_intent_train.jsonl", "sft_intent_val.jsonl", "sft_intent_test.jsonl")
+                for line in (dataset_dir / split_name).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            update_barn_rows = [r for r in all_sft_rows if r.get("intent") == "UPDATE_BARN_INFO"]
+            self.assertEqual(1, len(update_barn_rows))
+            self.assertEqual("update_barn_info", update_barn_rows[0]["messages"][2]["tool_calls"][0]["function"]["name"])
 
             intent_plan = run_training(
                 dataset_dir=dataset_dir,

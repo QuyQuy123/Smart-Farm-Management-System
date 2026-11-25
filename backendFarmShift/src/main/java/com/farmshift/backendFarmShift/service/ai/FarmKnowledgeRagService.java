@@ -37,7 +37,7 @@ public class FarmKnowledgeRagService {
     private static final Pattern TOKEN_PATTERN = Pattern.compile("[a-z0-9]+");
 
     private static final Pattern RAG_TRIGGER_CUE = Pattern.compile(
-            "(?i)\\b(?:benh|thuoc|vac[\\s-]?xin|tiem\\s+phong|lich\\s+tiem|trieu\\s+chung|kho\\s+khe|ngap\\s+gio|cau\\s+trung|gumboro|newcastle|ga\\s+ru|coryza|sung\\s+phu\\s+dau|sung\\s+mat|marek|crd|tieu\\s+chay|phan\\s+sap|phan\\s+trang|phan\\s+xanh|phan\\s+mau|u\\s+ru|bo\\s+an|chong\\s+nong|stress\\s+nhiet|um\\s+ga|nhiet\\s+do\\s+um|fcr|adg|quy\\s+trinh|chuong\\s+trinh\\s+nuoi|sat\\s+trung|bkc|toltrazuril|han[\\s-]?coc|bio[\\s-]?zyme|men\\s+tieu\\s+hoa|dien\\s+giai|gluco|doxycycline|tylosin|enrofloxacin|amoxicillin|lasota)\\b"
+            "(?i)(?:\\b(?:benh|thuoc|vac[\\s-]?xin|tiem\\s+phong|lich\\s+tiem|nho\\s+mat|nho\\s+mui|cat\\s+nuoc|trieu\\s+chung|kho\\s+khe|ngap\\s+gio|cau\\s+trung|gumboro|newcastle|ga\\s+ru|coryza|sung\\s+phu\\s+dau|sung\\s+mat|marek|crd|tieu\\s+chay|phan\\s+sap|phan\\s+trang|phan\\s+xanh|phan\\s+mau|u\\s+ru|bo\\s+an|viem\\s+ruot|benh\\s+duong\\s+ruot|thuong\\s+han|e\\.?coli|tu\\s+huyet\\s+trung|cum\\s+gia\\s+cam|xuat\\s+huyet|chong\\s+nong|stress\\s+nhiet|um\\s+ga|nhiet\\s+do\\s+um|fcr|adg|quy\\s+trinh|chuong\\s+trinh\\s+nuoi|sat\\s+trung|khu\\s+trung|tieu\\s+doc|bkc|toltrazuril|han[\\s-]?coc|bio[\\s-]?zyme|men\\s+tieu\\s+hoa|dien\\s+giai|gluco|doxycycline|tylosin|enrofloxacin|amoxicillin|lasota)\\b|\\b(?:ga|vit|dan\\s+ga)\\b.{0,20}\\bhen\\b|\\bhen\\s+(?:ga|khec)\\b)"
     );
 
     public record RagDocument(
@@ -191,11 +191,11 @@ public class FarmKnowledgeRagService {
             String docNgramText = normalizePlain(doc.title() + " " + String.join(" ", doc.keywords()) + " " + doc.content());
             cosineScores[idx] = cosineSimilarity(queryNgrams, charNgrams(docNgramText, 3));
 
-            if (activeAgeDays != null && doc.dayFrom() != null && doc.dayTo() != null) {
+            if (bm25 > 0.0 && activeAgeDays != null && doc.dayFrom() != null && doc.dayTo() != null) {
                 if (activeAgeDays >= doc.dayFrom() && activeAgeDays <= doc.dayTo()) {
-                    ageBoosts[idx] = 0.025;
+                    ageBoosts[idx] = 0.0005;
                 } else if (doc.dayFrom() > activeAgeDays && doc.dayFrom() - activeAgeDays <= 7) {
-                    ageBoosts[idx] = 0.012;
+                    ageBoosts[idx] = 0.0002;
                 }
             }
         }
