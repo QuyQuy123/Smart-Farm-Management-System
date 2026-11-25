@@ -349,6 +349,95 @@ class InvoiceOcrTests(unittest.TestCase):
             )
             self.assertFalse(any("Dòng hàng #1" in w for w in body["warnings"]))
 
+    def test_rotation_retry_and_dealer_invoice_debt_and_cropped_edge_reconciliation(self):
+        client = TestClient(app)
+        headers = {"X-Internal-AI-Token": "test-ocr-token"}
+
+        with (
+            patch("app.api.router.settings.AI_INTERNAL_TOKEN", "test-ocr-token"),
+            patch("app.services.ocr_service.settings.OPENAI_API_KEY", "test-only"),
+            patch("app.services.ocr_service.settings.OCR_ENGINE", "hybrid"),
+            patch("app.services.ocr_service.get_shared_http_client", return_value=None),
+            patch("app.services.ocr_service.httpx.AsyncClient") as factory,
+        ):
+            pass1_rotated = MagicMock()
+            pass1_rotated.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "isInvoice": False,
+                                    "rotationDegrees": 270,
+                                    "items": [],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+            pass2_upright = MagicMock()
+            pass2_upright.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "isInvoice": True,
+                                    "rotationDegrees": 0,
+                                    "supplierName": "KHO CÁM 1",
+                                    "invoiceDate": "2026-09-19",
+                                    "referenceCode": "HD102915",
+                                    "items": [
+                                        {
+                                            "name": "Milk Plus 1kg AGR",
+                                            "qty": 0.1,
+                                            "unit": "kg",
+                                            "unitPrice": 125000,
+                                            "amount": 1250,
+                                        },
+                                        {
+                                            "name": "Lasota L2500 AGR",
+                                            "qty": 1,
+                                            "unit": None,
+                                            "unitPrice": 270000,
+                                            "amount": 270000,
+                                        },
+                                    ],
+                                    "totalAmount": 37214500,
+                                    "previousDebt": 36737000,
+                                    "paidAmount": 36737000,
+                                    "remainingDebt": 37214500,
+                                    "paymentStatus": "Thanh toán hoàn tất",
+                                    "confidence": 98.0,
+                                    "warnings": [],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+            http_mock = AsyncMock()
+            http_mock.post.side_effect = [pass1_rotated, pass2_upright]
+            factory.return_value.__aenter__.return_value = http_mock
+
+            res = client.post(
+                "/api/ocr/extract-invoice",
+                files={"file": ("rotated.png", _make_png(120, 80), "image/png")},
+                headers=headers,
+            )
+            self.assertEqual(200, res.status_code)
+            self.assertEqual(2, http_mock.post.call_count)
+            body = res.json()
+            self.assertTrue(body["isInvoice"])
+            self.assertEqual("KHO CÁM 1", body["supplierName"])
+            self.assertEqual("HD102915", body["referenceCode"])
+            self.assertEqual(12500.0, body["items"][0]["amount"])
+            self.assertEqual(282500.0, body["totalAmount"])
+            self.assertEqual(0.0, body["paidAmount"])
+            self.assertEqual("Trả sau", body["paymentStatus"])
+            self.assertEqual([], body["warnings"])
+
 
 if __name__ == "__main__":
     unittest.main()

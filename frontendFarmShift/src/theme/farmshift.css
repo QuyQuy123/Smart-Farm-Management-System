@@ -1833,6 +1833,17 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
     gap: 10px;
   }
 
+  :where(.farmshift-header-row > div:last-child) {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  :where(.farmshift-header-row > div:last-child > div) {
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+  }
+
   .farmshift-page-title,
   .farmgo-page-title {
     font-size: 20px;
@@ -1975,17 +1986,17 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
   }
 
   /* Action buttons row */
-  .farmshift-header-row>div:last-child {
+  :where(.farmshift-header-row > div:last-child) {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     width: 100%;
   }
 
-  .farmshift-header-row>div:last-child>.farmshift-btn,
-  .farmshift-header-row>div:last-child>div>.farmshift-btn {
-    flex: 1;
-    min-width: 130px;
+  :where(.farmshift-header-row > div:last-child > .farmshift-btn,
+  .farmshift-header-row > div:last-child > div > .farmshift-btn) {
+    flex: 1 1 auto;
+    min-width: 0;
     justify-content: center;
   }
 

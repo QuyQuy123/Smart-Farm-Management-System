@@ -1139,7 +1139,7 @@ export const PurchasesView = () => {
       breadcrumbTitle={{ orders: 'Hóa đơn nhập hàng', suppliers: 'Nhà cung cấp', debts: 'Công nợ', tags: 'Thẻ tag' }[activeTab]}
       breadcrumbs={[{ label: 'Hóa đơn nhập hàng' }]}
       actions={
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className={styles.headerActions}>
           <button
             className="farmshift-btn farmshift-btn-secondary"
             style={{ color: 'var(--color-primary)' }}
@@ -1155,7 +1155,7 @@ export const PurchasesView = () => {
           </button>
           {isOwnerOrAccountant && (
             <button
-              className="farmshift-btn farmshift-btn-mint"
+              className={`farmshift-btn farmshift-btn-mint ${styles.primaryActionBtn}`}
               onClick={() => {
                 setOcrBanner(false); setIsOcrDraft(false);
                 setOcrPreviewUrl(null);
@@ -1202,35 +1202,35 @@ export const PurchasesView = () => {
       {activeTab === 'orders' && (
         <>
           {/* Quick Metrics Cards (Đối chiếu chuẩn FarmShift_MienBinh_Full.html) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '16px' }}>
-            <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng giá trị nhập</div>
-              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
+          <div className={styles.metricsGrid}>
+            <div className={`farmshift-card ${styles.metricCard}`}>
+              <div className={styles.metricLabel}>Tổng giá trị nhập</div>
+              <strong className={styles.metricValue}>
                 {purchases.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
-            <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tiền đã trả</div>
-              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
+            <div className={`farmshift-card ${styles.metricCard}`}>
+              <div className={styles.metricLabel}>Tiền đã trả</div>
+              <strong className={styles.metricValue}>
                 {purchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
-            <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tiền chưa trả (Công nợ)</div>
-              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
+            <div className={`farmshift-card ${styles.metricCard}`}>
+              <div className={styles.metricLabel}>Tiền chưa trả (Công nợ)</div>
+              <strong className={styles.metricValue}>
                 {purchases.reduce((sum, p) => sum + Number(p.debtAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
-            <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng số hóa đơn</div>
-              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
+            <div className={`farmshift-card ${styles.metricCard}`}>
+              <div className={styles.metricLabel}>Tổng số hóa đơn</div>
+              <strong className={styles.metricValue}>
                 {purchases.length} hóa đơn
               </strong>
             </div>
           </div>
 
-          <div className="farmshift-toolbar">
-            <div className="farmshift-search-box">
+          <div className={`farmshift-toolbar ${styles.ordersToolbar}`}>
+            <div className={`farmshift-search-box ${styles.ordersSearchBox}`}>
               <Search size={16} color="var(--color-muted)" />
               <input
                 type="text"
@@ -1240,7 +1240,7 @@ export const PurchasesView = () => {
               />
             </div>
 
-            <div className="farmshift-filter-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <div className={`farmshift-filter-group ${styles.ordersFilterGroup}`}>
               <MobileFilterSheet
                 title="Lọc hóa đơn nhập hàng"
                 activeCount={(filterPayment !== 'ALL' ? 1 : 0) + (filterStock !== 'ALL' ? 1 : 0) + (filterTag !== 'ALL' ? 1 : 0)}
@@ -1289,6 +1289,9 @@ export const PurchasesView = () => {
               const safeOrderPage = Math.min(Math.max(1, orderPage), orderPages);
               const pagedPurchases = filteredPurchases.slice((safeOrderPage - 1) * orderPageSize, safeOrderPage * orderPageSize);
               const totalFilteredVal = filteredPurchases.reduce((acc, item) => acc + Number(item.totalAmount || 0), 0);
+              const hasActiveOrderFilter = Boolean(
+                searchTerm.trim() || filterPayment !== 'ALL' || filterStock !== 'ALL' || filterTag !== 'ALL'
+              );
               return (
                 <div style={{ padding: '12px' }}>
                   <ResponsiveDataTable
@@ -1297,7 +1300,7 @@ export const PurchasesView = () => {
                     mode="card-on-mobile"
                     loading={loading}
                     emptyState="Không tìm thấy hóa đơn nhập hàng nào phù hợp."
-                    summaryItems={!loading ? [
+                    summaryItems={!loading && hasActiveOrderFilter ? [
                       { label: 'Số hóa đơn', value: `${filteredPurchases.length}` },
                       { label: 'Tổng giá trị', value: `${Math.round(totalFilteredVal).toLocaleString('vi-VN')} đ`, tone: 'teal' },
                     ] : []}
@@ -2502,26 +2505,28 @@ export const PurchasesView = () => {
                     );
                   })}
 
-                  <div className="farmshift-form-group" style={{ marginBottom: '14px' }}>
-                    <label htmlFor="po-attachment-file" className="farmshift-form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <ImageIcon size={14} color="var(--color-primary)" /> Đính kèm ảnh hóa đơn / phiếu cân (tùy chọn)
-                    </label>
-                    <input
-                      id="po-attachment-file"
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="farmshift-form-control"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setAttachedInvoiceFile(file);
-                      }}
-                    />
-                    {attachedInvoiceFile && (
-                      <div style={{ fontSize: '12px', color: 'var(--color-primary)', marginTop: '4px' }}>
-                        Đã chọn chứng từ đính kèm: <strong>{attachedInvoiceFile.name}</strong>
-                      </div>
-                    )}
-                  </div>
+                  {!isOcrDraft && !ocrPreviewUrl && (
+                    <div className="farmshift-form-group" style={{ marginBottom: '14px' }}>
+                      <label htmlFor="po-attachment-file" className="farmshift-form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ImageIcon size={14} color="var(--color-primary)" /> Đính kèm ảnh hóa đơn / phiếu cân (tùy chọn)
+                      </label>
+                      <input
+                        id="po-attachment-file"
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="farmshift-form-control"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setAttachedInvoiceFile(file);
+                        }}
+                      />
+                      {attachedInvoiceFile && (
+                        <div style={{ fontSize: '12px', color: 'var(--color-primary)', marginTop: '4px' }}>
+                          Đã chọn chứng từ đính kèm: <strong>{attachedInvoiceFile.name}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
 
 

@@ -554,10 +554,14 @@ def postprocess_vietnamese_phonetic(
     out = _sub_tracked(_CHUC, out, _chuc_repl, corrections)
 
     # 5. Half million & million amounts ("triệu rưỡi" -> 1500000, "5 triệu" -> 5000000) & split invoice codes
+    def _invoice_split_repl(m: re.Match[str]) -> str:
+        digits = re.sub(r"\s+", "", m.group(1))
+        return f"NH{int(digits):06d}"
+
     out = _sub_tracked(
         _INVOICE_SPLIT,
         out,
-        lambda m: f"NH{int(re.sub(r'\s+', '', m.group(1))):06d}",
+        _invoice_split_repl,
         corrections,
     )
 

@@ -1696,7 +1696,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   };
 
   return (
-    <div className={`${styles.chatbotWidget} ${isMobile ? styles.chatbotWidgetMobile : ''}`}>
+    <div className={`${styles.chatbotWidget} ${isMobile ? styles.chatbotWidgetMobile : ''} ${isOpen ? styles.chatbotWidgetOpen : ''}`}>
       {isOpen && isTablet && (
         <div
           className={styles.aiBackdrop}
