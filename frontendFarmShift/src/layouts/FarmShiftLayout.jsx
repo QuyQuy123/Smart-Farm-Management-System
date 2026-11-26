@@ -111,6 +111,7 @@ export const FarmShiftLayout = ({
     pageTitle,
     breadcrumbTitle = pageTitle,
     breadcrumbs = [],
+    hideBreadcrumbs = false,
     showShortcuts = false,
     environmentHref = '/journal?tab=env',
     feedHref = '/today-tasks',
@@ -865,17 +866,19 @@ export const FarmShiftLayout = ({
                                     <h1 className="farmshift-page-title">
                                         {pageTitle}
                                     </h1>
-                                    <div className="farmshift-breadcrumbs">
-                                        <Link to={defaultHomeRoute}>{farmInfo.name}</Link>
-                                        <span>›</span>
-                                        {effectiveBreadcrumbs.map((bc, idx) => (
-                                            <Fragment key={idx}>
-                                                {bc.path ? <Link to={bc.path}>{bc.label}</Link> : <span>{bc.label}</span>}
-                                                <span>›</span>
-                                            </Fragment>
-                                        ))}
-                                        <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
-                                    </div>
+                                    {!hideBreadcrumbs && (
+                                        <div className="farmshift-breadcrumbs">
+                                            <Link to={defaultHomeRoute}>{farmInfo.name}</Link>
+                                            <span>›</span>
+                                            {effectiveBreadcrumbs.map((bc, idx) => (
+                                                <Fragment key={idx}>
+                                                    {bc.path ? <Link to={bc.path}>{bc.label}</Link> : <span>{bc.label}</span>}
+                                                    <span>›</span>
+                                                </Fragment>
+                                            ))}
+                                            <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

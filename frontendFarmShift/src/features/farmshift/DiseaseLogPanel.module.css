@@ -1,5 +1,8 @@
 /* Sổ bệnh án & điều trị nhiều ngày trong BarnDetailView */
 .panel { background: #fff; border: 1px solid #e3ebe8; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.panelEmbedded { border: 0; border-radius: 0; background: transparent; padding: 16px 18px; }
+.errorState { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 12px; text-align: center; }
+.errorText { margin: 0; color: #c63030; font-size: 14px; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .header h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; color: #182b31; }
 .header h3 svg { color: #008577; }

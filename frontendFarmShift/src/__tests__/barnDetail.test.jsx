@@ -8,6 +8,7 @@ import * as areas from '../services/farmAreaService';
 import * as programService from '../services/farmingProgramService';
 import * as dailyPlan from '../services/dailyPlanService';
 import * as supplierService from '../services/supplierService';
+import * as diseaseService from '../services/cycleDiseaseService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn(), layoutProps: null }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
@@ -23,6 +24,10 @@ vi.mock('../services/farmingProgramService', () => ({ listPrograms: vi.fn() }));
 vi.mock('../services/supplierService', () => ({ listSuppliers: vi.fn(), createSupplier: vi.fn(), updateSupplier: vi.fn(), deleteSupplier: vi.fn() }));
 vi.mock('../services/productTypeService', () => ({ listProductTypes: vi.fn() }));
 vi.mock('../services/dailyPlanService', () => ({ getBarnDailyPlan: vi.fn(), confirmDailyTask: vi.fn(), undoDailyTask: vi.fn() }));
+vi.mock('../services/cycleDiseaseService', () => ({
+  listCycleDiseases: vi.fn(),
+  listDiseaseMedicineSources: vi.fn(),
+}));
 vi.mock('../services/cycleService', () => ({
   getBarn: vi.fn(), listCycles: vi.fn(), startCycle: vi.fn(), getCycle: vi.fn(), closeCycle: vi.fn(), importFlock: vi.fn(),
   transferFlock: vi.fn(), assignFlockProgram: vi.fn(), assignCycleProgram: vi.fn(), recordLoss: vi.fn(), recordHarvest: vi.fn(), addFeedRecord: vi.fn(), deleteFeedRecord: vi.fn(),
@@ -119,6 +124,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
       { id: 1, name: 'Gà Mía thương phẩm', breed: 'Gà Mía', durationDays: 90, steps: [] },
       { id: 2, name: 'Gà ta thả vườn', breed: 'Gà ta', durationDays: 105, steps: [] },
     ]);
+    diseaseService.listCycleDiseases.mockResolvedValue([]);
+    diseaseService.listDiseaseMedicineSources.mockResolvedValue([]);
   });
 
   it('shows technical indicators, flocks, programs and accounting for the running cycle', async () => {
@@ -338,6 +345,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.getByRole('button', { name: 'Ghi hao hụt H0004' })).toBeInTheDocument();
     // Cám ghi khi bấm Xong cữ ăn ở Việc hôm nay, không còn nút ghi tay ở Nhật ký.
     expect(screen.queryByRole('button', { name: 'Ghi cám' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Khoản chi bổ sung/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Doanh thu/ })).not.toBeInTheDocument();
   });
 
   it('shows accountants accounting and sales but not flock imports, losses, or restricted farm/task navigation links', async () => {
@@ -346,6 +355,9 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     await screen.findByText(/Lứa nuôi thứ 1, từ/);
     expect(screen.getByText('Hạch toán')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xuất bán H0004' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Doanh thu/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Lịch sử lứa nuôi/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Khoản chi bổ sung/ }));
     expect(screen.getByRole('button', { name: 'Thêm khoản chi' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Nhập đàn' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ghi hao hụt H0004' })).not.toBeInTheDocument();
@@ -356,6 +368,58 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.queryByRole('link', { name: 'Mở tất cả chuồng' })).not.toBeInTheDocument();
     expect(mocks.layoutProps.showShortcuts).toBe(false);
     expect(mocks.layoutProps.breadcrumbs.map(b => b.path).filter(Boolean)).toEqual(['/dashboard', '/cycles/history']);
+  });
+
+  it('paginates and searches long feed records, and switches left info and detail section tabs cleanly', async () => {
+    const manyFeeds = Array.from({ length: 25 }, (_, i) => ({
+      id: i + 1,
+      date: iso(-(i % 20)),
+      label: i === 22 ? 'Cám đặc biệt Omega' : `Cám gà thịt số ${i + 1}`,
+      quantity: 100 + i,
+      amount: 1500000 + i * 1000,
+      createdBy: 'congnhan@smartfarm.com',
+    }));
+    const manyExpenses = Array.from({ length: 12 }, (_, i) => ({
+      id: i + 1,
+      date: iso(-i),
+      category: 'MEDICINE',
+      amount: 50000 + i * 1000,
+      note: `Thuốc đợt ${i + 1}`,
+      createdBy: 'owner@farm.test',
+    }));
+    cycles.getCycle.mockResolvedValue({ ...detail(), feedRecords: manyFeeds, expenses: manyExpenses });
+    renderAt('/barns/2');
+
+    // Left card switches between Lứa nuôi and Chuồng metadata
+    expect(await screen.findByText(/Lứa nuôi thứ 1, từ/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Chuồng' }));
+    expect(screen.getByText('Diện tích (m²)')).toBeInTheDocument();
+    expect(screen.getByText('Sức chứa tối đa')).toBeInTheDocument();
+
+    // Feed journal paginates at 10 rows per page by default
+    expect(screen.getByText('Hiển thị 1–10 / 25 bản ghi')).toBeInTheDocument();
+    expect(screen.getByText('Cám gà thịt số 1')).toBeInTheDocument();
+    expect(screen.queryByText('Cám gà thịt số 11')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trang sau' }));
+    expect(screen.getByText('Hiển thị 11–20 / 25 bản ghi')).toBeInTheDocument();
+    expect(screen.getByText('Cám gà thịt số 11')).toBeInTheDocument();
+
+    // Searching filters across all pages and resets to page 1
+    fireEvent.change(screen.getByLabelText('Tìm kiếm trong nhật ký'), { target: { value: 'Omega' } });
+    expect(screen.getByText('Hiển thị 1–1 / 1 bản ghi')).toBeInTheDocument();
+    expect(screen.getByText('Cám đặc biệt Omega')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm nhật ký' }));
+    expect(screen.getByText('Hiển thị 1–10 / 25 bản ghi')).toBeInTheDocument();
+
+    // Switching Band 2 tabs works cleanly (including Sổ bệnh án & paginated Khoản chi bổ sung)
+    fireEvent.click(screen.getByRole('tab', { name: /Sổ bệnh án/ }));
+    expect(await screen.findByText('Chưa ghi nhận đợt bệnh nào trong lứa nuôi này.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Khoản chi bổ sung/ }));
+    expect(screen.getByText('Hiển thị 1–10 / 12 bản ghi')).toBeInTheDocument();
+    expect(screen.getByText('Thuốc đợt 1')).toBeInTheDocument();
+    expect(screen.queryByText('Thuốc đợt 11')).not.toBeInTheDocument();
   });
 
   it('routes accountant error fallback to /cycles/history instead of /barns', async () => {
