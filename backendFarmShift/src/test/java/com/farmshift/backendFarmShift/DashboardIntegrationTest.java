@@ -55,7 +55,10 @@ class DashboardIntegrationTest {
         long programId = id(send("/api/farming-programs", Map.of("name", "Gà thử bảng tin", "breed", "Gà thử", "durationDays", 10,
                 "steps", List.of(
                         Map.of("category", "FEED", "name", "Higro 01", "dayFrom", 1, "dayTo", 10, "quantity", 30, "mealsPerDay", 3),
-                        Map.of("category", "VACCINE", "name", "Gumboro", "dayFrom", 9, "dayTo", 9, "method", "MOUTH")))));
+                        Map.of("category", "DRINKING_MEDICINE", "name", "Men tiêu hóa nước", "dayFrom", 8, "dayTo", 8,
+                                "method", "AUTO_DRINKER", "quantity", 1, "unit", "g/lít nước"),
+                        Map.of("category", "VACCINE", "name", "Gumboro", "dayFrom", 9, "dayTo", 9, "method", "MOUTH"),
+                        Map.of("category", "CARE_PROCEDURE", "name", "Làm mỏ lần 1", "dayFrom", 10, "dayTo", 10, "method", "PROCEDURE")))));
         for (long barn : List.of(barnA, barnB)) {
             long cycle = id(send("/api/barns/" + barn + "/cycles", Map.of("startDate", TODAY.minusDays(5).toString())));
             id(send("/api/cycles/" + cycle + "/flocks", Map.of("name", "ĐÀN " + barn, "programId", programId, "gender", "MIXED",
@@ -130,7 +133,11 @@ class DashboardIntegrationTest {
         assertEquals("DANGER", d.path("alerts").get(0).path("level").asText(), "việc nguy cấp đứng đầu");
 
         String upcoming = d.path("upcoming").toString();
+        assertTrue(upcoming.contains("Uống thuốc Men tiêu hóa nước (ngày tuổi 8)"), upcoming);
         assertTrue(upcoming.contains("Vắc-xin Gumboro (ngày tuổi 9)"), upcoming);
+        assertTrue(upcoming.contains("Thủ thuật: Làm mỏ lần 1 (ngày tuổi 10)"), upcoming);
+        assertFalse(upcoming.contains("Đổi cám: Làm mỏ lần 1"), upcoming);
+        assertFalse(upcoming.contains("Đổi cám: Men tiêu hóa nước"), upcoming);
         assertTrue(upcoming.contains("\"inDays\":3"), upcoming);
         assertTrue(upcoming.contains("Dự kiến xuất chuồng"), upcoming);
         assertTrue(d.path("finance").path("chickCost").decimalValue().signum() > 0);

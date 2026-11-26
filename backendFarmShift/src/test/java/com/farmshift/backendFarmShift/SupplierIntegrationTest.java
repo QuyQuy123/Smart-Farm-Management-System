@@ -92,10 +92,19 @@ class SupplierIntegrationTest {
             .andExpect(status().isConflict());
     }
     @Test @WithMockUser(authorities="ROLE_FARM_WORKER")
-    void workerCanReadButCannotMutate() throws Exception {
-        mvc.perform(get("/api/suppliers")).andExpect(status().isOk());
+    void workerCannotReadOrMutateSuppliers() throws Exception {
+        var existing = new com.farmshift.backendFarmShift.entity.Supplier();
+        existing.setName("NCC Bí mật");
+        existing.setNameKey(com.farmshift.backendFarmShift.service.SupplierService.nameKey("NCC Bí mật", groupId));
+        existing.setRepresentative("Đại diện");
+        existing.setPhone("0912345678");
+        existing.setProductType(types.findById(groupId).orElseThrow());
+        Long existingId = suppliers.saveAndFlush(existing).getId();
+
+        mvc.perform(get("/api/suppliers")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/suppliers/" + existingId)).andExpect(status().isForbidden());
         mvc.perform(post("/api/suppliers").contentType(MediaType.APPLICATION_JSON).content(payload("A", "0912345678", groupId))).andExpect(status().isForbidden());
-        mvc.perform(delete("/api/suppliers/1")).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/suppliers/" + existingId)).andExpect(status().isForbidden());
     }
     @Test @WithMockUser(authorities="ROLE_ACCOUNTANT")
     void accountantCanCreateUpdateAndReadDebtHistoryButCannotDelete() throws Exception {

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -38,6 +38,44 @@ class AssistantChatRequest(BaseModel):
         max_length=30,
         description="Lịch sử hội thoại",
     )
+    tools: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Danh sách JSON Schema tools cho Native Function/Tool Calling",
+    )
+    tool_choice: Optional[Any] = Field(
+        default=None,
+        alias="toolChoice",
+        description="Chế độ chọn tool (auto | none | required | object)",
+    )
+    user_role: Optional[str] = Field(
+        default=None,
+        alias="userRole",
+        max_length=40,
+        description="Vai trò RBAC của người dùng (ROLE_FARM_OWNER | ROLE_ACCOUNTANT | ROLE_FARM_WORKER)",
+    )
+    current_route: Optional[str] = Field(
+        default=None,
+        alias="currentRoute",
+        max_length=200,
+        description="Màn hình frontend đang mở",
+    )
+    use_default_tools: bool = Field(
+        default=False,
+        alias="useDefaultTools",
+        description="Tự động nạp bộ 10 Core Tools chuẩn FarmShift theo userRole nếu tools không truyền tường minh",
+    )
+    tool_messages: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        alias="toolMessages",
+        max_length=12,
+        description="Chuỗi tin nhắn assistant(tool_calls) + tool(result) cho lượt tổng hợp kết quả Read Tool",
+    )
+    temperature: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Nhiệt độ sinh văn bản LLM (mặc định 0.1 khi route tool, 0.25 khi tổng hợp)",
+    )
 
     model_config = {
         "populate_by_name": True
@@ -45,7 +83,12 @@ class AssistantChatRequest(BaseModel):
 
 
 class AssistantChatResponse(BaseModel):
-    content: str = Field("", description="Chuỗi JSON kết quả phân tích ý định và câu trả lời từ LLM")
+    content: str = Field("", description="Chuỗi JSON hoặc văn bản kết quả từ LLM")
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        serialization_alias="toolCalls",
+        description="Danh sách Native Tool Calls trả về từ LLM",
+    )
     provider: str = Field("GROQ_LLAMA_3_3_70B", description="Mô hình LLM đã xử lý")
     fallback: bool = Field(False, description="Đánh dấu nếu không gọi được LLM")
     duration_ms: int = Field(0, description="Thời gian xử lý tính bằng mili-giây", serialization_alias="durationMs")

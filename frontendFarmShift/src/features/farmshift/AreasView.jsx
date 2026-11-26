@@ -12,6 +12,8 @@ import { BARN_STATUSES, apiErrorMessage } from './farmAreaOptions';
 import { AreaDialog, BarnDialog, DeleteDialog } from './FarmAreaDialogs';
 import { AreaTabs } from './AreaTabs';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { useViewport } from '../../hooks/useViewport';
+import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
 import styles from './AreasView.module.css';
 
 const PAGE_SIZES = [10, 15, 20, 25, 30, 40, 50];
@@ -109,6 +111,7 @@ const usePaging = (items, filterKey) => {
 
 function AreaList({ areas, canEdit, onOpen }) {
   const navigate = useNavigate();
+  const { isMobile } = useViewport();
   const sorted = useMemo(() => [...areas].sort(byCreated(1)), [areas]);
   const { rows, pager } = usePaging(sorted, String(areas.length));
 
@@ -124,35 +127,67 @@ function AreaList({ areas, canEdit, onOpen }) {
         {canEdit && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => onOpen({ type: 'area' })}><PlusCircle size={16} />Tạo khu nuôi</button>}
       </div>
     </div>
-    <div className="farmshift-table-container" style={{ border: 0 }}>
-      <table className={`farmshift-table ${styles.table}`}>
-        <thead>
-          <tr><th>Tên khu nuôi</th><th>Số chuồng</th><th>Mô tả</th><th>Ngày tạo</th><th aria-label="Thao tác" /></tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? <tr><td colSpan={5} className={styles.empty}>{canEdit ? 'Chưa có khu nuôi. Bấm "Tạo khu nuôi" để quy hoạch khu đầu tiên.' : 'Chưa có khu nuôi nào.'}</td></tr>
-            : rows.map(area => <tr key={area.id}>
-              <td><Link to={`/areas/${area.id}`} className={styles.nameLink}>{area.name}</Link></td>
-              <td><strong>{formatNumber(area.barnCount)}</strong> <span className={styles.muted}>({formatNumber(area.activeBarnCount)} đang nuôi)</span></td>
-              <td className={styles.description}>{area.description || '—'}</td>
-              <td className={styles.date}>{formatDate(area.createdAt)}</td>
-              <td className={styles.actionCell}><RowMenu label={area.name} items={[
-                { label: 'Xem danh sách chuồng', icon: Eye, onClick: () => navigate(`/areas/${area.id}`) },
-                ...(canEdit ? [
-                  { label: 'Thêm chuồng vào khu', icon: PlusCircle, onClick: () => onOpen({ type: 'barn', defaultAreaId: area.id }) },
-                  { label: 'Chỉnh sửa khu nuôi', icon: Pencil, onClick: () => onOpen({ type: 'area', item: area }) },
-                  { label: 'Xóa khu nuôi', icon: Trash2, danger: true, onClick: () => onOpen({ type: 'delete', kind: 'area', item: area }) },
-                ] : []),
-              ]} /></td>
-            </tr>)}
-        </tbody>
-      </table>
-    </div>
+    {isMobile ? (
+      <div className={styles.mobileListWrap}>
+        <ResponsiveDataTable
+          data={rows}
+          rowKey={area => area.id}
+          mode="card-on-mobile"
+          emptyState={canEdit ? 'Chưa có khu nuôi. Bấm "Tạo khu nuôi" để quy hoạch khu đầu tiên.' : 'Chưa có khu nuôi nào.'}
+          renderMobileCard={area => (
+            <div className={styles.mobileEntityCard}>
+              <div className={styles.mobileEntityHead}>
+                <Link to={`/areas/${area.id}`} className={styles.nameLink}>{area.name}</Link>
+                <RowMenu label={area.name} items={[
+                  { label: 'Xem danh sách chuồng', icon: Eye, onClick: () => navigate(`/areas/${area.id}`) },
+                  ...(canEdit ? [
+                    { label: 'Thêm chuồng vào khu', icon: PlusCircle, onClick: () => onOpen({ type: 'barn', defaultAreaId: area.id }) },
+                    { label: 'Chỉnh sửa khu nuôi', icon: Pencil, onClick: () => onOpen({ type: 'area', item: area }) },
+                    { label: 'Xóa khu nuôi', icon: Trash2, danger: true, onClick: () => onOpen({ type: 'delete', kind: 'area', item: area }) },
+                  ] : []),
+                ]} />
+              </div>
+              <div className={styles.mobileEntityMetrics}>
+                <div><span>Số chuồng</span><strong>{formatNumber(area.barnCount)} ({formatNumber(area.activeBarnCount)} đang nuôi)</strong></div>
+                <div><span>Ngày tạo</span><strong>{formatDate(area.createdAt)}</strong></div>
+              </div>
+              {area.description && <p className={styles.mobileEntityDesc}>{area.description}</p>}
+            </div>
+          )}
+        />
+      </div>
+    ) : (
+      <div className="farmshift-table-container" style={{ border: 0 }}>
+        <table className={`farmshift-table ${styles.table}`}>
+          <thead>
+            <tr><th>Tên khu nuôi</th><th>Số chuồng</th><th>Mô tả</th><th>Ngày tạo</th><th aria-label="Thao tác" /></tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? <tr><td colSpan={5} className={styles.empty}>{canEdit ? 'Chưa có khu nuôi. Bấm "Tạo khu nuôi" để quy hoạch khu đầu tiên.' : 'Chưa có khu nuôi nào.'}</td></tr>
+              : rows.map(area => <tr key={area.id}>
+                <td><Link to={`/areas/${area.id}`} className={styles.nameLink}>{area.name}</Link></td>
+                <td><strong>{formatNumber(area.barnCount)}</strong> <span className={styles.muted}>({formatNumber(area.activeBarnCount)} đang nuôi)</span></td>
+                <td className={styles.description}>{area.description || '—'}</td>
+                <td className={styles.date}>{formatDate(area.createdAt)}</td>
+                <td className={styles.actionCell}><RowMenu label={area.name} items={[
+                  { label: 'Xem danh sách chuồng', icon: Eye, onClick: () => navigate(`/areas/${area.id}`) },
+                  ...(canEdit ? [
+                    { label: 'Thêm chuồng vào khu', icon: PlusCircle, onClick: () => onOpen({ type: 'barn', defaultAreaId: area.id }) },
+                    { label: 'Chỉnh sửa khu nuôi', icon: Pencil, onClick: () => onOpen({ type: 'area', item: area }) },
+                    { label: 'Xóa khu nuôi', icon: Trash2, danger: true, onClick: () => onOpen({ type: 'delete', kind: 'area', item: area }) },
+                  ] : []),
+                ]} /></td>
+              </tr>)}
+          </tbody>
+        </table>
+      </div>
+    )}
   </>;
 }
 
 function BarnList({ barns, areas, area, canEdit, onOpen }) {
   const navigate = useNavigate();
+  const { isMobile, isTablet } = useViewport();
   const sorted = useMemo(() => [...barns].sort(byCreated(1)), [barns]);
   const { rows, pager } = usePaging(sorted, String(barns.length));
   const columns = 6;
@@ -165,42 +200,91 @@ function BarnList({ barns, areas, area, canEdit, onOpen }) {
           title={areas.length ? undefined : 'Cần tạo khu nuôi trước khi tạo chuồng'}><PlusCircle size={16} />Tạo Chuồng</button>}
       </div>
     </div>
-    <div className="farmshift-table-container" style={{ border: 0 }}>
-      <table className={`farmshift-table ${styles.table}`}>
-        <thead>
-          <tr>
-            <th>Chuồng</th>
-            <th>Khu nuôi</th>
-            <th>Trạng thái hoạt động</th>
-            <th>Số con</th>
-            <th>Ngày tạo</th>
-            <th aria-label="Thao tác" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? <tr><td colSpan={columns} className={styles.empty}>{canEdit ? 'Chưa có chuồng. Bấm "Tạo Chuồng" để thêm chuồng nuôi.' : 'Chưa có chuồng nào.'}</td></tr>
-            : rows.map(barn => {
+    {(isMobile || isTablet) ? (
+      <div className={styles.mobileListWrap}>
+        {rows.length === 0 ? (
+          <p className={styles.empty}>{canEdit ? 'Chưa có chuồng. Bấm "Tạo Chuồng" để thêm chuồng nuôi.' : 'Chưa có chuồng nào.'}</p>
+        ) : (
+          <div className={styles.barnCardGrid} data-testid="barn-responsive-grid">
+            {rows.map(barn => {
               const status = BARN_STATUSES.find(option => option.value === barn.status);
               const fill = barn.capacity ? Math.min(100, Math.round((barn.currentQuantity / barn.capacity) * 100)) : 0;
-              return <tr key={barn.id}>
-                <td><Link to={`/barns/${barn.id}`} className={styles.nameLink}>{barn.name}</Link>{barn.description && <small className={styles.subtext}>{barn.description}</small>}</td>
-                <td><Link to={`/areas/${barn.areaId}`} className={styles.areaLink}>{barn.areaName}</Link></td>
-                <td><span className={`${styles.badge} ${styles[`badge_${status?.tone || 'neutral'}`]}`}>{status?.label || barn.status}</span></td>
-                <td><span className={styles.quantity}><strong>{formatNumber(barn.currentQuantity)}</strong> /{formatNumber(barn.capacity)}</span>
-                  <span className={styles.fillTrack} aria-hidden="true"><span style={{ width: `${fill}%` }} /></span></td>
-                <td className={styles.date}>{formatDate(barn.createdAt)}</td>
-                <td className={styles.actionCell}><RowMenu label={barn.name} items={[
-                  { label: 'Xem chi tiết chuồng', icon: Eye, onClick: () => navigate(`/barns/${barn.id}`) },
-                  ...(canEdit ? [
-                    { label: 'Chỉnh sửa chuồng', icon: Pencil, onClick: () => onOpen({ type: 'barn', item: barn }) },
-                    { label: 'Xóa chuồng', icon: Trash2, danger: true, onClick: () => onOpen({ type: 'delete', kind: 'barn', item: barn }) },
-                  ] : []),
-                ]} /></td>
-              </tr>;
+              return (
+                <div key={barn.id} className={styles.mobileEntityCard}>
+                  <div className={styles.mobileEntityHead}>
+                    <div>
+                      <Link to={`/barns/${barn.id}`} className={styles.nameLink}>{barn.name}</Link>
+                      <div style={{ marginTop: 2 }}>
+                        <Link to={`/areas/${barn.areaId}`} className={styles.areaLink} style={{ fontSize: '13px' }}>{barn.areaName}</Link>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className={`${styles.badge} ${styles[`badge_${status?.tone || 'neutral'}`]}`}>{status?.label || barn.status}</span>
+                      <RowMenu label={barn.name} items={[
+                        { label: 'Xem chi tiết chuồng', icon: Eye, onClick: () => navigate(`/barns/${barn.id}`) },
+                        ...(canEdit ? [
+                          { label: 'Chỉnh sửa chuồng', icon: Pencil, onClick: () => onOpen({ type: 'barn', item: barn }) },
+                          { label: 'Xóa chuồng', icon: Trash2, danger: true, onClick: () => onOpen({ type: 'delete', kind: 'barn', item: barn }) },
+                        ] : []),
+                      ]} />
+                    </div>
+                  </div>
+                  <div className={styles.mobileEntityMetrics}>
+                    <div>
+                      <span>Số con / Sức chứa</span>
+                      <strong>{formatNumber(barn.currentQuantity)} / {formatNumber(barn.capacity)}</strong>
+                      <span className={styles.fillTrack} style={{ width: '100%' }} aria-hidden="true"><span style={{ width: `${fill}%` }} /></span>
+                    </div>
+                    <div>
+                      <span>Ngày tạo</span>
+                      <strong>{formatDate(barn.createdAt)}</strong>
+                    </div>
+                  </div>
+                  {barn.description && <p className={styles.mobileEntityDesc}>{barn.description}</p>}
+                </div>
+              );
             })}
-        </tbody>
-      </table>
-    </div>
+          </div>
+        )}
+      </div>
+    ) : (
+      <div className="farmshift-table-container" style={{ border: 0 }}>
+        <table className={`farmshift-table ${styles.table}`}>
+          <thead>
+            <tr>
+              <th>Chuồng</th>
+              <th>Khu nuôi</th>
+              <th>Trạng thái hoạt động</th>
+              <th>Số con</th>
+              <th>Ngày tạo</th>
+              <th aria-label="Thao tác" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? <tr><td colSpan={columns} className={styles.empty}>{canEdit ? 'Chưa có chuồng. Bấm "Tạo Chuồng" để thêm chuồng nuôi.' : 'Chưa có chuồng nào.'}</td></tr>
+              : rows.map(barn => {
+                const status = BARN_STATUSES.find(option => option.value === barn.status);
+                const fill = barn.capacity ? Math.min(100, Math.round((barn.currentQuantity / barn.capacity) * 100)) : 0;
+                return <tr key={barn.id}>
+                  <td><Link to={`/barns/${barn.id}`} className={styles.nameLink}>{barn.name}</Link>{barn.description && <small className={styles.subtext}>{barn.description}</small>}</td>
+                  <td><Link to={`/areas/${barn.areaId}`} className={styles.areaLink}>{barn.areaName}</Link></td>
+                  <td><span className={`${styles.badge} ${styles[`badge_${status?.tone || 'neutral'}`]}`}>{status?.label || barn.status}</span></td>
+                  <td><span className={styles.quantity}><strong>{formatNumber(barn.currentQuantity)}</strong> /{formatNumber(barn.capacity)}</span>
+                    <span className={styles.fillTrack} aria-hidden="true"><span style={{ width: `${fill}%` }} /></span></td>
+                  <td className={styles.date}>{formatDate(barn.createdAt)}</td>
+                  <td className={styles.actionCell}><RowMenu label={barn.name} items={[
+                    { label: 'Xem chi tiết chuồng', icon: Eye, onClick: () => navigate(`/barns/${barn.id}`) },
+                    ...(canEdit ? [
+                      { label: 'Chỉnh sửa chuồng', icon: Pencil, onClick: () => onOpen({ type: 'barn', item: barn }) },
+                      { label: 'Xóa chuồng', icon: Trash2, danger: true, onClick: () => onOpen({ type: 'delete', kind: 'barn', item: barn }) },
+                    ] : []),
+                  ]} /></td>
+                </tr>;
+              })}
+          </tbody>
+        </table>
+      </div>
+    )}
   </>;
 }
 

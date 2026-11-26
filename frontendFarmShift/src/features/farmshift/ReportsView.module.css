@@ -1438,3 +1438,172 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Mobile & Tablet Report Optimizations (Section 4.5) ── */
+.reportActionsWrap {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.mobileExportMenuWrap {
+  position: relative;
+}
+
+.mobileExportDropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  min-width: 210px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #d5e2de;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mobileExportDropdown button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #182b31;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mobileExportDropdown button:active,
+.mobileExportDropdown button:hover {
+  background: #eef7f5;
+  color: #00695c;
+}
+
+.mobileTabNav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 0 10px 10px;
+  background: #ffffff;
+  border: 1px solid #e2eae7;
+  border-radius: 12px;
+}
+
+.mobilePillRow {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  padding-right: 16px;
+}
+
+.mobilePillRow::-webkit-scrollbar {
+  display: none;
+}
+
+.mobileClusterPill {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #d5e2de;
+  background: #f6faf8;
+  color: #42545c;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mobileClusterPillActive {
+  background: #019788;
+  border-color: #019788;
+  color: #ffffff;
+}
+
+/* Sticky first column for comparison tables (P&L, Sales, Purchases, Debt) on Mobile & Tablet */
+@media (max-width: 1024px) {
+  .compactTable th:first-child:not([colspan]),
+  .compactTable td:first-child:not([colspan]) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: #ffffff;
+    box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.12);
+    max-width: 170px;
+  }
+
+  .compactTable thead th:first-child:not([colspan]) {
+    z-index: 3;
+    background-color: #f6faf8;
+  }
+
+  .tabsWrap {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    padding-right: 16px;
+  }
+
+  .tabsWrap::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .kpiCard {
+    padding: 12px;
+  }
+
+  .presetGroup {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    padding-right: 16px;
+    width: 100%;
+  }
+
+  .presetGroup::-webkit-scrollbar {
+    display: none;
+  }
+
+  .presetBtn {
+    min-height: 40px;
+    flex-shrink: 0;
+  }
+
+  .chartGrid,
+  .chartGrid2,
+  .chartsRow,
+  .donutLayout,
+  .growthGrid {
+    grid-template-columns: 1fr !important;
+  }
+}

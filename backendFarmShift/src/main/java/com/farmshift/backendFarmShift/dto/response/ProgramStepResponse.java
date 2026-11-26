@@ -8,5 +8,6 @@ import java.math.BigDecimal;
 public record ProgramStepResponse(Long id, ProgramStepCategory category, String name, int dayFrom, int dayTo, BigDecimal quantity,
                                   String unit, Integer mealsPerDay, AdministrationMethod method, BigDecimal tempMin,
                                   BigDecimal tempMax, String note, String state,
-                                  Long inventoryItemId, String inventoryItemName, String inventoryUnitName) {
+                                  Long inventoryItemId, String inventoryItemName, String inventoryUnitName,
+                                  String feedInputMode, BigDecimal bagWeightKg, BigDecimal bagsPer1000Birds) {
 }

@@ -311,7 +311,7 @@ public class GroqWhisperService {
 
     private static boolean isWorkerRole(Collection<? extends GrantedAuthority> authorities) {
         if (authorities == null || authorities.isEmpty()) {
-            return false;
+            return true;
         }
         boolean hasWorker = false;
         boolean hasElevated = false;
@@ -324,7 +324,7 @@ public class GroqWhisperService {
                 hasElevated = true;
             }
         }
-        return hasWorker && !hasElevated;
+        return hasWorker || !hasElevated;
     }
 
     private static SpeechTranscribeResponse fallbackResponse(long durationMs) {

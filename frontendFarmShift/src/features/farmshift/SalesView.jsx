@@ -15,6 +15,8 @@ import { SalesInvoiceTemplate } from './SalesInvoiceTemplate';
 import { Plus, Search, FileSpreadsheet, X, Printer, Pencil, ScanText, Loader2 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { useViewport } from '../../hooks/useViewport';
+import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
 
 const broadcastFarmAreasChanged = () => {
   window.dispatchEvent(new Event('farm-areas-changed'));
@@ -29,6 +31,7 @@ export const SalesView = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = ['orders', 'customers', 'create'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'create';
   const { user } = useAuth();
+  const { isMobile } = useViewport();
   const storageKey = `farmshift-sales-v1:${user?.email || 'demo'}`;
   const [sales, setSales] = useState(() => readLocalSales(storageKey));
   const requestId = useRef(null);
@@ -423,6 +426,60 @@ export const SalesView = () => {
           </div>
 
           <div className="farmshift-card">
+            {isMobile ? (
+              <div style={{ padding: '12px' }}>
+                <ResponsiveDataTable
+                  data={pagedSales}
+                  rowKey={s => s.id}
+                  mode="card-on-mobile"
+                  summaryItems={[
+                    { label: 'Số đơn bán', value: `${filteredSales.length}` },
+                    { label: 'Tổng doanh thu', value: `${Math.round(filteredSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0)).toLocaleString('vi-VN')} đ`, tone: 'teal' },
+                  ]}
+                  pagination={orderPageCount > 1 ? {
+                    page: currentOrderPage + 1,
+                    totalPages: orderPageCount,
+                    totalItems: filteredSales.length,
+                    onPageChange: (p) => setOrderPage(p - 1),
+                  } : null}
+                  emptyState={(customerFilter || searchTerm) ? 'Không tìm thấy đơn bán phù hợp' : 'Chưa có đơn bán hàng'}
+                  renderMobileCard={s => (
+                    <div style={{ background: '#fff', border: '1px solid #e3ebe8', borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <button type="button" className={styles.invoiceLink} onClick={() => { setInvoiceReady(false); setSelectedSale(s); }} aria-label={`Xem hóa đơn ${s.code}`}>
+                          {s.code}
+                        </button>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: s.totalAmount - s.paidAmount > 0 ? '#fff4e0' : '#e3f6ec', color: s.totalAmount - s.paidAmount > 0 ? '#a35f00' : '#16794a' }}>
+                          {s.totalAmount - s.paidAmount > 0 ? `Còn nợ ${formatMoney(s.totalAmount - s.paidAmount)}` : 'Đã thanh toán'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: 10, background: '#f8fafc', borderRadius: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 11.5, color: '#64748b' }}>Khách hàng</div>
+                          <strong style={{ fontSize: 13.5, color: '#181d26' }}>{s.customer}</strong>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11.5, color: '#64748b' }}>Doanh thu</div>
+                          <strong style={{ fontSize: 13.5, color: '#181d26' }}>{Math.round(Number(s.totalAmount || 0)).toLocaleString('vi-VN')} đ</strong>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11.5, color: '#64748b' }}>Số lượng &amp; Cân nặng</div>
+                          <strong style={{ fontSize: 13, color: '#334155' }}>{s.quantity.toLocaleString()} con · {s.totalWeight.toLocaleString('vi-VN')} kg</strong>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11.5, color: '#64748b' }}>Ngày xuất · Chuồng</div>
+                          <strong style={{ fontSize: 13, color: '#334155' }}>{s.date} · {s.flock}</strong>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, borderTop: '1px solid #eef2f4', paddingTop: 8 }}>
+                        {s.weightSlipUrl && <a href={s.weightSlipUrl} target="_blank" rel="noreferrer" className={styles.invoiceLink} aria-label={`Xem phiếu cân ${s.code}`}>Phiếu cân</a>}
+                        <button type="button" className={styles.editButton} onClick={() => openSaleModal(s)} title="Chỉnh sửa hóa đơn" aria-label={`Sửa hóa đơn ${s.code}`} style={{ minWidth: 44, minHeight: 44 }}><Pencil size={16} /></button>
+                      </div>
+                    </div>
+                  )}
+                />
+              </div>
+            ) : (
             <div className={`farmshift-table-container ${styles.ordersContainer}`} style={{ border: 'none' }}>
               <table className={`farmshift-table ${styles.ordersTable}`}>
                 <thead>
@@ -465,7 +522,7 @@ export const SalesView = () => {
                       <td>{s.unitPrice.toLocaleString('vi-VN')} đ/kg</td>
                       <td>
                         <strong style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>
-                          {s.totalAmount.toLocaleString('vi-VN')} đ
+                          {Math.round(Number(s.totalAmount || 0)).toLocaleString('vi-VN')} đ
                         </strong>
                       </td>
                       <td>
@@ -479,7 +536,8 @@ export const SalesView = () => {
                 </tbody>
               </table>
             </div>
-            {filteredSales.length > 10 && (
+            )}
+            {!isMobile && filteredSales.length > 10 && (
               <nav aria-label="Phân trang đơn bán" className={styles.pagination}>
                 <span>{`${currentOrderPage * orderPageSize + 1}–${Math.min((currentOrderPage + 1) * orderPageSize, filteredSales.length)} / ${filteredSales.length} đơn bán`}</span>
                 <div>

@@ -104,12 +104,46 @@
 .deleteButton { background: #fff0f0; color: #c63030; border: 1px solid #f2bcbc; }
 .deleteButton:hover:not(:disabled) { background: #ffe1e1; }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .toolbar, .modalHeader, .modalBody { padding: 16px; }
   .toolbarActions { width: 100%; }
-  .toolbarActions > button { flex: 1; justify-content: center; }
+  .toolbarActions > button { flex: 1; min-height: 44px; justify-content: center; }
   .formGrid { grid-template-columns: 1fr; }
-  .dialog { padding: 12px; }
+  .dialog { padding: 0; }
+  .modal, .modalWide {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal > form, .modalWide > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .modalHeader {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #ffffff;
+    padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+  }
+  .modalBody { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+    flex-direction: column-reverse;
+  }
+  .footer > button { width: 100%; min-height: 44px; justify-content: center; }
+  .kebab, .iconButton { width: 44px; height: 44px; }
 }
 
 /* Cycle dialogs (CycleDialogs.jsx) */
@@ -135,3 +169,38 @@
 @media (max-width: 640px) { .stepRow { grid-template-columns: 1fr 1fr; } }
 .inlineLink { padding: 0; border: 0; background: none; color: #1b61c9; font: inherit; font-size: 13.5px; cursor: pointer; text-decoration: underline; }
 .densityWarning { color: #a35f00; }
+
+/* Responsive Area & Barn Cards (1-col Mobile / 2-col Tablet) */
+.mobileListWrap { padding: 0 14px 16px; }
+.barnCardGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mobileEntityCard {
+  background: #ffffff;
+  border: 1px solid #e3ebe8;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+.mobileEntityHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.mobileEntityMetrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #edf2f4;
+}
+.mobileEntityMetrics > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mobileEntityMetrics span { font-size: 11.5px; color: #64748b; }
+.mobileEntityMetrics strong { font-size: 14px; color: #182b31; }
+.mobileEntityDesc { margin: 0; font-size: 13.5px; color: #536b76; line-height: 1.45; }
+
+@media (max-width: 767px) {
+  .barnCardGrid { grid-template-columns: 1fr; }
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .stat { padding: 12px; }
+  .stat strong { font-size: 18px; }
+}

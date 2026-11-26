@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { AlertTriangle, Check, ClipboardCheck, Clock, RotateCcw, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
+import { AlertTriangle, Check, ClipboardCheck, Clock, Droplets, RotateCcw, Scissors, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
 import { METHODS, formatAmount, labelOf, todayIso } from './farmAreaOptions';
 import styles from './DailyPlanCard.module.css';
 
 const SECTIONS = [
   { category: 'FEED', label: 'Cho ăn', icon: Utensils },
   { category: 'VACCINE', label: 'Vắc-xin', icon: Syringe },
-  { category: 'MEDICINE', label: 'Thuốc', icon: Pill },
+  { category: 'DRINKING_MEDICINE', label: 'Lịch uống thuốc', icon: Droplets },
+  { category: 'MEDICINE', label: 'Thuốc trộn', icon: Pill },
+  { category: 'CARE_PROCEDURE', label: 'Thủ thuật chăm sóc', icon: Scissors },
   { category: 'TEMPERATURE', label: 'Nhiệt độ', icon: Thermometer },
 ];
-const MEASURED = ['FEED', 'VACCINE', 'MEDICINE'];
+const MEASURED = ['FEED', 'VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'];
 const money = value => `${Number(value || 0).toLocaleString('vi-VN')}đ`;
 const time = value => (value ? new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '');
+const sameEmail = (a, b) => Boolean(a && b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase());
 
 const title = task => (task.category === 'FEED' && task.meal ? `Cữ ${task.meal}${task.mealsPerDay ? `/${task.mealsPerDay}` : ''} · ${task.name}` : task.name);
 
@@ -55,7 +58,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     ...sourceExtra(task),
   }));
   const undo = task => run(task, () => onUndo(plan, task));
-  const canUndo = done => isOwner || (role === 'ROLE_FARM_WORKER' && done.doneBy === userEmail && plan.date === todayIso());
+  const canUndo = done => isOwner || (role === 'ROLE_FARM_WORKER' && sameEmail(done?.doneBy, userEmail) && plan.date === todayIso());
   // Việc được giao dùng khóa riêng ("A<id>") để báo lỗi / trạng thái đang lưu không lẫn với việc theo chương trình.
   const assignedKey = task => `A${task.id}`;
   const runAssigned = async (task, action) => {
@@ -126,7 +129,28 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         {isEditing && <div className={styles.editor}>
           {MEASURED.includes(task.category) && <label>Lượng thực tế ({task.unit || 'đơn vị'})
             <input type="number" min="0" step="0.001" inputMode="decimal" className="farmshift-form-control" value={editing.quantity}
-              onChange={event => setEditing({ ...editing, quantity: event.target.value })} autoFocus /></label>}
+              onChange={event => setEditing({ ...editing, quantity: event.target.value })} autoFocus />
+            {task.category === 'FEED' && (() => {
+              const bagUnitKg = (task.plannedQuantity > 0 && task.plannedStock > 0)
+                ? Number(task.plannedQuantity) / Number(task.plannedStock)
+                : 25;
+              const currentQty = Number(editing.quantity || 0);
+              const bumpBy = (bags) => {
+                const nextVal = Math.round((Math.max(0, currentQty) + bags * bagUnitKg) * 1000) / 1000;
+                setEditing({ ...editing, quantity: String(nextVal) });
+              };
+              return <div className={styles.quickChips} data-testid="feed-quick-chips">
+                {task.plannedQuantity != null && (
+                  <button type="button" className={styles.quickChip}
+                    onClick={() => setEditing({ ...editing, quantity: String(task.plannedQuantity) })}>
+                    Đúng kế hoạch
+                  </button>
+                )}
+                <button type="button" className={styles.quickChip} onClick={() => bumpBy(0.5)}>+0.5 bao</button>
+                <button type="button" className={styles.quickChip} onClick={() => bumpBy(1)}>+1 bao</button>
+              </div>;
+            })()}
+          </label>}
           <label>Lý do / ghi chú
             <input className="farmshift-form-control" value={editing.note} maxLength={1000} placeholder="Ví dụ: gà bỏ ăn do nóng"
               onChange={event => setEditing({ ...editing, note: event.target.value })} /></label>
@@ -152,7 +176,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
 
   const renderAssigned = (task, tagged = false) => {
     const busy = busyKey === `${plan.cycleId}:${assignedKey(task)}`;
-    const mine = isOwner || task.assignee.email === userEmail;
+    const mine = isOwner || sameEmail(task.assignee?.email, userEmail);
     // Chuồng chỉ có một người phụ trách và việc giao đúng người đó thì "Giao cho …" lặp lại phần Phụ trách ở đầu thẻ.
     const soleWorker = plan.workers?.length === 1 && plan.workers[0].id === task.assignee.id;
     const showTime = task.dueTime && !compact;

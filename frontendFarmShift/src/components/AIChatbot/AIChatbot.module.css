@@ -5,12 +5,16 @@
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 9999;
+  z-index: 1090;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   pointer-events: none;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.chatbotWidgetOpen {
+  z-index: 10050;
 }
 
 /* ── Launcher Floating Action Button ─────────────────────── */
@@ -634,29 +638,118 @@
   100% { transform: scaleY(1.2); }
 }
 
-/* ── Responsive Mobile Optimizations ── */
-@media (max-width: 640px) {
+/* ── Responsive Tablet Overlay Drawer (768px – 1024px) & Mobile Full-Screen Sheet (< 768px) ── */
+.aiBackdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 9998;
+  pointer-events: auto;
+  animation: aiBackdropFade 0.2s ease;
+}
+
+@keyframes aiBackdropFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.chatWindowTabletDrawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  max-width: calc(100vw - 64px);
+  height: 100dvh;
+  max-height: 100dvh;
+  margin-bottom: 0;
+  border-radius: 0;
+  border-left: 1px solid #cbd5e1;
+  box-shadow: -10px 0 36px rgba(15, 23, 42, 0.2);
+  z-index: 10000;
+  transform-origin: right center;
+  animation: aiSlideInRight 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes aiSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(36px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.chatbotWidgetMobile {
+  bottom: calc(60px + 16px + env(safe-area-inset-bottom));
+  right: max(16px, env(safe-area-inset-right));
+}
+
+.chatWindowMobileSheet {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin-bottom: 0;
+  border-radius: 0;
+  box-shadow: none;
+  z-index: 10050;
+  transform-origin: bottom center;
+  animation: aiSheetUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes aiSheetUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.micBtnMobile {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+@media (max-width: 1024px) {
+  .input {
+    font-size: 16px;
+  }
+
+  .iconBtn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 767px) {
   .chatbotWidget {
-    bottom: 16px;
-    right: 14px;
+    bottom: calc(60px + 16px + env(safe-area-inset-bottom));
+    right: max(16px, env(safe-area-inset-right));
   }
 
   .chatButton {
-    width: 50px;
-    height: 50px;
-    border-radius: 25px;
-  }
-
-  .chatWindow {
-    width: calc(100vw - 20px);
-    max-width: calc(100vw - 20px);
-    height: min(580px, calc(100dvh - 86px));
-    margin-bottom: 10px;
-    border-radius: 16px;
+    width: 54px;
+    height: 54px;
+    border-radius: 27px;
   }
 
   .header {
-    padding: 12px 14px;
+    padding: max(12px, env(safe-area-inset-top)) 14px 12px;
+  }
+
+  .inputArea {
+    padding: 10px 12px max(12px, env(safe-area-inset-bottom));
   }
 
   .title {
@@ -874,6 +967,57 @@
   justify-content: space-between;
   margin-top: 6px;
   gap: 8px;
+}
+
+.messageFooterActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.feedbackGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.feedbackBtn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #64748b;
+  cursor: pointer;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.16s ease;
+}
+
+.feedbackBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.feedbackBtnUpActive {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #019788;
+}
+
+.feedbackBtnDownActive {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.feedbackSavedHint {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-left: 2px;
 }
 
 .messageTtsBtn {
@@ -1558,6 +1702,13 @@
     min-width: 44px;
     min-height: 44px;
     margin-right: 6px;
+  }
+
+  .micBtn.micBtnMobile {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
   }
 
   .sendBtn {

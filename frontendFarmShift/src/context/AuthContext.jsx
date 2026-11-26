@@ -7,6 +7,7 @@ import { realtimeSocket } from '../services/realtimeSocket';
 import { clearAiChatStorage } from '../utils/aiChatStorage';
 
 const AuthContext = createContext(null);
+const IS_DEMO_ALLOWED = !import.meta.env.PROD;
 
 const getInitialUser = () => {
   const token = getAuthToken();
@@ -30,6 +31,11 @@ const getInitialUser = () => {
       sessionStorage.removeItem('demo_mode');
       return null;
     }
+  }
+
+  if (!IS_DEMO_ALLOWED) {
+    sessionStorage.removeItem('demo_mode');
+    return null;
   }
 
   const isDemo = sessionStorage.getItem('demo_mode');
@@ -58,6 +64,9 @@ export const AuthProvider = ({ children }) => {
     dataCache.clearAll();
     clearAiChatStorage();
     sessionStorage.removeItem('demo_mode');
+    localStorage.removeItem('farmshift_alerts');
+    localStorage.removeItem('farmshift_unread_alerts');
+    window.dispatchEvent(new CustomEvent('farmshift:auth-changed'));
     setUser(null);
     setActiveToken(null);
     setLoading(false);
@@ -131,15 +140,19 @@ export const AuthProvider = ({ children }) => {
   const login = async (token, email, role) => {
     dataCache.clearAll();
     clearAiChatStorage();
+    localStorage.removeItem('farmshift_alerts');
+    localStorage.removeItem('farmshift_unread_alerts');
     setAuthToken(token);
     sessionStorage.removeItem('demo_mode');
     setUser({ email, role });
+    window.dispatchEvent(new CustomEvent('farmshift:auth-changed'));
 
     setLoading(true);
     setActiveToken(token);
   };
 
   const loginDemo = (role = 'ROLE_FARM_OWNER', name = 'Admin FarmShift', email = 'admin@farmshift.local') => {
+    if (!IS_DEMO_ALLOWED) return;
     dataCache.clearAll();
     clearAiChatStorage();
     sessionStorage.setItem('demo_mode', 'true');

@@ -9,6 +9,7 @@ import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -37,14 +38,206 @@ public class CycleService {
     private final CycleCarriedExpenseRepository carriedExpenseRepository;
     private final PurchaseInvoiceRepository invoiceRepository;
 
+    @Autowired(required = false)
+    private BarnRepository barnRepository;
+
+    @Autowired(required = false)
+    private CycleDiseaseRepository cycleDiseaseRepository;
+
+    @Autowired(required = false)
+    private DiseaseTreatmentLogRepository diseaseTreatmentLogRepository;
+
+    @Autowired(required = false)
+    private WorkAssignmentService workAssignmentService;
+
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
+    /**
+     * Tổng hợp toàn bộ lứa nuôi đã kết thúc (CLOSED) toàn trại với batch loading chống N+1 (OPS-03).
+     * Khi workerEmail != null chỉ trả các lứa thuộc chuồng công nhân được phân công và ẩn toàn bộ dữ liệu tài chính.
+     */
+    public List<CycleHistoryItemResponse> closedHistory(
+            Long areaId, Long barnId, Long programId,
+            LocalDate from, LocalDate to, String search,
+            boolean canSeeFinance, String workerEmail
+    ) {
+        Set<Long> workerBarns = null;
+        if (workerEmail != null && workAssignmentService != null) {
+            workerBarns = new HashSet<>();
+            var workersByBarn = workAssignmentService.workersByBarn();
+            for (var entry : workersByBarn.entrySet()) {
+                if (entry.getValue().stream().anyMatch(w -> w.email() != null && w.email().equalsIgnoreCase(workerEmail))) {
+                    workerBarns.add(entry.getKey());
+                }
+            }
+            if (workerBarns.isEmpty()) return List.of();
+        }
+
+        final Set<Long> allowedBarns = workerBarns;
+        List<FarmingCycle> closedCycles = repository.findAllWithBarnAndAreaByStatus(CycleStatus.CLOSED).stream()
+                .filter(c -> allowedBarns == null || allowedBarns.contains(c.getBarn().getId()))
+                .filter(c -> areaId == null || (c.getBarn().getArea() != null && areaId.equals(c.getBarn().getArea().getId())))
+                .filter(c -> barnId == null || barnId.equals(c.getBarn().getId()))
+                .filter(c -> from == null || (c.getEndDate() != null && !c.getEndDate().isBefore(from)))
+                .filter(c -> to == null || (c.getEndDate() != null && !c.getEndDate().isAfter(to)))
+                .sorted(Comparator.comparing(FarmingCycle::getEndDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(FarmingCycle::getId, Comparator.reverseOrder()))
+                .toList();
+
+        if (closedCycles.isEmpty()) return List.of();
+
+        List<Long> cycleIds = closedCycles.stream().map(FarmingCycle::getId).toList();
+
+        Map<Long, List<Flock>> flocksByCycle = new HashMap<>();
+        for (Flock f : flockRepository.findByCycleIdInOrderByImportDateAscIdAsc(cycleIds)) {
+            if (f.getCycle() != null) {
+                flocksByCycle.computeIfAbsent(f.getCycle().getId(), ignored -> new ArrayList<>()).add(f);
+            }
+        }
+        Map<Long, List<FlockMovement>> movementsByCycle = new HashMap<>();
+        for (FlockMovement m : movementRepository.findByFlock_Cycle_IdInOrderByMovementDateAscIdAsc(cycleIds)) {
+            if (m.getFlock() != null && m.getFlock().getCycle() != null) {
+                movementsByCycle.computeIfAbsent(m.getFlock().getCycle().getId(), ignored -> new ArrayList<>()).add(m);
+            }
+        }
+        Map<Long, List<FeedRecord>> feedsByCycle = new HashMap<>();
+        for (FeedRecord record : feedRepository.findByCycleIdInOrderByRecordDateDescIdDesc(cycleIds)) {
+            if (record.getCycle() != null) {
+                feedsByCycle.computeIfAbsent(record.getCycle().getId(), ignored -> new ArrayList<>()).add(record);
+            }
+        }
+        Map<Long, List<WeightSample>> samplesByCycle = new HashMap<>();
+        for (WeightSample sample : weightRepository.findByCycleIdInOrderBySampleDateDescIdDesc(cycleIds)) {
+            if (sample.getCycle() != null) {
+                samplesByCycle.computeIfAbsent(sample.getCycle().getId(), ignored -> new ArrayList<>()).add(sample);
+            }
+        }
+
+        Map<Long, List<CycleExpense>> expensesByCycle = new HashMap<>();
+        Map<Long, List<CycleCarriedExpense>> carriedByCycle = new HashMap<>();
+        if (canSeeFinance) {
+            for (CycleExpense e : expenseRepository.findWithCycleByCycleIdIn(cycleIds)) {
+                if (e.getCycle() != null) {
+                    expensesByCycle.computeIfAbsent(e.getCycle().getId(), ignored -> new ArrayList<>()).add(e);
+                }
+            }
+            for (CycleCarriedExpense c : carriedExpenseRepository.findWithCycleByCycleIdIn(cycleIds)) {
+                if (c.getCycle() != null) {
+                    carriedByCycle.computeIfAbsent(c.getCycle().getId(), ignored -> new ArrayList<>()).add(c);
+                }
+            }
+        }
+
+        // Batch-load diseases & treatment costs from Phase 2 (OPS-02)
+        Map<Long, Integer> diseaseCountByCycle = new HashMap<>();
+        Map<Long, BigDecimal> diseaseCostByCycle = new HashMap<>();
+        if (cycleDiseaseRepository != null) {
+            List<CycleDisease> allDiseases = cycleDiseaseRepository.findAllByCycleIdIn(cycleIds);
+            Map<Long, Long> diseaseToCycle = new HashMap<>();
+            for (CycleDisease d : allDiseases) {
+                Long cid = d.getCycle().getId();
+                diseaseToCycle.put(d.getId(), cid);
+                diseaseCountByCycle.merge(cid, 1, Integer::sum);
+            }
+            if (canSeeFinance && !diseaseToCycle.isEmpty() && diseaseTreatmentLogRepository != null) {
+                for (DiseaseTreatmentLog log : diseaseTreatmentLogRepository.findAllByDiseaseIdInOrderByTreatmentDateAscIdAsc(diseaseToCycle.keySet())) {
+                    Long cid = diseaseToCycle.get(log.getDisease().getId());
+                    if (cid != null && log.getCost() != null) {
+                        diseaseCostByCycle.merge(cid, log.getCost(), BigDecimal::add);
+                    }
+                }
+            }
+        }
+
+        String keyword = search == null ? "" : search.strip().toLowerCase(Locale.ROOT);
+        List<CycleHistoryItemResponse> result = new ArrayList<>();
+        for (FarmingCycle cycle : closedCycles) {
+            Long id = cycle.getId();
+            Barn barn = cycle.getBarn();
+            FarmArea area = barn.getArea();
+            List<Flock> flocks = flocksByCycle.getOrDefault(id, List.of());
+
+            Set<Long> progIds = new LinkedHashSet<>();
+            Set<String> progNames = new LinkedHashSet<>();
+            Set<String> breeds = new LinkedHashSet<>();
+            for (Flock flock : flocks) {
+                if (flock.getProgram() != null) {
+                    progIds.add(flock.getProgram().getId());
+                    progNames.add(flock.getProgram().getName());
+                    if (flock.getProgram().getBreed() != null && !flock.getProgram().getBreed().isBlank()) {
+                        breeds.add(flock.getProgram().getBreed());
+                    }
+                }
+            }
+            if (programId != null && !progIds.contains(programId)) continue;
+
+            String code = cycleCode(cycle);
+            if (!keyword.isEmpty()) {
+                String haystack = (code + " lứa thứ " + cycle.getCycleNumber() + " "
+                        + barn.getName() + " " + (area != null ? area.getName() : "") + " "
+                        + String.join(" ", progNames) + " " + String.join(" ", breeds) + " "
+                        + (cycle.getNote() != null ? cycle.getNote() : "")).toLowerCase(Locale.ROOT);
+                if (!haystack.contains(keyword)) continue;
+            }
+
+            List<FlockMovement> movements = movementsByCycle.getOrDefault(id, List.of());
+            List<FeedRecord> feeds = feedsByCycle.getOrDefault(id, List.of());
+            List<WeightSample> samples = samplesByCycle.getOrDefault(id, List.of());
+            CycleMetrics m = metrics(cycle, barn, flocks, movements, feeds, samples);
+
+            BigDecimal survivalRate = m.totalIn() > 0
+                    ? BigDecimal.valueOf(Math.max(0, m.totalIn() - m.deaths() - m.culls()))
+                        .multiply(BigDecimal.valueOf(100))
+                        .divide(BigDecimal.valueOf(m.totalIn()), 2, RoundingMode.HALF_UP)
+                    : null;
+            BigDecimal avgHarvestWeight = m.harvestedQuantity() > 0 && m.harvestedWeightKg() != null
+                    ? m.harvestedWeightKg().divide(BigDecimal.valueOf(m.harvestedQuantity()), 3, RoundingMode.HALF_UP)
+                    : m.avgWeightKg();
+
+            CycleFinance f = canSeeFinance
+                    ? finance(cycle, movements, feeds, expensesByCycle.getOrDefault(id, List.of()),
+                        carriedByCycle.getOrDefault(id, List.of()), m)
+                    : null;
+            BigDecimal diseaseMedCost = canSeeFinance
+                    ? diseaseCostByCycle.getOrDefault(id, BigDecimal.ZERO).setScale(0, RoundingMode.HALF_UP)
+                    : null;
+
+            result.add(new CycleHistoryItemResponse(
+                    id, code, cycle.getCycleNumber(),
+                    barn.getId(), barn.getName(),
+                    area == null ? null : area.getId(), area == null ? "" : area.getName(),
+                    cycle.getStartDate(), cycle.getEndDate(), m.dayOfCycle(),
+                    List.copyOf(progIds), List.copyOf(progNames), List.copyOf(breeds),
+                    m.totalIn(), m.harvestedQuantity(), m.deaths(), m.culls(), survivalRate,
+                    m.feedKg(), m.fcr(), m.harvestedWeightKg(), avgHarvestWeight,
+                    diseaseCountByCycle.getOrDefault(id, 0), diseaseMedCost,
+                    f == null ? null : f.totalCost(),
+                    f == null ? null : f.revenue(),
+                    f == null ? null : f.profit(),
+                    f == null ? null : f.costPerKg()
+            ));
+        }
+        return result;
+    }
+
     public List<CycleSummaryResponse> list(Long barnId) {
         barnService.find(barnId);
-        return repository.findAllByBarnIdOrderByCycleNumberDesc(barnId).stream().map(this::summary).toList();
+        List<FarmingCycle> cycles = repository.findAllByBarnIdOrderByCycleNumberDesc(barnId);
+        if (cycles.isEmpty()) {
+            return List.of();
+        }
+        List<Long> cycleIds = cycles.stream().map(FarmingCycle::getId).toList();
+        Map<Long, List<Flock>> flocksByCycle = flockRepository.findByCycleIdInOrderByImportDateAscIdAsc(cycleIds).stream()
+                .collect(java.util.stream.Collectors.groupingBy(f -> f.getCycle().getId()));
+        return cycles.stream()
+                .map(cycle -> summary(cycle, flocksByCycle.getOrDefault(cycle.getId(), List.of())))
+                .toList();
     }
 
     @Transactional
     public CycleSummaryResponse start(Long barnId, StartCycleRequest request) {
-        Barn barn = barnService.find(barnId);
+        Barn barn = lockBarn(barnId);
         if (repository.findFirstByBarnIdAndStatus(barnId, CycleStatus.ACTIVE).isPresent()) {
             throw new ConflictException("Chuồng " + barn.getName() + " đang có lứa nuôi. Hãy kết thúc lứa hiện tại trước khi khai báo lứa mới.",
                     "CYCLE_ALREADY_ACTIVE", null);
@@ -145,7 +338,7 @@ public class CycleService {
     @Transactional
     public CycleSummaryResponse close(Long cycleId, CloseCycleRequest request) {
         FarmingCycle cycle = requireActive(cycleId);
-        Barn barn = cycle.getBarn();
+        Barn barn = lockBarn(cycle.getBarn().getId());
         int remaining = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycleId).stream().mapToInt(Flock::getQuantity).sum();
         if (remaining > 0) {
             throw new ConflictException("Lứa nuôi còn " + remaining + " con. Hãy xuất bán, chuyển đàn hoặc ghi hao hụt hết tồn đàn trước khi kết thúc lứa.",
@@ -155,10 +348,24 @@ public class CycleService {
         if (end.isBefore(cycle.getStartDate()) || end.isAfter(today())) {
             throw new BadRequestException("Ngày kết thúc phải từ ngày bắt đầu lứa (" + format(cycle.getStartDate()) + ") đến hôm nay.", "CYCLE_END_DATE");
         }
+        LocalDate lastDiseaseStart = cycleDiseaseRepository != null ? cycleDiseaseRepository.lastStartDate(cycleId) : null;
+        LocalDate lastDiseaseEnd = cycleDiseaseRepository != null ? cycleDiseaseRepository.lastEndDate(cycleId) : null;
+        LocalDate lastTreatment = diseaseTreatmentLogRepository != null ? diseaseTreatmentLogRepository.lastTreatmentDate(cycleId) : null;
         LocalDate lastActivity = latest(movementRepository.lastMovementDate(cycleId), feedRepository.lastRecordDate(cycleId),
-                weightRepository.lastSampleDate(cycleId), expenseRepository.lastExpenseDate(cycleId));
+                weightRepository.lastSampleDate(cycleId), expenseRepository.lastExpenseDate(cycleId),
+                lastDiseaseStart, lastDiseaseEnd, lastTreatment);
         if (lastActivity != null && end.isBefore(lastActivity)) {
             throw new BadRequestException("Ngày kết thúc không được trước ngày ghi nhận cuối cùng của lứa (" + format(lastActivity) + ").", "CYCLE_END_DATE");
+        }
+        if (cycleDiseaseRepository != null) {
+            List<CycleDisease> activeDiseases = cycleDiseaseRepository.findAllByCycleIdAndStatus(cycleId, DiseaseStatus.ACTIVE);
+            if (!activeDiseases.isEmpty()) {
+                for (CycleDisease disease : activeDiseases) {
+                    disease.setStatus(DiseaseStatus.RECOVERED);
+                    disease.setEndDate(end);
+                }
+                cycleDiseaseRepository.saveAllAndFlush(activeDiseases);
+            }
         }
         cycle.setEndDate(end);
         cycle.setStatus(CycleStatus.CLOSED);
@@ -411,6 +618,21 @@ public class CycleService {
 
     // ---------------------------------------------------------------- mapping
 
+    private Barn lockBarn(Long barnId) {
+        if (barnRepository != null) {
+            Barn locked = barnRepository.findByIdForUpdate(barnId)
+                    .or(() -> barnRepository.findById(barnId))
+                    .orElse(null);
+            if (locked != null) {
+                if (entityManager != null && entityManager.contains(locked)) {
+                    entityManager.refresh(locked);
+                }
+                return locked;
+            }
+        }
+        return barnService.find(barnId);
+    }
+
     private Long activeCycleId(Barn barn) {
         return repository.findFirstByBarnIdAndStatus(barn.getId(), CycleStatus.ACTIVE).map(FarmingCycle::getId).orElse(null);
     }
@@ -420,7 +642,9 @@ public class CycleService {
     }
 
     private static BigDecimal rate(int part, int total) {
-        return total == 0 ? null : BigDecimal.valueOf(part * 100.0 / total).setScale(2, RoundingMode.HALF_UP);
+        return total == 0 ? null : BigDecimal.valueOf(part)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal money(BigDecimal value) { return value.setScale(0, RoundingMode.HALF_UP); }

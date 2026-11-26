@@ -158,6 +158,8 @@ export function CycleProfitBarChart({ cycles }) {
                 key={c.cycleId || idx}
                 onMouseEnter={showTooltip}
                 onFocus={showTooltip}
+                onClick={showTooltip}
+                onTouchStart={showTooltip}
                 tabIndex={0}
                 style={{ cursor: 'pointer' }}
               >
@@ -261,6 +263,8 @@ export function CostStructureDonutChart({ chickCost, feedCost, otherCost, medici
                     tabIndex={0}
                     onMouseEnter={showTip}
                     onFocus={showTip}
+                    onClick={showTip}
+                    onTouchStart={showTip}
                     style={{ cursor: 'pointer' }}
                   />
                 );
@@ -472,7 +476,8 @@ export function InventoryProportionDonutChart({
                     tabIndex={0}
                     onMouseEnter={showTip}
                     onFocus={showTip}
-                    onClick={() => handleToggleSlice(arc.filterKey)}
+                    onTouchStart={showTip}
+                    onClick={() => { showTip(); handleToggleSlice(arc.filterKey); }}
                     style={{ cursor: arc.filterKey ? 'pointer' : 'default', transition: 'fill-opacity 0.15s ease' }}
                   />
                 );
@@ -764,7 +769,8 @@ export function WarehouseVisualPanel({
                   tabIndex={0}
                   onMouseEnter={showTip}
                   onFocus={showTip}
-                  onClick={() => onSelectWarehouse(isSelected ? 'ALL' : wh.name)}
+                  onTouchStart={showTip}
+                  onClick={() => { showTip(); onSelectWarehouse(isSelected ? 'ALL' : wh.name); }}
                   style={{ cursor: 'pointer' }}
                 >
                   <rect
@@ -899,6 +905,8 @@ export function InternalStockVisualRow({ items }) {
                       tabIndex={0}
                       onMouseEnter={showTip}
                       onFocus={showTip}
+                      onClick={showTip}
+                      onTouchStart={showTip}
                       style={{ cursor: 'pointer' }}
                     />
                   );
@@ -1034,7 +1042,8 @@ export function ActivityVisualRow({ items, activeModule, onSelectModule }) {
                       tabIndex={0}
                       onMouseEnter={showTip}
                       onFocus={showTip}
-                      onClick={() => onSelectModule(isSelected ? 'ALL' : arc.key)}
+                      onTouchStart={showTip}
+                      onClick={() => { showTip(); onSelectModule(isSelected ? 'ALL' : arc.key); }}
                       style={{ cursor: 'pointer' }}
                     />
                   );
@@ -1175,7 +1184,7 @@ export function FcrComparisonChart({ cycles }) {
               });
 
             return (
-              <g key={g.cycleId || i} onMouseEnter={showTip} onFocus={showTip} tabIndex={0} style={{ cursor: 'pointer' }}>
+              <g key={g.cycleId || i} onMouseEnter={showTip} onFocus={showTip} onClick={showTip} onTouchStart={showTip} tabIndex={0} style={{ cursor: 'pointer' }}>
                 <rect x={0} y={T + i * rowH} width={W} height={rowH} fill="transparent" />
                 <text x={L - 8} y={y + h / 2 + 4} textAnchor="end" className={styles.axisText}>
                   {label.length > 18 ? `${label.slice(0, 17)}…` : label}
@@ -1251,7 +1260,7 @@ export function HarvestRevenueChart({ rows }) {
               });
 
             return (
-              <g key={h.cycleId || i} onMouseEnter={showTip} onFocus={showTip} tabIndex={0} style={{ cursor: 'pointer' }}>
+              <g key={h.cycleId || i} onMouseEnter={showTip} onFocus={showTip} onClick={showTip} onTouchStart={showTip} tabIndex={0} style={{ cursor: 'pointer' }}>
                 <rect x={0} y={T + i * rowH} width={W} height={rowH} fill="transparent" />
                 <text x={L - 8} y={y + barH / 2 + 4} textAnchor="end" className={styles.axisText}>
                   {label.length > 18 ? `${label.slice(0, 17)}…` : label}
@@ -1350,6 +1359,8 @@ export function SalesPaymentDonutChart({ paidAmount, debtAmount, orders, activeS
                   transform={`rotate(-90 ${cx} ${cy})`}
                   style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
                   onMouseEnter={() => setHovered(i)}
+                  onTouchStart={() => setHovered(i)}
+                  onClick={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
                 />
               ))}
@@ -1372,6 +1383,8 @@ export function SalesPaymentDonutChart({ paidAmount, debtAmount, orders, activeS
                   key={s.key}
                   className={styles.donutLegendRow}
                   onMouseEnter={() => setHovered(i)}
+                  onTouchStart={() => setHovered(i)}
+                  onClick={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
                 >
                   <span className={styles.donutLegendLeft}>
@@ -1525,6 +1538,8 @@ export function PurchaseStructureDonutChart({ paidAmount, debtAmount, invoices }
                   transform={`rotate(-90 ${cx} ${cy})`}
                   style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
                   onMouseEnter={() => setHovered(i)}
+                  onTouchStart={() => setHovered(i)}
+                  onClick={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
                 />
               ))}
@@ -1548,6 +1563,8 @@ export function PurchaseStructureDonutChart({ paidAmount, debtAmount, invoices }
                 key={s.key}
                 className={styles.donutLegendRow}
                 onMouseEnter={() => setHovered(i)}
+                onTouchStart={() => setHovered(i)}
+                onClick={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
               >
                 <span className={styles.donutLegendLeft}>
@@ -1653,6 +1670,8 @@ export function HarvestAreaDonutChart({ rows }) {
                 transform={`rotate(-90 ${cx} ${cy})`}
                 style={{ cursor: 'pointer', transition: 'stroke-width 0.15s ease' }}
                 onMouseEnter={() => setHovered(i)}
+                onTouchStart={() => setHovered(i)}
+                onClick={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
               />
             ))}
@@ -1674,6 +1693,8 @@ export function HarvestAreaDonutChart({ rows }) {
               key={s.key}
               className={styles.donutLegendRow}
               onMouseEnter={() => setHovered(i)}
+              onTouchStart={() => setHovered(i)}
+              onClick={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
             >
               <span className={styles.donutLegendLeft}>
@@ -1761,7 +1782,7 @@ export function WeightAndAdgChart({ cycles }) {
               });
 
             return (
-              <g key={g.cycleId || i} onMouseEnter={showTip} onFocus={showTip} tabIndex={0} style={{ cursor: 'pointer' }}>
+              <g key={g.cycleId || i} onMouseEnter={showTip} onFocus={showTip} onClick={showTip} onTouchStart={showTip} tabIndex={0} style={{ cursor: 'pointer' }}>
                 <rect x={0} y={T + i * rowH} width={W} height={rowH} fill="transparent" />
                 <text x={L - 8} y={y + h / 2 + 4} textAnchor="end" className={styles.axisText}>
                   {label.length > 18 ? `${label.slice(0, 17)}…` : label}

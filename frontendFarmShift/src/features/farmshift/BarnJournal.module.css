@@ -93,3 +93,20 @@
 .death { background: #fde8e8; color: #9b1c1c; }
 .cull { background: #fff4e0; color: #8a5a00; }
 
+@media (max-width: 767px) {
+  .grid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpis > div { padding: 12px; }
+  .kpis strong { font-size: 19px; }
+  .modes { overflow-x: auto; white-space: nowrap; scrollbar-width: none; padding-right: 16px; }
+  .modes::-webkit-scrollbar { display: none; }
+  .modes button { min-height: 44px; flex-shrink: 0; }
+  .segment { width: 100%; }
+  .segment button { flex: 1; min-height: 44px; }
+  .causes button { min-height: 44px; padding: 8px 14px; }
+  .form { padding: 14px; }
+  .form > button[type="submit"] { width: 100%; min-height: 44px; }
+  .back { min-height: 44px; }
+  .history { padding: 14px; }
+}
+

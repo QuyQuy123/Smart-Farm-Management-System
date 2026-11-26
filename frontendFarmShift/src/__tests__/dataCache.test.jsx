@@ -7,8 +7,7 @@ import {
   DataCache,
   buildCacheKey,
   shouldSkipCache,
-  normalizeCacheKey,
-  INVALIDATION_MATRIX
+  normalizeCacheKey
 } from '../services/dataCache';
 import { useCachedQuery } from '../hooks/useCachedQuery';
 
@@ -142,6 +141,12 @@ describe('DataCache Core Engine & Invalidation Matrix', () => {
 
       // Unrelated endpoint should remain intact
       expect(cache.peek('/farm')).not.toBeNull();
+    });
+
+    it('does NOT invalidate /ai/suggestions on /iot/telemetry sync', () => {
+      cache.set('/ai/suggestions', [{ id: 's1', title: 'Gợi ý AI' }]);
+      cache.invalidateForMutation('/iot/telemetry');
+      expect(cache.peek('/ai/suggestions')).toEqual([{ id: 's1', title: 'Gợi ý AI' }]);
     });
   });
 

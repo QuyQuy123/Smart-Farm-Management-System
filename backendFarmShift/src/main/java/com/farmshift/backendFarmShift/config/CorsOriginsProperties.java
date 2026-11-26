@@ -30,7 +30,7 @@ public class CorsOriginsProperties {
     private final List<String> allowedOrigins;
 
     public CorsOriginsProperties(
-            @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*,https://*.vercel.app}") String rawPatterns,
+            @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}") String rawPatterns,
             @Value("${app.cors.allowed-origins:}") String rawOrigins,
             @Value("${app.cors.camera-web-origin:}") String cameraWebOrigin
     ) {

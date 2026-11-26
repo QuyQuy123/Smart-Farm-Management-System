@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { FarmShiftLayout } from '../layouts/FarmShiftLayout';
 
@@ -78,6 +78,7 @@ describe('Role-Based Navigation Filtering in FarmShiftLayout', () => {
     expect(screen.getByRole('link', { name: /Xuất nhập nội bộ/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Hóa đơn nhập hàng/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Quản lý bán hàng/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Lịch sử lứa nuôi/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Sổ quỹ/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Báo cáo & Thống kê/i })).toBeInTheDocument();
 
@@ -89,6 +90,13 @@ describe('Role-Based Navigation Filtering in FarmShiftLayout', () => {
     expect(screen.queryByRole('link', { name: /Thiết lập danh mục/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Thiết lập chăn nuôi/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Thiết lập chung/i })).not.toBeInTheDocument();
+
+    // Omnibar (GlobalSearch) on Dashboard / BarnDetail must NOT offer bouncing /journal, /account, or /catalog-settings items to Accountant
+    fireEvent.click(screen.getByText(/Tìm nhanh chức năng/i));
+    expect(screen.getByText('Lịch sử lứa nuôi toàn trại')).toBeInTheDocument();
+    expect(screen.queryByText(/Nhật ký cho ăn/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tài khoản & Nhân sự/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Thiết lập danh mục/i)).not.toBeInTheDocument();
   });
 
   it('renders only worker tabs and hides financial/accounting/settings tabs for ROLE_FARM_WORKER', () => {

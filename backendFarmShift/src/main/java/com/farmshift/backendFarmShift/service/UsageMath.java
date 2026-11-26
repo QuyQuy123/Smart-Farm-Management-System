@@ -17,7 +17,7 @@ final class UsageMath {
     static final BigDecimal WATER_LITERS_PER_FEED_KG = BigDecimal.valueOf(2);
 
     /** Liều thuốc / vắc-xin được tính trên cơ sở nào. */
-    enum Basis { PER_HEAD, PER_FEED_KG, PER_WATER_LITER }
+    enum Basis { PER_HEAD, PER_1000_HEADS, PER_FEED_KG, PER_WATER_LITER }
 
     private UsageMath() { }
 
@@ -25,7 +25,7 @@ final class UsageMath {
     static UsageUnit usageUnit(ProgramStepCategory category, String unit) {
         return switch (category) {
             case FEED -> UsageUnit.G;
-            case MEDICINE, VACCINE -> UsageUnit.ofDoseUnit(unit);
+            case MEDICINE, DRINKING_MEDICINE, VACCINE -> UsageUnit.ofDoseUnit(unit);
             default -> null;
         };
     }
@@ -37,11 +37,12 @@ final class UsageMath {
 
     static Basis basis(ProgramStepCategory category, String unit) {
         if (category == ProgramStepCategory.VACCINE) return Basis.PER_HEAD;
-        if (category != ProgramStepCategory.MEDICINE || unit == null) return null;
+        if ((category != ProgramStepCategory.MEDICINE && category != ProgramStepCategory.DRINKING_MEDICINE) || unit == null) return null;
         String text = unit.toLowerCase(Locale.ROOT);
         int slash = text.indexOf('/');
         if (slash < 0) return null;
         String per = text.substring(slash + 1).strip();
+        if (per.startsWith("1000") || per.startsWith("1.000") || per.startsWith("1,000")) return Basis.PER_1000_HEADS;
         if (per.startsWith("kg")) return Basis.PER_FEED_KG;
         if (per.startsWith("lít") || per.startsWith("lit") || per.startsWith("l ") || per.equals("l")) return Basis.PER_WATER_LITER;
         if (per.startsWith("con")) return Basis.PER_HEAD;

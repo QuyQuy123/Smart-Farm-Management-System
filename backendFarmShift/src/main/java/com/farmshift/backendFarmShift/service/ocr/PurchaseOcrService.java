@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -31,7 +30,6 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class PurchaseOcrService {
 
     public static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
@@ -217,6 +215,10 @@ public class PurchaseOcrService {
         double rawAmount = node.path("amount").asDouble(0);
         double rawUnitPrice = node.path("unitPrice").asDouble(0);
         double qty = rawQty <= 0 ? 1.0 : rawQty;
+        if (rawQty <= 0 && warnings != null) {
+            warnings.add(String.format(Locale.ROOT,
+                    "Dòng hàng \"%s\": không đọc được số lượng hợp lệ, tạm đặt 1 để bạn kiểm tra lại.", name));
+        }
 
         BigDecimal qtyDec = BigDecimal.valueOf(qty);
         BigDecimal unitPriceDec = rawUnitPrice > 0 ? BigDecimal.valueOf(rawUnitPrice) : BigDecimal.ZERO;

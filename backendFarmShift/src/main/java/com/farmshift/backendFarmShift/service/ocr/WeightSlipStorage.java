@@ -26,7 +26,9 @@ public class WeightSlipStorage {
             byte[] bytes = file.getBytes();
             if (bytes.length >= 5 && new String(bytes, 0, 5, java.nio.charset.StandardCharsets.US_ASCII).equals("%PDF-")) {
                 try (var pdf = Loader.loadPDF(bytes)) {
-                    if (pdf.getNumberOfPages() > 4) throw new BadRequestException("Phiếu cân tối đa 4 trang.");
+                    if (pdf.getNumberOfPages() < 1 || pdf.getNumberOfPages() > 4) {
+                        throw new BadRequestException("Phiếu cân phải có từ 1 đến 4 trang.");
+                    }
                 }
                 return new Document(bytes, "application/pdf", ".pdf");
             }
@@ -54,13 +56,21 @@ public class WeightSlipStorage {
         try (var pdf = Loader.loadPDF(document.bytes())) {
             var renderer = new org.apache.pdfbox.rendering.PDFRenderer(pdf);
             var pages = new java.util.ArrayList<String>();
+            final float previewDpi = 150f;
+            final double scale = previewDpi / 72.0;
             for (int index = 0; index < pdf.getNumberOfPages(); index++) {
                 var box = pdf.getPage(index).getCropBox();
-                if (box.getWidth() * box.getHeight() * 4 > 25_000_000) throw new BadRequestException("Kích thước trang PDF quá lớn.");
-                var image = renderer.renderImageWithDPI(index, 300, org.apache.pdfbox.rendering.ImageType.RGB);
-                var bytes = new ByteArrayOutputStream();
-                ImageIO.write(image, "png", bytes);
-                pages.add("data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(bytes.toByteArray()));
+                if ((box.getWidth() * scale) * (box.getHeight() * scale) > 12_000_000) {
+                    throw new BadRequestException("Kích thước trang PDF quá lớn.");
+                }
+                var image = renderer.renderImageWithDPI(index, previewDpi, org.apache.pdfbox.rendering.ImageType.RGB);
+                try {
+                    var bytes = new ByteArrayOutputStream();
+                    ImageIO.write(image, "png", bytes);
+                    pages.add("data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(bytes.toByteArray()));
+                } finally {
+                    image.flush();
+                }
             }
             return pages;
         } catch (IOException ex) { throw new BadRequestException("Không tạo được bản xem trước PDF."); }

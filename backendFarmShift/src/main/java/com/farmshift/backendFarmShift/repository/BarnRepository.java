@@ -9,6 +9,10 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface BarnRepository extends JpaRepository<Barn, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from Barn b where b.id = :id")
+    java.util.Optional<Barn> findByIdForUpdate(@Param("id") Long id);
+
     @Override
     @EntityGraph(attributePaths = "area")
     List<Barn> findAll();

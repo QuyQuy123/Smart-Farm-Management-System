@@ -4,13 +4,13 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
-- File dữ liệu mẫu tương ứng là [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`, `barns.target_weight`), làm sạch toàn bộ 47 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu mô phỏng liên tục 79 ngày từ `01/09/2026` đến `18/11/2026` theo múi giờ `Asia/Bangkok` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
-- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **14 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`, `PushSubscriptionSchemaUpgrade`.
-- **Kiểm kê 47 bảng vật lý trong PostgreSQL:**
-  - **41 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `push_subscriptions`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `work_tasks`, `work_task_checks`, `sales_orders`, `sales_invoice_numbers`.
-  - **1 `@Embeddable` (`@ElementCollection`):** `daily_stock_allocations` (thuộc `DailyTaskLog`).
+- File dữ liệu mẫu tương ứng là [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt) (sinh tự động bởi [scripts/generate_seed_data.py](file:///d:/Smart-Farm-Management-System/scripts/generate_seed_data.py) theo đặc tả [seed_data_spec.md](file:///d:/Smart-Farm-Management-System/.md/seed_data_spec.md)), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`, `barns.target_weight`), làm sạch toàn bộ 48 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu mô phỏng liên tục **86 ngày** từ `01/09/2026` đến `25/11/2026` theo múi giờ `Asia/Bangkok` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
+- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **17 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`, `PushSubscriptionSchemaUpgrade`, `AiInteractionLogSchemaUpgrade`, `FarmingProgramUpgradeSchemaRunner`, `DiseaseRecordSchemaUpgrade`.
+- **Kiểm kê 51 bảng vật lý trong PostgreSQL:**
+  - **44 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `push_subscriptions`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `cycle_diseases`, `disease_treatment_logs`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `work_tasks`, `work_task_checks`, `sales_orders`, `sales_invoice_numbers`, `ai_interaction_logs`.
+  - **2 `@Embeddable` (`@ElementCollection`):** `daily_stock_allocations` (thuộc `DailyTaskLog`), `disease_treatment_stock_allocations` (thuộc `DiseaseTreatmentLog`).
   - **5 bảng trung gian N-N (`@ManyToMany`):** `farm_area_workers`, `farm_area_warehouses`, `warehouse_workers`, `supplier_tag_mappings`, `purchase_invoice_tag_mappings`.
-  - *Lưu ý:* Các `enum` Java (`BarnStatus`, `CycleStatus`, `FlockGender`, `FlockMovementType`, `FlockSource`, `FlockStatus`, `ExpenseCategory`, `ProgramStepCategory`, `AdministrationMethod`, `UsageUnit`) được ánh xạ dạng `VARCHAR` trong bảng, không tạo Postgres `ENUM` type riêng. Dữ liệu IoT ESP32 và luồng Camera QR hoạt động ở RAM / `localStorage`, không tạo bảng PostgreSQL riêng.
+  - *Lưu ý:* Các `enum` Java (`BarnStatus`, `CycleStatus`, `DiseaseStatus`, `FlockGender`, `FlockMovementType`, `FlockSource`, `FlockStatus`, `ExpenseCategory`, `ProgramStepCategory`, `AdministrationMethod`, `UsageUnit`) được ánh xạ dạng `VARCHAR` trong bảng, không tạo Postgres `ENUM` type riêng. Dữ liệu IoT ESP32 và luồng Camera QR hoạt động ở RAM / `localStorage`, không tạo bảng PostgreSQL riêng.
 
 ---
 
@@ -22,6 +22,7 @@ erDiagram
     roles ||--o{ accounts : "has"
     accounts ||--o| customers : "profiles"
     accounts ||--o{ push_subscriptions : "receives_push"
+    accounts ||--o{ ai_interaction_logs : "logs_ai_turns"
     
     %% Farm Infrastructure & Daily Operations
     farm_areas ||--o{ barns : "contains"
@@ -35,6 +36,11 @@ erDiagram
     farming_cycles ||--o{ weight_samples : "weighs"
     farming_cycles ||--o{ cycle_expenses : "incurs"
     farming_cycles ||--o{ cycle_carried_expenses : "carries_expenses"
+    farming_cycles ||--o{ cycle_diseases : "tracks_diseases"
+    flocks ||--o{ cycle_diseases : "affected_flock"
+    cycle_diseases ||--o{ disease_treatment_logs : "treated_with"
+    disease_treatment_logs ||--o| cycle_expenses : "books_medicine_expense"
+    disease_treatment_logs ||--o{ disease_treatment_stock_allocations : "allocates_fifo_stock"
     farming_cycles ||--o{ daily_task_logs : "confirms_tasks"
     daily_task_logs ||--o| feed_records : "creates_feed"
     daily_task_logs ||--o| cycle_expenses : "creates_expense"
@@ -784,6 +790,53 @@ Entity: `CycleExpense` & `CycleCarriedExpense`. Lưu trữ các khoản chi tr�
 - Tổng chi phí lứa = **Con giống + Cám ăn + Thuốc (`MEDICINE`) + Chi phí khác (`OTHER`)**, đã tính gộp phần mang theo (`carried_feed_cost`, `cycle_carried_expenses`).
 - Điện (`ELECTRICITY`), nước (`WATER`), công nhân (`LABOR`) không được ghi mới từ màn hình chi tiết lứa và bị Trợ lý AI từ chối ghi nhận.
 
+### 6.8b Bảng `cycle_diseases`, `disease_treatment_logs` & `disease_treatment_stock_allocations` — Sổ Bệnh án & Điều trị nhiều ngày (`OPS-02`)
+
+Entity: `CycleDisease`, `DiseaseTreatmentLog` & `@Embeddable DiseaseTreatmentStockAllocation` (nâng cấp bởi `DiseaseRecordSchemaUpgrade`). Theo dõi các đợt bệnh kéo dài nhiều ngày trong lứa nuôi, nhật ký dùng thuốc theo ngày, trừ kho FIFO nguyên tử 1:1 và hạch toán duy nhất 1 `CycleExpense(MEDICINE)` để không tính trùng chi phí.
+
+**Bảng `cycle_diseases`:**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. Index `idx_cycle_diseases_cycle_status (cycle_id, status)`. |
+| `flock_id` | BIGINT | FOREIGN KEY → `flocks.id` (nullable — `NULL` nghĩa là áp dụng chung cho toàn lứa trong chuồng). |
+| `disease_name` | VARCHAR(200) | NOT NULL. Tên bệnh (VD: Cầu trùng, CRD, E.coli). |
+| `symptoms` | VARCHAR(1000) | Mô tả triệu chứng lâm sàng. |
+| `start_date` | DATE | NOT NULL. Ngày phát hiện bệnh (trong `[cycle.startDate, today]`). |
+| `end_date` | DATE | Ngày khỏi bệnh (nullable khi đang điều trị; `>= start_date` và `>= ngày dùng thuốc cuối`). |
+| `status` | VARCHAR(20) | NOT NULL, DEFAULT `'ACTIVE'`. Trạng thái (`DiseaseStatus`: `ACTIVE` \| `RECOVERED`). |
+| `affected_quantity` | INTEGER | Số con ước tính bị ảnh hưởng. |
+| `note` | VARCHAR(1000) | Ghi chú theo dõi. |
+| `created_by` | VARCHAR(150) | Email tài khoản khai báo. |
+| `created_at`, `updated_at` | TIMESTAMP | Thời điểm tạo / cập nhật (múi giờ `Asia/Bangkok`). |
+
+**Bảng `disease_treatment_logs`:**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `disease_id` | BIGINT | NOT NULL, FOREIGN KEY → `cycle_diseases.id`. Index `idx_disease_treatments_disease_date (disease_id, treatment_date)`. |
+| `treatment_date` | DATE | NOT NULL. Ngày dùng thuốc (`>= disease.start_date`). |
+| `medicine_name` | VARCHAR(200) | NOT NULL. Tên thuốc điều trị. |
+| `method` | VARCHAR(32) | Phương thức cấp (`AdministrationMethod`: `HAND_DRINKER`, `AUTO_DRINKER`, `MIX_WATER`, `MIX_FEED`, `INJECTION`, ...). |
+| `dosage_text` | VARCHAR(200) | Liều lượng / hướng dẫn pha. |
+| `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id` (nullable nếu mua lẻ ngoài kho). Không cho xóa hàng hóa kho khi đang tham chiếu (`INVENTORY_IN_USE`). |
+| `stock_quantity` | NUMERIC(19,6) | Số đơn vị tồn kho đã xuất theo FIFO. |
+| `unit_price` | NUMERIC(19,2) | Đơn giá bình quân xuất kho (ẩn `null` khi `canSeeFinance = false`). |
+| `cost` | NUMERIC(19,2) | NOT NULL, DEFAULT 0. Thành tiền lần dùng thuốc (VNĐ, ẩn `null` khi `canSeeFinance = false`). |
+| `expense_id` | BIGINT | FOREIGN KEY → `cycle_expenses.id` (1-1). Khoản chi liên kết không xóa lẻ được (`RECORD_FROM_DISEASE_LOG`). |
+| `note` | VARCHAR(1000) | Ghi chú bổ sung. |
+| `created_by` | VARCHAR(150) | Email người ghi nhận. |
+| `created_at` | TIMESTAMP | Thời điểm ghi nhận (múi giờ `Asia/Bangkok`). |
+
+**Bảng `disease_treatment_stock_allocations` (`@ElementCollection`):**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `treatment_log_id` | BIGINT | NOT NULL, FOREIGN KEY → `disease_treatment_logs.id` ON DELETE CASCADE. |
+| `inventory_item_id` | BIGINT | NOT NULL, FOREIGN KEY → `inventory_items.id`. Lô tồn kho thực tế đã trừ theo FIFO. |
+| `quantity` | NUMERIC(19,6) | NOT NULL. Số lượng đã trừ từ từng lô để hoàn trả 1:1 khi hoàn tác. |
+
+**API:** `GET /api/cycles/{cycleId}/diseases`, `GET /api/cycles/{cycleId}/diseases/medicine-sources`, `POST /api/cycles/{cycleId}/diseases`, `PUT /api/cycles/{cycleId}/diseases/{diseaseId}`, `DELETE /api/cycles/{cycleId}/diseases/{diseaseId}`, `POST /api/cycles/{cycleId}/diseases/{diseaseId}/treatments`, `PUT /api/cycles/{cycleId}/diseases/{diseaseId}/treatments/{treatmentId}/cost`, `DELETE /api/cycles/{cycleId}/diseases/{diseaseId}/treatments/{treatmentId}` (cùng `GET /api/cycles/history` tổng hợp số đợt bệnh & tiền thuốc của lứa `CLOSED`).
+
 ### 6.9 Bảng `farming_programs` & `farming_program_steps` — Chương trình nuôi theo giống
 
 Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm sóc chuẩn theo ngày tuổi tại **Thiết lập chăn nuôi → Chương trình nuôi**.
@@ -802,25 +855,28 @@ Entity: `FarmingProgram` & `FarmingProgramStep`. Quản lý quy trình chăm só
 | `created_at` | TIMESTAMP | Thời điểm tạo chương trình nuôi. |
 | `updated_at` | TIMESTAMP | Thời điểm cập nhật chương trình nuôi. |
 
-**Bảng `farming_program_steps`:**
+**Bảng `farming_program_steps` (nâng cấp bởi `FarmingProgramUpgradeSchemaRunner`):**
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
 | :--- | :--- | :--- |
 | `id` | BIGINT | PRIMARY KEY, tự tăng. |
 | `program_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_programs.id` ON DELETE CASCADE. |
-| `category` | VARCHAR(20) | NOT NULL. `FEED` (cám), `VACCINE` (vắc-xin), `MEDICINE` (thuốc), `TEMPERATURE` (nhiệt độ úm). `WORK` (công việc) chỉ còn trong dữ liệu cũ: chương trình nuôi không nhận bước công việc (`PROGRAM_WORK_NOT_ALLOWED`), việc chăm sóc được giao riêng. |
-| `name` | VARCHAR(200) | NOT NULL. Tên thuốc / vắc-xin / loại cám / công việc. |
+| `category` | VARCHAR(32) | NOT NULL. `FEED` (cám), `DRINKING_MEDICINE` (lịch uống thuốc / men / bổ), `VACCINE` (vắc-xin), `MEDICINE` (thuốc trộn), `CARE_PROCEDURE` (thủ thuật chăm sóc như làm mỏ). `TEMPERATURE` và `WORK` chỉ giữ để đọc dữ liệu lịch sử, không hiển thị tab tạo mới. |
+| `name` | VARCHAR(200) | NOT NULL. Tên thuốc / vắc-xin / loại cám / thủ thuật. |
 | `day_from` | INT | NOT NULL. Ngày tuổi bắt đầu áp dụng (`day_from` ≤ `day_to`). |
 | `day_to` | INT | NOT NULL. Ngày tuổi kết thúc áp dụng. |
-| `quantity` | NUMERIC(14,3) | Định mức cám (g/con/ngày) hoặc liều dùng thuốc/vắc-xin. |
-| `unit` | VARCHAR(50) | Đơn vị định mức (VD: `g/con/ngày`, `liều/con`, `ml/lít nước`). |
-| `meals_per_day` | INT | Số cữ ăn trong ngày (đối với FEED). |
-| `method` | VARCHAR(20) | Phương pháp: `EYE_NOSE` (nhỏ mắt mũi), `MOUTH` (uống), `DRINKING_WATER` (pha nước), `INJECTION` (tiêm), `WING_WEB` (chủng cánh), `MIX_FEED` (trộn cám), `MIX_WATER` (pha nước uống). |
-| `temp_min` | NUMERIC(4,1) | Nhiệt độ ngưỡng dưới (°C) đối với `TEMPERATURE`. |
-| `temp_max` | NUMERIC(4,1) | Nhiệt độ ngưỡng trên (°C) đối với `TEMPERATURE`. |
+| `quantity` | NUMERIC(14,3) | Định mức cám (`g/con/ngày` — tự quy đổi nếu nhập theo bao/1.000 con) hoặc liều dùng thuốc/vắc-xin. |
+| `unit` | VARCHAR(50) | Đơn vị định mức (VD: `g/con/ngày`, `gói/1000 con`, `liều/con`, `ml/lít nước`). |
+| `meals_per_day` | INT | Số cữ ăn trong ngày (đối với `FEED`, từ 1–8). |
+| `method` | VARCHAR(32) | Phương pháp: `EYE_NOSE`, `MOUTH`, `DRINKING_WATER`, `INJECTION`, `WING_WEB`, `MIX_FEED`, `MIX_WATER`, `HAND_DRINKER` (bình xách tay), `AUTO_DRINKER` (hệ thống uống tự động), `PROCEDURE` (thủ thuật). |
+| `temp_min` | NUMERIC(4,1) | Nhiệt độ ngưỡng dưới (°C) đối với dữ liệu `TEMPERATURE` cũ. |
+| `temp_max` | NUMERIC(4,1) | Nhiệt độ ngưỡng trên (°C) đối với dữ liệu `TEMPERATURE` cũ. |
+| `feed_input_mode` | VARCHAR(30) | Chế độ nhập cám gốc: `GRAM_PER_BIRD_DAY` hoặc `BAGS_PER_1000_BIRDS`. |
+| `bag_weight_kg` | NUMERIC(10,3) | Khối lượng 1 bao cám (kg, mặc định `25.000`) dùng để quy đổi khi `BAGS_PER_1000_BIRDS`. |
+| `bags_per_1000_birds` | NUMERIC(14,3) | Định mức gốc theo số bao / 1.000 con / giai đoạn (bảo toàn round-trip Export/Import Excel). |
 | `note` | VARCHAR(1000) | Hướng dẫn thực hiện chi tiết cho công nhân. |
-| `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`, có thể NULL. Hàng hóa kho dùng cho bước cám / thuốc / vắc-xin để trừ kho và tính chi phí khi xác nhận phiếu việc. Hàng hóa phải có quy cách đơn vị cùng loại đại lượng với định mức (cám → khối lượng; thuốc, vắc-xin → tử số của đơn vị liều: `g/...`, `ml/...`, `liều/...`). Thuốc gắn hàng hóa phải ghi rõ liều theo `kg cám`, `lít nước` hoặc `con`. |
+| `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`, có thể NULL. Hàng hóa kho dùng cho bước cám / thuốc uống / thuốc trộn / vắc-xin để trừ kho và tính chi phí khi xác nhận phiếu việc (`g/...`, `ml/...`, `gói/...`, `liều/...` theo `kg cám`, `lít nước`, `con` hoặc `1000 con`). |
 
-**API:** `GET /api/farming-programs`, `GET /api/farming-programs/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`).
+**API:** `GET /api/farming-programs`, `GET /api/farming-programs/{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (`ROLE_FARM_OWNER`), `GET /api/farming-programs/excel-template` (`ROLE_FARM_OWNER`), `GET /api/farming-programs/{id}/export-excel` (`ALL_ROLES`), `POST /api/farming-programs/import-excel?mode=preview|commit` (`ROLE_FARM_OWNER`).
 
 ### 6.10 Bảng `daily_task_logs` & `daily_stock_allocations` — Phiếu việc hằng ngày đã xác nhận và phân bổ tồn kho
 
@@ -835,11 +891,11 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 | `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. |
 | `task_date` | DATE | NOT NULL. Ngày làm việc (từ ngày bắt đầu lứa đến hôm nay). Index `idx_daily_task_logs_date`. |
 | `task_key` | VARCHAR(120) | NOT NULL. Mã việc ổn định sinh bởi `DailyPlanService.identity(step)`: `{CATEGORY}:I{inventoryItemId}` khi bước gắn hàng hóa kho (`FEED` gắn thêm `:M{cữ}`), hoặc `{CATEGORY}:N{tên chuẩn hóa tối đa 90 ký tự}` với bước chưa gắn hàng hóa / `TEMPERATURE`. UNIQUE (`cycle_id`, `task_date`, `task_key`) qua `uk_daily_task_logs_cycle_date_key`. |
-| `category` | VARCHAR(20) | NOT NULL. `FEED`, `VACCINE`, `MEDICINE`, `TEMPERATURE`. |
+| `category` | VARCHAR(32) | NOT NULL. `FEED`, `DRINKING_MEDICINE`, `VACCINE`, `MEDICINE`, `CARE_PROCEDURE`, `TEMPERATURE`. |
 | `task_name` | VARCHAR(200) | NOT NULL. Tên việc lúc xác nhận (giữ lịch sử khi chương trình bị sửa). |
 | `meal` | INT | Cữ thứ mấy trong ngày (chỉ với cám). |
 | `planned_quantity`, `actual_quantity` | NUMERIC(14,3) | Lượng theo kế hoạch và thực tế, cùng đơn vị `usage_unit`. |
-| `usage_unit` | VARCHAR(10) | `KG` (cám), `G` / `ML` (thuốc), `DOSE` / `ML` (vắc-xin). |
+| `usage_unit` | VARCHAR(10) | `KG` (cám), `G` / `ML` / `PACK` (thuốc, thuốc uống), `DOSE` / `ML` (vắc-xin). |
 | `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Hàng hóa đã trừ kho. |
 | `stock_quantity` | NUMERIC(19,6) | Số đơn vị tồn kho đã trừ (bao, lọ, gói...). Nâng cấp độ chính xác bởi `DailyStockAllocationSchemaUpgrade`. |
 | `unit_price` | NUMERIC(19,2) | Giá một đơn vị tồn kho lúc xác nhận. |
@@ -1063,7 +1119,8 @@ Phân hệ **Thiết bị IoT** **không tạo bảng riêng trong PostgreSQL** 
 | **Nhân sự & Tài khoản (`EmployeeController`)** | `GET /api/employees`, `GET /api/employees/summary`, `GET /{id}`, `POST`, `PUT /{id}` | Chỉ `ROLE_FARM_OWNER`. Đồng bộ 2 bảng `accounts` và `customers`. |
 | **Hồ sơ cá nhân (`UserController`)** | `GET/PUT /api/user/profile`, `PUT /api/user/password`, `POST /api/user/avatar`, `GET /api/user/all` (`ROLE_FARM_OWNER`) | Nếu đổi email trong `PUT /profile`, server phát hành JWT token mới để phiên làm việc không bị gián đoạn. |
 | **Tải tệp media (`FileUploadController`)** | `POST /api/files/upload?folder=...` | Hỗ trợ tải ảnh đại diện, sản phẩm, ảnh hao hụt hoặc chứng từ lên Local hoặc Cloudflare R2. |
-| **Trợ lý AI & Giọng nói (`AiAssistantController`)** | `POST /api/ai/transcribe`, `POST /api/ai/assistant`, `GET/POST /api/ai/assistant/stream` (SSE) | Áp dụng giới hạn tốc độ (`AiRateLimiter`: 20 STT/phút, 30 Chat/phút) và kiểm soát quyền theo RBAC vai trò người dùng. |
+| **Trợ lý AI & Giọng nói (`AiAssistantController`)** | `POST /api/ai/transcribe`, `POST /api/ai/assistant`, `POST /api/ai/confirm`, `GET/POST /api/ai/assistant/stream` (SSE), `POST /api/ai/feedback`, `GET /api/ai/flywheel/stats`, `GET /api/ai/flywheel/export` | Áp dụng giới hạn tốc độ (`AiRateLimiter`: 20 STT/phút, 30 Chat/phút), kiểm soát RBAC vai trò người dùng, xác thực thẻ hành động HMAC-SHA256 và thu thập Data Flywheel (`ai_interaction_logs`). |
+| **Đồng bộ IoT Telemetry (`IotTelemetryController`)** | `POST /api/iot/telemetry`, `GET /api/iot/telemetry/{barnId}` | Đồng bộ số đo nhiệt độ/độ ẩm/relay ESP32 thời gian thực vào RAM (`IotTelemetryRegistry`) cho `IoTTelemetryCommandHandler`, kiểm tra phạm vi chuồng của công nhân (`MSG51`). |
 | **Giám sát dịch vụ (`HealthController`)** | `GET /api/health`, `GET /health` | Công khai (`permitAll`), phục vụ kiểm tra trạng thái sống của backend. |
 
 ### 11.2 Dịch vụ AI Microservice (`aiServiceFarmShift` — FastAPI)
@@ -1071,8 +1128,41 @@ Phân hệ **Thiết bị IoT** **không tạo bảng riêng trong PostgreSQL** 
 | Endpoint | Mục đích & Tích hợp |
 | :--- | :--- |
 | `POST /api/extract-invoice`, `POST /api/extract-weight-slip`, `POST /api/preprocess`, `GET /api/sample` | Bóc tách chứng từ hóa đơn mua hàng, phiếu cân xuất bán gà (kèm tiền xử lý nghiêng ảnh & tọa độ bounding box), được Spring Boot gọi qua HTTP. |
-| `POST /api/voice/transcribe` (alias `/api/ai/transcribe`), `POST /api/voice/chat` (alias `/api/ai/chat`) | Chuyển đổi giọng nói tiếng Việt sang văn bản (STT) và phân tích ý định NLU / trả lời kiến thức chăn nuôi qua LLM. |
+| `POST /api/voice/transcribe`, `POST /api/voice/chat` | Chuyển đổi giọng nói tiếng Việt sang văn bản (STT), chuẩn hóa từ điển ngữ âm (`phonetic_lexicon.json`) và phân tích ý định NLU / LLM-First Native Tool Calling (`tools`, `tool_calls`, `toolMessages`) qua LLM. |
 | `GET /health`, `GET /api/health` | Endpoint `GET` / `HEAD` kiểm tra trạng thái sống của AI microservice và `OCR_ENGINE`. |
+
+### 11.3 Bảng `ai_interaction_logs` — Data Flywheel & Huấn luyện Trợ lý AI
+
+Entity: `AiInteractionLog` (nâng cấp idempotent qua `AiInteractionLogSchemaUpgrade`). Lưu trữ nhật ký tương tác Trợ lý AI, tầng xử lý (`handler_tier`), payload trích xuất, trạng thái xác nhận HITL và đánh giá `+1 / -1` của người dùng phục vụ đánh giá định lượng và xuất tập SFT/LoRA (`GET /api/ai/flywheel/export`).
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `request_id` | VARCHAR(64) | NOT NULL. Mã tương quan `X-Request-ID` xuyên biên Spring Boot ↔ FastAPI. |
+| `session_id` | VARCHAR(128) | Mã phiên hội thoại trên `AIChatbot`. |
+| `account_id` | BIGINT | FOREIGN KEY → `accounts.id` ON DELETE SET NULL. |
+| `username` | VARCHAR(100) | NOT NULL. Email / tài khoản thực hiện truy vấn. |
+| `user_role` | VARCHAR(30) | NOT NULL. Vai trò tại thời điểm hỏi (`ROLE_FARM_OWNER`, `ROLE_ACCOUNTANT`, `ROLE_FARM_WORKER`). |
+| `current_route` | VARCHAR(255) | Đường dẫn màn hình SPA đang mở. |
+| `raw_message` | TEXT | NOT NULL. Câu lệnh gốc của người dùng (đã lọc bí mật). |
+| `normalized_message` | TEXT | Câu lệnh sau chuẩn hóa ngữ âm & thực thể động. |
+| `intent` | VARCHAR(80) | Mã ý định / `actionType` kết quả (`LOG_FEED`, `VET_DIAGNOSIS`, `RBAC_BLOCKED`, ...). |
+| `handler_tier` | VARCHAR(50) | Tầng xử lý (`COMMAND_DISPATCHER`, `MUTATION_ENGINE`, `RULE_ENGINE`, `LLM_TOOL_CALL`, `LLM_JSON`, `RAG_FALLBACK`, `SECURITY_GUARD`, `RBAC_GUARD`). |
+| `provider` | VARCHAR(80) | Nguồn xử lý (`LOCAL_DETERMINISTIC`, `llama-3.3-70b-versatile`, `gpt-4o-mini`, `LOCAL_RAG`, ...). |
+| `confidence` | DOUBLE PRECISION | Độ tin cậy (nếu có từ STT/NLU). |
+| `executed` | BOOLEAN | NOT NULL, DEFAULT FALSE. Đã thực thi ghi/đọc thành công hay chưa. |
+| `requires_confirmation` | BOOLEAN | NOT NULL, DEFAULT FALSE. Có sinh thẻ xác nhận 2 bước HMAC hay không. |
+| `confirmed` | BOOLEAN | Kết quả xác nhận HITL (`TRUE`: đã bấm Đồng ý lưu, `FALSE`: hủy, `NULL`: chưa/không áp dụng). |
+| `latency_ms` | BIGINT | NOT NULL, DEFAULT 0. Thời gian xử lý (ms). |
+| `reply_preview` | VARCHAR(1000) | Tóm tắt câu trả lời trả về cho người dùng. |
+| `extracted_payload` | TEXT | JSON tham số trích xuất (đã loại bỏ `actionToken`, `actionId`, `expiresAt`). |
+| `feedback_rating` | SMALLINT | Đánh giá của người dùng (`1`: Hữu ích, `-1`: Chưa đúng, `NULL`: chưa đánh giá). |
+| `feedback_note` | VARCHAR(500) | Ghi chú góp ý (tùy chọn). |
+| `feedback_corrected_intent` | VARCHAR(80) | Nhãn ý định hiệu chỉnh do Chủ trại gán lại để huấn luyện. |
+| `feedback_at` | TIMESTAMP | Thời điểm gửi đánh giá (`Asia/Bangkok`). |
+| `created_at` | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP. |
+
+**Chỉ mục (`Indexes`):** `idx_ai_logs_created_at(created_at DESC)`, `idx_ai_logs_intent_rating(intent, feedback_rating)`, `idx_ai_logs_username(username, created_at DESC)`, `idx_ai_logs_request_id(request_id)`.
 
 > [!NOTE]
 > **Ghi chú loại bỏ phân hệ Sổ quỹ (`Cashbook`):** Toàn bộ phân hệ **Sổ quỹ** đã được gỡ bỏ hoàn toàn khỏi cơ sở dữ liệu, backend (`Cashbook` entities/controllers/services), frontend và dữ liệu mẫu [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt). Dòng tiền nhập – xuất – công nợ được quản lý tập trung qua `purchase_invoices`, `purchase_payments`, `sales_orders`, `customer_contacts`, `suppliers` và `cycle_expenses`.

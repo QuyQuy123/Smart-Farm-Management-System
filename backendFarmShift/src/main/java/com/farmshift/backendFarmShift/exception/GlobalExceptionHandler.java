@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class GlobalExceptionHandler {
 
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
-            String field = ((FieldError) error).getField();
+            String field = (error instanceof FieldError fe) ? fe.getField() : error.getObjectName();
             errors.put(field, error.getDefaultMessage());
         });
         return ResponseEntity
@@ -115,6 +116,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(ApiResponse.errorWithCode("Tệp tải lên vượt quá dung lượng cho phép (tối đa 10MB).", "MSG07", null));
+    }
+
+    /** Preserves explicit HTTP status codes (400/404/413) thrown via ResponseStatusException. */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException ex) {
+        String message = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+        return ResponseEntity
+                .status(ex.getStatusCode())
+                .body(ApiResponse.error(message));
     }
 
     /** Safety-net for anything not explicitly mapped. */

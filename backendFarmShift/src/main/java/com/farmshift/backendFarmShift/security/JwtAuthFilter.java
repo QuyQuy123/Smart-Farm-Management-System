@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,6 +31,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
 
+    @Autowired(required = false)
+    private AccountAuthStateService accountAuthStateService;
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -42,18 +46,32 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             String email          = jwtProvider.getEmailFromToken(token);
             List<String> roles    = jwtProvider.getRolesFromToken(token);
+            Long issuedAtMs       = jwtProvider.getIssuedAtMillisFromToken(token);
 
-            List<SimpleGrantedAuthority> authorities = roles.stream()
-                    .map(SimpleGrantedAuthority::new)
-                    .toList();
+            List<String> effectiveRoles = roles;
+            boolean authorized = true;
+            if (accountAuthStateService != null) {
+                var resolved = accountAuthStateService.resolveAuthorizedRoles(email, issuedAtMs, roles);
+                if (resolved.isEmpty()) {
+                    authorized = false;
+                } else {
+                    effectiveRoles = resolved.get();
+                }
+            }
 
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(email, null, authorities);
-            authentication.setDetails(
-                    new WebAuthenticationDetailsSource().buildDetails(request));
+            if (authorized) {
+                List<SimpleGrantedAuthority> authorities = (effectiveRoles != null ? effectiveRoles : List.<String>of()).stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .toList();
 
-            // Publish to security context — downstream @PreAuthorize checks will see it
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(email, null, authorities);
+                authentication.setDetails(
+                        new WebAuthenticationDetailsSource().buildDetails(request));
+
+                // Publish to security context — downstream @PreAuthorize checks will see it
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
         }
 
         chain.doFilter(request, response);

@@ -1,18 +1,20 @@
 // src/features/farmshift/ReportsView.jsx
 // Báo cáo & Thống kê toàn diện trang trại chuẩn FarmShift (Hạch toán Lãi/Lỗ, Biểu đồ SVG tương tác & 8 phân hệ)
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   FileSpreadsheet, RefreshCw, Search, Calendar, TrendingUp, TrendingDown,
   Package, Warehouse, Wallet, Scale, ArrowLeftRight, Activity,
   ShoppingCart, ReceiptText, CheckCircle2, ChevronLeft, ChevronRight,
-  Printer, Filter, ArrowUpRight, RotateCcw
+  Printer, Filter, ArrowUpRight, RotateCcw, MoreVertical
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
 import { getReportSummary } from '../../services/reportService';
 import { getFarm } from '../../services/farmService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { useViewport } from '../../hooks/useViewport';
+import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
 import styles from './ReportsView.module.css';
 import {
   CHART_COLORS,
@@ -1270,12 +1272,41 @@ export const ReportsView = () => {
     return <span className={styles.codeCell}>{code}</span>;
   };
 
+  const { isMobile } = useViewport();
+  const [mobileExportOpen, setMobileExportOpen] = useState(false);
+  const mobileExportRef = useRef(null);
+
+  useEffect(() => {
+    if (!mobileExportOpen || !isMobile) return undefined;
+    const handleOutside = (e) => {
+      if (mobileExportRef.current && !mobileExportRef.current.contains(e.target)) {
+        setMobileExportOpen(false);
+      }
+    };
+    const handleKey = (e) => {
+      if (e.key === 'Escape') setMobileExportOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [mobileExportOpen, isMobile]);
+
+  const activeClusterGroup = useMemo(
+    () => TAB_CLUSTERS.find((group) => group.tabs.some((tab) => tab.id === activeTab)) || TAB_CLUSTERS[0],
+    [activeTab]
+  );
+
   return (
     <FarmShiftLayout
       pageTitle="Báo cáo & Thống kê Tài chính - Kỹ thuật"
       breadcrumbs={[{ label: 'Báo cáo & Thống kê' }]}
       actions={
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div className={styles.reportActionsWrap}>
           <button
             type="button"
             className="farmshift-btn farmshift-btn-secondary"
@@ -1284,20 +1315,54 @@ export const ReportsView = () => {
           >
             <RefreshCw size={15} className={loading ? styles.spin : ''} /> Làm mới
           </button>
-          <button
-            type="button"
-            className="farmshift-btn farmshift-btn-secondary"
-            onClick={() => window.print()}
-          >
-            <Printer size={15} /> In báo cáo
-          </button>
-          <button
-            type="button"
-            className="farmshift-btn farmshift-btn-excel"
-            onClick={handleExportExcel}
-          >
-            <FileSpreadsheet size={15} /> Xuất Báo cáo Excel
-          </button>
+          {isMobile ? (
+            <div ref={mobileExportRef} className={styles.mobileExportMenuWrap}>
+              <button
+                type="button"
+                className="farmshift-btn farmshift-btn-secondary"
+                aria-label="Tùy chọn xuất và in báo cáo"
+                aria-expanded={mobileExportOpen}
+                data-testid="reports-mobile-export-btn"
+                onClick={() => setMobileExportOpen((prev) => !prev)}
+              >
+                <MoreVertical size={17} />
+                <span>Xuất / In</span>
+              </button>
+              {mobileExportOpen && (
+                <div className={styles.mobileExportDropdown} data-testid="reports-mobile-export-menu">
+                  <button
+                    type="button"
+                    onClick={() => { setMobileExportOpen(false); handleExportExcel(); }}
+                  >
+                    <FileSpreadsheet size={15} /> Xuất Báo cáo Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMobileExportOpen(false); window.print(); }}
+                  >
+                    <Printer size={15} /> In báo cáo
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="farmshift-btn farmshift-btn-secondary"
+                onClick={() => window.print()}
+              >
+                <Printer size={15} /> In báo cáo
+              </button>
+              <button
+                type="button"
+                className="farmshift-btn farmshift-btn-excel"
+                onClick={handleExportExcel}
+              >
+                <FileSpreadsheet size={15} /> Xuất Báo cáo Excel
+              </button>
+            </>
+          )}
         </div>
       }
     >
@@ -1437,28 +1502,67 @@ export const ReportsView = () => {
       )}
 
       {/* ── Grouped Tabs Navigation (3 Functional Clusters, 8 Reports) ─────────── */}
-      <div className={styles.tabClusterBar} role="tablist" aria-label="Phân hệ báo cáo">
-        {TAB_CLUSTERS.map((group) => (
-          <div key={group.cluster} className={styles.tabClusterGroup} role="presentation">
-            <span className={styles.tabClusterLabel}>{group.cluster}</span>
-            <div className={`farmshift-tabs ${styles.tabsWrap}`}>
-              {group.tabs.map((tab) => (
+      {isMobile ? (
+        <div className={styles.mobileTabNav} data-testid="reports-mobile-tabs">
+          <div className={styles.mobilePillRow} role="tablist" aria-label="Nhóm báo cáo">
+            {TAB_CLUSTERS.map((group) => {
+              const isSelected = group.cluster === activeClusterGroup.cluster;
+              return (
                 <button
-                  key={tab.id}
+                  key={group.cluster}
                   type="button"
                   role="tab"
-                  aria-selected={activeTab === tab.id}
-                  className={`farmshift-tab-btn ${styles.tabBtn} ${activeTab === tab.id ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab.id)}
+                  aria-selected={isSelected}
+                  className={`${styles.mobileClusterPill} ${isSelected ? styles.mobileClusterPillActive : ''}`}
+                  onClick={() => {
+                    if (!isSelected && group.tabs[0]) setActiveTab(group.tabs[0].id);
+                  }}
                 >
-                  <span>{tab.label}</span>
-                  <span className={styles.tabCount}>{tabCounts[tab.id] ?? 0}</span>
+                  {group.cluster}
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
+          <div className={styles.mobilePillRow} role="tablist" aria-label="Phân hệ báo cáo">
+            {activeClusterGroup.tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                className={`farmshift-tab-btn ${styles.tabBtn} ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <span>{tab.label}</span>
+                <span className={styles.tabCount}>{tabCounts[tab.id] ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className={styles.tabClusterBar} role="tablist" aria-label="Phân hệ báo cáo">
+          {TAB_CLUSTERS.map((group) => (
+            <div key={group.cluster} className={styles.tabClusterGroup} role="presentation">
+              <span className={styles.tabClusterLabel}>{group.cluster}</span>
+              <div className={`farmshift-tabs ${styles.tabsWrap}`}>
+                {group.tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    className={`farmshift-tab-btn ${styles.tabBtn} ${activeTab === tab.id ? 'active' : ''}`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span>{tab.label}</span>
+                    <span className={styles.tabCount}>{tabCounts[tab.id] ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Tab 1: Tổng hợp toàn trại & Hạch toán Lãi/Lỗ ─────────────────────── */}
       {activeTab === 'summary' && (
@@ -2690,6 +2794,44 @@ export const ReportsView = () => {
               )}
             </div>
 
+            {isMobile ? (
+              <div style={{ padding: '12px' }}>
+                <ResponsiveDataTable
+                  data={filteredActivities}
+                  rowKey={item => item.id}
+                  mode="timeline"
+                  initialVisibleCount={40}
+                  loadMoreStep={40}
+                  getTimelineDate={item => fmtDate(item.date || item.timestamp) || 'Khác'}
+                  emptyState="Chưa có hoạt động phù hợp trong kỳ báo cáo."
+                  renderTimelineItem={(actItem) => {
+                    const modStyle = actItem.module === 'Đàn gia cầm'
+                      ? { background: '#fdf2f8', color: '#be185d' }
+                      : actItem.module === 'Nhập hàng'
+                        ? { background: '#eff6ff', color: '#0369a1' }
+                        : actItem.module === 'Bán hàng'
+                          ? { background: '#fffbeb', color: '#b45309' }
+                          : actItem.module === 'Xuất nhập nội bộ'
+                            ? { background: '#f5f3ff', color: '#6d28d9' }
+                            : null;
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span className={styles.mintBadge} style={modStyle || undefined}>{actItem.module}</span>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>{fmtDateTime(actItem.timestamp || actItem.date)}</span>
+                        </div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#181d26' }}>{actItem.action}</div>
+                        <div style={{ fontSize: '13.5px', color: '#42545c' }}>{actItem.detail}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>
+                          <span>{actItem.actor}</span>
+                          <span>{renderActivityRefLink(actItem)}</span>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+              </div>
+            ) : (
             <div className="farmshift-table-container" style={{ border: 'none' }}>
               <table className={`farmshift-table ${styles.compactTable}`}>
                 <thead>
@@ -2733,7 +2875,8 @@ export const ReportsView = () => {
                 </tbody>
               </table>
             </div>
-            {renderPager(activityPaging, 'activity', 'hoạt động', [15, 30, 50, 100])}
+            )}
+            {!isMobile && renderPager(activityPaging, 'activity', 'hoạt động', [15, 30, 50, 100])}
           </div>
         </div>
       )}

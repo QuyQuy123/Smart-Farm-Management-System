@@ -9,6 +9,8 @@ import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.*;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -36,6 +38,9 @@ public class InternalStockService {
     private final CycleExpenseRepository cycleExpenseRepository;
     private final InternalStockCodeGenerator codeGenerator;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     public InternalStockVoucherPageResponse list(
             String movementType,
             Long categoryId,
@@ -47,9 +52,34 @@ public class InternalStockService {
             Pageable pageable,
             boolean canSeeFinance
     ) {
+        return list(movementType, categoryId, warehouseId, status, startDate, endDate, q, pageable, canSeeFinance, null);
+    }
+
+    public InternalStockVoucherPageResponse list(
+            String movementType,
+            Long categoryId,
+            Long warehouseId,
+            String status,
+            LocalDate startDate,
+            LocalDate endDate,
+            String q,
+            Pageable pageable,
+            boolean canSeeFinance,
+            Set<Long> allowedWarehouseIds
+    ) {
         Specification<InternalStockVoucher> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
+            if (allowedWarehouseIds != null) {
+                if (allowedWarehouseIds.isEmpty()) {
+                    predicates.add(cb.disjunction());
+                } else {
+                    predicates.add(cb.or(
+                            root.get("sourceWarehouse").get("id").in(allowedWarehouseIds),
+                            root.get("targetWarehouse").get("id").in(allowedWarehouseIds)
+                    ));
+                }
+            }
             if (movementType != null && !movementType.isBlank()) {
                 predicates.add(cb.equal(root.get("movementType"), movementType.trim()));
             }
@@ -97,8 +127,21 @@ public class InternalStockService {
     }
 
     public InternalStockVoucherResponse get(Long id, boolean canSeeFinance) {
+        return get(id, canSeeFinance, null);
+    }
+
+    public InternalStockVoucherResponse get(Long id, boolean canSeeFinance, Set<Long> allowedWarehouseIds) {
         InternalStockVoucher voucher = voucherRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiếu xuất nhập nội bộ."));
+        if (allowedWarehouseIds != null) {
+            Long srcId = voucher.getSourceWarehouse() != null ? voucher.getSourceWarehouse().getId() : null;
+            Long tgtId = voucher.getTargetWarehouse() != null ? voucher.getTargetWarehouse().getId() : null;
+            boolean inScope = (srcId != null && allowedWarehouseIds.contains(srcId))
+                    || (tgtId != null && allowedWarehouseIds.contains(tgtId));
+            if (!inScope) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem phiếu của kho ngoài phạm vi phân công.");
+            }
+        }
         return toResponse(voucher, canSeeFinance);
     }
 
@@ -121,7 +164,12 @@ public class InternalStockService {
         voucher.setCategory(category);
         voucher.setMovementDate(request.movementDate());
         voucher.setNote(request.note() == null ? "" : request.note().strip());
-        voucher.setAttachmentUrl(request.attachmentUrl());
+        String attachment = request.attachmentUrl() == null ? null : request.attachmentUrl().strip();
+        if (attachment != null && !attachment.isBlank()
+                && !(attachment.startsWith("/img/") || attachment.startsWith("https://") || attachment.startsWith("http://"))) {
+            throw new BadRequestException("Đường dẫn ảnh chứng từ không hợp lệ.");
+        }
+        voucher.setAttachmentUrl(attachment == null || attachment.isBlank() ? null : attachment);
         voucher.setCreatedBy(createdBy);
         voucher.setStatus("COMPLETED");
 
@@ -188,7 +236,9 @@ public class InternalStockService {
                 if (updated == 0) {
                     throw new BadRequestException("Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm. [MSG27]");
                 }
-                sourceItem.setStock(sourceItem.getStock().subtract(qty));
+                if (entityManager != null && entityManager.contains(sourceItem)) {
+                    entityManager.refresh(sourceItem);
+                }
 
                 item.setSourceInventoryItem(sourceItem);
                 BigDecimal effectivePrice = unitPrice.compareTo(BigDecimal.ZERO) > 0 ? unitPrice : (sourceItem.getPrice() != null ? sourceItem.getPrice() : BigDecimal.ZERO);
@@ -205,7 +255,9 @@ public class InternalStockService {
                 if (updated == 0) {
                     throw new BadRequestException("Tồn kho khả dụng không đủ. Giao dịch này sẽ làm cho số dư tồn kho bị âm. [MSG27]");
                 }
-                sourceItem.setStock(sourceItem.getStock().subtract(qty));
+                if (entityManager != null && entityManager.contains(sourceItem)) {
+                    entityManager.refresh(sourceItem);
+                }
                 item.setSourceInventoryItem(sourceItem);
 
                 // Cộng tồn kho hoặc tạo mới ở kho nhận
@@ -214,7 +266,9 @@ public class InternalStockService {
                 if (targetOpt.isPresent()) {
                     targetItem = targetOpt.get();
                     inventoryItemRepository.returnStock(targetItem.getId(), qty);
-                    targetItem.setStock((targetItem.getStock() == null ? BigDecimal.ZERO : targetItem.getStock()).add(qty));
+                    if (entityManager != null && entityManager.contains(targetItem)) {
+                        entityManager.refresh(targetItem);
+                    }
                 } else {
                     targetItem = new InventoryItem();
                     targetItem.setProduct(product);
@@ -266,9 +320,15 @@ public class InternalStockService {
 
     @Transactional
     public InternalStockVoucherResponse cancel(Long id, String cancelledBy) {
-        InternalStockVoucher voucher = voucherRepository.findWithDetailsById(id)
+        InternalStockVoucher locked = voucherRepository.findForUpdateById(id)
+                .or(() -> voucherRepository.findWithDetailsById(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiếu xuất nhập nội bộ."));
 
+        if (!"COMPLETED".equalsIgnoreCase(locked.getStatus())) {
+            throw new BadRequestException("Chỉ có thể hủy phiếu đang ở trạng thái Hoàn thành.");
+        }
+
+        InternalStockVoucher voucher = voucherRepository.findWithDetailsById(id).orElse(locked);
         if (!"COMPLETED".equalsIgnoreCase(voucher.getStatus())) {
             throw new BadRequestException("Chỉ có thể hủy phiếu đang ở trạng thái Hoàn thành.");
         }

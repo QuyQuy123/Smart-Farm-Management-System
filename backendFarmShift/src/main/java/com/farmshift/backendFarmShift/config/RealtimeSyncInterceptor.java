@@ -46,7 +46,7 @@ public class RealtimeSyncInterceptor implements HandlerInterceptor {
             return;
         }
         String path = resolvePath(request);
-        if (shouldSkipBroadcast(path)) {
+        if (shouldSkipBroadcast(path, request)) {
             return;
         }
         if (aiSecurityGuard != null) {
@@ -58,15 +58,20 @@ public class RealtimeSyncInterceptor implements HandlerInterceptor {
         realtimeSyncService.broadcastDataChange(path, method, actor, originClientId);
     }
 
-    private static boolean shouldSkipBroadcast(String path) {
+    private static boolean shouldSkipBroadcast(String path, HttpServletRequest request) {
         if (path == null || !path.startsWith("/api/")) {
             return true;
+        }
+        if ("/api/farming-programs/import-excel".equals(path)) {
+            String mode = request != null ? request.getParameter("mode") : null;
+            return !"commit".equalsIgnoreCase(mode);
         }
         return path.startsWith("/api/auth/")
                 || path.startsWith("/api/ai/")
                 || path.startsWith("/api/voice/")
                 || path.startsWith("/api/files/")
                 || path.startsWith("/api/phone-camera/")
+                || path.startsWith("/api/iot/")
                 || path.startsWith("/api/push/")
                 || path.startsWith("/api/ws");
     }

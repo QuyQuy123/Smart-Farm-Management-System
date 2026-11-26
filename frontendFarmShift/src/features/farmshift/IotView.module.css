@@ -3,7 +3,7 @@
 .phoneFrame { display: block; width: 100%; height: 100%; object-fit: cover; }
 .cameraPairing { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px; }
 .cameraQr { flex-basis: 100%; display: grid; justify-items: center; gap: 8px; margin: 0; text-align: center; }
-.cameraQr img { max-width: 100%; height: auto; }
+.cameraQr img { width: min(240px, 100%); max-width: 240px; max-height: 240px; height: auto; aspect-ratio: 1 / 1; object-fit: contain; }
 .phonePublisher { display: grid; gap: 16px; max-width: 640px; margin: auto; padding: 24px; }
 .phonePublisher video { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #15221e; border-radius: 12px; }
 .cardSensors { display: flex; justify-content: space-between; gap: 12px; padding: 12px 18px; background: #f8faf9; border-bottom: 1px solid #edf1ef; font-size: 11px; color: #82978d; }
@@ -40,7 +40,6 @@
 .chartFooter { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 10px; color: #8a9b91; }
 .chartFooter span { display: flex; align-items: center; gap: 6px; }
 .chartFooter i { width: 16px; height: 3px; border-radius: 3px; background: #dd8b38; }
-@media (max-width: 480px) { .environment { padding: 15px; } .sensorGrid { grid-template-columns: 1fr; } }
 .root h2, .root h3, .root h4, .root p { margin: 0; }
 .root button { font: inherit; }
 .overviewHeading { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
@@ -125,5 +124,27 @@
 .dialogFooter { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #f7faf8; border-top: 1px solid #e6eeea; }
 @media (min-width: 1700px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 1200px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .detail { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .overviewHeading { align-items: stretch; flex-direction: column; gap: 16px; } .search { min-width: 0; } .grid { grid-template-columns: 1fr; } .stats { gap: 16px; } .stats > span:last-child { margin-left: 0; } .detailHeading { flex-wrap: wrap; gap: 14px; } .device { padding: 14px; } .deviceTop { gap: 9px; } .controls > header { flex-wrap: wrap; } .device h4 { font-size: 14px; } }
+@media (max-width: 767px) {
+  .environment { padding: 14px; }
+  .sensorGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+  .sensorCard { padding: 12px 10px; gap: 8px; flex-direction: column; align-items: flex-start; }
+  .sensorCard strong { font-size: 22px; }
+  .chartRanges button { min-height: 40px; padding: 6px 12px; font-size: 12px; }
+  .back { min-height: 44px; }
+  .toggle { width: 56px; height: 34px; padding: 4px; }
+  .toggle span { width: 26px; height: 26px; }
+  .toggle[aria-checked='true'] span { transform: translateX(22px); }
+  .speed button { min-width: 44px; min-height: 44px; font-size: 14px; font-weight: 600; }
+  .deviceActions button { min-height: 44px; padding: 6px 10px; font-size: 13px; }
+  .overviewHeading { align-items: stretch; flex-direction: column; gap: 14px; }
+  .search { min-width: 0; width: 100%; }
+  .grid { grid-template-columns: 1fr; }
+  .stats { gap: 14px; padding: 14px; }
+  .stats > span:last-child { margin-left: 0; }
+  .detailHeading { flex-wrap: wrap; gap: 12px; }
+  .device { padding: 14px; }
+  .deviceTop { gap: 10px; }
+  .controls > header { flex-wrap: wrap; }
+  .device h4 { font-size: 15px; }
+}
 @media (prefers-reduced-motion: reduce) { .device, .toggle, .toggle span { transition: none; } }

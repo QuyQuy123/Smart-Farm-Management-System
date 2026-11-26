@@ -1,8 +1,10 @@
 // src/components/Loading/PageLoading.jsx
 // Giao diện Màn hình Loading Đẳng cấp Công nghệ cao cho FarmShift
 import React, { useState, useEffect } from 'react';
-import { Sparkles, RefreshCw, AlertCircle, Zap, ShieldCheck } from 'lucide-react';
+import { RefreshCw, AlertCircle, Zap } from 'lucide-react';
 import styles from './PageLoading.module.css';
+
+const IS_DEMO_ALLOWED = !import.meta.env.PROD;
 
 const LOADING_STEPS = [
   { text: 'Đang kết nối trung tâm điều hành trang trại...', icon: '🛰️' },
@@ -42,6 +44,7 @@ export const PageLoading = ({
   }, [showTimeoutHelper]);
 
   const handleStartDemo = () => {
+    if (!IS_DEMO_ALLOWED) return;
     sessionStorage.setItem('demo_mode', 'true');
     if (onEnterDemo) {
       onEnterDemo();
@@ -189,17 +192,21 @@ export const PageLoading = ({
               <span>Máy chủ phản hồi chậm hoặc đang khởi động?</span>
             </div>
             <p className={styles.timeoutDesc}>
-              Bạn có thể vào ngay <strong>Chế độ Trải nghiệm (Offline Demo)</strong> để khám phá đầy đủ giao diện trang trại mà không cần đợi backend.
+              {IS_DEMO_ALLOWED
+                ? <>Bạn có thể vào ngay <strong>Chế độ Trải nghiệm (Offline Demo)</strong> để khám phá đầy đủ giao diện trang trại mà không cần đợi backend.</>
+                : 'Kết nối tới máy chủ đang chậm hơn bình thường. Vui lòng thử tải lại trang.'}
             </p>
             <div className={styles.timeoutActions}>
-              <button
-                type="button"
-                className={styles.btnDemoQuick}
-                onClick={handleStartDemo}
-              >
-                <Zap size={14} />
-                <span>Vào chế độ Trải nghiệm ngay</span>
-              </button>
+              {IS_DEMO_ALLOWED && (
+                <button
+                  type="button"
+                  className={styles.btnDemoQuick}
+                  onClick={handleStartDemo}
+                >
+                  <Zap size={14} />
+                  <span>Vào chế độ Trải nghiệm ngay</span>
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.btnReload}

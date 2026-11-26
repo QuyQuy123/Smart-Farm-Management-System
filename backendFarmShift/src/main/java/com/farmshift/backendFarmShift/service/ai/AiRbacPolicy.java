@@ -45,7 +45,9 @@ public final class AiRbacPolicy {
             "HARVEST",
             "DELETE_ACCOUNT",
             "MANAGE_ACCOUNT",
-            "UPDATE_SYSTEM_SETTINGS"
+            "UPDATE_SYSTEM_SETTINGS",
+            "GET_FINANCIAL_AND_DEBTS",
+            "QUERY_FINANCIAL_DEBTS"
     );
 
     private static final Set<String> FORBIDDEN_FOR_ACCOUNTANT = Set.of(
@@ -59,16 +61,22 @@ public final class AiRbacPolicy {
             "CLOSE_CYCLE",
             "START_OR_CLOSE_CYCLE",
             "TRANSFER_FLOCK",
+            "HARVEST",
+            "HARVEST_FLOCK",
             "COMPLETE_DAILY_TASKS",
+            "COMPLETE_DAILY_TASK",
             "LOG_FEED",
+            "LOG_FEED_CONSUMPTION",
             "COMPOUND_LOG_FEED",
             "UPDATE_FEED",
             "LOG_OR_UPDATE_FEED",
             "LOG_WEIGHT",
+            "LOG_WEIGHT_SAMPLE",
             "COMPOUND_LOG_WEIGHT",
             "UPDATE_WEIGHT",
             "LOG_OR_UPDATE_WEIGHT",
             "LOG_MORTALITY",
+            "LOG_FLOCK_LOSS",
             "COMPOUND_LOG_MORTALITY",
             "UPDATE_MORTALITY",
             "LOG_OR_UPDATE_MORTALITY",

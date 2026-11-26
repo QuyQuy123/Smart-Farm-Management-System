@@ -15,6 +15,7 @@ const changed = async request => {
 
 export const getBarn = id => data(api.get(`/barns/${id}`));
 export const listCycles = barnId => data(api.get(`/barns/${barnId}/cycles`));
+export const listClosedCycleHistory = (params = {}) => data(api.get('/cycles/history', { params }));
 export const startCycle = (barnId, body) => changed(api.post(`/barns/${barnId}/cycles`, body));
 export const getCycle = id => data(api.get(`/cycles/${id}`));
 export const closeCycle = (id, body) => changed(api.post(`/cycles/${id}/close`, body));

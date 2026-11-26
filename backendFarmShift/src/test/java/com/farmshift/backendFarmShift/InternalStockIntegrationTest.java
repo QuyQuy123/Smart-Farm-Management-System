@@ -349,6 +349,10 @@ class InternalStockIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"));
 
+        // Hủy lần 2 phải bị từ chối và không hoàn lại tồn kho thêm lần nữa
+        mvc.perform(post("/api/internal-stock/vouchers/" + voucherId + "/cancel"))
+                .andExpect(status().isBadRequest());
+
         em.clear();
         item = inventoryItemRepository.findById(stockItem.getId()).orElseThrow();
         assertEquals(0, new BigDecimal("25.000").compareTo(item.getStock()));

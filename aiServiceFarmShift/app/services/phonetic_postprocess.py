@@ -7,6 +7,8 @@ Normalizes Groq whisper-large-v3 transcripts using:
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import re
 import unicodedata
 from typing import Any
@@ -175,30 +177,34 @@ _HIGRO_BASE = re.compile(
     _FLAGS,
 )
 
-_STATIC_PHONETIC_RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(_B + r"nhật\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)" + _E, _FLAGS), "nhật ký"),
-    (re.compile(_B + r"(?:cần\s+mẫu|cân\s+mẩu)" + _E, _FLAGS), "cân mẫu"),
-    (re.compile(_B + r"hao\s+hục" + _E, _FLAGS), "hao hụt"),
-    (re.compile(_B + r"thải\s+lọai" + _E, _FLAGS), "thải loại"),
-    (re.compile(_B + r"cám\s+số\s+1" + _E, _FLAGS), "Higro 01"),
-    (re.compile(_B + r"cám\s+số\s+2" + _E, _FLAGS), "Higro 02"),
-    (re.compile(_B + r"(?:xi\s*pi|si\s*pi|cp)\s*(511|512)" + _E, _FLAGS), r"CP \1"),
-    (re.compile(_B + r"cám\s+(?:xi\s*pi|si\s*pi)" + _E, _FLAGS), "Cám CP"),
-    (re.compile(_B + r"gà\s+(?:di|j)\s+(?:đa\s+ba\s+cô|da\s+ba\s+co|đabacô|dabaco)" + _E, _FLAGS), "Gà J-Dabaco"),
-    (re.compile(_B + r"(?:di|j)\s+(?:đa\s+ba\s+cô|da\s+ba\s+co|đabacô|dabaco)" + _E, _FLAGS), "J-Dabaco"),
-    (re.compile(_B + r"gà\s+di" + _E, _FLAGS), "Gà J-Dabaco"),
-    (re.compile(_B + r"(?:đa\s+ba\s+cô|da\s+ba\s+co|đabacô)" + _E, _FLAGS), "Dabaco"),
-    (re.compile(_B + r"(?:ca\s+giu|ca\s+gin|các\s+giu)" + _E, _FLAGS), "Cargill"),
-    (re.compile(_B + r"(?:han\s+vét|hàn\s+vét)" + _E, _FLAGS), "Hanvet"),
-    (re.compile(_B + r"(?:lát\s+sô\s+ta|la\s+sô\s+ta|la\s+xô\s+ta|lasôta)" + _E, _FLAGS), "Lasota"),
-    (re.compile(_B + r"(?:gum\s+bô\s+rô|găm\s+bô\s+rô)" + _E, _FLAGS), "Gumboro"),
-    (re.compile(_B + r"(?:nhiu\s+cát\s+xơn|niu\s+cát\s+xơ|niu\s+cát\s+xơn|niu\s+cat\s+xon)" + _E, _FLAGS), "Newcastle"),
-    (re.compile(_B + r"(?:ép\s+xê\s+rờ|ép\s+cờ\s+rờ|f\s+c\s+r|hệ\s+số\s+ép)" + _E, _FLAGS), "FCR"),
-    (re.compile(_B + r"khu\s+(?:di|gi|j)\s+thịt" + _E, _FLAGS), "Khu J Thịt"),
-    (re.compile(_B + r"khu\s+mía(?:\s+thịt)?" + _E, _FLAGS), "Khu Mía Thịt"),
-    (re.compile(_B + r"(?:n\s*h|nh)\s*(\d{3,8})" + _E, _FLAGS), r"NH\1"),
-    (re.compile(_B + r"(?:x\s*n\s*b|xnb)\s*(\d{3,8})" + _E, _FLAGS), r"XNB\1"),
-]
+_SHARED_LEXICON_CANDIDATES = (
+    Path(__file__).resolve().parents[1] / "resources" / "phonetic_lexicon.json",
+)
+
+
+def _load_shared_phonetic_rules() -> list[tuple[re.Pattern[str], str]]:
+    lexicon_path = next((p for p in _SHARED_LEXICON_CANDIDATES if p.is_file()), None)
+    if lexicon_path is None:
+        return []
+    with lexicon_path.open("r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    compiled: list[tuple[re.Pattern[str], str]] = []
+    for entry in payload.get("rules", []):
+        raw_pat = entry.get("pattern", "")
+        repl = entry.get("replacement", "")
+        boundary = str(entry.get("boundary", "LETTER")).upper()
+        if not raw_pat:
+            continue
+        if boundary == "ALNUM":
+            wrapped = r"(?<!\w)" + raw_pat + r"(?!\w)"
+        else:
+            wrapped = _B + raw_pat + _E
+        py_repl = re.sub(r"\{(\d+)\}", r"\\\1", repl)
+        compiled.append((re.compile(wrapped, _FLAGS), py_repl))
+    return compiled
+
+
+_STATIC_PHONETIC_RULES: list[tuple[re.Pattern[str], str]] = _load_shared_phonetic_rules()
 
 _BARN_PHONETIC = re.compile(
     _B
@@ -224,6 +230,14 @@ _CHUC = re.compile(
 
 _MILLION_HALF = re.compile(
     _B + r"(?:(\d+(?:[.,]\d+)?|" + _NUM_WORDS + r")\s+)?triệu\s+rưỡi" + _E,
+    _FLAGS,
+)
+_MILLION_PLAIN = re.compile(
+    _B + r"(\d+(?:[.,]\d+)?|" + _NUM_WORDS + r")\s*(?:triệu|trieu)" + _E,
+    _FLAGS,
+)
+_INVOICE_SPLIT = re.compile(
+    _B + r"n\s*h\s*[-_]?\s*(\d(?:\s\d)+)" + _E,
     _FLAGS,
 )
 
@@ -382,7 +396,7 @@ def _match_dynamic_entities(
             if len(candidates) >= MAX_DYNAMIC_ENTITIES:
                 break
             canon = str(item or "").strip()
-            if not canon or canon in seen_canon:
+            if not canon or len(canon) > 120 or canon in seen_canon:
                 continue
             plain = _entity_key(canon)
             if not plain or plain in _STOP_ENTITY_KEYS:
@@ -539,7 +553,18 @@ def postprocess_vietnamese_phonetic(
 
     out = _sub_tracked(_CHUC, out, _chuc_repl, corrections)
 
-    # 5. Half million amounts ("triệu rưỡi" -> 1500000)
+    # 5. Half million & million amounts ("triệu rưỡi" -> 1500000, "5 triệu" -> 5000000) & split invoice codes
+    def _invoice_split_repl(m: re.Match[str]) -> str:
+        digits = re.sub(r"\s+", "", m.group(1))
+        return f"NH{int(digits):06d}"
+
+    out = _sub_tracked(
+        _INVOICE_SPLIT,
+        out,
+        _invoice_split_repl,
+        corrections,
+    )
+
     def _million_half_repl(m: re.Match[str]) -> str:
         raw = m.group(1)
         if not raw:
@@ -551,6 +576,13 @@ def postprocess_vietnamese_phonetic(
         return str(int(round(base * 1_000_000 + 500_000)))
 
     out = _sub_tracked(_MILLION_HALF, out, _million_half_repl, corrections)
+
+    def _million_plain_repl(m: re.Match[str]) -> str:
+        raw = m.group(1)
+        base = float(_UNITS[raw.lower()]) if raw.lower() in _UNITS else float(raw.replace(",", "."))
+        return str(int(round(base * 1_000_000)))
+
+    out = _sub_tracked(_MILLION_PLAIN, out, _million_plain_repl, corrections)
 
     # 6. Spoken numbers -> digits ("bốn bao rưỡi" -> "4 bao rưỡi", "một cân hai" -> "1 cân 2")
     out = _word_numbers_to_digits(out)

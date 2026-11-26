@@ -57,8 +57,11 @@ a.alertMain:hover { background: #f8fbfa; }
 .upText small { font-size: 12.5px; color: #607781; }
 .upcoming em { flex-shrink: 0; font-style: normal; font-size: 12.5px; font-weight: 600; color: #2d6a4f; }
 .kind { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border-radius: 8px; background: #e9f6ec; color: #2d6a4f; }
+.kind_FEED { background: #e9f6ec; color: #2d6a4f; }
 .kind_VACCINE { background: #e7edf9; color: #2f57a3; }
+.kind_DRINKING_MEDICINE { background: #e0f5f9; color: #0e7490; }
 .kind_MEDICINE { background: #fdecef; color: #b4234a; }
+.kind_CARE_PROCEDURE { background: #f3ecfb; color: #6d28d9; }
 .kind_HARVEST { background: #fff4d6; color: #a16207; }
 .upcoming em.restock_WARN { padding: 2px 9px; border-radius: 999px; background: #fff4d6; color: #a16207; }
 .upcoming em.restock_DANGER { padding: 2px 9px; border-radius: 999px; background: #fdecef; color: #b4234a; }
@@ -168,16 +171,26 @@ a.alertMain:hover { background: #f8fbfa; }
 @media (max-width: 1380px) {
   :global(:root.farmshift-ai-drawer-open) .columns { grid-template-columns: 1fr; }
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .columns { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 640px) {
+@media (max-width: 767px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi { padding: 12px; gap: 8px; flex-direction: column; }
+  .kpi strong { font-size: 20px; }
+  .kpi span { font-size: 12.5px; }
+  .kpiIcon { width: 32px; height: 32px; flex: 0 0 32px; }
   .card > header, .upcoming li { padding-left: 14px; padding-right: 14px; }
   .alertMain { padding-left: 14px; }
-  .barns, .finance { padding: 12px; }
+  .askAiBtn { min-height: 36px; padding: 5px 10px; white-space: nowrap; flex-shrink: 0; }
+  .finance { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 8px; }
+  .farmPlan { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+  .plan { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .notebook .paper > header { padding: 36px 16px 12px; }
+  .notebook .alertMain { padding: 10px 6px 10px 12px; }
+  .notebook .alertRow { padding-right: 10px; gap: 6px; }
 }
-@media (max-width: 640px) {
-  .notebook .paper > header { padding: 14px 44px 10px 46px; }
-  .notebook .alertMain { padding: 10px 6px 10px 10px; }
-  .notebook .alertRow { padding-right: 10px; }
+@media (min-width: 410px) and (max-width: 767px) {
+  .plan { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

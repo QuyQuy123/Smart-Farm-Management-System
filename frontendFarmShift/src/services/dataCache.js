@@ -10,6 +10,7 @@ export const INVALIDATION_MATRIX = {
   '/employees': [
     '/employees',
     '/users',
+    '/user/all',
     '/user/profile',
     '/account',
     '/accounts',
@@ -19,6 +20,13 @@ export const INVALIDATION_MATRIX = {
   ],
   '/user/profile': [
     '/user/profile',
+    '/user/all',
+    '/employees',
+    '/account'
+  ],
+  '/user/avatar': [
+    '/user/profile',
+    '/user/all',
     '/employees',
     '/account'
   ],
@@ -44,7 +52,8 @@ export const INVALIDATION_MATRIX = {
   ],
   '/suppliers': [
     '/suppliers',
-    '/purchases'
+    '/purchases',
+    '/debts'
   ],
   '/purchase-tags': [
     '/purchase-tags',
@@ -182,6 +191,7 @@ export const INVALIDATION_MATRIX = {
     '/inventory-items',
     '/inventory',
     '/cycles',
+    '/cycles/history',
     '/barns',
     '/flocks',
     '/journal',
@@ -191,6 +201,15 @@ export const INVALIDATION_MATRIX = {
     '/reports',
     '/ai/suggestions'
   ],
+  '/diseases': [
+    '/cycles',
+    '/cycles/history',
+    '/inventory-items',
+    '/inventory',
+    '/reports',
+    '/dashboard',
+    '/ai/suggestions'
+  ],
   '/flocks': [
     '/flocks',
     '/cycles',
@@ -198,6 +217,7 @@ export const INVALIDATION_MATRIX = {
     '/journal',
     '/today-tasks',
     '/daily-plans',
+    '/daily-plan',
     '/dashboard',
     '/reports',
     '/ai/suggestions'
@@ -241,6 +261,8 @@ export const INVALIDATION_MATRIX = {
   '/sales-orders': [
     '/sales-orders',
     '/sales',
+    '/debts',
+    '/flocks',
     '/customer-contacts',
     '/customers',
     '/barns',
@@ -252,6 +274,8 @@ export const INVALIDATION_MATRIX = {
   '/sales': [
     '/sales-orders',
     '/sales',
+    '/debts',
+    '/flocks',
     '/customer-contacts',
     '/customers',
     '/barns',
@@ -281,6 +305,7 @@ export const INVALIDATION_MATRIX = {
   ],
   '/users': [
     '/users',
+    '/user/all',
     '/employees',
     '/accounts',
     '/work-assignments'
@@ -325,9 +350,6 @@ export const INVALIDATION_MATRIX = {
     '/barns',
     '/ai/suggestions'
   ],
-  '/iot': [
-    '/ai/suggestions'
-  ],
   '/specifications': [
     '/specifications',
     '/inventory-items',
@@ -340,7 +362,11 @@ export const INVALIDATION_MATRIX = {
   ],
   '/farm': [
     '/farm',
-    '/settings'
+    '/settings',
+    '/daily-plan',
+    '/daily-plans',
+    '/today-tasks',
+    '/cycles'
   ],
   '/push/preferences': [
     '/push/preferences'
@@ -380,7 +406,7 @@ export const shouldSkipCache = (url, config = {}) => {
   const lowerUrl = String(url).toLowerCase();
   if (lowerUrl.includes('/auth/')) return true;
   if ((lowerUrl.includes('/ai/') && !lowerUrl.includes('/ai/suggestions')) || lowerUrl.includes('/voice/')) return true;
-  if (lowerUrl.includes('/files/upload') || lowerUrl.includes('/export')) return true;
+  if (lowerUrl.includes('/files/upload') || lowerUrl.includes('/export') || lowerUrl.includes('/excel-template')) return true;
   if (config.responseType === 'blob' || config.responseType === 'arraybuffer') return true;
   return false;
 };
@@ -409,11 +435,19 @@ export const setPersistedTab = (key, tab) => {
   }
 };
 
+const matchesPrefixBoundary = (key, prefix) => {
+  const cleanP = String(prefix || '').replace(/^\/api/, '');
+  const cleanK = String(key || '').replace(/^\/api/, '');
+  if (!cleanP) return false;
+  return cleanK === cleanP || cleanK.startsWith(cleanP + '/') || cleanK.startsWith(cleanP + '?');
+};
+
 export class DataCache {
   constructor(options = {}) {
     this.memoryCache = new Map();
     this.inFlightPromises = new Map();
     this.currentScope = null;
+    this.clearEpoch = 0;
     if (options.attachListeners !== false) {
       this.initGlobalListeners();
     }
@@ -427,7 +461,9 @@ export class DataCache {
       if (!token) return 'anonymous';
       const parts = token.split('.');
       if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1]));
+        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+        const payload = JSON.parse(atob(padded));
         return payload.sub || payload.email || token.slice(0, 16);
       }
       return token.slice(0, 16);
@@ -518,14 +554,14 @@ export class DataCache {
     return this.peek(key);
   }
 
-  set(key, data, customTtl) {
+  set(key, data, customTtl, explicitScope) {
     const normalized = normalizeCacheKey(key);
     const ttl = typeof customTtl === 'number' && customTtl > 0 ? customTtl : DEFAULT_TTL_MS;
     const entry = {
       data,
       timestamp: Date.now(),
       ttl,
-      userScope: this.getUserScope()
+      userScope: explicitScope || this.getUserScope()
     };
 
     this.memoryCache.set(normalized, entry);
@@ -569,7 +605,7 @@ export class DataCache {
 
     // Delete in RAM
     for (const k of this.memoryCache.keys()) {
-      if (list.some(prefix => k.startsWith(prefix) || k.startsWith(prefix.replace(/^\/api/, '')))) {
+      if (list.some(prefix => matchesPrefixBoundary(k, prefix))) {
         this.memoryCache.delete(k);
       }
     }
@@ -582,7 +618,7 @@ export class DataCache {
           const itemKey = window.sessionStorage.key(i);
           if (itemKey && itemKey.startsWith(STORAGE_PREFIX)) {
             const rawKey = itemKey.slice(STORAGE_PREFIX.length);
-            if (list.some(prefix => rawKey.startsWith(prefix) || rawKey.startsWith(prefix.replace(/^\/api/, '')))) {
+            if (list.some(prefix => matchesPrefixBoundary(rawKey, prefix))) {
               keysToRemove.push(itemKey);
             }
           }
@@ -605,7 +641,7 @@ export class DataCache {
 
     for (const [triggerPrefix, targets] of Object.entries(INVALIDATION_MATRIX)) {
       const cleanTrigger = triggerPrefix.replace(/^\/api/, '');
-      if (cleanUrl === cleanTrigger || cleanUrl.startsWith(cleanTrigger + '/') || cleanUrl.startsWith(cleanTrigger)) {
+      if (cleanUrl === cleanTrigger || cleanUrl.startsWith(cleanTrigger + '/')) {
         targets.forEach(t => matchedPrefixes.add(t));
       }
     }
@@ -626,6 +662,7 @@ export class DataCache {
   invalidateAllFarmData(meta = {}) {
     this.invalidateByPrefix([
       '/purchases',
+      '/debts',
       '/inventory-items',
       '/inventory',
       '/warehouse-categories',
@@ -639,8 +676,10 @@ export class DataCache {
       '/work-assignments',
       '/farm-areas',
       '/areas',
+      '/farming-programs',
       '/cycles',
       '/flocks',
+      '/daily-plan',
       '/daily-plans',
       '/journal',
       '/today-tasks',
@@ -655,6 +694,7 @@ export class DataCache {
   }
 
   clearAll() {
+    this.clearEpoch += 1;
     this.memoryCache.clear();
     this.inFlightPromises.clear();
     this.currentScope = null;
@@ -663,7 +703,7 @@ export class DataCache {
         const keysToRemove = [];
         for (let i = 0; i < window.sessionStorage.length; i++) {
           const itemKey = window.sessionStorage.key(i);
-          if (itemKey && itemKey.startsWith(STORAGE_PREFIX)) {
+          if (itemKey && (itemKey.startsWith(STORAGE_PREFIX) || itemKey.startsWith('farmshift_tab') || itemKey.includes('Tab'))) {
             keysToRemove.push(itemKey);
           }
         }
@@ -692,13 +732,20 @@ export class DataCache {
       }
     }
 
-    const promise = (async () => {
+    const reqScope = this.getUserScope();
+    const startEpoch = this.clearEpoch;
+    let promise;
+    promise = (async () => {
       try {
         const result = await fetcherFn();
-        this.set(normalized, result, ttl);
+        if (this.clearEpoch === startEpoch && this.getUserScope() === reqScope) {
+          this.set(normalized, result, ttl, reqScope);
+        }
         return result;
       } finally {
-        this.inFlightPromises.delete(normalized);
+        if (this.inFlightPromises.get(normalized) === promise) {
+          this.inFlightPromises.delete(normalized);
+        }
       }
     })();
 

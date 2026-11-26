@@ -37,10 +37,14 @@ import { ConfirmStockImport } from './ConfirmStockImport';
 import { PrintablePurchaseVoucher } from './PrintablePurchaseVoucher';
 import { PurchaseInvoiceTemplate } from './PurchaseInvoiceTemplate';
 import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
+import { useViewport } from '../../hooks/useViewport';
+import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
+import { MobileFilterSheet } from '../../components/common/MobileFilterSheet';
 
 export const PurchasesView = () => {
   const { showToast } = useNotification();
   const { user } = useAuth();
+  const { isMobile } = useViewport();
   const isOwnerOrAccountant = user?.role === 'ROLE_FARM_OWNER' || user?.role === 'ROLE_ACCOUNTANT';
 
   const [activeTab, setActiveTabState] = useState(() => getPersistedTab('farmshift_tab_purchases', 'orders'));
@@ -902,7 +906,12 @@ export const PurchasesView = () => {
         previewType = 'image/png';
       }
 
-      setOcrPreviewUrl(previewUrl);
+      setOcrPreviewUrl(prev => {
+        if (typeof prev === 'string' && prev.startsWith('blob:') && typeof URL?.revokeObjectURL === 'function') {
+          try { URL.revokeObjectURL(prev); } catch { /* ignore */ }
+        }
+        return previewUrl;
+      });
       setOcrPreviewName(previewName);
       setOcrPreviewType(previewType);
       setOcrZoom(1);
@@ -975,6 +984,22 @@ export const PurchasesView = () => {
     }, 60);
   };
 
+  const safeExternalUrl = (raw) => {
+    if (typeof raw !== 'string') return '#';
+    const trimmed = raw.trim();
+    return (trimmed.startsWith('/') && !trimmed.startsWith('//'))
+      || trimmed.startsWith('https://')
+      || trimmed.startsWith('http://')
+      ? trimmed
+      : '#';
+  };
+
+  const escapeCsvCell = (value) => {
+    const str = String(value ?? '');
+    const formulaSafe = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+    return `"${formulaSafe.replace(/"/g, '""')}"`;
+  };
+
   // Export to Excel / CSV
   const handleExportExcel = () => {
     if (!purchases.length) {
@@ -983,15 +1008,15 @@ export const PurchasesView = () => {
     }
     const headers = ['Mã đơn', 'Ngày nhập', 'Nhà cung cấp', 'Tổng tiền (VND)', 'Đã thanh toán (VND)', 'Công nợ (VND)', 'Thanh toán', 'Kho hàng', 'Ghi chú'];
     const rows = purchases.map(p => [
-      p.code,
-      p.date,
-      `"${p.supplier}"`,
+      escapeCsvCell(p.code),
+      escapeCsvCell(p.date),
+      escapeCsvCell(p.supplier),
       p.totalAmount,
       p.paidAmount,
       p.debtAmount,
-      `"${p.paymentStatus}"`,
-      `"${p.stockStatus}"`,
-      `"${p.note || ''}"`
+      escapeCsvCell(p.paymentStatus),
+      escapeCsvCell(p.stockStatus),
+      escapeCsvCell(p.note || '')
     ]);
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1002,6 +1027,7 @@ export const PurchasesView = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast('Xuất báo cáo thành công.', 'success');
   };
 
@@ -1113,7 +1139,7 @@ export const PurchasesView = () => {
       breadcrumbTitle={{ orders: 'Hóa đơn nhập hàng', suppliers: 'Nhà cung cấp', debts: 'Công nợ', tags: 'Thẻ tag' }[activeTab]}
       breadcrumbs={[{ label: 'Hóa đơn nhập hàng' }]}
       actions={
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className={styles.headerActions}>
           <button
             className="farmshift-btn farmshift-btn-secondary"
             style={{ color: 'var(--color-primary)' }}
@@ -1129,7 +1155,7 @@ export const PurchasesView = () => {
           </button>
           {isOwnerOrAccountant && (
             <button
-              className="farmshift-btn farmshift-btn-mint"
+              className={`farmshift-btn farmshift-btn-mint ${styles.primaryActionBtn}`}
               onClick={() => {
                 setOcrBanner(false); setIsOcrDraft(false);
                 setOcrPreviewUrl(null);
@@ -1176,35 +1202,35 @@ export const PurchasesView = () => {
       {activeTab === 'orders' && (
         <>
           {/* Quick Metrics Cards (Đối chiếu chuẩn FarmShift_MienBinh_Full.html) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '16px' }}>
-            <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng giá trị nhập</div>
-              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
+          <div className={styles.metricsGrid}>
+            <div className={`farmshift-card ${styles.metricCard}`}>
+              <div className={styles.metricLabel}>Tổng giá trị nhập</div>
+              <strong className={styles.metricValue}>
                 {purchases.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
-            <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tiền đã trả</div>
-              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
+            <div className={`farmshift-card ${styles.metricCard}`}>
+              <div className={styles.metricLabel}>Tiền đã trả</div>
+              <strong className={styles.metricValue}>
                 {purchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
-            <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tiền chưa trả (Công nợ)</div>
-              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
+            <div className={`farmshift-card ${styles.metricCard}`}>
+              <div className={styles.metricLabel}>Tiền chưa trả (Công nợ)</div>
+              <strong className={styles.metricValue}>
                 {purchases.reduce((sum, p) => sum + Number(p.debtAmount || 0), 0).toLocaleString('vi-VN')} đ
               </strong>
             </div>
-            <div className="farmshift-card" style={{ padding: '14px 18px', margin: 0 }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>Tổng số hóa đơn</div>
-              <strong style={{ fontSize: '18px', color: '#58a99a', display: 'block', marginTop: '4px' }}>
+            <div className={`farmshift-card ${styles.metricCard}`}>
+              <div className={styles.metricLabel}>Tổng số hóa đơn</div>
+              <strong className={styles.metricValue}>
                 {purchases.length} hóa đơn
               </strong>
             </div>
           </div>
 
-          <div className="farmshift-toolbar">
-            <div className="farmshift-search-box">
+          <div className={`farmshift-toolbar ${styles.ordersToolbar}`}>
+            <div className={`farmshift-search-box ${styles.ordersSearchBox}`}>
               <Search size={16} color="var(--color-muted)" />
               <input
                 type="text"
@@ -1214,43 +1240,114 @@ export const PurchasesView = () => {
               />
             </div>
 
-            <div className="farmshift-filter-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <select
-                className="farmshift-select"
-                value={filterPayment}
-                onChange={(e) => setFilterPayment(e.target.value)}
+            <div className={`farmshift-filter-group ${styles.ordersFilterGroup}`}>
+              <MobileFilterSheet
+                title="Lọc hóa đơn nhập hàng"
+                activeCount={(filterPayment !== 'ALL' ? 1 : 0) + (filterStock !== 'ALL' ? 1 : 0) + (filterTag !== 'ALL' ? 1 : 0)}
+                onReset={() => { setFilterPayment('ALL'); setFilterStock('ALL'); setFilterTag('ALL'); }}
               >
-                <option value="ALL">Tất cả thanh toán</option>
-                <option value="hoàn tất">Đã thanh toán hoàn tất</option>
-                <option value="Trả sau">Trả sau / Công nợ</option>
-                <option value="phần">Thanh toán một phần</option>
-              </select>
+                <select
+                  className="farmshift-select"
+                  value={filterPayment}
+                  onChange={(e) => setFilterPayment(e.target.value)}
+                >
+                  <option value="ALL">Tất cả thanh toán</option>
+                  <option value="hoàn tất">Đã thanh toán hoàn tất</option>
+                  <option value="Trả sau">Trả sau / Công nợ</option>
+                  <option value="phần">Thanh toán một phần</option>
+                </select>
 
-              <select
-                className="farmshift-select"
-                value={filterStock}
-                onChange={(e) => setFilterStock(e.target.value)}
-              >
-                <option value="ALL">Tất cả kho hàng</option>
-                <option value="Đã nhập kho">Đã nhập kho</option>
-                <option value="Chưa nhập kho">Chưa nhập kho</option>
-                <option value="Đã nhập chuồng">Đã nhập chuồng (con giống)</option>
-              </select>
+                <select
+                  className="farmshift-select"
+                  value={filterStock}
+                  onChange={(e) => setFilterStock(e.target.value)}
+                >
+                  <option value="ALL">Tất cả kho hàng</option>
+                  <option value="Đã nhập kho">Đã nhập kho</option>
+                  <option value="Chưa nhập kho">Chưa nhập kho</option>
+                  <option value="Đã nhập chuồng">Đã nhập chuồng (con giống)</option>
+                </select>
 
-              <select
-                className="farmshift-select"
-                value={filterTag}
-                onChange={(e) => setFilterTag(e.target.value)}
-              >
-                <option value="ALL">Tất cả thẻ tag ({tags.length})</option>
-                {tags.map(t => (
-                  <option key={t.id} value={t.name}>{t.name}</option>
-                ))}
-              </select>
+                <select
+                  className="farmshift-select"
+                  value={filterTag}
+                  onChange={(e) => setFilterTag(e.target.value)}
+                >
+                  <option value="ALL">Tất cả thẻ tag ({tags.length})</option>
+                  {tags.map(t => (
+                    <option key={t.id} value={t.name}>{t.name}</option>
+                  ))}
+                </select>
+              </MobileFilterSheet>
             </div>
           </div>
 
           <div className="farmshift-card">
+            {isMobile ? (() => {
+              const filteredPurchases = purchases.filter(p => (filterStock === 'ALL' || p.stockStatus === filterStock) && (filterTag === 'ALL' || (p.tags && p.tags.includes(filterTag))));
+              const orderPages = Math.max(1, Math.ceil(filteredPurchases.length / orderPageSize));
+              const safeOrderPage = Math.min(Math.max(1, orderPage), orderPages);
+              const pagedPurchases = filteredPurchases.slice((safeOrderPage - 1) * orderPageSize, safeOrderPage * orderPageSize);
+              const totalFilteredVal = filteredPurchases.reduce((acc, item) => acc + Number(item.totalAmount || 0), 0);
+              const hasActiveOrderFilter = Boolean(
+                searchTerm.trim() || filterPayment !== 'ALL' || filterStock !== 'ALL' || filterTag !== 'ALL'
+              );
+              return (
+                <div style={{ padding: '12px' }}>
+                  <ResponsiveDataTable
+                    data={pagedPurchases}
+                    rowKey={p => p.id}
+                    mode="card-on-mobile"
+                    loading={loading}
+                    emptyState="Không tìm thấy hóa đơn nhập hàng nào phù hợp."
+                    summaryItems={!loading && hasActiveOrderFilter ? [
+                      { label: 'Số hóa đơn', value: `${filteredPurchases.length}` },
+                      { label: 'Tổng giá trị', value: `${Math.round(totalFilteredVal).toLocaleString('vi-VN')} đ`, tone: 'teal' },
+                    ] : []}
+                    pagination={orderPages > 1 ? {
+                      page: safeOrderPage,
+                      totalPages: orderPages,
+                      totalItems: filteredPurchases.length,
+                      onPageChange: setOrderPage,
+                    } : null}
+                    renderMobileCard={p => (
+                      <div style={{ background: '#fff', border: '1px solid #e3ebe8', borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <button type="button" className={styles.invoiceCode} onClick={() => setSelectedOrder(p)} aria-label={`Xem hóa đơn ${p.code}`}>
+                            {p.code}
+                          </button>
+                          <span style={{ fontSize: 12.5, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: '#eef7f5', color: '#00695c' }}>
+                            {p.paymentStatus}
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: 10, background: '#f8fafc', borderRadius: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 11.5, color: '#64748b' }}>Nhà cung cấp</div>
+                            <strong style={{ fontSize: 13.5, color: '#181d26' }}>{p.supplier}</strong>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11.5, color: '#64748b' }}>Tổng tiền</div>
+                            <strong style={{ fontSize: 13.5, color: '#181d26' }}>{Math.round(Number(p.totalAmount || 0)).toLocaleString('vi-VN')} đ</strong>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11.5, color: '#64748b' }}>Kho hàng</div>
+                            <strong style={{ fontSize: 13, color: '#334155' }}>{p.stockStatus}</strong>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11.5, color: '#64748b' }}>Ngày nhập</div>
+                            <strong style={{ fontSize: 13, color: '#334155' }}>{p.stockStatus === 'Đã nhập kho' && p.importedDate ? p.importedDate.split('-').reverse().join('/') : '—'}</strong>
+                          </div>
+                        </div>
+                        {p.note && <div style={{ fontSize: 13, color: '#64748b' }}>{p.note}</div>}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #eef2f4', paddingTop: 8 }}>
+                          <PurchaseRowActions invoice={p} canEdit={isOwnerOrAccountant} suppliers={suppliers} tags={tags} onView={setSelectedOrder} onReload={fetchData} />
+                        </div>
+                      </div>
+                    )}
+                  />
+                </div>
+              );
+            })() : (
             <div className="farmshift-table-container" style={{ border: 'none' }}>
               <table className="farmshift-table">
                 <thead>
@@ -1304,7 +1401,7 @@ export const PurchasesView = () => {
                           <td>{p.stockStatus}</td>
                           <td>
                             <strong style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>
-                              {Number(p.totalAmount || 0).toLocaleString('vi-VN')} đ
+                              {Math.round(Number(p.totalAmount || 0)).toLocaleString('vi-VN')} đ
                             </strong>
                           </td>
                           <td style={{ color: 'var(--color-muted)', fontSize: '13px', maxWidth: '220px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1318,7 +1415,8 @@ export const PurchasesView = () => {
                 </tbody>
               </table>
             </div>
-            {(() => {
+            )}
+            {!isMobile && (() => {
               const filteredPurchases = purchases.filter(p => (filterStock === 'ALL' || p.stockStatus === filterStock) && (filterTag === 'ALL' || (p.tags && p.tags.includes(filterTag))));
               if (loading || filteredPurchases.length <= 10) return null;
               const orderPages = Math.max(1, Math.ceil(filteredPurchases.length / orderPageSize));
@@ -1800,7 +1898,7 @@ export const PurchasesView = () => {
                           <ImageIcon size={15} color="var(--color-primary)" /> Ảnh hóa đơn / chứng từ đính kèm
                         </span>
                         <a
-                          href={selectedOrder.attachmentUrl}
+                          href={safeExternalUrl(selectedOrder.attachmentUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="farmshift-btn farmshift-btn-secondary"
@@ -2407,26 +2505,28 @@ export const PurchasesView = () => {
                     );
                   })}
 
-                  <div className="farmshift-form-group" style={{ marginBottom: '14px' }}>
-                    <label htmlFor="po-attachment-file" className="farmshift-form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <ImageIcon size={14} color="var(--color-primary)" /> Đính kèm ảnh hóa đơn / phiếu cân (tùy chọn)
-                    </label>
-                    <input
-                      id="po-attachment-file"
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="farmshift-form-control"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setAttachedInvoiceFile(file);
-                      }}
-                    />
-                    {attachedInvoiceFile && (
-                      <div style={{ fontSize: '12px', color: 'var(--color-primary)', marginTop: '4px' }}>
-                        Đã chọn chứng từ đính kèm: <strong>{attachedInvoiceFile.name}</strong>
-                      </div>
-                    )}
-                  </div>
+                  {!isOcrDraft && !ocrPreviewUrl && (
+                    <div className="farmshift-form-group" style={{ marginBottom: '14px' }}>
+                      <label htmlFor="po-attachment-file" className="farmshift-form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ImageIcon size={14} color="var(--color-primary)" /> Đính kèm ảnh hóa đơn / phiếu cân (tùy chọn)
+                      </label>
+                      <input
+                        id="po-attachment-file"
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="farmshift-form-control"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setAttachedInvoiceFile(file);
+                        }}
+                      />
+                      {attachedInvoiceFile && (
+                        <div style={{ fontSize: '12px', color: 'var(--color-primary)', marginTop: '4px' }}>
+                          Đã chọn chứng từ đính kèm: <strong>{attachedInvoiceFile.name}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
 
 

@@ -13,6 +13,7 @@ import com.farmshift.backendFarmShift.repository.AccountRepository;
 import com.farmshift.backendFarmShift.repository.AccountSpecifications;
 import com.farmshift.backendFarmShift.repository.CustomerRepository;
 import com.farmshift.backendFarmShift.repository.RoleRepository;
+import com.farmshift.backendFarmShift.security.AccountAuthStateService;
 import com.farmshift.backendFarmShift.security.RoleNames;
 import com.farmshift.backendFarmShift.service.EmployeeService;
 import lombok.RequiredArgsConstructor;
@@ -73,6 +74,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Autowired(required = false)
     private ThreadPoolTaskExecutor searchTaskExecutor;
 
+    @Autowired(required = false)
+    private AccountAuthStateService accountAuthStateService;
+
     private Executor getExecutor() {
         return searchTaskExecutor != null ? searchTaskExecutor : ForkJoinPool.commonPool();
     }
@@ -80,7 +84,6 @@ public class EmployeeServiceImpl implements EmployeeService {
     // ------------------------------------------------------------------ queries
 
     @Override
-    @Transactional(readOnly = true)
     public List<EmployeeResponse> getEmployees(String keyword, String role, Boolean isActive) {
         return getEmployeesAsync(keyword, role, isActive).join();
     }
@@ -283,6 +286,10 @@ public class EmployeeServiceImpl implements EmployeeService {
             }
         }
 
+        String previousEmail = account.getEmail();
+        String previousRole = account.getRole() != null ? account.getRole().getName() : null;
+        Boolean previousActive = account.getIsActive();
+
         boolean targetIsOwner = account.getRole() != null
                 && RoleNames.FARM_OWNER.equals(account.getRole().getName());
 
@@ -302,6 +309,18 @@ public class EmployeeServiceImpl implements EmployeeService {
             account.setAvatarUrl(blankToNull(request.getAvatarUrl()));
         }
         account = accountRepository.save(account);
+        if (accountAuthStateService != null) {
+            String newRole = account.getRole() != null ? account.getRole().getName() : null;
+            boolean securityChanged = !Objects.equals(previousEmail, email)
+                    || !Objects.equals(previousRole, newRole)
+                    || !Objects.equals(previousActive, account.getIsActive());
+            if (securityChanged) {
+                accountAuthStateService.evictAndRevokeTokensIssuedBeforeNow(previousEmail);
+                accountAuthStateService.evictAndRevokeTokensIssuedBeforeNow(email);
+            } else {
+                accountAuthStateService.evictUser(email);
+            }
+        }
 
         Customer customer = customerRepository.findByAccount(account).orElseGet(Customer::new);
         customer.setAccount(account);

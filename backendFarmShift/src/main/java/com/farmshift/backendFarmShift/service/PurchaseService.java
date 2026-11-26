@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.util.*;
@@ -48,7 +49,7 @@ public class PurchaseService {
 
     @Transactional
     public PurchaseInvoiceResponse update(Long id, com.farmshift.backendFarmShift.dto.request.PurchaseInvoiceEditRequest request) {
-        var invoice = find(id);
+        var invoice = findForUpdate(id);
         requireNotFlockInvoice(invoice);
         if ("Đã hủy".equals(invoice.getStockStatus()) || "Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus())
                 || invoice.getPaidAmount() > 0 || "Thanh toán hoàn tất".equalsIgnoreCase(invoice.getPaymentStatus()))
@@ -88,7 +89,7 @@ public class PurchaseService {
 
     @Transactional
     public void delete(Long id) {
-        var invoice = find(id);
+        var invoice = findForUpdate(id);
         requireNotFlockInvoice(invoice);
         if ("Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus()) || invoice.getPaidAmount() > 0)
             throw new BadRequestException("Không thể xóa hóa đơn đã nhập kho hoặc đã thanh toán.", "MSG39");
@@ -125,8 +126,11 @@ public class PurchaseService {
                 if (itemReq.warehouseId() == null && category.getWarehouse() == null) throw new BadRequestException("Hàng hóa đã chọn chưa thuộc kho nào.");
             }
             if (!Double.isFinite(itemReq.qty())) throw new BadRequestException("Số lượng không hợp lệ.");
-            long lineAmount = Math.round(itemReq.qty() * itemReq.price());
-            itemsTotal += lineAmount;
+            long lineAmount = BigDecimal.valueOf(itemReq.qty())
+                    .multiply(BigDecimal.valueOf(itemReq.price()))
+                    .setScale(0, RoundingMode.HALF_UP)
+                    .longValueExact();
+            itemsTotal = Math.addExact(itemsTotal, lineAmount);
 
             PurchaseInvoiceItem item = new PurchaseInvoiceItem(
                     invoice,
@@ -164,7 +168,7 @@ public class PurchaseService {
                 paymentStatus = "Trả sau";
             }
         }
-        if ("Thanh toán một phần".equals(request.paymentStatus()) && (request.paidAmount() == null || request.paidAmount() <= 0 || request.paidAmount() > totalAmount))
+        if ("Thanh toán một phần".equalsIgnoreCase(request.paymentStatus()) && (request.paidAmount() == null || request.paidAmount() <= 0 || request.paidAmount() > totalAmount))
             throw new BadRequestException("Tiền trả trước phải lớn hơn 0 và không vượt quá tổng tiền.");
         invoice.setPaidAmount(paid);
         invoice.setPaymentStatus(paymentStatus);
@@ -230,7 +234,7 @@ public class PurchaseService {
 
     @Transactional
     public PurchaseInvoiceResponse importStock(Long id) {
-        PurchaseInvoice invoice = find(id);
+        PurchaseInvoice invoice = findForUpdate(id);
         requireNotFlockInvoice(invoice);
         if ("Đã nhập kho".equalsIgnoreCase(invoice.getStockStatus())) {
             return toResponse(invoice);
@@ -248,7 +252,7 @@ public class PurchaseService {
 
     @Transactional
     public PurchaseInvoiceResponse pay(Long id, PurchasePaymentRequest request) {
-        PurchaseInvoice invoice = find(id);
+        PurchaseInvoice invoice = findForUpdate(id);
         if ("Đã hủy".equalsIgnoreCase(invoice.getStockStatus())) {
             throw new BadRequestException("Không thể thanh toán cho hóa đơn đã bị hủy.");
         }
@@ -288,7 +292,7 @@ public class PurchaseService {
 
     @Transactional
     public void cancel(Long id) {
-        PurchaseInvoice invoice = find(id);
+        PurchaseInvoice invoice = findForUpdate(id);
         requireNotFlockInvoice(invoice);
 
         // System rule: finalized/stocked or paid records cannot be cancelled/deleted
@@ -452,6 +456,12 @@ public class PurchaseService {
 
     private PurchaseInvoice find(Long id) {
         return invoiceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn nhập hàng."));
+    }
+
+    private PurchaseInvoice findForUpdate(Long id) {
+        return invoiceRepository.findForUpdate(id)
+                .or(() -> invoiceRepository.findById(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn nhập hàng."));
     }
 

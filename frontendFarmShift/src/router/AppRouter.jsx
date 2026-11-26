@@ -1,7 +1,7 @@
 // src/router/AppRouter.jsx
 // FarmShift Main App Router with Code-Splitting
-import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 import { PageLoading } from '../components/Loading/PageLoading';
@@ -16,6 +16,7 @@ const DashboardView = lazy(() => import('../features/farmshift/DashboardView').t
 const BarnsView = lazy(() => import('../features/farmshift/BarnsView').then(m => ({ default: m.BarnsView })));
 const AreasView = lazy(() => import('../features/farmshift/AreasView').then(m => ({ default: m.AreasView })));
 const BarnDetailView = lazy(() => import('../features/farmshift/BarnDetailView').then(m => ({ default: m.BarnDetailView })));
+const CycleHistoryView = lazy(() => import('../features/farmshift/CycleHistoryView').then(m => ({ default: m.CycleHistoryView })));
 const TodayTasksView = lazy(() => import('../features/farmshift/TodayTasksView').then(m => ({ default: m.TodayTasksView })));
 const JournalView = lazy(() => import('../features/farmshift/JournalView').then(m => ({ default: m.JournalView })));
 const InventoryView = lazy(() => import('../features/farmshift/InventoryView').then(m => ({ default: m.InventoryView })));
@@ -37,6 +38,8 @@ const FINANCE_ROLES = ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'];
 const FARM_ROLES = ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'];
 const ALL_ROLES = ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'];
 
+const IS_DEMO_ALLOWED = !import.meta.env.PROD;
+
 /* ── ProtectedRoute ─────────────────────────────────────────── */
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -45,13 +48,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <PageLoading />;
   }
 
-  // Allow access even without login in demo mode, or redirect if required
-  if (!user && !sessionStorage.getItem('demo_mode')) {
+  // Allow access without login only in non-production demo mode
+  if (!user && !(IS_DEMO_ALLOWED && sessionStorage.getItem('demo_mode'))) {
     return <Navigate to="/login" replace />;
   }
 
   const role = user?.role;
-  if (role && allowedRoles && !allowedRoles.includes(role)) {
+  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
+    if (!role && IS_DEMO_ALLOWED && sessionStorage.getItem('demo_mode')) {
+      return children;
+    }
     const fallback = role === 'ROLE_FARM_WORKER' ? '/today-tasks' : '/dashboard';
     return <Navigate to={fallback} replace />;
   }
@@ -67,10 +73,27 @@ const HomeRoute = () => {
   return <DashboardView />;
 };
 
+const ServiceWorkerNavigateListener = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return undefined;
+    const handleMessage = (event) => {
+      const data = event?.data;
+      if (data?.type === 'FARMSHIFT_NAVIGATE' && typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//')) {
+        navigate(data.url);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [navigate]);
+  return null;
+};
+
 /* ── AppRouter ─────────────────────────────────────────────── */
 export const AppRouter = () => {
   return (
     <Suspense fallback={<PageLoading />}>
+      <ServiceWorkerNavigateListener />
       <Routes>
         {/* ── Public Auth Routes ──────────────────────────────── */}
         <Route path="/login" element={<Login />} />
@@ -85,7 +108,8 @@ export const AppRouter = () => {
         <Route path="/areas" element={<ProtectedRoute allowedRoles={FARM_ROLES}><AreasView /></ProtectedRoute>} />
         <Route path="/areas/:id" element={<ProtectedRoute allowedRoles={FARM_ROLES}><AreasView /></ProtectedRoute>} />
         <Route path="/barns" element={<ProtectedRoute allowedRoles={FARM_ROLES}><AreasView /></ProtectedRoute>} />
-        <Route path="/barns/:id" element={<ProtectedRoute allowedRoles={FARM_ROLES}><BarnDetailView /></ProtectedRoute>} />
+        <Route path="/barns/:id" element={<ProtectedRoute allowedRoles={ALL_ROLES}><BarnDetailView /></ProtectedRoute>} />
+        <Route path="/cycles/history" element={<ProtectedRoute allowedRoles={ALL_ROLES}><CycleHistoryView /></ProtectedRoute>} />
         <Route path="/today-tasks" element={<ProtectedRoute allowedRoles={FARM_ROLES}><TodayTasksView /></ProtectedRoute>} />
         {/* Phân công công việc nằm trong Việc hôm nay (tab Phân công). */}
         <Route path="/work-assignments" element={<Navigate to="/today-tasks?view=assign" replace />} />
@@ -112,7 +136,7 @@ export const AppRouter = () => {
         <Route path="/notifications" element={<ProtectedRoute allowedRoles={ALL_ROLES}><GeneralSettingsView /></ProtectedRoute>} />
         <Route path="/owner-dashboard" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><DashboardView /></ProtectedRoute>} />
         <Route path="/accountant-dashboard" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><DashboardView /></ProtectedRoute>} />
-        <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={FARM_ROLES}><DashboardView /></ProtectedRoute>} />
+        <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={ALL_ROLES}><HomeRoute /></ProtectedRoute>} />
         <Route path="/batches" element={<ProtectedRoute allowedRoles={FARM_ROLES}><BarnsView /></ProtectedRoute>} />
         <Route path="/tasks" element={<ProtectedRoute allowedRoles={FARM_ROLES}><JournalView /></ProtectedRoute>} />
         <Route path="/iot" element={<ProtectedRoute allowedRoles={OWNER_ONLY}><IotView /></ProtectedRoute>} />

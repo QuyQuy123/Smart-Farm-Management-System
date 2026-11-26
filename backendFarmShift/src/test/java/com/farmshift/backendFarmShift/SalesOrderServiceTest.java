@@ -88,7 +88,8 @@ class SalesOrderServiceTest {
   flock.setStatus(FlockStatus.ACTIVE);
 
   when(cycles.findById(5L)).thenReturn(Optional.of(cycle));
-  when(flocks.findAllByCycleIdOrderByImportDateAscIdAsc(5L)).thenReturn(List.of(flock));
+  when(barns.findByIdForUpdate(10L)).thenReturn(Optional.of(barn));
+  when(flocks.findAllByCycleIdForUpdate(5L)).thenReturn(List.of(flock));
 
   var service = new SalesOrderService(orders, customers, codes, storage, cycles, barns, flocks, movements);
   var req = new SalesOrderRequest("sale-id", LocalDate.now(), "Buyer", "0912345678", "Address", "Khu gà mía - Chuồng A1 - L000005",
@@ -99,6 +100,8 @@ class SalesOrderServiceTest {
   assertNotNull(order);
   assertEquals(800, barn.getCurrentQuantity());
   assertEquals(800, flock.getQuantity());
+  verify(barns).findByIdForUpdate(10L);
+  verify(flocks).findAllByCycleIdForUpdate(5L);
   verify(barns).save(barn);
   verify(flocks).save(flock);
   verify(movements).save(argThat(m ->

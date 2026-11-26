@@ -86,6 +86,11 @@ async def transcribe_voice(
             mime_type=detected_or_error,
         )
         return response
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error("Error transcribing voice: %s", type(error).__name__, exc_info=True)
+        raise HTTPException(status_code=500, detail="Lỗi hệ thống khi nhận diện giọng nói.")
     finally:
         await file.close()
 

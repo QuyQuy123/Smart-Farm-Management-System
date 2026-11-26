@@ -30,13 +30,19 @@ public record FarmingProgramRequest(
             @Min(value = 1, message = "Ngày tuổi từ 1 đến 365.") @Max(value = 365, message = "Ngày tuổi từ 1 đến 365.") Integer dayFrom,
             @NotNull(message = "Vui lòng nhập ngày tuổi kết thúc.")
             @Min(value = 1, message = "Ngày tuổi từ 1 đến 365.") @Max(value = 365, message = "Ngày tuổi từ 1 đến 365.") Integer dayTo,
-            @DecimalMin(value = "0", message = "Định mức không được âm.") BigDecimal quantity,
+            @DecimalMin(value = "0", message = "Định mức không được âm.")
+            @DecimalMax(value = "99999999999.999", message = "Định mức vượt giới hạn cho phép.") BigDecimal quantity,
             @Size(max = 50, message = "Đơn vị không quá 50 ký tự.") String unit,
             @Min(value = 1, message = "Số cữ ăn từ 1 đến 8.") @Max(value = 8, message = "Số cữ ăn từ 1 đến 8.") Integer mealsPerDay,
             AdministrationMethod method,
             @DecimalMin(value = "10", message = "Nhiệt độ từ 10 đến 45°C.") @DecimalMax(value = "45", message = "Nhiệt độ từ 10 đến 45°C.") BigDecimal tempMin,
             @DecimalMin(value = "10", message = "Nhiệt độ từ 10 đến 45°C.") @DecimalMax(value = "45", message = "Nhiệt độ từ 10 đến 45°C.") BigDecimal tempMax,
             @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note,
-            @Positive(message = "Hàng hóa không hợp lệ.") Long inventoryItemId) {
+            @Positive(message = "Hàng hóa không hợp lệ.") Long inventoryItemId,
+            @Size(max = 30, message = "Chế độ nhập cám không hợp lệ.") String feedInputMode,
+            @DecimalMin(value = "0.001", message = "Khối lượng bao cám phải lớn hơn 0.")
+            @DecimalMax(value = "9999999.999", message = "Khối lượng bao cám vượt giới hạn cho phép.") BigDecimal bagWeightKg,
+            @DecimalMin(value = "0.001", message = "Định mức bao / 1.000 con phải lớn hơn 0.")
+            @DecimalMax(value = "99999999999.999", message = "Định mức bao / 1.000 con vượt giới hạn cho phép.") BigDecimal bagsPer1000Birds) {
     }
 }

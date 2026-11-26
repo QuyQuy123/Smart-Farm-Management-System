@@ -255,10 +255,12 @@ public class ReportService {
                     ? Math.max(openingQty + totalIn, lossCount)
                     : totalIn;
             BigDecimal survivalRate = survivalBase > 0
-                    ? BigDecimal.valueOf((survivalBase - lossCount) * 100.0 / survivalBase).setScale(2, RoundingMode.HALF_UP)
+                    ? BigDecimal.valueOf(survivalBase - lossCount).multiply(BigDecimal.valueOf(100))
+                            .divide(BigDecimal.valueOf(survivalBase), 2, RoundingMode.HALF_UP)
                     : BigDecimal.valueOf(100);
             BigDecimal cumSurvivalRate = cumIn > 0
-                    ? BigDecimal.valueOf((cumIn - cumLoss) * 100.0 / cumIn).setScale(2, RoundingMode.HALF_UP)
+                    ? BigDecimal.valueOf(cumIn - cumLoss).multiply(BigDecimal.valueOf(100))
+                            .divide(BigDecimal.valueOf(cumIn), 2, RoundingMode.HALF_UP)
                     : BigDecimal.valueOf(100);
 
             FarmingProgram program = flocks.stream()
@@ -365,9 +367,11 @@ public class ReportService {
 
         int totalLoss = sumDeaths + sumCulls;
         BigDecimal farmLossRate = sumSurvivalBase > 0
-                ? BigDecimal.valueOf(totalLoss * 100.0 / sumSurvivalBase).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+                ? BigDecimal.valueOf(totalLoss).multiply(BigDecimal.valueOf(100))
+                        .divide(BigDecimal.valueOf(sumSurvivalBase), 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
         BigDecimal farmSurvivalRate = sumSurvivalBase > 0
-                ? BigDecimal.valueOf(100.0).subtract(farmLossRate).max(BigDecimal.ZERO) : BigDecimal.valueOf(100);
+                ? BigDecimal.valueOf(100).subtract(farmLossRate).max(BigDecimal.ZERO) : BigDecimal.valueOf(100);
 
         FarmSummary farmSummary = new FarmSummary(
                 sumIn, sumHarvested, sumHarvestedWeight.setScale(1, RoundingMode.HALF_UP),

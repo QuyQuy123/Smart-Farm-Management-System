@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DailyPlanCard } from '../features/farmshift/DailyPlanCard';
+import { todayIso } from '../features/farmshift/farmAreaOptions';
 
 const task = (key, category, name, extra = {}) => ({
   key, category, name, meal: null, mealsPerDay: null, method: null, doseText: null, plannedQuantity: null, unit: null, plannedStock: null, stockUnit: null,
@@ -80,5 +81,37 @@ describe('DailyPlanCard', () => {
     rerender(<DailyPlanCard compact plan={{ ...plan, workers: [hang, ba], assignedTasks: [assigned] }} role="ROLE_FARM_OWNER"
       userEmail="owner@farm.test" busyKey={null} onConfirm={vi.fn()} onUndo={vi.fn()} onConfirmAssigned={vi.fn()} onUndoAssigned={vi.fn()} />);
     expect(screen.getByText('Giao cho Nông Thị Hằng')).toBeInTheDocument();
+  });
+
+  it('matches worker email case-insensitively for task undo and assigned task actions', () => {
+    const today = todayIso();
+    const doneFeed = {
+      ...plan.tasks[0],
+      done: { id: 10, doneBy: 'Worker@Farm.Test', doneAt: `${today}T07:05:00`, actualQuantity: 850, deviated: false },
+    };
+    const assigned = {
+      id: 77,
+      title: 'Kiểm tra bạt che',
+      note: '',
+      dueTime: null,
+      assignee: { id: 9, fullName: 'Công Nhân A', email: 'WORKER@FARM.TEST' },
+      done: null,
+    };
+
+    render(
+      <DailyPlanCard
+        plan={{ ...plan, date: today, tasks: [doneFeed], assignedTasks: [assigned] }}
+        role="ROLE_FARM_WORKER"
+        userEmail="worker@farm.test"
+        busyKey={null}
+        onConfirm={vi.fn()}
+        onUndo={vi.fn()}
+        onConfirmAssigned={vi.fn()}
+        onUndoAssigned={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Hoàn tác Cữ 1/3 · Higro 02' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xong Kiểm tra bạt che' })).toBeInTheDocument();
   });
 });

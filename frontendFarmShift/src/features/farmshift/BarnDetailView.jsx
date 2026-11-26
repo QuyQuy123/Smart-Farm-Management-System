@@ -20,17 +20,19 @@ import { FlockDetailDialog } from './FlockDetailDialog';
 import { MovementDetailDialog } from './MovementDetailDialog';
 import { AreaTabs } from './AreaTabs';
 import { DailyPlanCard } from './DailyPlanCard';
+import { DiseaseLogPanel } from './DiseaseLogPanel';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { getBarnDailyPlan } from '../../services/dailyPlanService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { useViewport } from '../../hooks/useViewport';
 import {
-  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
+  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_STATES, describeStep, stepCategoryLabel,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
 } from './farmAreaOptions';
 import styles from './BarnDetailView.module.css';
 
 const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
-const money = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN')}đ`;
+const money = value => value == null ? '—' : `${Math.round(Number(value)).toLocaleString('vi-VN')}đ`;
 const isInt = value => value !== '' && Number.isInteger(Number(value));
 const IMPORT_PAYMENT_OPTIONS = [{ value: 'Trả sau', label: 'Trả sau (ghi công nợ)' }, { value: 'Thanh toán hoàn tất', label: 'Đã trả đủ tiền' }];
 
@@ -75,10 +77,12 @@ export const BarnDetailView = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useNotification();
+  const { isMobile } = useViewport();
   const role = user?.role;
   const isOwner = role === 'ROLE_FARM_OWNER';
+  const isAccountant = role === 'ROLE_ACCOUNTANT';
   const canDaily = isOwner || role === 'ROLE_FARM_WORKER';
-  const canFinance = isOwner || role === 'ROLE_ACCOUNTANT';
+  const canFinance = isOwner || isAccountant;
   const requestedCycle = searchParams.get('cycle');
 
   const [revision, setRevision] = useState(0);
@@ -420,7 +424,14 @@ export const BarnDetailView = () => {
       { key: 'amount', label: 'Số tiền (đ)', type: 'number', required: true, min: 1, step: 1 },
       { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
     ],
-    validate: values => ({ expenseDate: dateRule(values.expenseDate, 'Ngày chi'), amount: values.amount !== '' && !(Number(values.amount) > 0) ? 'Số tiền phải lớn hơn 0.' : undefined }),
+    validate: values => ({
+      expenseDate: dateRule(values.expenseDate, 'Ngày chi'),
+      amount: values.amount !== '' && !(Number(values.amount) > 0)
+        ? 'Số tiền phải lớn hơn 0.'
+        : values.amount !== '' && Number(values.amount) > 99999999999999
+          ? 'Số tiền vượt giới hạn cho phép.'
+          : undefined,
+    }),
     onSubmit: async values => { await addExpense(cycle.id, { ...values, amount: Number(values.amount), note: values.note.trim() }); return 'Đã ghi khoản chi.'; },
   });
 
@@ -432,7 +443,7 @@ export const BarnDetailView = () => {
   // ---------------------------------------------------------------- render helpers
 
   const header = barn && <div className={styles.titleBar}>
-    <div><Link to={`/areas/${barn.areaId}`}>{barn.areaName}</Link> / <span>{barn.name}</span></div>
+    <div>{canDaily ? <Link to={`/areas/${barn.areaId}`}>{barn.areaName}</Link> : <span>{barn.areaName}</span>} / <span>{barn.name}</span></div>
     <select aria-label="Chuyển sang chuồng khác" value={barn.id} onChange={event => navigate(`/barns/${event.target.value}`)}>
       {sameArea.map(item => <option key={item.id} value={item.id}>-- {item.name}</option>)}
     </select>
@@ -463,8 +474,8 @@ export const BarnDetailView = () => {
       </table></div>}
   </Card>;
 
-  const renderNoCycle = () => {
-    return <div className={styles.columns}>
+  const renderNoCycle = () => (
+    <div className={styles.columns}>
       <div className={styles.left}>{barnInfo}</div>
       <div className={styles.right}>
         <section className={`${styles.card} ${styles.emptyCycle}`}>
@@ -475,8 +486,8 @@ export const BarnDetailView = () => {
         </section>
         {history}
       </div>
-    </div>;
-  };
+    </div>
+  );
 
   // Chỉ số chính luôn hiện; các chỉ số phụ nằm sau nút "Xem thêm chỉ số" cho gọn.
   // Mục tiêu cân nặng lấy từ chương trình nuôi của lứa (không đặt theo chuồng).
@@ -518,7 +529,39 @@ export const BarnDetailView = () => {
     const harvests = detail.movements.filter(item => item.type === 'HARVEST');
     const expenses = (detail.expenses || []).filter(item => item.category === expenseTab);
 
-    return <div className={styles.columns}>
+    const activeFlockForQuickLoss = detail.flocks.find(flock => flock.status === 'ACTIVE' && flock.quantity > 0);
+
+    return <>
+      {isMobile && active && canDaily && (
+        <div className={styles.mobileQuickBar} data-testid="barn-mobile-quick-actions" aria-label="Thao tác nhanh chuồng nuôi">
+          <Link
+            to={barn?.activeCycleId ? `/today-tasks?cycle=${encodeURIComponent(barn.activeCycleId)}` : '/today-tasks'}
+            className={styles.quickActionBtn}
+          >
+            <CalendarDays size={16} />
+            <span>Ghi cám</span>
+          </Link>
+          {activeFlockForQuickLoss && (
+            <button
+              type="button"
+              className={styles.quickActionBtn}
+              onClick={() => openLoss(activeFlockForQuickLoss)}
+            >
+              <Skull size={16} />
+              <span>Hao hụt</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.quickActionBtn}
+            onClick={openWeight}
+          >
+            <Gauge size={16} />
+            <span>Cân mẫu</span>
+          </button>
+        </div>
+      )}
+      <div className={styles.columns}>
       <div className={styles.left}>
         <Card title="Thông tin lứa nuôi" icon={Flag}>
           <div className={styles.cycleInfo}>
@@ -601,7 +644,7 @@ export const BarnDetailView = () => {
         </Card>
 
         {active && <Card title={`Việc hôm nay · ${formatDay(today)}`} icon={CalendarDays}
-          actions={<Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
+          actions={canDaily && <Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
           {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
             : dayPlan.flocks.length === 0 ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
               : <div className={styles.dayPlan}><DailyPlanCard compact plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
@@ -621,7 +664,7 @@ export const BarnDetailView = () => {
               const stepState = STEP_STATES[step.state] || STEP_STATES.UPCOMING;
               return <li key={step.id} className={step.state === 'IN_PROGRESS' ? styles.stepNow : ''}>
                 <span>Ngày {step.dayFrom}{step.dayTo !== step.dayFrom ? `–${step.dayTo}` : ''}</span>
-                <strong>{STEP_CATEGORIES.find(category => category.value === step.category)?.label}: {step.name}</strong>
+                <strong>{stepCategoryLabel(step.category)}: {step.name}</strong>
                 <small>{describeStep(step)}</small>
                 <span className={`${styles.badge} ${styles[`badge_${stepState.tone}`]}`}>{stepState.label}</span>
               </li>;
@@ -657,6 +700,18 @@ export const BarnDetailView = () => {
           </table></div>)}
         </Card>
 
+        <DiseaseLogPanel
+          cycle={cycle}
+          flocks={detail.flocks}
+          canDaily={canDaily}
+          canFinance={canFinance}
+          isOwner={isOwner}
+          userEmail={user?.email}
+          refreshKey={revision}
+          onChanged={() => setRevision(value => value + 1)}
+          showToast={showToast}
+        />
+
         {canFinance && finance && <Card title="Khoản chi bổ sung" icon={Coins}
           actions={active && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openExpense}><PlusCircle size={15} />Thêm khoản chi</button>}>
           <Tabs value={expenseTab} onChange={setExpenseTab} tabs={EXPENSE_CATEGORIES} />
@@ -680,18 +735,24 @@ export const BarnDetailView = () => {
 
         {history}
       </div>
-    </div>;
+    </div></>;
   };
 
-  return <FarmShiftLayout pageTitle={barn ? barn.name : 'Chi tiết chuồng'} showShortcuts environmentHref={`/iot?barn=${encodeURIComponent(id)}`}
+  const breadcrumbs = isAccountant
+    ? [{ label: 'Bảng tin', path: '/dashboard' }, { label: 'Lịch sử lứa nuôi', path: '/cycles/history' }, ...(barn ? [{ label: barn.areaName }] : [])]
+    : [{ label: 'Quản lý khu nuôi', path: '/areas' }, ...(barn ? [{ label: barn.areaName, path: `/areas/${barn.areaId}` }] : [])];
+
+  return <FarmShiftLayout pageTitle={barn ? barn.name : 'Chi tiết chuồng'} showShortcuts={!isAccountant} environmentHref={`/iot?barn=${encodeURIComponent(id)}`}
     feedHref={barn?.activeCycleId ? `/today-tasks?cycle=${encodeURIComponent(barn.activeCycleId)}` : undefined}
     weightHref={cycle ? `/journal?tab=weight&cycle=${encodeURIComponent(cycle.id)}` : undefined}
     lossHref={cycle ? `/journal?tab=loss&cycle=${encodeURIComponent(cycle.id)}` : undefined}
-    breadcrumbs={[{ label: 'Quản lý khu nuôi', path: '/areas' }, ...(barn ? [{ label: barn.areaName, path: `/areas/${barn.areaId}` }] : [])]}>
+    breadcrumbs={breadcrumbs}>
     {loading ? <p className={styles.loading} role="status">Đang tải chi tiết chuồng...</p>
       : error ? <div role="alert" className={`${styles.card} ${styles.emptyCycle}`}><p>{error}</p>
-        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate('/barns')}>Về danh sách chuồng</button></div>
-        : <><AreaTabs areas={areas} active={barn.areaId} />{header}{detail ? renderCycle() : renderNoCycle()}</>}
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate(isAccountant ? '/cycles/history' : '/barns')}>
+          {isAccountant ? 'Về lịch sử lứa nuôi' : 'Về danh sách chuồng'}
+        </button></div>
+        : <>{!isAccountant && <AreaTabs areas={areas} active={barn.areaId} />}{header}{detail ? renderCycle() : renderNoCycle()}</>}
     {modal?.type === 'flock' && <FlockDetailDialog flock={modal.flock} canFinance={canFinance} onClose={() => setModal(null)} />}
     {modal?.type === 'movement' && <MovementDetailDialog movement={modal.movement} onClose={() => setModal(null)} />}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}

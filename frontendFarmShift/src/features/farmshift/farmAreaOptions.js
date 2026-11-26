@@ -77,10 +77,39 @@ export const EXPENSE_CATEGORIES = [
 
 export const STEP_CATEGORIES = [
   { value: 'FEED', label: 'Cám định mức', item: 'mức cám' },
+  { value: 'DRINKING_MEDICINE', label: 'Lịch uống thuốc', item: 'đợt uống thuốc' },
   { value: 'VACCINE', label: 'Lịch vắc-xin', item: 'mũi vắc-xin' },
-  { value: 'MEDICINE', label: 'Thuốc trộn', item: 'đợt thuốc' },
-  { value: 'TEMPERATURE', label: 'Nhiệt độ', item: 'mức nhiệt' },
+  { value: 'MEDICINE', label: 'Thuốc trộn', item: 'đợt thuốc trộn' },
+  { value: 'CARE_PROCEDURE', label: 'Thủ thuật chăm sóc', item: 'thủ thuật' },
 ];
+
+export const stepCategoryLabel = category => {
+  const found = STEP_CATEGORIES.find(item => item.value === category);
+  if (found) return found.label;
+  if (category === 'TEMPERATURE') return 'Nhiệt độ';
+  if (category === 'WORK') return 'Công việc';
+  return category || '—';
+};
+
+export const FEED_INPUT_MODES = [
+  { value: 'GRAM_PER_BIRD_DAY', label: 'g/con/ngày' },
+  { value: 'BAGS_PER_1000_BIRDS', label: 'bao/1.000 con' },
+];
+
+export const DEFAULT_BAG_WEIGHT_KG = 25;
+export const MAX_STEP_QUANTITY = 99999999999.999;
+export const MAX_BAG_WEIGHT_KG = 9999999.999;
+
+/** Quy đổi định mức cám từ bao/1.000 con/giai đoạn sang g/con/ngày (làm tròn 3 chữ số thập phân). */
+export const bagsToGramPerBirdDay = (bagsPer1000Birds, bagWeightKg, dayFrom, dayTo) => {
+  const bags = Number(bagsPer1000Birds);
+  const weight = Number(bagWeightKg || DEFAULT_BAG_WEIGHT_KG);
+  const from = Number(dayFrom);
+  const to = Number(dayTo);
+  if (!(bags > 0) || !(weight > 0) || !Number.isInteger(from) || !Number.isInteger(to) || to < from) return null;
+  const days = to - from + 1;
+  return Math.round(((bags * weight) / days) * 1000) / 1000;
+};
 
 export const VACCINE_METHODS = [
   { value: 'EYE_NOSE', label: 'Nhỏ mắt, mũi' },
@@ -95,9 +124,20 @@ export const MEDICINE_METHODS = [
   { value: 'MIX_WATER', label: 'Pha nước uống' },
 ];
 
-export const METHODS = [...VACCINE_METHODS, ...MEDICINE_METHODS];
+export const DRINKING_MEDICINE_METHODS = [
+  { value: 'HAND_DRINKER', label: 'Bình xách tay' },
+  { value: 'AUTO_DRINKER', label: 'Hệ thống uống tự động' },
+  { value: 'MIX_WATER', label: 'Pha nước uống' },
+];
+
+export const CARE_PROCEDURE_METHODS = [
+  { value: 'PROCEDURE', label: 'Thủ thuật thực hiện' },
+];
+
+export const METHODS = [...VACCINE_METHODS, ...MEDICINE_METHODS, ...DRINKING_MEDICINE_METHODS, ...CARE_PROCEDURE_METHODS];
 
 export const MEDICINE_UNITS = ['g/kg cám', 'ml/lít nước', 'g/lít nước', 'ml/kg cám'];
+export const DRINKING_MEDICINE_UNITS = ['gói/1000 con', 'g/lít nước', 'ml/lít nước', 'g/con/ngày', 'ml/con/ngày'];
 
 /** Quy cách đơn vị tồn kho (Bao 25kg = 25 kg, Lọ 1000 liều = 1000 liều) để quy đổi định mức chương trình sang tồn kho. */
 export const USAGE_UNITS = [
@@ -106,21 +146,23 @@ export const USAGE_UNITS = [
   { value: 'L', label: 'lít' },
   { value: 'ML', label: 'ml' },
   { value: 'DOSE', label: 'liều' },
+  { value: 'PACK', label: 'gói' },
 ];
 
 export const formatAmount = value => (value == null || value === '' ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 }));
 
 export const contentText = (quantity, unit) => (quantity == null || !unit ? '' : `${formatAmount(quantity)} ${labelOf(USAGE_UNITS, unit)}`);
 
-const DIMENSIONS = { KG: 'MASS', G: 'MASS', L: 'VOLUME', ML: 'VOLUME', DOSE: 'DOSE' };
+const DIMENSIONS = { KG: 'MASS', G: 'MASS', L: 'VOLUME', ML: 'VOLUME', DOSE: 'DOSE', PACK: 'PACK' };
 
-/** Loại đại lượng của định mức: cám theo khối lượng, thuốc / vắc-xin theo tử số đơn vị liều (g/..., ml/..., liều/...). */
+/** Loại đại lượng của định mức: cám theo khối lượng, thuốc / vắc-xin theo tử số đơn vị liều (g/..., ml/..., liều/..., gói/...). */
 export const doseDimension = (category, unit) => {
   if (category === 'FEED') return 'MASS';
   const head = String(unit || '').split('/')[0].trim().toLowerCase();
   if (['kg', 'g', 'gam', 'gram'].includes(head)) return 'MASS';
   if (['l', 'lít', 'lit', 'ml'].includes(head)) return 'VOLUME';
   if (['liều', 'lieu', 'giọt', 'giot', 'dose'].includes(head)) return 'DOSE';
+  if (['gói', 'goi', 'pack'].includes(head)) return 'PACK';
   return null;
 };
 
@@ -132,12 +174,15 @@ export const stockKind = item => {
   if (/vắc|vac-?xin|vaccin/.test(name)) return 'VACCINE';
   const text = `${name} ${lowerVi(item.productType)} ${lowerVi(item.warehouseName)}`;
   if (/thức ăn|cám|ngô|bắp/.test(text)) return 'FEED';
-  if (/thuốc|thú y|vitamin|kháng sinh|men|điện giải/.test(text)) return 'MEDICINE';
+  if (/thuốc|thú y|vitamin|kháng sinh|men|điện giải|sâm/.test(text)) return 'MEDICINE';
   return null;
 };
 
-/** Hàng hóa gợi ý cho một dòng chương trình: đúng nhóm (cám / vắc-xin / thuốc) và quy đổi được đơn vị. */
-export const itemsForStep = (items, category, unit) => items.filter(item => stockKind(item) === category && itemFitsStep(item, category, unit));
+/** Hàng hóa gợi ý cho một dòng chương trình: đúng nhóm (cám / vắc-xin / thuốc / thuốc uống) và quy đổi được đơn vị. */
+export const itemsForStep = (items, category, unit) => {
+  const targetKind = category === 'DRINKING_MEDICINE' ? 'MEDICINE' : category;
+  return items.filter(item => stockKind(item) === targetKind && itemFitsStep(item, category, unit));
+};
 
 /**
  * Một dòng cho mỗi tên hàng dù hàng có ở nhiều kho: chương trình nuôi chỉ chọn tên, kho nào trừ do phân công kho quyết định.
@@ -188,13 +233,38 @@ export const validateProgram = draft => {
     else if (!isWhole(step.dayFrom) || !isWhole(step.dayTo) || from < 1 || to < 1) message = 'Ngày tuổi phải là số nguyên từ 1.';
     else if (from > to) message = 'Ngày tuổi bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.';
     else if (!fields.durationDays && to > duration) message = `Ngày tuổi ${to} vượt thời gian nuôi ${duration} ngày.`;
-    else if (step.category === 'FEED' && (!positive(step.quantity) || !isWhole(step.mealsPerDay) || Number(step.mealsPerDay) < 1 || Number(step.mealsPerDay) > 8)) {
-      message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
+    else if (step.category === 'FEED') {
+      const bagsMode = step.feedInputMode === 'BAGS_PER_1000_BIRDS';
+      if (!isWhole(step.mealsPerDay) || Number(step.mealsPerDay) < 1 || Number(step.mealsPerDay) > 8) {
+        message = bagsMode
+          ? 'Cần định mức (bao/1.000 con) lớn hơn 0 và số cữ ăn từ 1 đến 8.'
+          : 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
+      } else if (bagsMode) {
+        const converted = bagsToGramPerBirdDay(step.bagsPer1000Birds, step.bagWeightKg, step.dayFrom, step.dayTo);
+        if (!positive(step.bagsPer1000Birds) || (step.bagWeightKg !== '' && !positive(step.bagWeightKg))) {
+          message = 'Cần định mức (bao/1.000 con) lớn hơn 0 và trọng lượng bao hợp lệ.';
+        } else if (Number(step.bagsPer1000Birds) > MAX_STEP_QUANTITY
+          || (step.bagWeightKg !== '' && Number(step.bagWeightKg) > MAX_BAG_WEIGHT_KG)
+          || (converted != null && converted > MAX_STEP_QUANTITY)) {
+          message = 'Định mức hoặc trọng lượng bao vượt giới hạn tối đa cho phép.';
+        }
+      } else if (!positive(step.quantity)) {
+        message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
+      } else if (Number(step.quantity) > MAX_STEP_QUANTITY) {
+        message = 'Định mức vượt giới hạn tối đa cho phép.';
+      }
     } else if (step.category === 'VACCINE' && !VACCINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng vắc-xin.';
+    else if (step.category === 'VACCINE' && step.quantity !== '' && step.quantity != null && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
     else if (step.category === 'MEDICINE' && !MEDICINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng thuốc (trộn cám hoặc pha nước).';
     else if (step.category === 'MEDICINE' && (!positive(step.quantity) || !step.unit.trim())) message = 'Cần liều lượng và đơn vị (ví dụ 2 g/kg cám).';
-    else if (step.category === 'TEMPERATURE' && !(step.tempMin !== '' && step.tempMax !== '' && Number(step.tempMin) < Number(step.tempMax))) {
-      message = 'Nhiệt độ thấp nhất phải nhỏ hơn nhiệt độ cao nhất.';
+    else if (step.category === 'MEDICINE' && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
+    else if (step.category === 'DRINKING_MEDICINE' && !DRINKING_MEDICINE_METHODS.some(item => item.value === step.method)) message = 'Chọn phương thức uống thuốc (bình xách tay hoặc hệ thống uống tự động).';
+    else if (step.category === 'DRINKING_MEDICINE' && (!positive(step.quantity) || !step.unit.trim())) message = 'Cần liều lượng và đơn vị (ví dụ 0,5 gói/1000 con, 1 g/lít nước).';
+    else if (step.category === 'DRINKING_MEDICINE' && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
+    else if (step.category === 'CARE_PROCEDURE' && step.quantity !== '' && step.quantity != null && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
+    else if (step.category === 'TEMPERATURE' && !(step.tempMin !== '' && step.tempMax !== ''
+      && Number(step.tempMin) >= 10 && Number(step.tempMax) <= 45 && Number(step.tempMin) < Number(step.tempMax))) {
+      message = 'Nhiệt độ phải từ 10 đến 45°C và thấp nhất phải nhỏ hơn cao nhất.';
     }
     if (message) steps[index] = message;
   });
@@ -217,9 +287,15 @@ export const validateProgram = draft => {
 export const describeStep = step => {
   const number = value => Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 });
   switch (step.category) {
-    case 'FEED': return `${number(step.quantity)} g/con/ngày · ${step.mealsPerDay} cữ/ngày`;
+    case 'FEED':
+      if (step.feedInputMode === 'BAGS_PER_1000_BIRDS' && step.bagsPer1000Birds != null) {
+        return `${number(step.bagsPer1000Birds)} bao/1.000 con (≈ ${number(step.quantity)} g/con/ngày) · ${step.mealsPerDay} cữ/ngày`;
+      }
+      return `${number(step.quantity)} g/con/ngày · ${step.mealsPerDay} cữ/ngày`;
     case 'VACCINE': return [METHODS.find(item => item.value === step.method)?.label, step.quantity != null ? `${number(step.quantity)} ${step.unit || ''}`.trim() : null].filter(Boolean).join(' · ');
-    case 'MEDICINE': return `${METHODS.find(item => item.value === step.method)?.label || ''} · ${number(step.quantity)} ${step.unit || ''}`.trim();
+    case 'MEDICINE':
+    case 'DRINKING_MEDICINE': return `${METHODS.find(item => item.value === step.method)?.label || ''} · ${number(step.quantity)} ${step.unit || ''}`.trim();
+    case 'CARE_PROCEDURE': return METHODS.find(item => item.value === step.method)?.label || 'Thủ thuật thực hiện';
     case 'TEMPERATURE': return `${number(step.tempMin)} – ${number(step.tempMax)} °C`;
     default: return '';
   }
@@ -231,15 +307,24 @@ export const STEP_STATES = {
   UPCOMING: { label: 'Sắp tới', tone: 'info' },
 };
 
-export const todayIso = () => {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+export const VN_TIME_ZONE = 'Asia/Bangkok';
+
+export const todayIso = (now = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: VN_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const year = parts.find(part => part.type === 'year')?.value;
+  const month = parts.find(part => part.type === 'month')?.value;
+  const day = parts.find(part => part.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
 };
 
 export const addDaysIso = (iso, days) => {
-  const date = new Date(`${iso}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const [year, month, day] = String(iso).slice(0, 10).split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 };
 
 export const formatDay = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';

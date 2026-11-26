@@ -1,0 +1,133 @@
+/* src/components/common/MobileFilterSheet.module.css */
+
+.triggerBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #d5e2de;
+  background-color: #ffffff;
+  color: #181d26;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.triggerBtnActive {
+  border-color: #019788;
+  background-color: #eaf7f5;
+  color: #00695c;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  background-color: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-end;
+}
+
+.sheet {
+  width: 100%;
+  max-height: 85dvh;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  box-shadow: 0 -10px 32px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+
+.handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background-color: #cbd5e1;
+  margin: 10px auto 4px;
+  flex-shrink: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid #e6eeeb;
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #181d26;
+}
+
+.closeBtn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid #dce7e3;
+  background-color: #f7fbfa;
+  color: #42545c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid #e6eeeb;
+  background-color: #ffffff;
+  flex-shrink: 0;
+}
+
+.resetBtn {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid #d5e2de;
+  background-color: #ffffff;
+  color: #42545c;
+  font-size: 14.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.applyBtn {
+  flex: 2;
+  min-height: 44px;
+  border-radius: 10px;
+  border: none;
+  background-color: #019788;
+  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}

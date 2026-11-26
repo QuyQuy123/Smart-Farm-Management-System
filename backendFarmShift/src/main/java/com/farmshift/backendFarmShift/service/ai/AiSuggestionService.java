@@ -939,7 +939,7 @@ public class AiSuggestionService {
         if (isOwner) return RoleNames.FARM_OWNER;
         if (isAccountant) return RoleNames.ACCOUNTANT;
         if (isWorker) return RoleNames.FARM_WORKER;
-        return RoleNames.FARM_OWNER;
+        return RoleNames.FARM_WORKER;
     }
 
     private static String resolveRoleLabel(String role) {

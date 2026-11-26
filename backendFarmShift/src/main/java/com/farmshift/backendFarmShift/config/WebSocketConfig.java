@@ -1,7 +1,9 @@
 package com.farmshift.backendFarmShift.config;
 
+import com.farmshift.backendFarmShift.security.AccountAuthStateService;
 import com.farmshift.backendFarmShift.security.JwtProvider;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
@@ -35,6 +37,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtProvider jwtProvider;
     private final CorsOriginsProperties corsOrigins;
+
+    @Autowired(required = false)
+    private AccountAuthStateService accountAuthStateService;
 
     @Bean(destroyMethod = "shutdown")
     public ThreadPoolTaskScheduler wsHeartbeatScheduler() {
@@ -75,7 +80,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         throw new IllegalArgumentException("Phiên kết nối WebSocket không hợp lệ hoặc đã hết hạn.");
                     }
                     String email = jwtProvider.getEmailFromToken(token);
-                    List<SimpleGrantedAuthority> authorities = jwtProvider.getRolesFromToken(token).stream()
+                    List<String> tokenRoles = jwtProvider.getRolesFromToken(token);
+                    Long issuedAtMs = jwtProvider.getIssuedAtMillisFromToken(token);
+                    List<String> effectiveRoles = tokenRoles;
+                    if (accountAuthStateService != null) {
+                        effectiveRoles = accountAuthStateService.resolveAuthorizedRoles(email, issuedAtMs, tokenRoles)
+                                .orElseThrow(() -> new IllegalArgumentException("Tài khoản đã bị vô hiệu hóa hoặc phiên đã bị thu hồi."));
+                    }
+                    List<SimpleGrantedAuthority> authorities = (effectiveRoles != null ? effectiveRoles : List.<String>of()).stream()
                             .map(SimpleGrantedAuthority::new)
                             .toList();
                     accessor.setUser(new UsernamePasswordAuthenticationToken(email, null, authorities));

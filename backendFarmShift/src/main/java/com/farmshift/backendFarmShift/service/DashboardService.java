@@ -41,7 +41,8 @@ public class DashboardService {
     /** Cám còn đủ dùng ít hơn số ngày này thì báo cần nhập thêm; dưới RESTOCK_DANGER_DAYS ngày thì báo đỏ. */
     static final int RESTOCK_DAYS = 7;
     static final int RESTOCK_DANGER_DAYS = 3;
-    private static final List<ProgramStepCategory> UPCOMING_KINDS = List.of(ProgramStepCategory.VACCINE, ProgramStepCategory.MEDICINE,
+    private static final List<ProgramStepCategory> UPCOMING_KINDS = List.of(ProgramStepCategory.VACCINE,
+            ProgramStepCategory.DRINKING_MEDICINE, ProgramStepCategory.MEDICINE, ProgramStepCategory.CARE_PROCEDURE,
             ProgramStepCategory.FEED);
     private static final List<FlockMovementType> LOSSES = List.of(FlockMovementType.DEATH, FlockMovementType.CULL);
 
@@ -214,7 +215,9 @@ public class DashboardService {
                 if (!UPCOMING_KINDS.contains(step.category()) || inDays < 1 || inDays > UPCOMING_DAYS) continue;
                 String title = switch (step.category()) {
                     case VACCINE -> "Vắc-xin " + step.name();
+                    case DRINKING_MEDICINE -> "Uống thuốc " + step.name();
                     case MEDICINE -> "Thuốc " + step.name();
+                    case CARE_PROCEDURE -> "Thủ thuật: " + step.name();
                     default -> "Đổi cám: " + step.name();
                 };
                 result.add(new Upcoming(dateOfDay.apply(step.dayFrom()), inDays, plan.barnId(), plan.barnName(), step.category().name(),

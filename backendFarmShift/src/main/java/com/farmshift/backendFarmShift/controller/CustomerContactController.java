@@ -14,8 +14,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/customer-contacts") @RequiredArgsConstructor
 public class CustomerContactController {
     private final CustomerContactService service;
-    @GetMapping public ApiResponse<CustomerContactPage> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "") String q) { return ApiResponse.success("Danh sách khách hàng", service.list(page, q)); }
-    @GetMapping("/{id}") public ApiResponse<CustomerContactResponse> get(@PathVariable Long id) { return ApiResponse.success("Chi tiết khách hàng", service.get(id)); }
+    @GetMapping @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+    public ApiResponse<CustomerContactPage> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "") String q) { return ApiResponse.success("Danh sách khách hàng", service.list(page, q)); }
+    @GetMapping("/{id}") @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+    public ApiResponse<CustomerContactResponse> get(@PathVariable Long id) { return ApiResponse.success("Chi tiết khách hàng", service.get(id)); }
     @PostMapping @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
     public ApiResponse<CustomerContactResponse> create(@Valid @RequestBody CustomerContactRequest request) { return ApiResponse.success("Đã thêm khách hàng", service.create(request)); }
     @PutMapping("/{id}") @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")

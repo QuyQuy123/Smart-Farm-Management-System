@@ -1,17 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ClipboardList, Pencil, PlusCircle, Trash2 } from 'lucide-react';
+import { CalendarDays, ClipboardList, Download, FileSpreadsheet, Pencil, PlusCircle, Trash2, Upload } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
-import { deleteProgram, listPrograms } from '../../services/farmingProgramService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { deleteProgram, downloadProgramExcelTemplate, exportProgramExcel, listPrograms } from '../../services/farmingProgramService';
 import { FarmingProgramDialog } from './FarmingProgramDialog';
+import { FarmingProgramExcelModal } from './FarmingProgramExcelModal';
 import { FormDialog } from './CycleDialogs';
-import { STEP_CATEGORIES, apiErrorMessage, describeStep } from './farmAreaOptions';
+import { STEP_CATEGORIES, apiErrorMessage, describeStep, stepCategoryLabel } from './farmAreaOptions';
 import styles from './FarmingPrograms.module.css';
 
 const weight = value => Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 const days = step => (step.dayFrom === step.dayTo ? `Ngày ${step.dayFrom}` : `Ngày ${step.dayFrom}–${step.dayTo}`);
 
-/** Thiết lập chăn nuôi → Chương trình nuôi theo giống. Chủ trại tạo / sửa / xóa; các vai trò khác chỉ xem. */
+const triggerBlobDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+/** Thiết lập chăn nuôi → Chương trình nuôi theo giống. Chủ trại tạo / sửa / xóa / import Excel; các vai trò khác xem & xuất Excel. */
 export function FarmingProgramsPanel() {
   const { user } = useAuth();
   const { showToast } = useNotification();
@@ -21,6 +34,7 @@ export function FarmingProgramsPanel() {
   const [selectedId, setSelectedId] = useState(null);
   const [lookupDay, setLookupDay] = useState('1');
   const [modal, setModal] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +42,8 @@ export function FarmingProgramsPanel() {
       .catch(error => { if (!cancelled) setState({ key: revision, programs: [], error: apiErrorMessage(error) }); });
     return () => { cancelled = true; };
   }, [revision]);
+
+  useRealtimeRefresh(['/farming-programs'], () => setRevision(value => value + 1));
 
   const loading = state.key !== revision;
   const { programs, error } = state;
@@ -39,6 +55,34 @@ export function FarmingProgramsPanel() {
     : []), [selected, day]);
   const done = message => { setModal(null); showToast(message, 'success'); setRevision(value => value + 1); };
 
+  const handleDownloadTemplate = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const blob = await downloadProgramExcelTemplate();
+      triggerBlobDownload(blob, 'chuong-trinh-nuoi-mau-90-ngay.xlsx');
+      showToast('Đã tải file mẫu Excel chương trình nuôi.', 'success');
+    } catch (requestError) {
+      showToast(apiErrorMessage(requestError), 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleExportProgram = async program => {
+    if (!program || downloading) return;
+    setDownloading(true);
+    try {
+      const blob = await exportProgramExcel(program.id);
+      triggerBlobDownload(blob, `chuong-trinh-nuoi-${program.code || program.id}.xlsx`);
+      showToast(`Đã xuất file Excel chương trình ${program.name}.`, 'success');
+    } catch (requestError) {
+      showToast(apiErrorMessage(requestError), 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const confirmDelete = program => setModal({
     type: 'delete', title: 'Xóa chương trình nuôi', submitLabel: 'Xóa chương trình', danger: true, initial: {}, fields: [],
     intro: `Bạn chắc chắn muốn xóa chương trình ${program.name}? Thao tác này không thể hoàn tác.`,
@@ -48,13 +92,23 @@ export function FarmingProgramsPanel() {
   return <section className={styles.panel}>
     <header className={styles.panelHeader}>
       <div><h2><ClipboardList size={20} />Chương trình nuôi theo giống</h2>
-        <p>Định mức cám, lịch vắc-xin, thuốc trộn, nhiệt độ và công việc theo ngày tuổi. Khi nhập đàn, chọn chương trình để hệ thống lập kế hoạch hằng ngày.</p></div>
-      {canEdit && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => setModal({ type: 'edit' })}><PlusCircle size={16} />Tạo chương trình</button>}
+        <p>Định mức cám, lịch uống thuốc, lịch vắc-xin, thuốc trộn và thủ thuật chăm sóc theo ngày tuổi. Hỗ trợ nhập/xuất file Excel (.xlsx).</p></div>
+      {canEdit && <div className={styles.headerActions}>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={handleDownloadTemplate} disabled={downloading}>
+          <FileSpreadsheet size={16} />Tải file mẫu Excel
+        </button>
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setModal({ type: 'import' })}>
+          <Upload size={16} />Nhập từ Excel
+        </button>
+        <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => setModal({ type: 'edit' })}>
+          <PlusCircle size={16} />Tạo chương trình
+        </button>
+      </div>}
     </header>
 
     {loading ? <p className={styles.empty} role="status">Đang tải chương trình nuôi...</p>
       : error ? <div className={styles.empty} role="alert"><p>{error}</p><button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
-        : programs.length === 0 ? <p className={styles.empty}>{canEdit ? 'Chưa có chương trình nuôi. Bấm "Tạo chương trình" để thêm chương trình cho giống đầu tiên.' : 'Chưa có chương trình nuôi nào.'}</p>
+        : programs.length === 0 ? <p className={styles.empty}>{canEdit ? 'Chưa có chương trình nuôi. Bấm "Tạo chương trình" hoặc "Nhập từ Excel" để thêm chương trình cho giống đầu tiên.' : 'Chưa có chương trình nuôi nào.'}</p>
           : <>
             <div className={styles.cards}>
               {programs.map(program => <button key={program.id} type="button" className={`${styles.programCard} ${selected?.id === program.id ? styles.programCardActive : ''}`}
@@ -75,10 +129,15 @@ export function FarmingProgramsPanel() {
             {selected && <div className={styles.detail}>
               <div className={styles.detailHeader}>
                 <div><h3>{selected.name} <small>{selected.code}</small></h3>{selected.description && <p>{selected.description}</p>}</div>
-                {canEdit && <div className={styles.detailActions}>
-                  <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setModal({ type: 'edit', program: selected })}><Pencil size={15} />Chỉnh sửa</button>
-                  <button type="button" className={`farmshift-btn ${styles.deleteButton}`} onClick={() => confirmDelete(selected)}><Trash2 size={15} />Xóa</button>
-                </div>}
+                <div className={styles.detailActions}>
+                  <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => handleExportProgram(selected)} disabled={downloading}>
+                    <Download size={15} />Xuất Excel
+                  </button>
+                  {canEdit && <>
+                    <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setModal({ type: 'edit', program: selected })}><Pencil size={15} />Chỉnh sửa</button>
+                    <button type="button" className={`farmshift-btn ${styles.deleteButton}`} onClick={() => confirmDelete(selected)}><Trash2 size={15} />Xóa</button>
+                  </>}
+                </div>
               </div>
 
               <div className={styles.lookup}>
@@ -86,7 +145,7 @@ export function FarmingProgramsPanel() {
                 <input id="program-lookup-day" className="farmshift-form-control" type="number" min="1" max={selected.durationDays} value={lookupDay}
                   onChange={event => setLookupDay(event.target.value)} />
                 <span className={styles.lookupResult}>{todaySteps.length === 0 ? 'Không có nội dung nào trong ngày này.'
-                  : todaySteps.map(step => `${STEP_CATEGORIES.find(item => item.value === step.category)?.label}: ${step.name}${describeStep(step) ? ` (${describeStep(step)})` : ''}`).join(' · ')}</span>
+                  : todaySteps.map(step => `${stepCategoryLabel(step.category)}: ${step.name}${describeStep(step) ? ` (${describeStep(step)})` : ''}`).join(' · ')}</span>
               </div>
 
               <div className={styles.sections}>
@@ -105,6 +164,7 @@ export function FarmingProgramsPanel() {
           </>}
 
     {modal?.type === 'edit' && <FarmingProgramDialog program={modal.program} onClose={() => setModal(null)} onSaved={done} />}
+    {modal?.type === 'import' && <FarmingProgramExcelModal onClose={() => setModal(null)} onSaved={done} />}
     {modal?.type === 'delete' && <FormDialog {...modal} onClose={() => setModal(null)} onDone={done} />}
   </section>;
 }

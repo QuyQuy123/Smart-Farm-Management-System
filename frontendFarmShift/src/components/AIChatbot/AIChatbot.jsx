@@ -6,10 +6,11 @@ import {
   Sparkles, X, Send, RotateCcw, Plus, History, Trash2,
   PanelRightOpen, PanelRightClose, Mic, MicOff, ShieldCheck,
   Zap, ExternalLink, Volume2, VolumeX, Check, AlertCircle,
-  ArrowUpRight, PenLine
+  ArrowUpRight, PenLine, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import * as aiAssistantService from '../../services/aiAssistantService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { useViewport } from '../../hooks/useViewport';
 import { createAdaptiveVoiceRecorder, NO_SPEECH_HINT, VAD_CONFIG } from '../../utils/audioRecorder';
 import {
   resolveAiChatOwnerScope,
@@ -26,6 +27,16 @@ const resolveGetSuggestionsFn = () => {
   try {
     return typeof aiAssistantService?.getAiSuggestions === 'function'
       ? aiAssistantService.getAiSuggestions
+      : null;
+  } catch (_e) {
+    return null;
+  }
+};
+
+const resolveSubmitFeedbackFn = () => {
+  try {
+    return typeof aiAssistantService?.submitAiFeedback === 'function'
+      ? aiAssistantService.submitAiFeedback
       : null;
   } catch (_e) {
     return null;
@@ -526,14 +537,26 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     && lastMountedOwnerScope === ownerScope
   ));
 
-  // Sync Side-Drawer layout offset synchronously before paint so route transitions never flicker
+  const { isMobile, isTablet, isDesktop } = useViewport();
+
+  // Sync Side-Drawer layout offset synchronously before paint (Desktop only)
   useLayoutEffect(() => {
-    const active = Boolean(isOpen && isExpanded);
+    const active = Boolean(isDesktop && isOpen && isExpanded);
     document.documentElement.classList.toggle('farmshift-ai-drawer-open', active);
     return () => {
       document.documentElement.classList.remove('farmshift-ai-drawer-open');
     };
-  }, [isOpen, isExpanded]);
+  }, [isDesktop, isOpen, isExpanded]);
+
+  // Lock background scroll while full-screen Mobile sheet is open
+  useEffect(() => {
+    if (!isOpen || !isMobile) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, isMobile]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const effectiveSessionId = activeSession?.id;
@@ -632,7 +655,10 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   const sendQueryRef = useRef(null);
   const utteranceRef = useRef(null);
   const isVoiceDraftRef = useRef(false);
-  handsFreeModeRef.current = handsFreeMode;
+
+  useEffect(() => {
+    handsFreeModeRef.current = handsFreeMode;
+  }, [handsFreeMode]);
 
   const normalizeWebSpeechText = (raw) => {
     if (!raw) return '';
@@ -949,13 +975,8 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       }
     };
 
-    const handleAiActionCache = (event) => {
-      const detail = event?.detail;
-      if (!detail) return;
-      const isMutation = Boolean(detail.executed || detail.uiCommand === 'REFRESH_DATA');
-      if (isMutation) {
-        fetchSuggestions(true);
-      }
+    const handleAiActionCache = () => {
+      // useRealtimeRefresh handles suggestion refresh after cache invalidation (avoid duplicate request).
     };
 
     window.addEventListener('farmshift:open-ai-chat', handleOpenAiChat);
@@ -964,7 +985,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       window.removeEventListener('farmshift:open-ai-chat', handleOpenAiChat);
       window.removeEventListener('farmshift:ai-action', handleAiActionCache);
     };
-  }, [applyPromptTemplate, fetchSuggestions, setIsOpen]);
+  }, [applyPromptTemplate, setIsOpen]);
 
   // Đóng box chat khi bấm ra ngoài (ở chế độ popover) hoặc nhấn phím Escape
   useEffect(() => {
@@ -972,6 +993,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
 
     const handleClickOutside = (event) => {
       if (isExpanded) return;
+      if (!(event.target instanceof Element)) return;
       // Nếu bấm bên trong cửa sổ chat hoặc nút launcher thì không đóng
       if (
         chatWindowRef.current?.contains(event.target) ||
@@ -981,7 +1003,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       }
 
       // Nếu bấm chuyển tab hoặc menu điều hướng (sidebar, tab bar...), giữ nguyên box chat mở
-      if (event.target.closest('nav, aside, [role="tab"], [class*="tab"], .farmshift-sidebar, a[href]')) {
+      if (event.target.closest('nav, aside, [role="tab"], .farmshift-tab-btn, .farmshift-tabs, .farmshift-sidebar, a[href]')) {
         return;
       }
 
@@ -1200,6 +1222,8 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
         navigateTo: response.navigateTo,
         requiresConfirmation: response.requiresConfirmation,
         pendingAction: response.pendingAction,
+        interactionId: response.interactionId ?? null,
+        feedbackRating: null,
         clarificationOptions: Array.isArray(response.clarificationOptions) && response.clarificationOptions.length > 0
           ? response.clarificationOptions
           : null,
@@ -1327,7 +1351,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       updateSessionMessages(targetSessionId, prev => [
         ...prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m),
         {
-          id: Date.now() + 1,
+          id: generateMessageId(),
           type: 'bot',
           text: textToShow,
           time: formatCurrentTime(),
@@ -1351,6 +1375,22 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   // Khôi phục lại thẻ xác nhận nếu lỡ tay bấm từ chối/hủy
   const handleRetryAction = (msgId) => {
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, confirmationStatus: 'pending' } : m));
+  };
+
+  // Gửi đánh giá chất lượng phản hồi AI (+1 / -1) cho Data Flywheel
+  const handleFeedback = async (msgId, interactionId, rating) => {
+    const targetSessionId = effectiveSessionId;
+    updateSessionMessages(targetSessionId, prev =>
+      prev.map(m => (m.id === msgId ? { ...m, feedbackRating: rating } : m))
+    );
+    const submitFn = resolveSubmitFeedbackFn();
+    if (submitFn && interactionId) {
+      try {
+        await submitFn({ interactionId, rating });
+      } catch (_err) {
+        // Giữ trạng thái lạc quan trên UI; không làm gián đoạn trải nghiệm trò chuyện
+      }
+    }
   };
 
   const toggleHandsFreeMode = () => {
@@ -1583,7 +1623,9 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
     sendQuery(input, { fromVoice: originatedFromVoice });
   };
 
-  sendQueryRef.current = sendQuery;
+  useEffect(() => {
+    sendQueryRef.current = sendQuery;
+  });
 
   const displayedSuggestions = (Array.isArray(liveSuggestions) && liveSuggestions.length > 0)
     ? liveSuggestions
@@ -1654,12 +1696,27 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
   };
 
   return (
-    <div className={styles.chatbotWidget}>
+    <div className={`${styles.chatbotWidget} ${isMobile ? styles.chatbotWidgetMobile : ''} ${isOpen ? styles.chatbotWidgetOpen : ''}`}>
+      {isOpen && isTablet && (
+        <div
+          className={styles.aiBackdrop}
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+          data-testid="ai-tablet-backdrop"
+        />
+      )}
       {isOpen && (
         <div
-          className={`${styles.chatWindow} ${isExpanded ? styles.chatWindowExpanded : ''} ${skipMountPopAnim ? styles.chatWindowNoAnim : ''}`}
+          className={[
+            styles.chatWindow,
+            isDesktop && isExpanded ? styles.chatWindowExpanded : '',
+            isTablet ? styles.chatWindowTabletDrawer : '',
+            isMobile ? styles.chatWindowMobileSheet : '',
+            skipMountPopAnim ? styles.chatWindowNoAnim : '',
+          ].filter(Boolean).join(' ')}
           ref={chatWindowRef}
           data-testid="ai-chat-window"
+          data-mode={isMobile ? 'mobile-sheet' : isTablet ? 'tablet-drawer' : (isExpanded ? 'desktop-drawer' : 'desktop-popover')}
         >
           {/* ── Header ── */}
           <div className={styles.header}>
@@ -1707,15 +1764,17 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
               >
                 <Plus size={17} />
               </button>
-              <button
-                type="button"
-                className={styles.iconBtn}
-                title={isExpanded ? 'Thu về cửa sổ nổi' : 'Ghim thành ngăn bên phải (Side-Drawer)'}
-                data-testid="expand-chat-btn"
-                onClick={() => setIsExpanded(prev => !prev)}
-              >
-                {isExpanded ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-              </button>
+              {isDesktop && (
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  title={isExpanded ? 'Thu về cửa sổ nổi' : 'Ghim thành ngăn bên phải (Side-Drawer)'}
+                  data-testid="expand-chat-btn"
+                  onClick={() => setIsExpanded(prev => !prev)}
+                >
+                  {isExpanded ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.iconBtn}
@@ -1992,24 +2051,57 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                     </button>
                   )}
 
-                  {/* ── Message Footer: Time and Speaker button for Bot ── */}
+                  {/* ── Message Footer: Speaker, Feedback (+1/-1) and Time ── */}
                   <div className={styles.messageFooter}>
-                    {msg.type === 'bot' && 'speechSynthesis' in window ? (
-                      <button
-                        type="button"
-                        className={`${styles.messageTtsBtn} ${speakingMsgId === msg.id ? styles.messageTtsBtnSpeaking : ''}`}
-                        onClick={() => speakText(msg.text, msg.id, {
-                          clarificationOptions: msg.clarificationOptions,
-                          pendingAction: msg.pendingAction,
-                          requiresConfirmation: Boolean(msg.requiresConfirmation && msg.confirmationStatus === 'pending' && msg.pendingAction),
-                        })}
-                        title={speakingMsgId === msg.id ? 'Dừng đọc' : 'Đọc câu trả lời bằng giọng nói'}
-                        data-testid="message-speaker-btn"
-                      >
-                        {speakingMsgId === msg.id ? <VolumeX size={13} /> : <Volume2 size={13} />}
-                        <span>{speakingMsgId === msg.id ? 'Đang đọc...' : 'Đọc'}</span>
-                      </button>
-                    ) : <span />}
+                    <div className={styles.messageFooterActions}>
+                      {msg.type === 'bot' && 'speechSynthesis' in window && (
+                        <button
+                          type="button"
+                          className={`${styles.messageTtsBtn} ${speakingMsgId === msg.id ? styles.messageTtsBtnSpeaking : ''}`}
+                          onClick={() => speakText(msg.text, msg.id, {
+                            clarificationOptions: msg.clarificationOptions,
+                            pendingAction: msg.pendingAction,
+                            requiresConfirmation: Boolean(msg.requiresConfirmation && msg.confirmationStatus === 'pending' && msg.pendingAction),
+                          })}
+                          title={speakingMsgId === msg.id ? 'Dừng đọc' : 'Đọc câu trả lời bằng giọng nói'}
+                          data-testid="message-speaker-btn"
+                        >
+                          {speakingMsgId === msg.id ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                          <span>{speakingMsgId === msg.id ? 'Đang đọc...' : 'Đọc'}</span>
+                        </button>
+                      )}
+                      {msg.type === 'bot' && msg.id !== 1 && msg.actionType !== 'RESET_SESSION' && msg.interactionId != null && (
+                        <div className={styles.feedbackGroup} data-testid="ai-feedback-group">
+                          <button
+                            type="button"
+                            className={`${styles.feedbackBtn} ${msg.feedbackRating === 1 ? styles.feedbackBtnUpActive : ''}`}
+                            aria-label="Phản hồi hữu ích"
+                            aria-pressed={msg.feedbackRating === 1}
+                            title="Hữu ích"
+                            data-testid="feedback-up-btn"
+                            onClick={() => handleFeedback(msg.id, msg.interactionId, 1)}
+                          >
+                            <ThumbsUp size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.feedbackBtn} ${msg.feedbackRating === -1 ? styles.feedbackBtnDownActive : ''}`}
+                            aria-label="Phản hồi chưa đúng"
+                            aria-pressed={msg.feedbackRating === -1}
+                            title="Chưa đúng"
+                            data-testid="feedback-down-btn"
+                            onClick={() => handleFeedback(msg.id, msg.interactionId, -1)}
+                          >
+                            <ThumbsDown size={13} />
+                          </button>
+                          {msg.feedbackRating !== null && msg.feedbackRating !== undefined && (
+                            <span className={styles.feedbackSavedHint} data-testid="feedback-saved-hint">
+                              {msg.feedbackRating === 1 ? 'Đã ghi nhận' : 'Cảm ơn góp ý'}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <div className={styles.messageTime}>{msg.time}</div>
                   </div>
                 </div>
@@ -2162,12 +2254,12 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
               {/* Voice-to-Text Button */}
               <button
                 type="button"
-                className={`${styles.micBtn} ${isListening ? styles.micBtnActive : ''}`}
+                className={`${styles.micBtn} ${isMobile ? styles.micBtnMobile : ''} ${isListening ? styles.micBtnActive : ''}`}
                 onClick={toggleListening}
                 title={isListening ? 'Đang lắng nghe... Bấm để dừng và gửi' : 'Nói để ra lệnh bằng giọng nói (Voice Command)'}
                 data-testid="voice-mic-button"
               >
-                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                {isListening ? <MicOff size={isMobile ? 20 : 16} /> : <Mic size={isMobile ? 20 : 16} />}
               </button>
 
               <button
@@ -2185,17 +2277,19 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
       )}
 
       {/* ── Floating Action Launcher Button ── */}
-      <button
-        type="button"
-        className={styles.chatButton}
-        ref={chatButtonRef}
-        onClick={() => setIsOpen(!isOpen)}
-        title={isOpen ? 'Đóng Trợ lý AI' : 'Mở Trợ lý AI FarmShift'}
-        data-testid="ai-chatbot-launcher"
-      >
-        <span className={styles.pulseRing} />
-        {isOpen ? <X size={26} /> : <Sparkles size={26} />}
-      </button>
+      {!(isMobile && isOpen) && (
+        <button
+          type="button"
+          className={styles.chatButton}
+          ref={chatButtonRef}
+          onClick={() => setIsOpen(!isOpen)}
+          title={isOpen ? 'Đóng Trợ lý AI' : 'Mở Trợ lý AI FarmShift'}
+          data-testid="ai-chatbot-launcher"
+        >
+          <span className={styles.pulseRing} />
+          {isOpen ? <X size={26} /> : <Sparkles size={26} />}
+        </button>
+      )}
     </div>
   );
 };

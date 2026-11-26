@@ -9,8 +9,10 @@ import com.farmshift.backendFarmShift.dto.response.InternalStockVoucherResponse;
 import com.farmshift.backendFarmShift.security.RoleNames;
 import com.farmshift.backendFarmShift.service.InternalStockCategoryService;
 import com.farmshift.backendFarmShift.service.InternalStockService;
+import com.farmshift.backendFarmShift.service.InventoryItemService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -29,9 +31,13 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class InternalStockController {
     private static final Set<String> FINANCE_ROLES = Set.of(RoleNames.FARM_OWNER, RoleNames.ACCOUNTANT);
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final InternalStockCategoryService categoryService;
     private final InternalStockService voucherService;
+
+    @Autowired(required = false)
+    private InventoryItemService inventoryItemService;
 
     private static boolean canSeeFinance(Authentication authentication) {
         if (authentication == null) return false;
@@ -93,17 +99,29 @@ public class InternalStockController {
         LocalDate effEnd = endDate != null ? endDate : to;
         String effQ = (q != null && !q.isBlank()) ? q : search;
 
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "movementDate", "id"));
+        int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(Math.max(0, page), safeSize, Sort.by(Sort.Direction.DESC, "movementDate", "id"));
         boolean canFinance = canSeeFinance(authentication);
+        Set<Long> allowedWarehouseIds = allowedWarehousesIfRestricted(authentication, canFinance);
         return ApiResponse.success(
                 "Danh sách phiếu xuất nhập nội bộ",
-                voucherService.list(movementType, categoryId, warehouseId, status, effStart, effEnd, effQ, pageable, canFinance)
+                voucherService.list(movementType, categoryId, warehouseId, status, effStart, effEnd, effQ, pageable, canFinance, allowedWarehouseIds)
         );
     }
 
     @GetMapping("/vouchers/{id}")
     public ApiResponse<InternalStockVoucherResponse> getVoucher(@PathVariable Long id, Authentication authentication) {
-        return ApiResponse.success("Chi tiết phiếu xuất nhập nội bộ", voucherService.get(id, canSeeFinance(authentication)));
+        boolean canFinance = canSeeFinance(authentication);
+        Set<Long> allowedWarehouseIds = allowedWarehousesIfRestricted(authentication, canFinance);
+        return ApiResponse.success("Chi tiết phiếu xuất nhập nội bộ", voucherService.get(id, canFinance, allowedWarehouseIds));
+    }
+
+    private Set<Long> allowedWarehousesIfRestricted(Authentication authentication, boolean canFinance) {
+        if (canFinance || inventoryItemService == null) {
+            return null;
+        }
+        String email = authentication != null ? authentication.getName() : null;
+        return inventoryItemService.allowedWarehouseIdsForWorker(email);
     }
 
     @PostMapping("/vouchers")

@@ -23,6 +23,8 @@ public class SalesOrderService {
  private final BarnRepository barns;
  private final FlockRepository flocks;
  private final FlockMovementRepository movements;
+ @jakarta.persistence.PersistenceContext
+ private jakarta.persistence.EntityManager entityManager;
 
  @Autowired
  public SalesOrderService(SalesOrderRepository orders, CustomerContactRepository customers,
@@ -146,7 +148,9 @@ public class SalesOrderService {
    revertPreviousHarvest(order);
   }
 
-  var customer = customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc(request.phone().strip(), request.customer().strip()).orElseGet(CustomerContact::new);
+  var customer = customers.findTopByPhoneAndNameIgnoreCaseOrderByIdAsc(request.phone().strip(), request.customer().strip())
+    .map(found -> found.getId() != null ? customers.findForUpdate(found.getId()).orElse(found) : found)
+    .orElseGet(CustomerContact::new);
   customer.setName(request.customer().strip()); customer.setPhone(request.phone().strip()); customer.setAddress(request.address().strip());
   if(request.taxCode()!=null && !request.taxCode().isBlank()) customer.setTaxCode(request.taxCode().strip());
   if(request.paymentMethod()!=null && !request.paymentMethod().isBlank()) customer.setPaymentMethod(request.paymentMethod().strip());
@@ -164,6 +168,13 @@ public class SalesOrderService {
   FarmingCycle cycle = resolveCycle(request);
   if (cycle != null) {
    applyHarvest(order, request, cycle);
+  } else if (order.getHarvestMovement() != null) {
+   FlockMovement orphanedMovement = order.getHarvestMovement();
+   order.setHarvestMovement(null);
+   order.setCycle(null);
+   if (movements != null) {
+    movements.delete(orphanedMovement);
+   }
   }
 
   return orders.save(order);
@@ -175,23 +186,45 @@ public class SalesOrderService {
   int oldQty = oldMovement.getQuantity();
   Flock oldFlock = oldMovement.getFlock();
   if (oldFlock != null) {
+   Barn oldBarn = oldFlock.getCycle() != null ? oldFlock.getCycle().getBarn() : null;
+   if (oldBarn != null && oldBarn.getId() != null && barns != null) {
+    oldBarn = barns.findByIdForUpdate(oldBarn.getId()).orElse(oldBarn);
+    if (entityManager != null && entityManager.contains(oldBarn)) entityManager.refresh(oldBarn);
+   }
+   if (oldFlock.getId() != null && flocks != null) {
+    oldFlock = flocks.findByIdForUpdate(oldFlock.getId()).orElse(oldFlock);
+    if (entityManager != null && entityManager.contains(oldFlock)) entityManager.refresh(oldFlock);
+   }
    oldFlock.setQuantity(oldFlock.getQuantity() + oldQty);
    if (oldFlock.getStatus() == FlockStatus.ARCHIVED && oldFlock.getQuantity() > 0) {
     oldFlock.setStatus(FlockStatus.ACTIVE);
    }
    if (flocks != null) flocks.save(oldFlock);
-   Barn oldBarn = oldFlock.getCycle() != null ? oldFlock.getCycle().getBarn() : null;
    if (oldBarn != null && barns != null) {
     oldBarn.setCurrentQuantity(oldBarn.getCurrentQuantity() + oldQty);
     barns.save(oldBarn);
    }
+   if (entityManager != null) entityManager.flush();
   }
  }
 
  private void applyHarvest(SalesOrder order, SalesOrderRequest request, FarmingCycle cycle) {
   if (cycle == null || flocks == null || movements == null) return;
-  Barn barn = cycle.getBarn();
-  List<Flock> cycleFlocks = flocks.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId());
+  Barn initialBarn = cycle.getBarn();
+  if (initialBarn != null && initialBarn.getId() != null && barns != null) {
+   initialBarn = barns.findByIdForUpdate(initialBarn.getId()).orElse(initialBarn);
+   if (entityManager != null && entityManager.contains(initialBarn)) entityManager.refresh(initialBarn);
+  }
+  final Barn barn = initialBarn;
+  List<Flock> lockedFlocks = flocks.findAllByCycleIdForUpdate(cycle.getId());
+  final List<Flock> cycleFlocks = lockedFlocks.isEmpty()
+    ? flocks.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId())
+    : lockedFlocks;
+  if (entityManager != null) {
+   for (Flock f : cycleFlocks) {
+    if (entityManager.contains(f)) entityManager.refresh(f);
+   }
+  }
   Flock targetFlock = cycleFlocks.stream()
     .filter(f -> f.getStatus() == FlockStatus.ACTIVE && f.getQuantity() > 0)
     .findFirst()
@@ -274,7 +307,10 @@ public class SalesOrderService {
     if (c.isPresent()) return c.get();
    } catch (Exception ignored) {}
   }
-  List<FarmingCycle> all = cycles.findAll();
+  List<FarmingCycle> all = cycles.findAllWithBarnAndAreaForReport();
+  if (all == null || all.isEmpty()) {
+   all = cycles.findAll();
+  }
   for (FarmingCycle c : all) {
    String code = String.format(java.util.Locale.ROOT, "L%06d", c.getId());
    if (flockStr.contains(code)) return c;

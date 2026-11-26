@@ -190,7 +190,7 @@ class ReportIntegrationTest {
 
         long transferCatId = internalCategoryRepository.findByNameKey("chuyển kho nội bộ").orElseThrow().getId();
         var transferReq = new InternalStockVoucherRequest(
-                "TRANSFER", transferCatId, whSrc.getId(), whDst.getId(), null, TODAY.minusDays(1), null, "Chuyển nội bộ test",
+                "TRANSFER", transferCatId, whSrc.getId(), whDst.getId(), null, TODAY.minusDays(1), "Chuyển nội bộ test", null,
                 List.of(new InternalStockVoucherItemRequest(prod.getId(), stockItem.getId(), null, new BigDecimal("5"), null, null))
         );
         post("/api/internal-stock/vouchers", transferReq).andExpect(status().isCreated());

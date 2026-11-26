@@ -1,5 +1,9 @@
 package com.farmshift.backendFarmShift.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.Normalizer;
@@ -183,60 +187,66 @@ public final class VietnameseSpeechNormalizer {
             "(?iu)(?<![\\p{L}])(?:hai|hi|hy|hai\\s+gờ|hi\\s+gờ|hi\\s+gơ|hai\\s+grô|hi\\s+grô)\\s*(?:rô|grô|gờ\\s*rô|gơ\\s*rô|gro)\\s+("
                     + DIGIT_WORD_TOKEN + "(?:\\s+" + DIGIT_WORD_TOKEN + "){1,2})(?![\\p{L}\\d])");
 
-    private static final Pattern[] HOMOPHONE_PATTERNS = {
-            Pattern.compile("(?iu)(?<![\\p{L}])nhật\\s+(?:kí|kỉ|kỹ|ky|kì|kỷ)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}\\d])(?:hóa|hoá)\\s+đơn"),
-            Pattern.compile("(?iu)(?<![\\p{L}\\d.,])((?:\\d+(?:[.,]\\d+)?|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)\\s+)?triệu\\s+rưỡi(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:(?:hai|hi|hy|hai\\s+gờ|hi\\s+gờ|hi\\s+gơ|hai\\s+grô|hi\\s+grô)\\s*(?:rô|grô|gờ\\s*rô|gơ\\s*rô|gro)|higro)\\s*(0?[12]|\\d{2,4})?(?![\\p{L}\\d])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:đa\\s+ba\\s+cô|da\\s+ba\\s+co|đabacô)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:han\\s+vét|hàn\\s+vét)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:la\\s+sô\\s+ta|la\\s+xô\\s+ta|lasôta|lát\\s+sô\\s+ta)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:gum\\s+bô\\s+rô|găm\\s+bô\\s+rô)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])cám\\s+số\\s+([12])(?![\\p{L}\\d])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:xi\\s+pi|si\\s+pi)\\s*(511|512)(?![\\p{L}\\d])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:ca\\s+giu|ca\\s+gin|các\\s+giu)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:niu\\s+cát\\s+xơn|nhiu\\s+cát\\s+xơn|niu\\s+cat\\s+xon|niu\\s+cát\\s+xơ)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:ép\\s+xê\\s+rờ|ép\\s+cờ\\s+rờ|f\\s+c\\s+r|hệ\\s+số\\s+ép)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(?:cần\\s+mẫu|cân\\s+mẩu)(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])hao\\s+hục(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])thải\\s+lọai(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])khu\\s+(?:di|gi|j)\\s+thịt(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])khu\\s+mía(?:\\s+thịt)?(?![\\p{L}])"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(nhà|chuồng|khu)\\s+(?:bê|be)(?=\\s+(?:\\d|một|hai|ba|bốn|năm|sáu|bảy|tám|chín))"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(nhà|chuồng|khu)\\s+(?:xê|xe|cê|ce)(?=\\s+(?:\\d|một|hai|ba|bốn|năm|sáu|bảy|tám|chín))"),
-            Pattern.compile("(?iu)(?<![\\p{L}])(nhà|chuồng|khu)\\s+(?:đê|de|dê)(?=\\s+(?:\\d|một|hai|ba|bốn|năm|sáu|bảy|tám|chín))"),
-    };
+    private record SharedPhoneticRule(Pattern pattern, String replacement) {}
+
+    private static final List<SharedPhoneticRule> SHARED_PHONETIC_RULES = loadSharedPhoneticRules();
+
+    private static final Pattern HOA_DON_PATTERN = Pattern.compile("(?iu)(?<![\\p{L}\\d])(?:hóa|hoá)\\s+đơn");
+    private static final Pattern TRIEU_RUOI_PATTERN = Pattern.compile(
+            "(?iu)(?<![\\p{L}\\d.,])((?:\\d+(?:[.,]\\d+)?|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)\\s+)?triệu\\s+rưỡi(?![\\p{L}])");
+    private static final Pattern HIGRO_VARIANT_PATTERN = Pattern.compile(
+            "(?iu)(?<![\\p{L}])(?:(?:hai|hi|hy|hai\\s+gờ|hi\\s+gờ|hi\\s+gơ|hai\\s+grô|hi\\s+grô)\\s*(?:rô|grô|gờ\\s*rô|gơ\\s*rô|gro)|higro)\\s*(0?[12]|\\d{2,4})?(?![\\p{L}\\d])");
+    private static final Pattern BARN_LETTER_B = Pattern.compile("(?iu)(?<![\\p{L}])(nhà|chuồng|khu)\\s+(?:bê|be)(?=\\s+(?:\\d|một|hai|ba|bốn|năm|sáu|bảy|tám|chín))");
+    private static final Pattern BARN_LETTER_C = Pattern.compile("(?iu)(?<![\\p{L}])(nhà|chuồng|khu)\\s+(?:xê|xe|cê|ce)(?=\\s+(?:\\d|một|hai|ba|bốn|năm|sáu|bảy|tám|chín))");
+    private static final Pattern BARN_LETTER_D = Pattern.compile("(?iu)(?<![\\p{L}])(nhà|chuồng|khu)\\s+(?:đê|de|dê)(?=\\s+(?:\\d|một|hai|ba|bốn|năm|sáu|bảy|tám|chín))");
+
+    private static List<SharedPhoneticRule> loadSharedPhoneticRules() {
+        List<SharedPhoneticRule> rules = new ArrayList<>();
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = null;
+        try (InputStream in = VietnameseSpeechNormalizer.class.getResourceAsStream("/phonetic_lexicon.json")) {
+            if (in != null) {
+                root = mapper.readTree(in);
+            }
+        } catch (Exception ignored) {
+            // Keep empty if unavailable
+        }
+        if (root != null && root.path("rules").isArray()) {
+            for (JsonNode item : root.path("rules")) {
+                String rawPattern = item.path("pattern").asText("");
+                String rawRepl = item.path("replacement").asText("");
+                String boundary = item.path("boundary").asText("LETTER").toUpperCase(Locale.ROOT);
+                if (rawPattern.isBlank()) {
+                    continue;
+                }
+                String wrapped = "ALNUM".equals(boundary)
+                        ? "(?iu)(?<![\\p{L}\\d])" + rawPattern + "(?![\\p{L}\\d])"
+                        : "(?iu)(?<![\\p{L}])" + rawPattern + "(?![\\p{L}])";
+                String javaRepl = rawRepl.replaceAll("\\{(\\d+)\\}", "\\$$1");
+                rules.add(new SharedPhoneticRule(Pattern.compile(wrapped), javaRepl));
+            }
+        }
+        return List.copyOf(rules);
+    }
 
     /** Sửa các cụm đồng âm tiếng Việt hay bị Whisper / Web Speech nhận nhầm. */
     static String fixSttHomophones(String text) {
         String out = replaceAll(HIGRO_SPOKEN_DIGITS, text, m -> "Higro " + joinSpokenDigits(m.group(1)));
-        out = HOMOPHONE_PATTERNS[0].matcher(out).replaceAll("nhật ký");
-        out = HOMOPHONE_PATTERNS[1].matcher(out).replaceAll("hóa đơn");
-        out = HOMOPHONE_PATTERNS[2].matcher(out).replaceAll(r -> r.group(1) != null ? r.group(0) : "1 triệu rưỡi");
-        out = HOMOPHONE_PATTERNS[3].matcher(out).replaceAll(r -> {
+        out = HOA_DON_PATTERN.matcher(out).replaceAll("hóa đơn");
+        out = TRIEU_RUOI_PATTERN.matcher(out).replaceAll(r -> r.group(1) != null ? r.group(0) : "1 triệu rưỡi");
+        out = HIGRO_VARIANT_PATTERN.matcher(out).replaceAll(r -> {
             String num = r.group(1);
             if (num == null || num.isEmpty()) return "Higro";
             if ("1".equals(num)) num = "01";
             else if ("2".equals(num)) num = "02";
             return "Higro " + num;
         });
-        out = HOMOPHONE_PATTERNS[4].matcher(out).replaceAll("Dabaco");
-        out = HOMOPHONE_PATTERNS[5].matcher(out).replaceAll("Hanvet");
-        out = HOMOPHONE_PATTERNS[6].matcher(out).replaceAll("Lasota");
-        out = HOMOPHONE_PATTERNS[7].matcher(out).replaceAll("Gumboro");
-        out = HOMOPHONE_PATTERNS[8].matcher(out).replaceAll("Higro 0$1");
-        out = HOMOPHONE_PATTERNS[9].matcher(out).replaceAll("CP $1");
-        out = HOMOPHONE_PATTERNS[10].matcher(out).replaceAll("Cargill");
-        out = HOMOPHONE_PATTERNS[11].matcher(out).replaceAll("Newcastle");
-        out = HOMOPHONE_PATTERNS[12].matcher(out).replaceAll("FCR");
-        out = HOMOPHONE_PATTERNS[13].matcher(out).replaceAll("cân mẫu");
-        out = HOMOPHONE_PATTERNS[14].matcher(out).replaceAll("hao hụt");
-        out = HOMOPHONE_PATTERNS[15].matcher(out).replaceAll("thải loại");
-        out = HOMOPHONE_PATTERNS[16].matcher(out).replaceAll("Khu J Thịt");
-        out = HOMOPHONE_PATTERNS[17].matcher(out).replaceAll("Khu Mía Thịt");
-        out = HOMOPHONE_PATTERNS[18].matcher(out).replaceAll("$1 B");
-        out = HOMOPHONE_PATTERNS[19].matcher(out).replaceAll("$1 C");
-        out = HOMOPHONE_PATTERNS[20].matcher(out).replaceAll("$1 D");
+        for (SharedPhoneticRule rule : SHARED_PHONETIC_RULES) {
+            out = rule.pattern().matcher(out).replaceAll(rule.replacement());
+        }
+        out = BARN_LETTER_B.matcher(out).replaceAll("$1 B");
+        out = BARN_LETTER_C.matcher(out).replaceAll("$1 C");
+        out = BARN_LETTER_D.matcher(out).replaceAll("$1 D");
         return out;
     }
 

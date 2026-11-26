@@ -12,10 +12,11 @@ public enum UsageUnit {
     G(Dimension.MASS, 1, "g"),
     L(Dimension.VOLUME, 1000, "lít"),
     ML(Dimension.VOLUME, 1, "ml"),
-    DOSE(Dimension.DOSE, 1, "liều");
+    DOSE(Dimension.DOSE, 1, "liều"),
+    PACK(Dimension.PACK, 1, "gói");
 
     /** Hai đơn vị chỉ quy đổi được cho nhau khi cùng loại đại lượng. */
-    public enum Dimension { MASS, VOLUME, DOSE }
+    public enum Dimension { MASS, VOLUME, DOSE, PACK }
 
     private final Dimension dimension;
     private final BigDecimal factor;
@@ -51,6 +52,7 @@ public enum UsageUnit {
             case "l", "lít", "lit" -> L;
             case "ml" -> ML;
             case "liều", "lieu", "giọt", "giot", "dose" -> DOSE;
+            case "gói", "goi", "pack" -> PACK;
             default -> null;
         };
     }

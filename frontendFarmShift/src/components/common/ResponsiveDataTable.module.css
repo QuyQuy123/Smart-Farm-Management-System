@@ -1,0 +1,441 @@
+/* src/components/common/ResponsiveDataTable.module.css */
+
+.root {
+  width: 100%;
+  min-width: 0;
+}
+
+/* ── Summary Strip (Top KPI Bar) ────────────────────────── */
+.summaryStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #e3ebe8;
+  background-color: #ffffff;
+  min-width: 0;
+}
+
+.tone_teal {
+  background-color: #f0faf8;
+  border-color: #bfe3db;
+}
+
+.tone_warn {
+  background-color: #fffbf2;
+  border-color: #f4d8a8;
+}
+
+.tone_danger {
+  background-color: #fff5f6;
+  border-color: #fecdd3;
+}
+
+.summaryLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #526670;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summaryValue {
+  font-size: 16.5px;
+  font-weight: 700;
+  color: #181d26;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summarySub {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* ── Table / Sticky Table Mode ──────────────────────────── */
+.tableScrollWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background-color: var(--color-canvas, #ffffff);
+  border: 1px solid var(--color-hairline, #e3ebe8);
+  border-radius: 12px;
+}
+
+.stickyTableWrap {
+  position: relative;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+  color: var(--color-body, #1f242c);
+}
+
+.th {
+  padding: 11px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #526670;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e3ebe8;
+  white-space: nowrap;
+}
+
+.tr {
+  border-bottom: 1px solid #eef2f4;
+  transition: background-color 0.14s ease;
+}
+
+.tr:last-child {
+  border-bottom: none;
+}
+
+.trClickable {
+  cursor: pointer;
+}
+
+.trClickable:hover {
+  background-color: #f7fbfa;
+}
+
+.td {
+  padding: 11px 14px;
+  vertical-align: middle;
+  line-height: 1.45;
+}
+
+.stickyCol {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background-color: var(--color-canvas, #ffffff);
+  box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.12);
+}
+
+.th.stickyCol {
+  z-index: 3;
+  background-color: #f8fafc;
+}
+
+.trClickable:hover .td.stickyCol {
+  background-color: #f7fbfa;
+}
+
+/* ── Mobile 3-Tier Cards (< 768px) ──────────────────────── */
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.customCardSlot {
+  width: 100%;
+}
+
+.mobileCard {
+  background-color: #ffffff;
+  border: 1px solid #e3ebe8;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobileCardClickable {
+  cursor: pointer;
+}
+
+.mobileCardClickable:active {
+  background-color: #f8fbfa;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cardTitle {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #181d26;
+  line-height: 1.35;
+  min-width: 0;
+  flex: 1;
+}
+
+.cardBadge {
+  flex-shrink: 0;
+}
+
+.cardBodyGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding: 10px 12px;
+  background-color: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #edf2f4;
+}
+
+.cardMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cardMetricLabel {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.cardMetricVal {
+  font-size: 14px;
+  font-weight: 600;
+  color: #181d26;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
+.cardExtraDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed #dce7e3;
+}
+
+.cardExtraRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.cardExtraLabel {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.cardExtraVal {
+  color: #1f242c;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f4;
+  flex-wrap: wrap;
+}
+
+.expandBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid #dce7e3;
+  background-color: #f8fbfa;
+  color: #00796b;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+/* ── Mobile Timeline Mode (< 768px) ─────────────────────── */
+.timelineList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.timelineGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timelineDateHeader {
+  position: sticky;
+  top: var(--fs-header-height, 56px);
+  z-index: 2;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background-color: #eaf5f2;
+  color: #00695c;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #cce6df;
+}
+
+.timelineItems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 2px solid #cce6df;
+}
+
+.timelineCard {
+  background-color: #ffffff;
+  border: 1px solid #e3ebe8;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.timelineDefault {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+}
+
+.timelineFieldLabel {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.timelineFieldVal {
+  color: #181d26;
+  font-weight: 500;
+}
+
+/* ── Empty / Loading / Load More / Pagination ───────────── */
+.stateBox {
+  padding: 32px 16px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14.5px;
+  background-color: #ffffff;
+  border: 1px solid #e3ebe8;
+  border-radius: 12px;
+}
+
+.loadMoreWrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.loadMoreBtn {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 10px;
+  border: 1px solid #019788;
+  background-color: #f0faf8;
+  color: #00796b;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  border: 1px solid #e3ebe8;
+}
+
+.pageMeta {
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.pageControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.pageBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  min-width: 84px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid #d5e2de;
+  background-color: #ffffff;
+  color: #181d26;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pageBtn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.pageCurrent {
+  font-size: 14px;
+  font-weight: 600;
+  color: #181d26;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .summaryStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .pagination {
+    justify-content: center;
+  }
+
+  .pageControls {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+}

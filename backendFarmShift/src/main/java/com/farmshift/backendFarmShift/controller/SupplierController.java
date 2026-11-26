@@ -17,8 +17,10 @@ import java.util.List;
 public class SupplierController {
     private final SupplierService service;
     private final DebtService debtService;
-    @GetMapping public ApiResponse<List<SupplierResponse>> list() { return ApiResponse.success("Danh sách nhà cung cấp", service.list()); }
-    @GetMapping("/{id}") public ApiResponse<SupplierResponse> get(@PathVariable Long id) { return ApiResponse.success("Chi tiết nhà cung cấp", service.get(id)); }
+    @GetMapping @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+    public ApiResponse<List<SupplierResponse>> list() { return ApiResponse.success("Danh sách nhà cung cấp", service.list()); }
+    @GetMapping("/{id}") @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+    public ApiResponse<SupplierResponse> get(@PathVariable Long id) { return ApiResponse.success("Chi tiết nhà cung cấp", service.get(id)); }
     @GetMapping("/{id}/debt-history") @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
     public ApiResponse<SupplierDebtHistoryResponse> debtHistory(@PathVariable Long id) { return ApiResponse.success("Lịch sử công nợ nhà cung cấp", debtService.getSupplierDebtHistory(id)); }
     @PostMapping @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")

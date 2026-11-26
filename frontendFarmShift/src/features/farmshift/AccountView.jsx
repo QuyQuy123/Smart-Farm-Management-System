@@ -185,7 +185,7 @@ export const validateAllPassword = (formData) => {
 export const AccountView = () => {
   const { user, updateUser } = useAuth();
   const { showToast } = useNotification();
-  const canManageStaff = !user?.role || user.role === 'ROLE_FARM_OWNER';
+  const canManageStaff = user?.role === 'ROLE_FARM_OWNER';
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const allowedTabs = canManageStaff ? ['staff', 'profile', 'security'] : ['profile', 'security'];
@@ -311,7 +311,7 @@ export const AccountView = () => {
     let isMounted = true;
     getProfile()
       .then(profile => {
-        if (!isMounted || !profile) return;
+        if (!isMounted || !profile || typeof profile !== 'object' || Array.isArray(profile)) return;
         setProfileForm({
           email: profile.email || '',
           fullName: profile.fullName || '',
@@ -323,14 +323,13 @@ export const AccountView = () => {
         });
         updateUser({
           ...(profile.email ? { email: profile.email } : {}),
-          name: profile.fullName,
-          fullName: profile.fullName,
+          ...(profile.fullName ? { name: profile.fullName, fullName: profile.fullName } : {}),
           phone: profile.phone || '',
           citizenId: profile.citizenId || '',
           address: profile.address || '',
           dateOfBirth: profile.dateOfBirth || '',
           avatarUrl: profile.avatarUrl || '',
-          role: profile.role
+          ...(profile.role ? { role: profile.role } : {})
         });
       })
       .catch(err => {

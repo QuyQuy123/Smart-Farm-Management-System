@@ -126,3 +126,16 @@ export const sendAssistantMessage = async ({
 
   return response.data;
 };
+
+/**
+ * Gửi đánh giá phản hồi của người dùng (+1 / -1) lên Data Flywheel (POST /api/ai/feedback)
+ */
+export const submitAiFeedback = async ({ interactionId, rating, note, correctedIntent }) => {
+  const response = await api.post('/ai/feedback', {
+    interactionId,
+    rating,
+    ...(note ? { note } : {}),
+    ...(correctedIntent ? { correctedIntent } : {}),
+  });
+  return response.data;
+};
