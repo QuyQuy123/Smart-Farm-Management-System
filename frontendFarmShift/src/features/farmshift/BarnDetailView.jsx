@@ -9,9 +9,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
 import {
-  addExpense, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample,
+  addExpense, addWeightSample, deleteExpense, deleteFeedRecord, deleteWeightSample,
   assignCycleProgram, assignFlockProgram, getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
 } from '../../services/cycleService';
+import { CloseCycleDialog } from './CloseCycleDialog';
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
@@ -277,17 +278,7 @@ export const BarnDetailView = () => {
     },
   });
 
-  const openCloseCycle = () => setModal({
-    title: `Kết thúc lứa nuôi thứ ${cycle.cycleNumber}`, submitLabel: 'Xác nhận kết thúc', danger: true,
-    intro: 'Chi phí, doanh thu và nhật ký được lưu trong lịch sử lứa. Sau khi kết thúc, lứa chỉ xem được, không ghi thêm dữ liệu.',
-    initial: { endDate: today, note: '' },
-    fields: [
-      { key: 'endDate', label: 'Ngày kết thúc', type: 'date', required: true, max: today },
-      { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
-    ],
-    validate: values => ({ endDate: dateRule(values.endDate, 'Ngày kết thúc') }),
-    onSubmit: async values => { await closeCycle(cycle.id, values); return `Đã kết thúc lứa nuôi thứ ${cycle.cycleNumber}.`; },
-  });
+  const openCloseCycle = () => setModal({ type: 'close' });
 
   const room = barn ? barn.capacity - barn.currentQuantity : 0;
   const openImport = () => {
@@ -808,10 +799,12 @@ export const BarnDetailView = () => {
         {active && <Card title={`Việc hôm nay · ${formatDay(today)}`} icon={CalendarDays}
           actions={canDaily && <Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
           {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
-            : dayPlan.flocks.length === 0 ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
+            : (dayPlan.flocks.length === 0 && !(dayPlan.routineTasks?.length > 0) && !(dayPlan.assignedTasks?.length > 0))
+              ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
               : <div className={styles.dayPlan}><DailyPlanCard compact plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
                 onConfirm={dailyActions.confirm} onUndo={dailyActions.undo}
-                onConfirmAssigned={dailyActions.confirmAssigned} onUndoAssigned={dailyActions.undoAssigned} /></div>}
+                onConfirmAssigned={dailyActions.confirmAssigned} onUndoAssigned={dailyActions.undoAssigned}
+                onToggleRoutine={dailyActions.toggleRoutine} /></div>}
         </Card>}
 
         <Card title="Chương trình nuôi" icon={ClipboardList}
@@ -911,6 +904,20 @@ export const BarnDetailView = () => {
               )}
             </div>
           </div>
+
+          {journalTab === 'FEED' && active && detail.openedFeeds?.length > 0 && (
+            <div className={styles.openedFeedBanner} data-testid="barn-opened-feeds">
+              <strong>Cám đang mở bao còn lại tại chuồng:</strong>
+              <ul className={styles.openedFeedList}>
+                {detail.openedFeeds.map(feed => (
+                  <li key={feed.productId || feed.id}>
+                    <span>{feed.feedName}: <strong>{num(feed.remainingKg, 3)} kg</strong></span>
+                    {canFinance && feed.remainingValue != null && <span>({money(feed.remainingValue)})</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {journalTab === 'FEED' && detail.feedRecords.length > 0 && (
             <p className={styles.summaryLine}>
@@ -1070,6 +1077,7 @@ export const BarnDetailView = () => {
     {modal?.type === 'flock' && <FlockDetailDialog flock={modal.flock} canFinance={canFinance} onClose={() => setModal(null)} />}
     {modal?.type === 'movement' && <MovementDetailDialog movement={modal.movement} onClose={() => setModal(null)} />}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}
+    {modal?.type === 'close' && <CloseCycleDialog barn={barn} cycle={cycle} onClose={() => setModal(null)} onDone={done} />}
     {modal && !modal.type && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </FarmShiftLayout>;
 };

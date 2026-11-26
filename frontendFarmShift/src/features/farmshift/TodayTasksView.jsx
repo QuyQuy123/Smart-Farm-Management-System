@@ -80,12 +80,12 @@ export const TodayTasksView = () => {
     () => setRevision(r => r + 1)
   );
 
-  const { busyKey, confirm, undo, confirmAssigned, undoAssigned } = useDailyPlanActions(updated =>
+  const { busyKey, confirm, undo, confirmAssigned, undoAssigned, toggleRoutine } = useDailyPlanActions(updated =>
     setState(current => ({ ...current, plans: current.plans.map(plan => (plan.cycleId === updated.cycleId ? updated : plan)) })));
   const loading = state.key === null || !state.key.startsWith(`${date}:`);
-  // Đếm cả việc theo chương trình và việc được giao.
-  const count = plan => plan.tasks.length + (plan.assignedTasks || []).length;
-  const doneOf = plan => plan.doneCount + (plan.assignedTasks || []).filter(task => task.done).length;
+  // Đếm cả việc theo chương trình, việc được giao và việc hằng ngày mặc định của chuồng.
+  const count = plan => plan.tasks.length + (plan.assignedTasks || []).length + (plan.routineTasks || []).length;
+  const doneOf = plan => plan.doneCount + (plan.assignedTasks || []).filter(task => task.done).length + (plan.routineTasks || []).filter(task => task.done).length;
   const tasks = state.plans.reduce((sum, plan) => sum + count(plan), 0);
   const done = state.plans.reduce((sum, plan) => sum + doneOf(plan), 0);
   const opened = state.plans.find(plan => String(plan.cycleId) === openCycle);
@@ -134,7 +134,7 @@ export const TodayTasksView = () => {
         : opened ? <div className={styles.detail}>
           <button type="button" className={styles.back} onClick={() => open(null)}><ArrowLeft size={16} />Tất cả chuồng</button>
           <DailyPlanCard plan={opened} userEmail={user?.email} role={user?.role} busyKey={busyKey} onConfirm={confirm} onUndo={undo}
-            onConfirmAssigned={confirmAssigned} onUndoAssigned={undoAssigned} hideDone={hideDone} />
+            onConfirmAssigned={confirmAssigned} onUndoAssigned={undoAssigned} onToggleRoutine={toggleRoutine} hideDone={hideDone} />
         </div>
           : state.plans.length === 0 ? <p className={styles.state}>{user?.role === 'ROLE_FARM_WORKER'
             ? 'Bạn chưa được phân công chuồng nào đang nuôi. Liên hệ chủ trại để được phân công.'

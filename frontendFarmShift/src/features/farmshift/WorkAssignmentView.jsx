@@ -1,15 +1,23 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, MapPinned, Pencil, Plus, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
-import { deleteWorkTask, getWorkBoard, setBarnWorkers, createWorkTask, updateWorkTask } from '../../services/workAssignmentService';
+import { deleteWorkTask, getWorkBoard, setBarnRoutineTasks, setBarnWorkers, createWorkTask, updateWorkTask } from '../../services/workAssignmentService';
 import { FormDialog } from './CycleDialogs';
 import { Dialog } from './FarmAreaDialogs';
 import { addDaysIso, apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './WorkAssignmentView.module.css';
 
+/** Việc hằng ngày mặc định của mỗi chuồng (áp dụng tự động từ đầu đến cuối lứa). */
+const ROUTINE_PRESETS = [
+  { code: 'CHANGE_LITTER', title: 'Thay trấu' },
+  { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng' },
+  { code: 'WASH_BARN', title: 'Xịt rửa chuồng' },
+];
+const DEFAULT_ROUTINE_CODES = ROUTINE_PRESETS.map(p => p.code);
+
 /** Việc chăm sóc hay giao, để chủ trại bấm chọn nhanh khi giao việc. */
-const COMMON_TASKS = ['Rửa máng uống', 'Thay / rắc thêm trấu', 'Sát trùng lối đi, hố sát trùng', 'Kiểm tra quạt, đèn sưởi', 'Dọn phân, đảo đệm lót'];
+const COMMON_TASKS = ['Thay trấu', 'Vệ sinh máng', 'Xịt rửa chuồng', 'Kiểm tra quạt, đèn sưởi', 'Sát trùng lối đi, hố sát trùng'];
 const REPEAT_OPTIONS = [
   { value: 'ONCE', label: 'Không lặp (làm một ngày)' },
   { value: 'UNTIL', label: 'Lặp mỗi ngày đến ngày…' },
@@ -116,6 +124,24 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
   const board = state.board;
   const displayedDate = board?.date || date;
   const done = message => { setModal(null); showToast(message, 'success'); setRevision(value => value + 1); };
+  const [routineBusyBarnId, setRoutineBusyBarnId] = useState(null);
+  const toggleRoutinePreset = async (barn, code) => {
+    if (routineBusyBarnId === barn.barnId) return;
+    const current = Array.isArray(barn.routineTaskCodes) ? barn.routineTaskCodes : DEFAULT_ROUTINE_CODES;
+    const next = current.includes(code)
+      ? current.filter(item => item !== code)
+      : ROUTINE_PRESETS.map(p => p.code).filter(c => c === code || current.includes(c));
+    setRoutineBusyBarnId(barn.barnId);
+    try {
+      await setBarnRoutineTasks(barn.barnId, next);
+      showToast(`Đã cập nhật việc hằng ngày mặc định cho ${barn.barnName}.`, 'success');
+      setRevision(value => value + 1);
+    } catch (requestError) {
+      showToast(apiErrorMessage(requestError), 'error');
+    } finally {
+      setRoutineBusyBarnId(null);
+    }
+  };
   const ofWorker = barn => !workerFilter || barn.workers.some(worker => worker.id === workerFilter)
     || barn.tasks.some(task => task.assignee.id === workerFilter);
   const areas = board ? groupAreas(board.barns) : [];
@@ -150,7 +176,32 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
         { key: 'assigneeId', label: 'Công nhân', type: 'select', required: true, options: barn.workers.map(worker => ({ value: String(worker.id), label: worker.fullName })) },
         { key: 'dueTime', label: 'Giờ làm', type: 'time', hint: 'Không bắt buộc.' },
         // Khóa không đặt là 'title' vì FormDialog dùng id cycle-form-title cho tiêu đề hộp thoại.
-        { key: 'taskTitle', label: 'Tên công việc', required: true, full: true, placeholder: `Ví dụ: ${COMMON_TASKS.slice(0, 3).join(', ')}` },
+        {
+          key: 'taskTitle',
+          label: 'Tên công việc',
+          required: true,
+          full: true,
+          placeholder: `Ví dụ: ${COMMON_TASKS.slice(0, 3).join(', ')}`,
+          render: (props, setValue) => (
+            <>
+              <input {...props} maxLength={200} placeholder={`Ví dụ: ${COMMON_TASKS.slice(0, 3).join(', ')}`} />
+              <div className={styles.quickTaskBar} aria-label="Chọn nhanh công việc">
+                <span className={styles.quickTaskLabel}>Chọn nhanh:</span>
+                {COMMON_TASKS.map(item => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={styles.quickTaskChip}
+                    disabled={props.disabled}
+                    onClick={() => setValue(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </>
+          ),
+        },
         { key: 'repeat', label: 'Lặp lại', type: 'select', required: true, full: true, options: REPEAT_OPTIONS },
         { key: 'onceDate', label: 'Ngày làm', type: 'date', required: true, min: editing ? undefined : today, visible: values => values.repeat === 'ONCE' },
         { key: 'toDate', label: 'Lặp mỗi ngày đến', type: 'date', required: true, min: start, visible: values => values.repeat === 'UNTIL',
@@ -287,6 +338,31 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
                 <div className={styles.assigneeList}>
                   {barn.workers.length === 0 ? <span className={styles.none}>Chưa có ai</span>
                     : barn.workers.map(worker => <span key={worker.id} className={styles.chip}>{worker.fullName}</span>)}
+                </div>
+              </div>
+              <div className={styles.routineBox} aria-label={`Việc hằng ngày mặc định ${barn.barnName}`}>
+                <div className={styles.routineHead}>
+                  <span className={styles.label}>Việc hằng ngày mặc định (cả lứa)</span>
+                  <small>Hiện sẵn trong Việc hôm nay</small>
+                </div>
+                <div className={styles.routineChips}>
+                  {ROUTINE_PRESETS.map(preset => {
+                    const activeCodes = Array.isArray(barn.routineTaskCodes) ? barn.routineTaskCodes : DEFAULT_ROUTINE_CODES;
+                    const enabled = activeCodes.includes(preset.code);
+                    return (
+                      <button
+                        key={preset.code}
+                        type="button"
+                        aria-pressed={enabled}
+                        disabled={loading || Boolean(state.error) || routineBusyBarnId === barn.barnId}
+                        className={`${styles.routineChip} ${enabled ? styles.routineChipOn : ''}`}
+                        onClick={() => toggleRoutinePreset(barn, preset.code)}
+                      >
+                        {enabled ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                        <span>{preset.title}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <p className={styles.bookStat}>

@@ -80,27 +80,28 @@ describe('Farming programs by breed', () => {
     expect(select).toHaveValue('Cám GT2');
   });
 
-  it('shows a breed program with drinking medicine, bags/1000 birds feed, procedures and day-of-age lookup', async () => {
+  it('shows a breed program with drinking medicine, feed ration in g/con/ngay, procedures and day-of-age lookup', async () => {
     render(<FarmingProgramsPanel />);
     expect(await screen.findByRole('heading', { name: /Gà ta 90 ngày/ })).toBeInTheDocument();
     expect(screen.getByText('90 ngày · 1,8–2,3 kg')).toBeInTheDocument();
     expect(screen.getByText('Đang dùng cho 2 đàn')).toBeInTheDocument();
-    expect(screen.getByText('30 bao/1.000 con (≈ 25 g/con/ngày) · 4 cữ/ngày')).toBeInTheDocument();
+    expect(screen.getByText('25 g/con/ngày · 4 cữ/ngày')).toBeInTheDocument();
     expect(screen.getByText('Bình xách tay · 0,5 gói/1000 con')).toBeInTheDocument();
     expect(screen.getByText('Làm mỏ lần 1')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Tra cứu theo ngày tuổi/), { target: { value: '8' } });
     expect(screen.getByText(/Lịch vắc-xin: Gumboro/)).toHaveTextContent('Cám định mức: Cám mảnh');
   });
 
-  it('replaces Temperature tab with Drinking Medicine tab and supports bags/1000 birds conversion', async () => {
+  it('replaces Temperature tab with Drinking Medicine tab and defaults feed intake to g/con/ngay', async () => {
     programs = [];
     render(<FarmingProgramsPanel />);
     fireEvent.click(await screen.findByRole('button', { name: 'Tạo chương trình' }));
     const dialog = await screen.findByRole('dialog');
 
-    // Temperature tab must be hidden; Drinking Medicine tab must exist
+    // Temperature tab must be hidden; Drinking Medicine tab must exist; Chế độ nhập removed
     expect(within(dialog).queryByRole('tab', { name: /Nhiệt độ/ })).not.toBeInTheDocument();
     expect(within(dialog).getByRole('tab', { name: /Lịch uống thuốc/ })).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Chế độ nhập dòng 1')).not.toBeInTheDocument();
 
     fireEvent.change(within(dialog).getByLabelText(/Tên chương trình/), { target: { value: 'Gà ta 90 ngày mới' } });
     fireEvent.change(within(dialog).getByLabelText(/Giống gà/), { target: { value: 'Gà ta' } });
@@ -109,10 +110,10 @@ describe('Farming programs by breed', () => {
 
     fireEvent.change(within(dialog).getByLabelText('Loại cám dòng 1'), { target: { value: 'Higro 01' } });
     fireEvent.change(within(dialog).getByLabelText('Đến ngày dòng 1'), { target: { value: '30' } });
-    fireEvent.change(within(dialog).getByLabelText('Chế độ nhập dòng 1'), { target: { value: 'BAGS_PER_1000_BIRDS' } });
-    fireEvent.change(within(dialog).getByLabelText('Bao/1000 con dòng 1'), { target: { value: '30' } });
+    const rationInput = within(dialog).getByLabelText('Định mức (g/con/ngày) dòng 1');
+    expect(rationInput).toHaveAttribute('placeholder', 'g/con/ngày');
+    fireEvent.change(rationInput, { target: { value: '25' } });
     fireEvent.change(within(dialog).getByLabelText('Số cữ/ngày dòng 1'), { target: { value: '4' } });
-    expect(within(dialog).getByText('≈ 25 g/con/ngày')).toBeInTheDocument();
 
     // Add drinking medicine step
     fireEvent.click(within(dialog).getByRole('tab', { name: /Lịch uống thuốc/ }));
@@ -128,7 +129,7 @@ describe('Farming programs by breed', () => {
     await waitFor(() => expect(service.createProgram).toHaveBeenCalledTimes(1));
     const body = service.createProgram.mock.calls[0][0];
     expect(body.steps).toEqual([
-      expect.objectContaining({ category: 'FEED', name: 'Higro 01', dayFrom: 1, dayTo: 30, quantity: 25, feedInputMode: 'BAGS_PER_1000_BIRDS', bagsPer1000Birds: 30, bagWeightKg: 25, mealsPerDay: 4 }),
+      expect.objectContaining({ category: 'FEED', name: 'Higro 01', dayFrom: 1, dayTo: 30, quantity: 25, feedInputMode: 'GRAM_PER_BIRD_DAY', bagsPer1000Birds: null, bagWeightKg: null, mealsPerDay: 4 }),
       expect.objectContaining({ category: 'DRINKING_MEDICINE', name: 'Thuốc úm', dayFrom: 1, dayTo: 7, method: 'HAND_DRINKER', quantity: 0.5, unit: 'gói/1000 con' }),
     ]);
   });

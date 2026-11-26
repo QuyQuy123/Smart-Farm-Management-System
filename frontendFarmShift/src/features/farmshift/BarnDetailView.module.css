@@ -252,3 +252,34 @@
 .planEmpty { margin: 6px 0 0; font-size: 13.5px; color: #71818a; }
 .dayPlan { padding: 8px; }
 
+.openedFeedBanner { margin: 0 0 10px; padding: 10px 12px; border: 1px solid #cce8d6; border-radius: 10px; background: #f3faf5; font-size: 13.5px; color: #1b4332; }
+.openedFeedBanner strong { font-weight: 700; }
+.openedFeedList { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.openedFeedList li { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #2d6a4f; }
+
+.closePreviewLoading { margin: 10px 0 0; font-size: 13.5px; color: #52796f; }
+.leftoverSection { margin-top: 14px; padding: 12px 14px; border: 1px solid #f4d18c; border-radius: 10px; background: #fffaf0; }
+.leftoverHeader { display: flex; align-items: center; gap: 8px; color: #8a5a00; font-size: 14px; }
+.leftoverSub { margin: 6px 0 8px; font-size: 13px; color: #6e4e12; }
+.leftoverList { list-style: none; margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid #f3e0b5; display: flex; flex-direction: column; gap: 6px; }
+.leftoverList li { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13.5px; color: #1b4332; }
+.leftoverMetrics { font-variant-numeric: tabular-nums; }
+.leftoverMetrics small { color: #52796f; }
+.leftoverOptions { display: flex; flex-direction: column; gap: 8px; }
+.leftoverOption { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid #e6dec8; border-radius: 8px; background: #fff; cursor: pointer; }
+.leftoverOption input { margin-top: 3px; }
+.leftoverOption strong { display: block; font-size: 13.5px; color: #1b4332; }
+.leftoverOption small { display: block; font-size: 12.5px; color: #607781; }
+.leftoverOptionDisabled { opacity: 0.6; cursor: not-allowed; }
+.leftoverTargetBox { padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid #cce8d6; display: flex; flex-direction: column; gap: 4px; }
+.leftoverTargetBox label { font-size: 13px; font-weight: 600; color: #1b4332; }
+
+.warehouseAlertBox { margin-top: 12px; padding: 12px 14px; border: 1px solid #cfe3f4; border-radius: 10px; background: #f4f9fd; }
+.warehouseAlertHeader { display: flex; align-items: center; gap: 8px; color: #0f4c75; font-size: 14px; }
+.warehouseAlertText { margin: 6px 0 8px; font-size: 13px; color: #365973; }
+.warehouseStockList { list-style: none; margin: 0; padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid #dceaf6; display: flex; flex-direction: column; gap: 5px; }
+.warehouseStockList li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: #243b4a; }
+.warehouseMore { color: #607781 !important; font-style: italic; }
+.warehouseAlertAction { margin-top: 10px; display: flex; justify-content: flex-end; }
+
+

@@ -16,3 +16,4 @@ export const updateWorkTask = (id, body) => data(api.put(`/work-tasks/${id}`, bo
 export const deleteWorkTask = id => data(api.delete(`/work-tasks/${id}`));
 export const checkWorkTask = (id, date, note) => data(api.post(`/work-tasks/${id}/checks`, { date, note }));
 export const uncheckWorkTask = (id, date) => data(api.delete(`/work-tasks/${id}/checks`, { params: { date } }));
+export const setBarnRoutineTasks = (barnId, taskCodes) => data(api.put(`/barns/${barnId}/routine-tasks`, { taskCodes }));

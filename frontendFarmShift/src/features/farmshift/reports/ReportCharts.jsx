@@ -198,7 +198,7 @@ export function CostStructureDonutChart({
   feedCost,
   otherCost,
   medicineCost,
-  diseaseMedicineCost = 0, // TODO(BE): Backend /reports/summary chưa tách riêng diseaseMedicineCost khỏi medicineCost
+  diseaseMedicineCost = 0,
   otherDirectCost,
   totalCost,
 }) {

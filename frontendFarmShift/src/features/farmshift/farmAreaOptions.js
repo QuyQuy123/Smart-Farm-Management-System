@@ -234,20 +234,8 @@ export const validateProgram = draft => {
     else if (from > to) message = 'Ngày tuổi bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.';
     else if (!fields.durationDays && to > duration) message = `Ngày tuổi ${to} vượt thời gian nuôi ${duration} ngày.`;
     else if (step.category === 'FEED') {
-      const bagsMode = step.feedInputMode === 'BAGS_PER_1000_BIRDS';
       if (!isWhole(step.mealsPerDay) || Number(step.mealsPerDay) < 1 || Number(step.mealsPerDay) > 8) {
-        message = bagsMode
-          ? 'Cần định mức (bao/1.000 con) lớn hơn 0 và số cữ ăn từ 1 đến 8.'
-          : 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
-      } else if (bagsMode) {
-        const converted = bagsToGramPerBirdDay(step.bagsPer1000Birds, step.bagWeightKg, step.dayFrom, step.dayTo);
-        if (!positive(step.bagsPer1000Birds) || (step.bagWeightKg !== '' && !positive(step.bagWeightKg))) {
-          message = 'Cần định mức (bao/1.000 con) lớn hơn 0 và trọng lượng bao hợp lệ.';
-        } else if (Number(step.bagsPer1000Birds) > MAX_STEP_QUANTITY
-          || (step.bagWeightKg !== '' && Number(step.bagWeightKg) > MAX_BAG_WEIGHT_KG)
-          || (converted != null && converted > MAX_STEP_QUANTITY)) {
-          message = 'Định mức hoặc trọng lượng bao vượt giới hạn tối đa cho phép.';
-        }
+        message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
       } else if (!positive(step.quantity)) {
         message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
       } else if (Number(step.quantity) > MAX_STEP_QUANTITY) {
@@ -288,9 +276,6 @@ export const describeStep = step => {
   const number = value => Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 });
   switch (step.category) {
     case 'FEED':
-      if (step.feedInputMode === 'BAGS_PER_1000_BIRDS' && step.bagsPer1000Birds != null) {
-        return `${number(step.bagsPer1000Birds)} bao/1.000 con (≈ ${number(step.quantity)} g/con/ngày) · ${step.mealsPerDay} cữ/ngày`;
-      }
       return `${number(step.quantity)} g/con/ngày · ${step.mealsPerDay} cữ/ngày`;
     case 'VACCINE': return [METHODS.find(item => item.value === step.method)?.label, step.quantity != null ? `${number(step.quantity)} ${step.unit || ''}`.trim() : null].filter(Boolean).join(' · ');
     case 'MEDICINE':

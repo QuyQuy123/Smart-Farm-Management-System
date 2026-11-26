@@ -4,9 +4,9 @@ import { createProgram, updateProgram } from '../../services/farmingProgramServi
 import { listAllInventoryItems } from '../../services/inventoryItemService';
 import { Dialog, FieldError } from './FarmAreaDialogs';
 import {
-  CARE_PROCEDURE_METHODS, DEFAULT_BAG_WEIGHT_KG, DRINKING_MEDICINE_METHODS, DRINKING_MEDICINE_UNITS,
-  FEED_INPUT_MODES, MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS,
-  apiErrorMessage, bagsToGramPerBirdDay, formatAmount, itemFitsStep, itemsForStep, stockKind, uniqueByName, validateProgram,
+  CARE_PROCEDURE_METHODS, DRINKING_MEDICINE_METHODS, DRINKING_MEDICINE_UNITS,
+  MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS,
+  apiErrorMessage, itemFitsStep, itemsForStep, stockKind, uniqueByName, validateProgram,
 } from './farmAreaOptions';
 import { StockNamePicker } from './StockNamePicker';
 import styles from './FarmingPrograms.module.css';
@@ -25,9 +25,6 @@ const toDraftStep = step => ({
   tempMax: text(step.tempMax),
   note: step.note || '',
   inventoryItemId: text(step.inventoryItemId),
-  feedInputMode: step.category === 'FEED' ? (step.feedInputMode || 'GRAM_PER_BIRD_DAY') : '',
-  bagWeightKg: step.category === 'FEED' ? text(step.bagWeightKg ?? DEFAULT_BAG_WEIGHT_KG) : '',
-  bagsPer1000Birds: step.category === 'FEED' ? text(step.bagsPer1000Birds) : '',
 });
 const emptyStep = (category, dayFrom) => ({
   category,
@@ -47,17 +44,13 @@ const emptyStep = (category, dayFrom) => ({
   tempMax: '',
   note: '',
   inventoryItemId: '',
-  feedInputMode: category === 'FEED' ? 'GRAM_PER_BIRD_DAY' : '',
-  bagWeightKg: category === 'FEED' ? String(DEFAULT_BAG_WEIGHT_KG) : '',
-  bagsPer1000Birds: '',
 });
 const numberOrNull = value => (value === '' || value == null ? null : Number(value));
 
 const COLUMNS = {
   FEED: [
     ['name', 'Loại cám', 'pick', 'Chọn hoặc gõ loại cám'],
-    ['feedInputMode', 'Chế độ nhập', 'select', FEED_INPUT_MODES],
-    ['feedRation', 'Định mức', 'feedRation', '0.1'],
+    ['quantity', 'Định mức (g/con/ngày)', 'number', '0.1'],
     ['mealsPerDay', 'Số cữ/ngày', 'number', '1'],
   ],
   DRINKING_MEDICINE: [
@@ -205,32 +198,24 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
       targetWeightMax: numberOrNull(draft.targetWeightMax),
       description: draft.description.trim(),
       steps: [
-        ...draft.steps.map(step => {
-          const bagsMode = step.category === 'FEED' && step.feedInputMode === 'BAGS_PER_1000_BIRDS';
-          const bagWeight = bagsMode ? (numberOrNull(step.bagWeightKg) ?? DEFAULT_BAG_WEIGHT_KG) : null;
-          const bags = bagsMode ? numberOrNull(step.bagsPer1000Birds) : null;
-          const computedQty = bagsMode
-            ? bagsToGramPerBirdDay(bags, bagWeight, step.dayFrom, step.dayTo)
-            : numberOrNull(step.quantity);
-          return {
-            category: step.category,
-            name: step.name.trim(),
-            dayFrom: Number(step.dayFrom),
-            dayTo: Number(step.dayTo),
-            quantity: computedQty,
-            unit: step.unit.trim(),
-            mealsPerDay: numberOrNull(step.mealsPerDay),
-            method: step.method || null,
-            tempMin: numberOrNull(step.tempMin),
-            tempMax: numberOrNull(step.tempMax),
-            note: step.note.trim(),
-            inventoryItemId: ['FEED', 'VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'].includes(step.category) && step.inventoryItemId
-              ? Number(step.inventoryItemId) : null,
-            feedInputMode: step.category === 'FEED' ? (step.feedInputMode || 'GRAM_PER_BIRD_DAY') : null,
-            bagWeightKg: bagWeight,
-            bagsPer1000Birds: bags,
-          };
-        }),
+        ...draft.steps.map(step => ({
+          category: step.category,
+          name: step.name.trim(),
+          dayFrom: Number(step.dayFrom),
+          dayTo: Number(step.dayTo),
+          quantity: numberOrNull(step.quantity),
+          unit: step.unit.trim(),
+          mealsPerDay: numberOrNull(step.mealsPerDay),
+          method: step.method || null,
+          tempMin: numberOrNull(step.tempMin),
+          tempMax: numberOrNull(step.tempMax),
+          note: step.note.trim(),
+          inventoryItemId: ['FEED', 'VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'].includes(step.category) && step.inventoryItemId
+            ? Number(step.inventoryItemId) : null,
+          feedInputMode: step.category === 'FEED' ? 'GRAM_PER_BIRD_DAY' : null,
+          bagWeightKg: null,
+          bagsPer1000Birds: null,
+        })),
         ...preservedTemperaturePayload,
       ],
     };
@@ -266,25 +251,6 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
       onChange: event => setStep(row.index, key, event.target.value),
     };
     if (kind === 'select') return <select {...common}>{extra.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
-    if (kind === 'feedRation') {
-      if (row.step.feedInputMode === 'BAGS_PER_1000_BIRDS') {
-        const converted = bagsToGramPerBirdDay(row.step.bagsPer1000Birds, row.step.bagWeightKg, row.step.dayFrom, row.step.dayTo);
-        return <div className={styles.feedRationGroup}>
-          <div className={styles.feedRationInputs}>
-            <input aria-label={`Bao/1000 con dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="0" step="0.1"
-              inputMode="decimal" placeholder="VD: 30" value={row.step.bagsPer1000Birds} disabled={saving}
-              onChange={event => setStep(row.index, 'bagsPer1000Birds', event.target.value)} />
-            <input aria-label={`Kg/bao dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="0.1" step="0.5"
-              inputMode="decimal" placeholder="25 kg/bao" title="Khối lượng 1 bao (kg)" value={row.step.bagWeightKg} disabled={saving}
-              onChange={event => setStep(row.index, 'bagWeightKg', event.target.value)} />
-          </div>
-          {converted != null && <small className={styles.convertedHint}>≈ {formatAmount(converted)} g/con/ngày</small>}
-        </div>;
-      }
-      return <input aria-label={`g/con/ngày dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="0" step={extra}
-        inputMode="decimal" placeholder="g/con/ngày" value={row.step.quantity} disabled={saving}
-        onChange={event => setStep(row.index, 'quantity', event.target.value)} />;
-    }
     if (kind === 'pick' && row.step.category === 'FEED') {
       const known = feedOptions.some(option => option.name === row.step.name);
       return <select aria-label={common['aria-label']} className="farmshift-form-control" value={row.step.name} disabled={saving || itemsLoading}
@@ -311,7 +277,10 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     }
     if (kind === 'unit') return <input {...common} list="program-medicine-units" />;
     if (kind === 'drinkingUnit') return <input {...common} list="program-drinking-units" />;
-    if (kind === 'number') return <input {...common} type="number" min="0" step={extra} inputMode="decimal" />;
+    if (kind === 'number') {
+      return <input {...common} type="number" min="0" step={extra} inputMode="decimal"
+        placeholder={key === 'quantity' && row.step.category === 'FEED' ? 'g/con/ngày' : undefined} />;
+    }
     return <input {...common} placeholder={extra} maxLength={200} />;
   };
 
@@ -365,7 +334,7 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
             Gỡ mốc nhiệt độ cũ
           </button>
         </div>}
-        {tab === 'FEED' && <p className={styles.itemHint}>Chọn tên cám từ kho và chế độ nhập (g/con/ngày hoặc bao/1.000 con/giai đoạn — tự quy đổi tức thời).</p>}
+        {tab === 'FEED' && <p className={styles.itemHint}>Chọn tên cám từ kho và nhập định mức theo g/con/ngày cùng số cữ cho ăn mỗi ngày.</p>}
         {tab === 'DRINKING_MEDICINE' && <p className={styles.itemHint}>Lịch uống thuốc úm, men tiêu hóa, thuốc bổ bằng bình xách tay (gà nhỏ) hoặc hệ thống uống tự động.</p>}
         {['VACCINE', 'MEDICINE'].includes(tab) && <p className={styles.itemHint}>
           Gõ để lọc và chọn {tab === 'VACCINE' ? 'vắc-xin' : 'thuốc'} có trong kho: khi công nhân xác nhận việc,

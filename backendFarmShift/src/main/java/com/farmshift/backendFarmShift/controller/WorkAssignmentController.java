@@ -1,5 +1,6 @@
 package com.farmshift.backendFarmShift.controller;
 
+import com.farmshift.backendFarmShift.dto.request.BarnRoutineTasksRequest;
 import com.farmshift.backendFarmShift.dto.request.BarnWorkersRequest;
 import com.farmshift.backendFarmShift.dto.request.WorkTaskCheckRequest;
 import com.farmshift.backendFarmShift.dto.request.WorkTaskRequest;
@@ -37,6 +38,12 @@ public class WorkAssignmentController {
     public ApiResponse<List<WorkBoard.WorkerRef>> setWorkers(@PathVariable Long id, @Valid @RequestBody BarnWorkersRequest request,
                                                              Authentication authentication) {
         return ApiResponse.success("Đã cập nhật công nhân phụ trách", service.setBarnWorkers(id, request, authentication.getName()));
+    }
+
+    @PutMapping("/api/barns/{id}/routine-tasks")
+    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
+    public ApiResponse<List<String>> setRoutineTasks(@PathVariable Long id, @Valid @RequestBody BarnRoutineTasksRequest request) {
+        return ApiResponse.success("Đã cập nhật việc hằng ngày mặc định của chuồng", service.setBarnRoutineTasks(id, request));
     }
 
     @PostMapping("/api/work-tasks")

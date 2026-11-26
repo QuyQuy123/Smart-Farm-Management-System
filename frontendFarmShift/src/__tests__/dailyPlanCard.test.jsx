@@ -114,4 +114,77 @@ describe('DailyPlanCard', () => {
     expect(screen.getByRole('button', { name: 'Hoàn tác Cữ 1/3 · Higro 02' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xong Kiểm tra bạt che' })).toBeInTheDocument();
   });
+
+  it('displays opened-bag strip and whole-bag warehouse guidance for FEED tasks', () => {
+    const feedWithOpened = {
+      ...plan.tasks[0],
+      plannedQuantity: 40,
+      openedFeedKg: 18,
+      bagsToOpen: 1,
+      plannedStock: 1,
+    };
+    const feedFromOpenedOnly = {
+      ...plan.tasks[0],
+      key: 'FEED:I7:M2',
+      meal: 2,
+      time: '11:00',
+      plannedQuantity: 7,
+      openedFeedKg: 10,
+      bagsToOpen: 0,
+      plannedStock: 0,
+    };
+    render(
+      <DailyPlanCard
+        plan={{
+          ...plan,
+          openedFeeds: [{ id: 1, productId: 7, feedName: 'Higro 02', remainingKg: 18 }],
+          tasks: [feedWithOpened, feedFromOpenedOnly],
+        }}
+        role="ROLE_FARM_OWNER"
+        userEmail="owner@farm.test"
+        busyKey={null}
+        onConfirm={vi.fn()}
+        onUndo={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('opened-feed-strip')).toHaveTextContent('Cám đang mở bao tại chuồng:Higro 02: 18 kg');
+    expect(screen.getByText('40 kg · dùng 18 kg đã mở + xuất 1 Bao 25kg')).toBeInTheDocument();
+    expect(screen.getByText('7 kg · dùng cám đã mở tại chuồng (0 Bao 25kg)')).toBeInTheDocument();
+  });
+
+  it('renders routine task quick-tick buttons and calls onToggleRoutine on click', async () => {
+    const onToggleRoutine = vi.fn().mockResolvedValue(null);
+    const routineTasks = [
+      { code: 'CHANGE_LITTER', title: 'Thay trấu', done: null },
+      { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng', done: { id: 1, doneBy: 'worker@farm.test', doneAt: `${todayIso()}T07:00:00`, note: null } },
+      { code: 'WASH_BARN', title: 'Xịt rửa chuồng', done: null },
+    ];
+    const current = { ...plan, date: todayIso(), tasks: [], routineTasks };
+    render(
+      <DailyPlanCard
+        plan={current}
+        role="ROLE_FARM_WORKER"
+        userEmail="worker@farm.test"
+        busyKey={null}
+        onConfirm={vi.fn()}
+        onUndo={vi.fn()}
+        onToggleRoutine={onToggleRoutine}
+      />,
+    );
+
+    const bar = screen.getByTestId('routine-tasks-bar');
+    expect(bar).toHaveTextContent('Việc hằng ngày');
+    expect(screen.getByText('1/3')).toBeInTheDocument();
+
+    const changeLitterBtn = screen.getByRole('button', { name: /Thay trấu/ });
+    expect(changeLitterBtn).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(changeLitterBtn);
+    await waitFor(() => expect(onToggleRoutine).toHaveBeenCalledWith(current, routineTasks[0]));
+
+    const cleanFeedersBtn = screen.getByRole('button', { name: /Vệ sinh máng/ });
+    expect(cleanFeedersBtn).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(cleanFeedersBtn);
+    await waitFor(() => expect(onToggleRoutine).toHaveBeenCalledWith(current, routineTasks[1]));
+  });
 });

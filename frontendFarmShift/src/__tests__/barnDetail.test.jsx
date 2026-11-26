@@ -23,13 +23,19 @@ vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(), listFarmArea
 vi.mock('../services/farmingProgramService', () => ({ listPrograms: vi.fn() }));
 vi.mock('../services/supplierService', () => ({ listSuppliers: vi.fn(), createSupplier: vi.fn(), updateSupplier: vi.fn(), deleteSupplier: vi.fn() }));
 vi.mock('../services/productTypeService', () => ({ listProductTypes: vi.fn() }));
-vi.mock('../services/dailyPlanService', () => ({ getBarnDailyPlan: vi.fn(), confirmDailyTask: vi.fn(), undoDailyTask: vi.fn() }));
+vi.mock('../services/dailyPlanService', () => ({
+  getBarnDailyPlan: vi.fn(),
+  confirmDailyTask: vi.fn(),
+  undoDailyTask: vi.fn(),
+  checkRoutineTask: vi.fn(),
+  uncheckRoutineTask: vi.fn(),
+}));
 vi.mock('../services/cycleDiseaseService', () => ({
   listCycleDiseases: vi.fn(),
   listDiseaseMedicineSources: vi.fn(),
 }));
 vi.mock('../services/cycleService', () => ({
-  getBarn: vi.fn(), listCycles: vi.fn(), startCycle: vi.fn(), getCycle: vi.fn(), closeCycle: vi.fn(), importFlock: vi.fn(),
+  getBarn: vi.fn(), listCycles: vi.fn(), startCycle: vi.fn(), getCycle: vi.fn(), getCloseCyclePreview: vi.fn(), closeCycle: vi.fn(), importFlock: vi.fn(),
   transferFlock: vi.fn(), assignFlockProgram: vi.fn(), assignCycleProgram: vi.fn(), recordLoss: vi.fn(), recordHarvest: vi.fn(), addFeedRecord: vi.fn(), deleteFeedRecord: vi.fn(),
   addWeightSample: vi.fn(), deleteWeightSample: vi.fn(), addExpense: vi.fn(), deleteExpense: vi.fn(),
 }));
@@ -436,5 +442,92 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     const backBtn = await screen.findByRole('button', { name: 'Về lịch sử lứa nuôi' });
     fireEvent.click(backBtn);
     expect(await screen.findByText('Trang lịch sử lứa nuôi')).toBeInTheDocument();
+  });
+
+  it('shows CloseCycleDialog with opened-feed disposition and area warehouse alert, then submits action', async () => {
+    const emptyDetail = {
+      ...detail(),
+      cycle: { ...detail().cycle, currentQuantity: 0 },
+      metrics: { ...detail().metrics, currentQuantity: 0 },
+      openedFeeds: [{ id: 1, productId: 7, feedName: 'Higro 02', remainingKg: 15, remainingValue: 201000 }],
+    };
+    cycles.getCycle.mockResolvedValue(emptyDetail);
+    cycles.getCloseCyclePreview.mockResolvedValue({
+      cycleId: 20,
+      cycleNumber: 1,
+      barnId: 2,
+      barnName: 'Nhà A3',
+      areaId: 1,
+      areaName: 'Khu Mía Thịt',
+      remainingAnimals: 0,
+      otherActiveCyclesInArea: 0,
+      openedFeeds: [{ id: 1, productId: 7, feedName: 'Higro 02', warehouseName: 'Kho cám Khu Mía', unitName: 'Bao 25kg', remainingKg: 15, remainingValue: 201000 }],
+      transferTargetCycles: [{ cycleId: 30, cycleCode: 'L000030', cycleNumber: 1, barnId: 3, barnName: 'Nhà A2', areaName: 'Khu J' }],
+      areaWarehouseStocks: [{ warehouseId: 5, warehouseName: 'Kho cám Khu Mía', warehouseKind: 'FEED', productId: 7, productName: 'Higro 02', unitName: 'Bao 25kg', totalStock: 12, totalValue: 4020000 }],
+    });
+    cycles.closeCycle.mockResolvedValue({ id: 20, status: 'CLOSED' });
+
+    renderAt('/barns/2');
+    expect(await screen.findByTestId('barn-opened-feeds')).toHaveTextContent('Higro 02: 15 kg');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kết thúc lứa nuôi' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText(/Cám đang mở bao còn dư tại chuồng/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Chuồng cuối cùng trong Khu Mía Thịt/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: /Tạo phiếu Chuyển kho/ })).toHaveAttribute(
+      'href',
+      '/internal-stock?action=transfer&sourceWarehouseId=5',
+    );
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Xác nhận kết thúc' }));
+    await waitFor(() => expect(cycles.closeCycle).toHaveBeenCalledWith(20, expect.objectContaining({
+      leftoverFeedAction: 'TRANSFER_TO_CYCLE',
+      transferTargetCycleId: 30,
+    })));
+  });
+
+  it('shows routine task quick-tick buttons even when an active cycle has zero flocks', async () => {
+    const zeroFlockDetail = {
+      ...detail(),
+      cycle: { ...detail().cycle, currentQuantity: 0, initialQuantity: 0 },
+      metrics: { ...detail().metrics, currentQuantity: 0, initialQuantity: 0 },
+      flocks: [],
+    };
+    const todayIsoLocal = iso(0);
+    const zeroFlockPlan = {
+      cycleId: 20,
+      barnId: 2,
+      barnName: 'Nhà A3',
+      areaName: 'Khu Mía Thịt',
+      date: todayIsoLocal,
+      headcount: 0,
+      flocks: [],
+      tasks: [],
+      doneCount: 0,
+      warnings: [],
+      workers: [],
+      assignedTasks: [],
+      routineTasks: [
+        { code: 'CHANGE_LITTER', title: 'Thay trấu', done: null },
+        { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng', done: null },
+        { code: 'WASH_BARN', title: 'Xịt rửa chuồng', done: null },
+      ],
+    };
+    const checkedPlan = {
+      ...zeroFlockPlan,
+      routineTasks: [
+        { code: 'CHANGE_LITTER', title: 'Thay trấu', done: { id: 1, doneBy: 'owner@farm.test', doneAt: `${todayIsoLocal}T08:00:00`, note: null } },
+        ...zeroFlockPlan.routineTasks.slice(1),
+      ],
+    };
+    cycles.getCycle.mockResolvedValue(zeroFlockDetail);
+    dailyPlan.getBarnDailyPlan.mockResolvedValue(zeroFlockPlan);
+    dailyPlan.checkRoutineTask.mockResolvedValue(checkedPlan);
+
+    renderAt('/barns/2');
+    const bar = await screen.findByTestId('routine-tasks-bar');
+    expect(within(bar).getByRole('button', { name: /Thay trấu/ })).toBeInTheDocument();
+    fireEvent.click(within(bar).getByRole('button', { name: /Thay trấu/ }));
+    await waitFor(() => expect(dailyPlan.checkRoutineTask).toHaveBeenCalledWith(20, { date: todayIsoLocal, taskCode: 'CHANGE_LITTER' }));
   });
 });

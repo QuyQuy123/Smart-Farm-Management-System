@@ -58,6 +58,11 @@ public class DailyTaskLog {
     private BigDecimal unitPrice;
     @Column(precision = 16, scale = 2)
     private BigDecimal cost;
+    /** Số kg tương ứng với nguyên bao đã mở từ kho ở cữ này và giá trị các bao đã mở (dùng cho hoàn tác cám lẻ). */
+    @Column(name = "opened_bags_kg", precision = 14, scale = 3)
+    private BigDecimal openedBagsKg;
+    @Column(name = "opened_bags_cost", precision = 16, scale = 2)
+    private BigDecimal openedBagsCost;
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "feed_record_id")
     private FeedRecord feedRecord;

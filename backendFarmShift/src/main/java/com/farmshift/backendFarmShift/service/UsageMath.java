@@ -70,6 +70,12 @@ final class UsageMath {
         return wholePacks ? packs.setScale(0, RoundingMode.CEILING).setScale(6) : packs.setScale(6, RoundingMode.HALF_UP);
     }
 
+    /** Số kg chứa trong 1 đơn vị tồn kho (ví dụ 25.000 kg / Bao 25kg). */
+    static BigDecimal kgPerPack(InventoryItem item) {
+        MeasurementUnit stockUnit = item.getUnit();
+        return UsageUnit.KG.fromBase(stockUnit.getContentUnit().toBase(stockUnit.getContentQuantity()), 3);
+    }
+
     /** Giá trên 1 kg cám từ giá của một đơn vị tồn kho (ví dụ 335.000 đ/bao 25kg → 13.400 đ/kg). */
     static BigDecimal pricePerKg(InventoryItem item) {
         MeasurementUnit stockUnit = item.getUnit();

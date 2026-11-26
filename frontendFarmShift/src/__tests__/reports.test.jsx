@@ -532,4 +532,46 @@ describe('ReportsView refactored 4-tab analytics', () => {
       fireEvent(window, new Event('resize'));
     }
   });
+
+  it('displays disease list and separated disease medicine cost in CycleSummaryDrawer when returned by backend', async () => {
+    const payloadWithDiseases = {
+      ...MOCK_PAYLOAD,
+      farmSummary: {
+        ...MOCK_PAYLOAD.farmSummary,
+        diseaseMedicineCost: 5000000,
+        cycles: MOCK_PAYLOAD.farmSummary.cycles.map((c, idx) =>
+          idx === 0
+            ? {
+                ...c,
+                diseaseCount: 1,
+                diseaseMedicineCost: 5000000,
+                diseases: [
+                  {
+                    id: 91,
+                    diseaseName: 'Cầu trùng cấp',
+                    startDate: '2026-10-20',
+                    endDate: '2026-10-25',
+                    status: 'RECOVERED',
+                    totalMedicineCost: 5000000,
+                  },
+                ],
+              }
+            : c
+        ),
+      },
+    };
+    mockGetReportSummary.mockResolvedValueOnce(payloadWithDiseases);
+
+    renderView();
+    await waitFor(() => expect(mockGetReportSummary).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Hiệu suất & Lứa nuôi' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xem tổng kết lứa L000010' }));
+
+    const drawer = await screen.findByTestId('cycle-summary-drawer');
+    expect(drawer).toHaveTextContent('Thuốc điều trị bệnh');
+    expect(drawer).toHaveTextContent('Vắc-xin & Thuốc phòng bệnh');
+    expect(drawer).toHaveTextContent('Cầu trùng cấp');
+    expect(drawer).toHaveTextContent('Đã khỏi');
+  });
 });

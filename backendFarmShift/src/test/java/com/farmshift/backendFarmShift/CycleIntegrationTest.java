@@ -36,6 +36,9 @@ class CycleIntegrationTest {
     @Autowired ObjectMapper mapper;
     @Autowired com.farmshift.backendFarmShift.repository.AccountRepository accounts;
     @Autowired com.farmshift.backendFarmShift.repository.RoleRepository roles;
+    @Autowired com.farmshift.backendFarmShift.repository.WarehouseCategoryRepository warehouses;
+    @Autowired com.farmshift.backendFarmShift.repository.InventoryItemRepository inventory;
+    @Autowired com.farmshift.backendFarmShift.repository.CycleOpenedFeedRepository openedFeedRepository;
     long areaId;
     long barnId;
     long programId;
@@ -470,5 +473,77 @@ class CycleIntegrationTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/cycles/" + cycle + "/feed-records").with(accountant)
             .contentType(MediaType.APPLICATION_JSON).content(feed)).andExpect(status().isForbidden());
         mvc.perform(get("/api/cycles/" + cycle).with(accountant)).andExpect(jsonPath("$.data.finance.expenses.WATER").value(100000));
+    }
+
+    @Test
+    void handlesOpenedFeedDispositionAndClosePreviewOnCycleClose() throws Exception {
+        long feedWh = warehouses.findAllByArea_Id(areaId).stream()
+                .filter(w -> "FEED".equalsIgnoreCase(w.getKind())).findFirst().orElseThrow().getId();
+        long bagUnit = id(post("/api/measurement-units", Map.of(
+                "code", "BAO25C", "name", "Bao 25kg", "contentQuantity", 25, "contentUnit", "KG")));
+        long feedItemId = id(post("/api/inventory-items", Map.of(
+                "warehouseId", feedWh, "name", "Higro 01 close test", "unitId", bagUnit, "price", 325000)));
+        var feedLot = inventory.findById(feedItemId).orElseThrow();
+        feedLot.setStock(new java.math.BigDecimal("10"));
+        inventory.saveAndFlush(feedLot);
+
+        long barn2 = barn("Nhà B2", 50000);
+        long cycle1 = startCycle(barnId, START);
+        long cycle2 = startCycle(barn2, START);
+        long flock1 = importFlock(cycle1, "Đàn 1", "MIXED", START, 100);
+        importFlock(cycle2, "Đàn 2", "MIXED", START, 100);
+        // Empty birds in cycle 1 so it is eligible to close.
+        post("/api/flocks/" + flock1 + "/losses", Map.of(
+                "type", "DEATH", "movementDate", TODAY.toString(), "quantity", 100)).andExpect(status().isCreated());
+
+        // Seed 15 kg opened feed (worth 195,000đ) on cycle 1.
+        var opened = new com.farmshift.backendFarmShift.entity.CycleOpenedFeed();
+        opened.setCycle(new com.farmshift.backendFarmShift.entity.FarmingCycle());
+        opened.getCycle().setId(cycle1);
+        opened.setProduct(feedLot.getProduct());
+        opened.setWarehouse(feedLot.getWarehouse());
+        opened.setUnit(feedLot.getUnit());
+        opened.setKgPerBag(new java.math.BigDecimal("25.000"));
+        opened.setRemainingKg(new java.math.BigDecimal("15.000"));
+        opened.setRemainingValue(new java.math.BigDecimal("195000.00"));
+        openedFeedRepository.saveAndFlush(opened);
+
+        // Preview exposes openedFeeds, otherActiveCyclesInArea, transferTargetCycles, areaWarehouseStocks.
+        mvc.perform(get("/api/cycles/" + cycle1 + "/close-preview"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.remainingAnimals").value(0))
+                .andExpect(jsonPath("$.data.otherActiveCyclesInArea").value(1))
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(15.0))
+                .andExpect(jsonPath("$.data.transferTargetCycles[0].cycleId").value(cycle2))
+                .andExpect(jsonPath("$.data.areaWarehouseStocks[0].totalStock").value(10.0));
+
+        // Closing without leftoverFeedAction fails with 409 CYCLE_HAS_OPENED_FEED.
+        post("/api/cycles/" + cycle1 + "/close", Map.of("endDate", TODAY.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("CYCLE_HAS_OPENED_FEED"));
+
+        // Closing with TRANSFER_TO_CYCLE moves 15 kg to cycle 2.
+        post("/api/cycles/" + cycle1 + "/close", Map.of(
+                "endDate", TODAY.toString(),
+                "leftoverFeedAction", "TRANSFER_TO_CYCLE",
+                "transferTargetCycleId", cycle2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CLOSED"));
+
+        mvc.perform(get("/api/cycles/" + cycle2))
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(15.0));
+
+        // Close cycle 2 with WRITE_OFF and verify CycleExpense(OTHER) of 195,000đ is booked.
+        long flock2 = detail(cycle2).path("flocks").get(0).path("id").asLong();
+        post("/api/flocks/" + flock2 + "/losses", Map.of(
+                "type", "DEATH", "movementDate", TODAY.toString(), "quantity", 100)).andExpect(status().isCreated());
+        post("/api/cycles/" + cycle2 + "/close", Map.of(
+                "endDate", TODAY.toString(),
+                "leftoverFeedAction", "WRITE_OFF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CLOSED"));
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                195000L, detail(cycle2).path("finance").path("expenses").path("OTHER").asLong());
     }
 }

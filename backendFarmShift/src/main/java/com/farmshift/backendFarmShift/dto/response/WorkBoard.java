@@ -18,7 +18,7 @@ public record WorkBoard(LocalDate date, List<WorkerSummary> workers, List<BarnAs
     }
 
     public record BarnAssignment(Long barnId, String barnName, Long areaId, String areaName, Long activeCycleId, int headcount,
-                                 List<WorkerRef> workers, List<AssignedTask> tasks) {
+                                 List<WorkerRef> workers, List<AssignedTask> tasks, List<String> routineTaskCodes) {
     }
 
     /** Một việc được giao, kèm trạng thái làm xong của ngày đang xem (done = null khi chưa làm). */

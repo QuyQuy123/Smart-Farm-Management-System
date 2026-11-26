@@ -240,8 +240,9 @@ class DailyPlanIntegrationTest {
             .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(3) + "')].done.deviated").value(false));
         confirm(feedKey(2), 40, "Gà bỏ ăn do nóng").andExpect(status().isOk())
             .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(2) + "')].done.deviated").value(true))
-            .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(2) + "')].done.stockQuantity").value(1.6));
-        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("96.52");
+            .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(2) + "')].done.stockQuantity").value(2.0))
+            .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(13.0));
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("96");
     }
 
     @Test
@@ -358,12 +359,16 @@ class DailyPlanIntegrationTest {
         String key = "FEED:Nhigro 02 test:M1";
         mvc.perform(get(plan())).andExpect(jsonPath("$.data.tasks[0].inventoryItemId").value((int) feedItem))
                 .andExpect(jsonPath("$.data.warnings").isEmpty());
-        confirm(key, 57, "Lượng thực tế cho ăn").andExpect(status().isOk());
-        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("97.72");
-        // Undo returns stock to the original receipt lot.
+        confirm(key, 57, "Lượng thực tế cho ăn").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tasks[0].done.stockQuantity").value(3.0))
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(18.0));
+        // 57 kg -> open 3 whole bags (75 kg), 97 left in warehouse, 18 kg remaining opened at the barn.
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("97");
+        // Undo returns whole bags to the original receipt lot and clears opened balance.
         send(put("/api/warehouse-categories/" + inventory.findById(feedItem).orElseThrow().getWarehouse().getId() + "/workers"), Map.of("workerIds", List.of()))
                 .andExpect(status().isOk());
-        mvc.perform(delete(plan() + "/tasks").param("date", TODAY.toString()).param("taskKey", key)).andExpect(status().isOk());
+        mvc.perform(delete(plan() + "/tasks").param("date", TODAY.toString()).param("taskKey", key)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.openedFeeds").isEmpty());
         org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("100");
     }
 
@@ -399,8 +404,50 @@ class DailyPlanIntegrationTest {
 
     @Test
     void fractionalFeedQuantitiesAreNotRoundedDownToZeroBags() throws Exception {
-        confirm(feedKey(1), new BigDecimal("0.001"), "Thử lượng nhỏ").andExpect(status().isOk());
-        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("99.99996");
+        confirm(feedKey(1), new BigDecimal("0.001"), "Thử lượng nhỏ").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(1) + "')].done.stockQuantity").value(1.0))
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(24.999));
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("99");
+    }
+
+    @Test
+    void usesOpenedBagBeforeOpeningWarehouseAndBlocksOutOfOrderUndo() throws Exception {
+        long workerId = workerAccount("opened.worker@farm.test");
+        send(put("/api/barns/" + barnId + "/workers"), Map.of("workerIds", List.of(workerId))).andExpect(status().isOk());
+        var worker = user("opened.worker@farm.test").authorities(() -> "ROLE_FARM_WORKER");
+
+        // Meal 1 uses 40 kg -> opens 2 whole bags (50 kg), leaves 10 kg opened at barn.
+        confirm(feedKey(1), 40, "Ăn ít cữ 1").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(1) + "')].done.stockQuantity").value(2.0))
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(10.0));
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("98");
+
+        // Meal 2 uses 5 kg -> fully served from the 10 kg opened at barn, 0 bags deducted from warehouse!
+        confirm(feedKey(2), 5, "Ăn ít cữ 2").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tasks[?(@.key == '" + feedKey(2) + "')].done.stockQuantity").value(0.0))
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(5.0));
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("98");
+
+        // Worker sees openedFeeds remainingKg but never remainingValue.
+        mvc.perform(get(plan()).with(worker)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(5.0))
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingValue").doesNotExist());
+
+        // Out-of-order undo of Meal 1 is blocked while Meal 2 still consumes its opened bag.
+        mvc.perform(delete(plan() + "/tasks").param("date", TODAY.toString()).param("taskKey", feedKey(1)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("OPENED_FEED_ALREADY_CONSUMED"));
+
+        // Reverse-order undo restores opened balance and whole bags cleanly.
+        mvc.perform(delete(plan() + "/tasks").param("date", TODAY.toString()).param("taskKey", feedKey(2)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.openedFeeds[0].remainingKg").value(10.0));
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("98");
+
+        mvc.perform(delete(plan() + "/tasks").param("date", TODAY.toString()).param("taskKey", feedKey(1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.openedFeeds").isEmpty());
+        org.assertj.core.api.Assertions.assertThat(stockOf(feedItem)).isEqualByComparingTo("100");
     }
 
     @Test
@@ -450,6 +497,50 @@ class DailyPlanIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(stockOf(otherItem)).isEqualByComparingTo("100");
         org.assertj.core.api.Assertions.assertThat(stockOf(wrongKind)).isEqualByComparingTo("100");
         mvc.perform(get("/api/cycles/" + cycleId)).andExpect(jsonPath("$.data.finance.feedCost").value(670000));
+    }
+
+    @Test
+    void routineTasksAppearEvenOnZeroFlockCycleAndCanBeCheckedUncheckedAndConfiguredPerBarn() throws Exception {
+        long areaId = inventory.findById(feedItem).orElseThrow().getWarehouse().getArea().getId();
+        long emptyBarn = id(send(post("/api/barns"), Map.of("areaId", areaId, "name", "Chuồng Mới 0 Đàn", "capacity", 5000, "areaM2", 625)));
+        long emptyCycle = id(send(post("/api/barns/" + emptyBarn + "/cycles"), Map.of("startDate", TODAY.toString())));
+
+        // Even before importing any flock, all 3 default routine tasks appear in both cycle & farm daily plans.
+        mvc.perform(get("/api/cycles/" + emptyCycle + "/daily-plan").param("date", TODAY.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.headcount").value(0))
+                .andExpect(jsonPath("$.data.routineTasks.length()").value(3))
+                .andExpect(jsonPath("$.data.routineTasks[0].code").value("CHANGE_LITTER"))
+                .andExpect(jsonPath("$.data.routineTasks[0].title").value("Thay trấu"))
+                .andExpect(jsonPath("$.data.routineTasks[0].done").doesNotExist());
+
+        mvc.perform(get("/api/daily-plan").param("date", TODAY.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.cycleId == " + emptyCycle + ")].routineTasks.length()").value(3));
+
+        // 1-click check and undo on a routine task
+        send(post("/api/cycles/" + emptyCycle + "/routine-tasks"), Map.of("date", TODAY.toString(), "taskCode", "CHANGE_LITTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.routineTasks[?(@.code == 'CHANGE_LITTER')].done.doneBy").isNotEmpty());
+
+        mvc.perform(delete("/api/cycles/" + emptyCycle + "/routine-tasks")
+                        .param("date", TODAY.toString())
+                        .param("taskCode", "CHANGE_LITTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.routineTasks[0].done").doesNotExist());
+
+        // Owner configures barn routine presets (disable WASH_BARN) -> reflected in work board & daily plan
+        send(put("/api/barns/" + emptyBarn + "/routine-tasks"), Map.of("taskCodes", List.of("CHANGE_LITTER", "CLEAN_FEEDERS")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2));
+
+        mvc.perform(get("/api/cycles/" + emptyCycle + "/daily-plan").param("date", TODAY.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.routineTasks.length()").value(2));
+
+        mvc.perform(get("/api/work-assignments").param("date", TODAY.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.barns[?(@.barnId == " + emptyBarn + ")].routineTaskCodes.length()").value(2));
     }
 
 }

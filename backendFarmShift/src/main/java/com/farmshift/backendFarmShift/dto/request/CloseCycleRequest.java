@@ -9,5 +9,11 @@ import java.util.List;
 
 public record CloseCycleRequest(
         @NotNull(message = "Vui lòng chọn ngày kết thúc lứa.") LocalDate endDate,
-        @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note) {
+        @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note,
+        LeftoverFeedAction leftoverFeedAction,
+        Long transferTargetCycleId) {
+
+    public CloseCycleRequest(LocalDate endDate, String note) {
+        this(endDate, note, null, null);
+    }
 }

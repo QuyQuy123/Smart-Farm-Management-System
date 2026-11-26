@@ -1,6 +1,7 @@
 package com.farmshift.backendFarmShift.controller;
 
 import com.farmshift.backendFarmShift.dto.request.DailyTaskConfirmRequest;
+import com.farmshift.backendFarmShift.dto.request.RoutineTaskCheckRequest;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
 import com.farmshift.backendFarmShift.security.RoleNames;
@@ -54,6 +55,24 @@ public class DailyPlanController {
         boolean owner = hasRole(authentication, RoleNames.FARM_OWNER);
         return ApiResponse.success("Đã hoàn tác",
                 service.undo(id, date, taskKey, authentication.getName(), owner, canSeeFinance(authentication), workerEmail(authentication)));
+    }
+
+    @PostMapping("/api/cycles/{id}/routine-tasks")
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_FARM_WORKER')")
+    public ApiResponse<BarnDayPlan> checkRoutine(@PathVariable Long id, @Valid @RequestBody RoutineTaskCheckRequest request, Authentication authentication) {
+        requireAssigned(id, authentication);
+        return ApiResponse.success("Đã xác nhận việc hằng ngày",
+                service.checkRoutineTask(id, request, authentication.getName(), canSeeFinance(authentication), workerEmail(authentication)));
+    }
+
+    @DeleteMapping("/api/cycles/{id}/routine-tasks")
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_FARM_WORKER')")
+    public ApiResponse<BarnDayPlan> uncheckRoutine(@PathVariable Long id, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                                   @RequestParam String taskCode, Authentication authentication) {
+        requireAssigned(id, authentication);
+        boolean owner = hasRole(authentication, RoleNames.FARM_OWNER);
+        return ApiResponse.success("Đã hoàn tác việc hằng ngày",
+                service.uncheckRoutineTask(id, date, taskCode, authentication.getName(), owner, canSeeFinance(authentication), workerEmail(authentication)));
     }
 
     /** Công nhân chỉ xem và xác nhận phiếu việc của chuồng mình phụ trách. */

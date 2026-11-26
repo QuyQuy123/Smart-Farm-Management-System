@@ -371,6 +371,65 @@ class ReportIntegrationTest {
         assertEquals(580, bcRowToday.path("currentQuantity").asInt());
     }
 
+    @Test
+    void separatesDiseaseMedicineCostAndDiseaseListWithoutDoubleCounting() throws Exception {
+        long unitId = id(post("/api/measurement-units", Map.of(
+                "code", "GOI1KGD", "name", "Gói 1kg test", "contentQuantity", 1, "contentUnit", "KG")));
+        long areaId = cycleRepository.findById(cycleId).orElseThrow().getBarn().getArea().getId();
+        long drugWh = warehouseRepository.findAllByArea_Id(areaId).stream()
+                .filter(w -> "MEDICINE".equalsIgnoreCase(w.getKind()))
+                .findFirst().orElseThrow().getId();
+        long medItemId = id(post("/api/inventory-items", Map.of(
+                "warehouseId", drugWh,
+                "name", "Kháng sinh Amox test",
+                "unitId", unitId,
+                "price", 85000)));
+        InventoryItem medItem = inventoryRepository.findById(medItemId).orElseThrow();
+        medItem.setStock(new BigDecimal("10"));
+        inventoryRepository.saveAndFlush(medItem);
+
+        // Routine medicine expense (e.g., preventive vaccine/vitamins) = 100,000
+        post("/api/cycles/" + cycleId + "/expenses", Map.of(
+                "expenseDate", TODAY.toString(),
+                "category", "MEDICINE",
+                "amount", 100000,
+                "note", "Vắc-xin phòng bệnh"
+        )).andExpect(status().isCreated());
+
+        // Disease treatment expense from Disease Log = 2 * 85,000 = 170,000
+        long diseaseId = id(post("/api/cycles/" + cycleId + "/diseases", Map.of(
+                "diseaseName", "Cầu trùng cấp",
+                "symptoms", "Phân lẫn máu",
+                "startDate", TODAY.minusDays(2).toString(),
+                "affectedQuantity", 50
+        )));
+        post("/api/cycles/" + cycleId + "/diseases/" + diseaseId + "/treatments", Map.of(
+                "treatmentDate", TODAY.minusDays(1).toString(),
+                "inventoryItemId", medItemId,
+                "stockQuantity", 2,
+                "method", "DRINKING_WATER",
+                "dosageText", "2 gói/ngày"
+        )).andExpect(status().isCreated());
+
+        String raw = mvc.perform(get("/api/reports/summary"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode data = mapper.readTree(raw).path("data");
+        JsonNode bcRow = findCycleRow(data.path("farmSummary").path("cycles"), "Nhà BC-01");
+        assertNotNull(bcRow);
+        assertEquals(1, bcRow.path("diseaseCount").asInt());
+        assertEquals(170_000L, bcRow.path("diseaseMedicineCost").asLong());
+        // medicineCost combines preventive (100k) + disease treatment (170k) = 270k, never double-counted in totalCost
+        assertEquals(270_000L, bcRow.path("medicineCost").asLong());
+        assertEquals("Cầu trùng cấp", bcRow.path("diseases").get(0).path("diseaseName").asText());
+        assertEquals(170_000L, bcRow.path("diseases").get(0).path("totalMedicineCost").asLong());
+        assertEquals(
+                bcRow.path("chickCost").asLong() + bcRow.path("feedCost").asLong() + bcRow.path("otherCost").asLong(),
+                bcRow.path("totalCost").asLong()
+        );
+        assertEquals(170_000L, data.path("farmSummary").path("diseaseMedicineCost").asLong());
+    }
+
     private JsonNode findCycleRow(JsonNode cycles, String barnName) {
         for (JsonNode row : cycles) {
             if (barnName.equals(row.path("barnName").asText())) {

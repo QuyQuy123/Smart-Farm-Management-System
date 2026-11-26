@@ -187,6 +187,8 @@ class SeedDataIntegrityIntegrationTest {
                 "ai_interaction_logs",
                 "daily_stock_allocations",
                 "daily_task_logs",
+                "barn_routine_task_checks",
+                "cycle_opened_feeds",
                 "work_task_checks",
                 "work_tasks",
                 "barn_workers",

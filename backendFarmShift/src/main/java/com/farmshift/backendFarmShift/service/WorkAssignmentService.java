@@ -1,5 +1,6 @@
 package com.farmshift.backendFarmShift.service;
 
+import com.farmshift.backendFarmShift.dto.request.BarnRoutineTasksRequest;
 import com.farmshift.backendFarmShift.dto.request.BarnWorkersRequest;
 import com.farmshift.backendFarmShift.dto.request.WorkTaskCheckRequest;
 import com.farmshift.backendFarmShift.dto.request.WorkTaskRequest;
@@ -60,7 +61,8 @@ public class WorkAssignmentService {
                 .map(barn -> new WorkBoard.BarnAssignment(barn.getId(), barn.getName(), barn.getArea().getId(), barn.getArea().getName(),
                         activeCycles.get(barn.getId()), barn.getCurrentQuantity(),
                         workersByBarn.getOrDefault(barn.getId(), List.of()).stream().map(WorkAssignmentService::ref).toList(),
-                        tasksByBarn.getOrDefault(barn.getId(), List.of()).stream().map(task -> response(task, checks.get(task.getId()))).toList()))
+                        tasksByBarn.getOrDefault(barn.getId(), List.of()).stream().map(task -> response(task, checks.get(task.getId()))).toList(),
+                        BarnRoutineTaskCatalog.enabledCodes(barn)))
                 .toList();
 
         List<WorkBoard.WorkerSummary> summaries = workers.stream().map(worker -> {
@@ -76,6 +78,15 @@ public class WorkAssignmentService {
     @Transactional
     public List<WorkBoard.WorkerRef> setBarnWorkers(Long barnId, BarnWorkersRequest request, String user) {
         return responsibilities.setBarn(barnId, request.workerIds(), user);
+    }
+
+    /** Cấu hình danh sách việc hằng ngày mặc định được bật trên chuồng (áp dụng từ đầu đến cuối lứa). */
+    @Transactional
+    public List<String> setBarnRoutineTasks(Long barnId, BarnRoutineTasksRequest request) {
+        Barn barn = barnService.find(barnId);
+        barn.setRoutineTasks(BarnRoutineTaskCatalog.encode(request.taskCodes()));
+        barnRepository.saveAndFlush(barn);
+        return BarnRoutineTaskCatalog.enabledCodes(barn);
     }
 
     // ---------------------------------------------------------------- tasks

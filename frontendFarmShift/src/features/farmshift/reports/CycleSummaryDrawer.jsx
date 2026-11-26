@@ -36,10 +36,11 @@ export function CycleSummaryDrawer({ cycle, growthRow, harvestRow, onClose }) {
   const feedPerBirdKg = growthRow?.feedPerBirdKg ?? null;
   const losses = Number(cycle.deaths || 0) + Number(cycle.culls || 0);
 
-  // TODO(BE): Bổ sung diseaseCount, diseaseMedicineCost và danh sách tóm tắt đợt bệnh vào /api/reports/summary
   const diseaseCount = cycle.diseaseCount ?? null;
   const diseaseList = Array.isArray(cycle.diseases) ? cycle.diseases : null;
-  const medicineAmount = cycle.hasSeparateMedicine ? cycle.medicineCost : null;
+  const diseaseMedCost = Number(cycle.diseaseMedicineCost || 0);
+  const medicineAmount = cycle.hasSeparateMedicine ? Number(cycle.medicineCost || 0) : null;
+  const preventiveMedCost = medicineAmount != null ? Math.max(0, medicineAmount - diseaseMedCost) : null;
 
   return (
     <div
@@ -102,10 +103,17 @@ export function CycleSummaryDrawer({ cycle, growthRow, harvestRow, onClose }) {
             <dl className={styles.drawerFacts}>
               <div><dt>Chi phí con giống</dt><dd>{fmtVnd(cycle.chickCost)}</dd></div>
               <div><dt>Chi phí cám</dt><dd>{fmtVnd(cycle.feedCost)}</dd></div>
-              <div>
-                <dt>{cycle.hasSeparateMedicine ? 'Vắc-xin & Thuốc thú y' : 'Thuốc, vắc-xin & CP khác'}</dt>
-                <dd>{fmtVnd(cycle.hasSeparateMedicine ? cycle.medicineCost : cycle.otherCost)}</dd>
-              </div>
+              {diseaseMedCost > 0 ? (
+                <>
+                  <div><dt>Vắc-xin &amp; Thuốc phòng bệnh</dt><dd>{fmtVnd(preventiveMedCost)}</dd></div>
+                  <div><dt>Thuốc điều trị bệnh</dt><dd>{fmtVnd(diseaseMedCost)}</dd></div>
+                </>
+              ) : (
+                <div>
+                  <dt>{cycle.hasSeparateMedicine ? 'Vắc-xin & Thuốc thú y' : 'Thuốc, vắc-xin & CP khác'}</dt>
+                  <dd>{fmtVnd(cycle.hasSeparateMedicine ? cycle.medicineCost : cycle.otherCost)}</dd>
+                </div>
+              )}
               {cycle.hasSeparateMedicine && (
                 <div><dt>Chi phí vận hành khác</dt><dd>{fmtVnd(cycle.otherDirectCost)}</dd></div>
               )}
@@ -142,9 +150,12 @@ export function CycleSummaryDrawer({ cycle, growthRow, harvestRow, onClose }) {
             </h4>
             <dl className={styles.drawerFacts}>
               <div>
-                <dt>Chi phí thuốc &amp; vắc-xin</dt>
+                <dt>Tổng thuốc &amp; vắc-xin</dt>
                 <dd>{medicineAmount != null ? fmtVnd(medicineAmount) : fmtVnd(cycle.otherCost)}</dd>
               </div>
+              {diseaseMedCost > 0 && (
+                <div><dt>Riêng thuốc điều trị bệnh</dt><dd>{fmtVnd(diseaseMedCost)}</dd></div>
+              )}
               {diseaseCount != null && (
                 <div><dt>Số đợt bệnh ghi nhận</dt><dd>{fmtNum(diseaseCount)} đợt</dd></div>
               )}
@@ -153,14 +164,18 @@ export function CycleSummaryDrawer({ cycle, growthRow, harvestRow, onClose }) {
               <ul className={styles.drawerDiseaseList}>
                 {diseaseList.map((d, idx) => (
                   <li key={d.id || idx}>
-                    <strong>{d.diseaseName}</strong> · {fmtDate(d.startDate)}
+                    <strong>{d.diseaseName}</strong>
+                    {' · '}{fmtDate(d.startDate)}{d.endDate ? ` – ${fmtDate(d.endDate)}` : ''}
+                    {' · '}{d.status === 'RECOVERED' ? 'Đã khỏi' : 'Đang điều trị'}
                     {d.totalMedicineCost != null ? ` (${fmtVnd(d.totalMedicineCost)})` : ''}
                   </li>
                 ))}
               </ul>
             ) : (
               <p className={styles.drawerNote}>
-                Chưa có chi tiết từng đợt bệnh từ API tổng hợp; xem đầy đủ nhật ký điều trị tại trang chi tiết chuồng.
+                {diseaseList != null
+                  ? 'Không ghi nhận đợt bệnh nào trong lứa nuôi này.'
+                  : 'Chưa có chi tiết từng đợt bệnh từ API tổng hợp; xem đầy đủ nhật ký điều trị tại trang chi tiết chuồng.'}
               </p>
             )}
           </section>

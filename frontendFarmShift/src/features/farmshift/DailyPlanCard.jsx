@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Check, ClipboardCheck, Clock, Droplets, RotateCcw, Scissors, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Circle, ClipboardCheck, Clock, Droplets, RotateCcw, Scissors, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
 import { METHODS, formatAmount, labelOf, todayIso } from './farmAreaOptions';
 import styles from './DailyPlanCard.module.css';
 
@@ -18,29 +18,54 @@ const sameEmail = (a, b) => Boolean(a && b && String(a).trim().toLowerCase() ===
 
 const title = task => (task.category === 'FEED' && task.meal ? `Cữ ${task.meal}${task.mealsPerDay ? `/${task.mealsPerDay}` : ''} · ${task.name}` : task.name);
 
-/** "50 kg = 2 Bao 25kg" — lượng cả chuồng kèm số đơn vị kho cần lấy. */
-const amountText = (quantity, unit, stock, stockUnit, roundFeed = false) => {
+/** Hiển thị lượng dùng của việc kèm hướng dẫn nguyên bao / cám mở bao. */
+const amountText = (task, roundFeed = false) => {
+  const quantity = task.plannedQuantity;
   if (quantity == null) return null;
   const mainQuantity = roundFeed ? Number(quantity).toLocaleString('vi-VN', { maximumFractionDigits: 0 }) : formatAmount(quantity);
-  const main = `${mainQuantity} ${unit || ''}`.trim();
-  const stockQuantity = roundFeed && /^bao\b/i.test(stockUnit || '')
-    ? Number(stock).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : formatAmount(stock);
-  return stock != null && stockUnit ? `${main} = ${stockQuantity} ${stockUnit}` : main;
+  const main = `${mainQuantity} ${task.unit || ''}`.trim();
+  if (task.category === 'FEED' && task.stockUnit && task.bagsToOpen != null) {
+    const opened = Number(task.openedFeedKg || 0);
+    if (task.bagsToOpen === 0) {
+      return `${main} · dùng cám đã mở tại chuồng (0 ${task.stockUnit})`;
+    }
+    if (opened > 0) {
+      return `${main} · dùng ${formatAmount(opened)} kg đã mở + xuất ${formatAmount(task.bagsToOpen)} ${task.stockUnit}`;
+    }
+    return `${main} = xuất ${formatAmount(task.bagsToOpen)} ${task.stockUnit}`;
+  }
+  const stockQuantity = roundFeed && /^bao\b/i.test(task.stockUnit || '')
+    ? Number(task.plannedStock).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : formatAmount(task.plannedStock);
+  return task.plannedStock != null && task.stockUnit ? `${main} = ${stockQuantity} ${task.stockUnit}` : main;
+};
+
+const doneActualText = (done, task, roundFeed = false) => {
+  const quantity = done.actualQuantity;
+  const mainQuantity = roundFeed ? Number(quantity).toLocaleString('vi-VN', { maximumFractionDigits: 0 }) : formatAmount(quantity);
+  const main = `${mainQuantity} ${task.unit || ''}`.trim();
+  if (task.category === 'FEED' && done.stockQuantity != null) {
+    if (Number(done.stockQuantity) === 0) return `${main} (dùng cám đã mở tại chuồng)`;
+    return `${main} · xuất kho ${formatAmount(done.stockQuantity)} ${task.stockUnit || 'bao'}`;
+  }
+  return done.stockQuantity != null && task.stockUnit
+    ? `${main} = ${formatAmount(done.stockQuantity)} ${task.stockUnit}`
+    : main;
 };
 
 /**
  * Phiếu việc một ngày của một chuồng. Công nhân bấm "Xong" khi làm đúng kế hoạch, "Khác kế hoạch" khi lượng thực tế khác
  * (bắt buộc ghi lý do nếu lệch nhiều). onConfirm / onUndo trả về thông báo lỗi (chuỗi) hoặc null khi thành công.
  */
-export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, onConfirmAssigned, onUndoAssigned, showHeader = true, hideDone = false, compact = false }) {
+export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, onConfirmAssigned, onUndoAssigned, onToggleRoutine, showHeader = true, hideDone = false, compact = false }) {
   const [editing, setEditing] = useState(null);
   const [errors, setErrors] = useState({});
   const [sourceSelections, setSourceSelections] = useState({});
   const isOwner = role === 'ROLE_FARM_OWNER';
   const canAct = isOwner || role === 'ROLE_FARM_WORKER';
   const assigned = plan.assignedTasks || [];
-  const total = plan.tasks.length + assigned.length;
-  const doneTotal = plan.doneCount + assigned.filter(task => task.done).length;
+  const routine = plan.routineTasks || [];
+  const total = plan.tasks.length + assigned.length + routine.length;
+  const doneTotal = plan.doneCount + assigned.filter(task => task.done).length + routine.filter(task => task.done).length;
   const progress = total ? Math.round((doneTotal / total) * 100) : 0;
   const ages = [...new Set(plan.flocks.map(flock => flock.ageDays))].sort((a, b) => a - b);
 
@@ -91,7 +116,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     const busy = busyKey === `${plan.cycleId}:${task.key}`;
     const isEditing = editing?.key === task.key;
     const roundFeed = compact && task.category === 'FEED';
-    const planned = amountText(task.plannedQuantity, task.unit, task.plannedStock, task.stockUnit, roundFeed);
+    const planned = amountText(task, roundFeed);
     return <li key={task.key} className={`${styles.task} ${done ? styles.done : ''} ${done?.deviated ? styles.deviated : ''}`}>
       <div className={styles.info}>
         <strong>{title(task)}</strong>
@@ -120,8 +145,8 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         {done && <small className={styles.doneLine}>
           <Check size={13} />Xong lúc {time(done.doneAt)}{!compact && <>
           {` · ${done.doneBy}`}
-          {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity))
-            && ` · thực tế ${amountText(done.actualQuantity, task.unit, done.stockQuantity, task.stockUnit, roundFeed)}`}
+          {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity) || task.category === 'FEED')
+            && ` · thực tế ${doneActualText(done, task, roundFeed)}`}
           {done.cost != null && Number(done.cost) > 0 && ` · ${money(done.cost)}`}
           {done.note && ` · ${done.note}`}</>}
         </small>}
@@ -222,7 +247,45 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
       {plan.warnings.map(warning => <li key={warning}><AlertTriangle size={14} />{warning}</li>)}
     </ul>}
 
-    {plan.tasks.length === 0 && assigned.length === 0 ? <p className={styles.empty}>Không có việc cho ngày này.</p>
+    {plan.openedFeeds?.length > 0 && <div className={styles.openedFeedStrip} data-testid="opened-feed-strip">
+      <strong>Cám đang mở bao tại chuồng:</strong>
+      {plan.openedFeeds.map(feed => (
+        <span key={feed.productId || feed.id} className={styles.openedFeedChip}>
+          {feed.feedName}: <strong>{formatAmount(feed.remainingKg)} kg</strong>
+        </span>
+      ))}
+    </div>}
+
+    {routine.length > 0 && <div className={styles.routineBar} data-testid="routine-tasks-bar">
+      <span className={styles.routineTitle}>Việc hằng ngày của chuồng</span>
+      <div className={styles.routineChips}>
+        {routine.map(item => {
+          const isDone = Boolean(item.done);
+          const busy = busyKey === `${plan.cycleId}:R:${item.code}`;
+          const disabled = !canAct || busy || (isDone && !canUndo(item.done));
+          return (
+            <button
+              key={item.code}
+              type="button"
+              aria-pressed={isDone}
+              disabled={disabled}
+              className={`${styles.routineChip} ${isDone ? styles.routineChipDone : ''}`}
+              title={isDone ? `Xong lúc ${time(item.done.doneAt)} · ${item.done.doneBy}` : `Đánh dấu xong ${item.title}`}
+              onClick={() => run({ key: `R:${item.code}` }, () => onToggleRoutine?.(plan, item))}
+            >
+              {isDone ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+              <span>{item.title}</span>
+              {isDone && <small>{time(item.done.doneAt)}</small>}
+            </button>
+          );
+        })}
+      </div>
+      {routine.map(item => errors[`R:${item.code}`] && (
+        <small key={item.code} role="alert" className={styles.error}>{errors[`R:${item.code}`]}</small>
+      ))}
+    </div>}
+
+    {plan.tasks.length === 0 && assigned.length === 0 && routine.length === 0 ? <p className={styles.empty}>Không có việc cho ngày này.</p>
       : <div className={styles.schedule} aria-label="Lịch việc trong ngày">
         {(allDay.length > 0 || allDayAssigned.length > 0) && <div className={styles.slot}>
           <div className={`${styles.slotTime} ${styles.slotAllDay}`}><strong>Trong ngày</strong><small>không hẹn giờ</small></div>

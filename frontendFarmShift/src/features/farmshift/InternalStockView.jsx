@@ -40,14 +40,19 @@ export const InternalStockView = () => {
   const isWorker = user?.role === 'ROLE_FARM_WORKER';
   const canMutate = user?.role === 'ROLE_FARM_OWNER' || user?.role === 'ROLE_ACCOUNTANT';
 
-  const initialLinkedSearch = typeof window !== 'undefined'
-    ? (new URLSearchParams(window.location.search).get('search') || '')
-    : '';
+  const initialSearchParams = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search)
+    : null;
+  const initialLinkedSearch = initialSearchParams?.get('search') || '';
+  const initialAction = initialSearchParams?.get('action') || '';
+  const initialSourceWarehouseId = initialSearchParams?.get('sourceWarehouseId') || '';
 
   // Tabs: 'create' | 'vouchers' | 'categories'
-  const [activeTab, setActiveTabState] = useState(() =>
-    initialLinkedSearch ? 'vouchers' : getPersistedTab('farmshift_tab_internal_stock', 'vouchers')
-  );
+  const [activeTab, setActiveTabState] = useState(() => {
+    if (initialLinkedSearch) return 'vouchers';
+    if (initialAction === 'transfer' && canMutate) return 'create';
+    return getPersistedTab('farmshift_tab_internal_stock', 'vouchers');
+  });
   const setActiveTab = (tab) => {
     setActiveTabState(tab);
     setPersistedTab('farmshift_tab_internal_stock', tab);
@@ -89,9 +94,9 @@ export const InternalStockView = () => {
 
   // Tab 1: Create Voucher Form State
   const [voucherForm, setVoucherForm] = useState({
-    movementType: 'EXPORT', // 'EXPORT' | 'TRANSFER'
+    movementType: initialAction === 'transfer' ? 'TRANSFER' : 'EXPORT', // 'EXPORT' | 'TRANSFER'
     categoryId: '',
-    sourceWarehouseId: '',
+    sourceWarehouseId: initialAction === 'transfer' ? initialSourceWarehouseId : '',
     targetWarehouseId: '',
     farmingCycleId: '',
     date: new Date().toISOString().split('T')[0],

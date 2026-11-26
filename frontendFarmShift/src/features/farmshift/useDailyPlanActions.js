@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNotification } from '../../context/NotificationContext';
-import { confirmDailyTask, undoDailyTask } from '../../services/dailyPlanService';
+import { checkRoutineTask, confirmDailyTask, uncheckRoutineTask, undoDailyTask } from '../../services/dailyPlanService';
 import { checkWorkTask, uncheckWorkTask } from '../../services/workAssignmentService';
 import { apiErrorMessage } from './farmAreaOptions';
 
@@ -29,6 +29,15 @@ export function useDailyPlanActions(onPlanChanged) {
     () => confirmDailyTask(plan.cycleId, { date: plan.date, taskKey: task.key, ...extra }), `Đã xác nhận: ${task.name}.`);
   const undo = (plan, task) => run(plan, task, () => undoDailyTask(plan.cycleId, plan.date, task.key), `Đã hoàn tác: ${task.name}.`);
 
+  const toggleRoutine = (plan, routineTask) => run(
+    plan,
+    { key: `R:${routineTask.code}` },
+    () => (routineTask.done
+      ? uncheckRoutineTask(plan.cycleId, plan.date, routineTask.code)
+      : checkRoutineTask(plan.cycleId, { date: plan.date, taskCode: routineTask.code })),
+    routineTask.done ? `Đã hoàn tác: ${routineTask.title}.` : `Đã xác nhận: ${routineTask.title}.`,
+  );
+
   // Việc được giao: máy chủ trả về việc vừa cập nhật, thay vào phiếu việc của chuồng.
   const withAssigned = (plan, updated) => ({ ...plan, assignedTasks: plan.assignedTasks.map(item => (item.id === updated.id ? updated : item)) });
   const confirmAssigned = (plan, task) => run(plan, { key: `A${task.id}` },
@@ -36,5 +45,5 @@ export function useDailyPlanActions(onPlanChanged) {
   const undoAssigned = (plan, task) => run(plan, { key: `A${task.id}` },
     async () => withAssigned(plan, await uncheckWorkTask(task.id, plan.date)), `Đã hoàn tác: ${task.title}.`);
 
-  return { busyKey, confirm, undo, confirmAssigned, undoAssigned };
+  return { busyKey, confirm, undo, confirmAssigned, undoAssigned, toggleRoutine };
 }

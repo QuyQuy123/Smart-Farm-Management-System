@@ -37,6 +37,9 @@ public class Barn {
     /** Null preserves legacy direct assignments; false explicitly inherits, true uses the barn's own list (even empty). */
     @Column(name = "workers_override")
     private Boolean workersOverride;
+    /** Null defaults to all 3 preset daily routine tasks enabled; empty string disables all; comma-separated codes otherwise. */
+    @Column(name = "routine_tasks", length = 500)
+    private String routineTasks;
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

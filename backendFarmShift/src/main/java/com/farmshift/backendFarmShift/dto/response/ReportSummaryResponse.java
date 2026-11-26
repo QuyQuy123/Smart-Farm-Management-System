@@ -44,7 +44,17 @@ public record ReportSummaryResponse(
             BigDecimal realizedProfit,
             BigDecimal wipCost,
             BigDecimal wipRevenue,
-            int closedCycles
+            int closedCycles,
+            BigDecimal diseaseMedicineCost
+    ) {}
+
+    public record DiseaseSummaryRow(
+            Long id,
+            String diseaseName,
+            LocalDate startDate,
+            LocalDate endDate,
+            String status,
+            BigDecimal totalMedicineCost
     ) {}
 
     public record BarnCycleRow(
@@ -76,7 +86,10 @@ public record ReportSummaryResponse(
             BigDecimal avgWeightKg,
             BigDecimal harvestedWeightKg,
             BigDecimal biomassKg,
-            BigDecimal costPerKg
+            BigDecimal costPerKg,
+            int diseaseCount,
+            BigDecimal diseaseMedicineCost,
+            List<DiseaseSummaryRow> diseases
     ) {}
 
     public record SalesReport(
