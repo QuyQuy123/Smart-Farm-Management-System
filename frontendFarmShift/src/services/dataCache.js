@@ -191,6 +191,7 @@ export const INVALIDATION_MATRIX = {
     '/inventory-items',
     '/inventory',
     '/cycles',
+    '/cycles/history',
     '/barns',
     '/flocks',
     '/journal',
@@ -198,6 +199,15 @@ export const INVALIDATION_MATRIX = {
     '/daily-plans',
     '/dashboard',
     '/reports',
+    '/ai/suggestions'
+  ],
+  '/diseases': [
+    '/cycles',
+    '/cycles/history',
+    '/inventory-items',
+    '/inventory',
+    '/reports',
+    '/dashboard',
     '/ai/suggestions'
   ],
   '/flocks': [
@@ -396,7 +406,7 @@ export const shouldSkipCache = (url, config = {}) => {
   const lowerUrl = String(url).toLowerCase();
   if (lowerUrl.includes('/auth/')) return true;
   if ((lowerUrl.includes('/ai/') && !lowerUrl.includes('/ai/suggestions')) || lowerUrl.includes('/voice/')) return true;
-  if (lowerUrl.includes('/files/upload') || lowerUrl.includes('/export')) return true;
+  if (lowerUrl.includes('/files/upload') || lowerUrl.includes('/export') || lowerUrl.includes('/excel-template')) return true;
   if (config.responseType === 'blob' || config.responseType === 'arraybuffer') return true;
   return false;
 };

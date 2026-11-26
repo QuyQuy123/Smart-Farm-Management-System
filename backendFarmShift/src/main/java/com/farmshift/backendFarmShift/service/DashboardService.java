@@ -41,7 +41,8 @@ public class DashboardService {
     /** Cám còn đủ dùng ít hơn số ngày này thì báo cần nhập thêm; dưới RESTOCK_DANGER_DAYS ngày thì báo đỏ. */
     static final int RESTOCK_DAYS = 7;
     static final int RESTOCK_DANGER_DAYS = 3;
-    private static final List<ProgramStepCategory> UPCOMING_KINDS = List.of(ProgramStepCategory.VACCINE, ProgramStepCategory.MEDICINE,
+    private static final List<ProgramStepCategory> UPCOMING_KINDS = List.of(ProgramStepCategory.VACCINE,
+            ProgramStepCategory.DRINKING_MEDICINE, ProgramStepCategory.MEDICINE, ProgramStepCategory.CARE_PROCEDURE,
             ProgramStepCategory.FEED);
     private static final List<FlockMovementType> LOSSES = List.of(FlockMovementType.DEATH, FlockMovementType.CULL);
 

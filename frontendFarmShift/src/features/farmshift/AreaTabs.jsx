@@ -25,6 +25,7 @@ export function AreaTabs({ areas, active }) {
   return <nav ref={nav} className={styles.tabs} aria-label="Điều hướng khu nuôi">
     {tab('areas', '/areas', 'Danh sách khu nuôi')}
     {tab('barns', '/barns', 'Tất cả chuồng')}
+    {tab('history', '/cycles/history', 'Lịch sử lứa nuôi')}
     {areas.length > 0 && <span className={styles.divider} aria-hidden="true" />}
     {areas.map(area => tab(area.id, `/areas/${area.id}`, area.name, area.barnCount))}
   </nav>;

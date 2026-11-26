@@ -37,6 +37,9 @@ public record FarmingProgramRequest(
             @DecimalMin(value = "10", message = "Nhiệt độ từ 10 đến 45°C.") @DecimalMax(value = "45", message = "Nhiệt độ từ 10 đến 45°C.") BigDecimal tempMin,
             @DecimalMin(value = "10", message = "Nhiệt độ từ 10 đến 45°C.") @DecimalMax(value = "45", message = "Nhiệt độ từ 10 đến 45°C.") BigDecimal tempMax,
             @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note,
-            @Positive(message = "Hàng hóa không hợp lệ.") Long inventoryItemId) {
+            @Positive(message = "Hàng hóa không hợp lệ.") Long inventoryItemId,
+            @Size(max = 30, message = "Chế độ nhập cám không hợp lệ.") String feedInputMode,
+            @DecimalMin(value = "0.001", message = "Khối lượng bao cám phải lớn hơn 0.") BigDecimal bagWeightKg,
+            @DecimalMin(value = "0.001", message = "Định mức bao / 1.000 con phải lớn hơn 0.") BigDecimal bagsPer1000Birds) {
     }
 }

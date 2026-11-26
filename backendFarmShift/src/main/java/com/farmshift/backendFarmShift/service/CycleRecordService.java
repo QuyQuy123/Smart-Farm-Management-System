@@ -26,6 +26,8 @@ public class CycleRecordService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private InternalStockVoucherRepository internalStockVoucherRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.farmshift.backendFarmShift.repository.DiseaseTreatmentLogRepository diseaseTreatmentLogRepository;
     private final FeedRecordRepository feedRepository;
     private final WeightSampleRepository weightRepository;
     private final CycleExpenseRepository expenseRepository;
@@ -106,6 +108,9 @@ public class CycleRecordService {
         if (taskLogRepository.existsByExpenseId(id)) throw fromDailyPlan("Khoản chi");
         if (internalStockVoucherRepository != null && internalStockVoucherRepository.existsByExpense_Id(id)) {
             throw new BadRequestException("Khoản chi này được tạo từ phiếu xuất kho nội bộ. Vui lòng hủy tại màn hình Xuất nhập nội bộ.", "EXPENSE_FROM_INTERNAL_VOUCHER");
+        }
+        if (diseaseTreatmentLogRepository != null && diseaseTreatmentLogRepository.existsByExpenseId(id)) {
+            throw new ConflictException("Khoản chi này được tạo tự động từ sổ bệnh án. Vui lòng hoàn tác lần dùng thuốc trong Sổ bệnh án để tồn kho được hoàn lại.", "RECORD_FROM_DISEASE_LOG", null);
         }
         CycleExpense existing = expenseRepository.findByIdAndCycleId(id, cycleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khoản chi."));

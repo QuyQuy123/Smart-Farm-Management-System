@@ -3,42 +3,100 @@ import { AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { createProgram, updateProgram } from '../../services/farmingProgramService';
 import { listAllInventoryItems } from '../../services/inventoryItemService';
 import { Dialog, FieldError } from './FarmAreaDialogs';
-import { MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS, apiErrorMessage, itemFitsStep, itemsForStep, stockKind, uniqueByName, validateProgram } from './farmAreaOptions';
+import {
+  CARE_PROCEDURE_METHODS, DEFAULT_BAG_WEIGHT_KG, DRINKING_MEDICINE_METHODS, DRINKING_MEDICINE_UNITS,
+  FEED_INPUT_MODES, MEDICINE_METHODS, MEDICINE_UNITS, STEP_CATEGORIES, VACCINE_METHODS,
+  apiErrorMessage, bagsToGramPerBirdDay, formatAmount, itemFitsStep, itemsForStep, stockKind, uniqueByName, validateProgram,
+} from './farmAreaOptions';
 import { StockNamePicker } from './StockNamePicker';
 import styles from './FarmingPrograms.module.css';
 
 const text = value => (value == null ? '' : String(value));
 const toDraftStep = step => ({
-  category: step.category, name: step.name || '', dayFrom: text(step.dayFrom), dayTo: text(step.dayTo), quantity: text(step.quantity),
-  unit: step.category === 'FEED' ? '' : step.unit || '', mealsPerDay: text(step.mealsPerDay), method: step.method || '',
-  tempMin: text(step.tempMin), tempMax: text(step.tempMax), note: step.note || '', inventoryItemId: text(step.inventoryItemId),
+  category: step.category,
+  name: step.name || '',
+  dayFrom: text(step.dayFrom),
+  dayTo: text(step.dayTo),
+  quantity: text(step.quantity),
+  unit: step.category === 'FEED' ? '' : step.unit || '',
+  mealsPerDay: text(step.mealsPerDay),
+  method: step.method || '',
+  tempMin: text(step.tempMin),
+  tempMax: text(step.tempMax),
+  note: step.note || '',
+  inventoryItemId: text(step.inventoryItemId),
+  feedInputMode: step.category === 'FEED' ? (step.feedInputMode || 'GRAM_PER_BIRD_DAY') : '',
+  bagWeightKg: step.category === 'FEED' ? text(step.bagWeightKg ?? DEFAULT_BAG_WEIGHT_KG) : '',
+  bagsPer1000Birds: step.category === 'FEED' ? text(step.bagsPer1000Birds) : '',
 });
 const emptyStep = (category, dayFrom) => ({
-  category, name: '', dayFrom: text(dayFrom), dayTo: text(dayFrom), quantity: '', unit: category === 'MEDICINE' ? MEDICINE_UNITS[0] : category === 'VACCINE' ? 'liều/con' : '',
-  mealsPerDay: category === 'FEED' ? '3' : '', method: category === 'VACCINE' ? 'EYE_NOSE' : category === 'MEDICINE' ? 'MIX_FEED' : '',
-  tempMin: '', tempMax: '', note: '', inventoryItemId: '',
+  category,
+  name: '',
+  dayFrom: text(dayFrom),
+  dayTo: text(dayFrom),
+  quantity: '',
+  unit: category === 'DRINKING_MEDICINE' ? DRINKING_MEDICINE_UNITS[0]
+    : category === 'MEDICINE' ? MEDICINE_UNITS[0]
+      : category === 'VACCINE' ? 'liều/con' : '',
+  mealsPerDay: category === 'FEED' ? '3' : '',
+  method: category === 'DRINKING_MEDICINE' ? 'HAND_DRINKER'
+    : category === 'VACCINE' ? 'EYE_NOSE'
+      : category === 'MEDICINE' ? 'MIX_FEED'
+        : category === 'CARE_PROCEDURE' ? 'PROCEDURE' : '',
+  tempMin: '',
+  tempMax: '',
+  note: '',
+  inventoryItemId: '',
+  feedInputMode: category === 'FEED' ? 'GRAM_PER_BIRD_DAY' : '',
+  bagWeightKg: category === 'FEED' ? String(DEFAULT_BAG_WEIGHT_KG) : '',
+  bagsPer1000Birds: '',
 });
-const numberOrNull = value => (value === '' ? null : Number(value));
+const numberOrNull = value => (value === '' || value == null ? null : Number(value));
 
-// Columns per category: [key, header, kind, extra]. Day columns are shared by every category.
-// Feed, vaccine and medicine names are picked from stock ("pick"): choosing one links the stock item, so confirming the daily task
-// takes it out of stock and books its cost; a name typed by hand is still saved, it just is not tracked in stock.
 const COLUMNS = {
-  FEED: [['name', 'Loại cám', 'pick', 'Chọn hoặc gõ loại cám'], ['quantity', 'g/con/ngày', 'number', '0.1'], ['mealsPerDay', 'Số cữ/ngày', 'number', '1']],
-  VACCINE: [['name', 'Tên vắc-xin', 'pick', 'Chọn hoặc gõ vắc-xin'], ['method', 'Cách dùng', 'select', VACCINE_METHODS], ['quantity', 'Liều', 'number', '0.01'],
-    ['unit', 'Đơn vị', 'text', 'liều/con']],
-  MEDICINE: [['name', 'Tên thuốc', 'pick', 'Chọn hoặc gõ tên thuốc'], ['method', 'Cách dùng', 'select', MEDICINE_METHODS], ['quantity', 'Liều lượng', 'number', '0.01'],
-    ['unit', 'Đơn vị', 'unit', MEDICINE_UNITS]],
-  TEMPERATURE: [['name', 'Giai đoạn', 'text', 'Ví dụ: Úm tuần 1'], ['tempMin', 'Thấp nhất °C', 'number', '0.1'], ['tempMax', 'Cao nhất °C', 'number', '0.1']],
+  FEED: [
+    ['name', 'Loại cám', 'pick', 'Chọn hoặc gõ loại cám'],
+    ['feedInputMode', 'Chế độ nhập', 'select', FEED_INPUT_MODES],
+    ['feedRation', 'Định mức', 'feedRation', '0.1'],
+    ['mealsPerDay', 'Số cữ/ngày', 'number', '1'],
+  ],
+  DRINKING_MEDICINE: [
+    ['name', 'Thuốc uống / men / bổ', 'pick', 'Chọn hoặc gõ thuốc uống'],
+    ['method', 'Phương thức cấp', 'select', DRINKING_MEDICINE_METHODS],
+    ['quantity', 'Liều lượng', 'number', '0.01'],
+    ['unit', 'Đơn vị', 'drinkingUnit', DRINKING_MEDICINE_UNITS],
+  ],
+  VACCINE: [
+    ['name', 'Tên vắc-xin', 'pick', 'Chọn hoặc gõ vắc-xin'],
+    ['method', 'Cách dùng', 'select', VACCINE_METHODS],
+    ['quantity', 'Liều', 'number', '0.01'],
+    ['unit', 'Đơn vị', 'text', 'liều/con'],
+  ],
+  MEDICINE: [
+    ['name', 'Tên thuốc', 'pick', 'Chọn hoặc gõ tên thuốc'],
+    ['method', 'Cách dùng', 'select', MEDICINE_METHODS],
+    ['quantity', 'Liều lượng', 'number', '0.01'],
+    ['unit', 'Đơn vị', 'unit', MEDICINE_UNITS],
+  ],
+  CARE_PROCEDURE: [
+    ['name', 'Tên thủ thuật', 'text', 'Ví dụ: Làm mỏ lần 1'],
+    ['method', 'Phương thức', 'select', CARE_PROCEDURE_METHODS],
+  ],
 };
 
 export function FarmingProgramDialog({ program, onClose, onSaved }) {
   const editing = Boolean(program);
   const [draft, setDraft] = useState(() => ({
-    name: program?.name || '', breed: program?.breed || '', durationDays: text(program?.durationDays ?? ''),
-    targetWeightMin: text(program?.targetWeightMin), targetWeightMax: text(program?.targetWeightMax), description: program?.description || '',
-    // Công việc không còn thuộc chương trình nuôi: bước WORK cũ (nếu có) bị bỏ khi sửa và lưu lại.
-    steps: program ? program.steps.filter(step => step.category !== 'WORK').map(toDraftStep) : [emptyStep('FEED', 1)],
+    name: program?.name || '',
+    breed: program?.breed || '',
+    durationDays: text(program?.durationDays ?? ''),
+    targetWeightMin: text(program?.targetWeightMin),
+    targetWeightMax: text(program?.targetWeightMax),
+    description: program?.description || '',
+    // WORK & TEMPERATURE cũ không còn hiển thị tab tạo/sửa mới (nhiệt độ theo dõi qua IoT).
+    steps: program
+      ? program.steps.filter(step => step.category !== 'WORK' && step.category !== 'TEMPERATURE').map(toDraftStep)
+      : [emptyStep('FEED', 1)],
   }));
   const [tab, setTab] = useState('FEED');
   const [errors, setErrors] = useState({ fields: {}, steps: {} });
@@ -47,6 +105,7 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
   const [items, setItems] = useState([]);
   const [itemsError, setItemsError] = useState('');
   const [itemsLoading, setItemsLoading] = useState(true);
+
   const feedOptions = useMemo(() => {
     const names = new Map();
     for (const item of items.filter(item => stockKind(item) === 'FEED')) {
@@ -68,7 +127,10 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     return () => { cancelled = true; };
   }, []);
 
-  const setField = (key, value) => { setDraft(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, fields: { ...current.fields, [key]: undefined } })); };
+  const setField = (key, value) => {
+    setDraft(current => ({ ...current, [key]: value }));
+    setErrors(current => ({ ...current, fields: { ...current.fields, [key]: undefined } }));
+  };
   const setStep = (index, key, value) => {
     setDraft(current => ({ ...current, steps: current.steps.map((step, i) => (i === index ? { ...step, [key]: value } : step)) }));
     setErrors(current => ({ ...current, steps: { ...current.steps, [index]: undefined } }));
@@ -93,14 +155,38 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     setSaving(true);
     setError('');
     const payload = {
-      name: draft.name.trim(), breed: draft.breed.trim(), durationDays: Number(draft.durationDays),
-      targetWeightMin: numberOrNull(draft.targetWeightMin), targetWeightMax: numberOrNull(draft.targetWeightMax), description: draft.description.trim(),
-      steps: draft.steps.map(step => ({
-        category: step.category, name: step.name.trim(), dayFrom: Number(step.dayFrom), dayTo: Number(step.dayTo), quantity: numberOrNull(step.quantity),
-        unit: step.unit.trim(), mealsPerDay: numberOrNull(step.mealsPerDay), method: step.method || null, tempMin: numberOrNull(step.tempMin),
-        tempMax: numberOrNull(step.tempMax), note: step.note.trim(),
-        inventoryItemId: ['FEED', 'VACCINE', 'MEDICINE'].includes(step.category) && step.inventoryItemId ? Number(step.inventoryItemId) : null,
-      })),
+      name: draft.name.trim(),
+      breed: draft.breed.trim(),
+      durationDays: Number(draft.durationDays),
+      targetWeightMin: numberOrNull(draft.targetWeightMin),
+      targetWeightMax: numberOrNull(draft.targetWeightMax),
+      description: draft.description.trim(),
+      steps: draft.steps.map(step => {
+        const bagsMode = step.category === 'FEED' && step.feedInputMode === 'BAGS_PER_1000_BIRDS';
+        const bagWeight = bagsMode ? (numberOrNull(step.bagWeightKg) ?? DEFAULT_BAG_WEIGHT_KG) : null;
+        const bags = bagsMode ? numberOrNull(step.bagsPer1000Birds) : null;
+        const computedQty = bagsMode
+          ? bagsToGramPerBirdDay(bags, bagWeight, step.dayFrom, step.dayTo)
+          : numberOrNull(step.quantity);
+        return {
+          category: step.category,
+          name: step.name.trim(),
+          dayFrom: Number(step.dayFrom),
+          dayTo: Number(step.dayTo),
+          quantity: computedQty,
+          unit: step.unit.trim(),
+          mealsPerDay: numberOrNull(step.mealsPerDay),
+          method: step.method || null,
+          tempMin: numberOrNull(step.tempMin),
+          tempMax: numberOrNull(step.tempMax),
+          note: step.note.trim(),
+          inventoryItemId: ['FEED', 'VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'].includes(step.category) && step.inventoryItemId
+            ? Number(step.inventoryItemId) : null,
+          feedInputMode: step.category === 'FEED' ? (step.feedInputMode || 'GRAM_PER_BIRD_DAY') : null,
+          bagWeightKg: bagWeight,
+          bagsPer1000Birds: bags,
+        };
+      }),
     };
     try {
       if (editing) await updateProgram(program.id, payload);
@@ -124,17 +210,41 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
 
   const rows = draft.steps.map((step, index) => ({ step, index })).filter(row => row.step.category === tab);
   const category = STEP_CATEGORIES.find(item => item.value === tab);
+
   const cell = (row, [key, label, kind, extra]) => {
-    const common = { 'aria-label': `${label} dòng ${row.index + 1}`, value: row.step[key], disabled: saving, className: 'farmshift-form-control',
-      onChange: event => setStep(row.index, key, event.target.value) };
+    const common = {
+      'aria-label': `${label} dòng ${row.index + 1}`,
+      value: row.step[key],
+      disabled: saving,
+      className: 'farmshift-form-control',
+      onChange: event => setStep(row.index, key, event.target.value),
+    };
     if (kind === 'select') return <select {...common}>{extra.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
+    if (kind === 'feedRation') {
+      if (row.step.feedInputMode === 'BAGS_PER_1000_BIRDS') {
+        const converted = bagsToGramPerBirdDay(row.step.bagsPer1000Birds, row.step.bagWeightKg, row.step.dayFrom, row.step.dayTo);
+        return <div className={styles.feedRationGroup}>
+          <div className={styles.feedRationInputs}>
+            <input aria-label={`Bao/1000 con dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="0" step="0.1"
+              inputMode="decimal" placeholder="VD: 30" value={row.step.bagsPer1000Birds} disabled={saving}
+              onChange={event => setStep(row.index, 'bagsPer1000Birds', event.target.value)} />
+            <input aria-label={`Kg/bao dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="0.1" step="0.5"
+              inputMode="decimal" placeholder="25 kg/bao" title="Khối lượng 1 bao (kg)" value={row.step.bagWeightKg} disabled={saving}
+              onChange={event => setStep(row.index, 'bagWeightKg', event.target.value)} />
+          </div>
+          {converted != null && <small className={styles.convertedHint}>≈ {formatAmount(converted)} g/con/ngày</small>}
+        </div>;
+      }
+      return <input aria-label={`g/con/ngày dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="0" step={extra}
+        inputMode="decimal" placeholder="g/con/ngày" value={row.step.quantity} disabled={saving}
+        onChange={event => setStep(row.index, 'quantity', event.target.value)} />;
+    }
     if (kind === 'pick' && row.step.category === 'FEED') {
       const known = feedOptions.some(option => option.name === row.step.name);
       return <select aria-label={common['aria-label']} className="farmshift-form-control" value={row.step.name} disabled={saving || itemsLoading}
         aria-invalid={Boolean(errors.steps[row.index])} onChange={event => {
-          const option = feedOptions.find(option => option.name === event.target.value);
+          const option = feedOptions.find(opt => opt.name === event.target.value);
           const candidates = option?.items || [];
-          // Keep an existing explicit lot link; a name shared by multiple lots must not choose a warehouse arbitrarily.
           const selected = candidates.find(item => String(item.id) === String(row.step.inventoryItemId))
             || (candidates.length === 1 ? candidates[0] : null);
           setStep(row.index, 'name', option?.name || '');
@@ -153,7 +263,8 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
           setStep(row.index, 'inventoryItemId', inventoryItemId);
         }} />;
     }
-    if (kind === 'unit') return <><input {...common} list="program-medicine-units" /></>;
+    if (kind === 'unit') return <input {...common} list="program-medicine-units" />;
+    if (kind === 'drinkingUnit') return <input {...common} list="program-drinking-units" />;
     if (kind === 'number') return <input {...common} type="number" min="0" step={extra} inputMode="decimal" />;
     return <input {...common} placeholder={extra} maxLength={200} />;
   };
@@ -164,20 +275,20 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
         <h3 className={styles.blockTitle}>Thông tin chung</h3>
         <div className={styles.headerGrid}>
-          {header('name', 'Tên chương trình', headerInput('name', { maxLength: 150, placeholder: 'Ví dụ: Gà ta thả vườn', autoFocus: true }), true, 'half')}
+          {header('name', 'Tên chương trình', headerInput('name', { maxLength: 150, placeholder: 'Ví dụ: Gà ta 90 ngày', autoFocus: true }), true, 'half')}
           {header('breed', 'Giống gà', headerInput('breed', { maxLength: 100, placeholder: 'Ví dụ: Gà ta' }), true, 'half')}
-          {header('durationDays', 'Thời gian nuôi (ngày)', headerInput('durationDays', { type: 'number', min: 1, max: 365, placeholder: 'Ví dụ: 105' }), true, 'third')}
+          {header('durationDays', 'Thời gian nuôi (ngày)', headerInput('durationDays', { type: 'number', min: 1, max: 365, placeholder: 'Ví dụ: 90' }), true, 'third')}
           <div className={styles.twoThirds}>
             <label htmlFor="program-targetWeightMin">Cân xuất chuồng (kg)</label>
             <div className={styles.range}>
-              {headerInput('targetWeightMin', { type: 'number', min: 0, step: 0.01, placeholder: 'Từ, ví dụ 1.5' })}
+              {headerInput('targetWeightMin', { type: 'number', min: 0, step: 0.01, placeholder: 'Từ, ví dụ 1.8' })}
               <span aria-hidden="true">–</span>
-              {headerInput('targetWeightMax', { type: 'number', min: 0, step: 0.01, placeholder: 'Đến, ví dụ 2.2', 'aria-label': 'Cân xuất chuồng đến (kg)' })}
+              {headerInput('targetWeightMax', { type: 'number', min: 0, step: 0.01, placeholder: 'Đến, ví dụ 2.3', 'aria-label': 'Cân xuất chuồng đến (kg)' })}
             </div>
             <FieldError message={errors.fields.targetWeightMin || errors.fields.targetWeightMax} />
           </div>
           {header('description', 'Mô tả', <textarea id="program-description" className="farmshift-form-control" rows={2} maxLength={1000} value={draft.description}
-            onChange={event => setField('description', event.target.value)} disabled={saving} placeholder="Ví dụ: Nuôi thả vườn khoảng 5 tháng" />, false, 'fullRow')}
+            onChange={event => setField('description', event.target.value)} disabled={saving} placeholder="Ví dụ: Quy trình 90 ngày, 3 giai đoạn cám & lịch uống thuốc" />, false, 'fullRow')}
         </div>
 
         <h3 className={styles.blockTitle}>Nội dung theo ngày tuổi</h3>
@@ -192,10 +303,12 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
           })}
         </div>
         <FieldError message={errors.fields.steps} />
-        {tab === 'FEED' && <p className={styles.itemHint}>Chọn tên cám từ tất cả các kho. Cùng một tên chỉ hiển thị một lần.</p>}
+        {tab === 'FEED' && <p className={styles.itemHint}>Chọn tên cám từ kho và chế độ nhập (g/con/ngày hoặc bao/1.000 con/giai đoạn — tự quy đổi tức thời).</p>}
+        {tab === 'DRINKING_MEDICINE' && <p className={styles.itemHint}>Lịch uống thuốc úm, men tiêu hóa, thuốc bổ bằng bình xách tay (gà nhỏ) hoặc hệ thống uống tự động.</p>}
         {['VACCINE', 'MEDICINE'].includes(tab) && <p className={styles.itemHint}>
-          Gõ để lọc và chọn {tab === 'FEED' ? 'loại cám' : tab === 'VACCINE' ? 'vắc-xin' : 'thuốc'} có trong kho: khi công nhân xác nhận việc,
+          Gõ để lọc và chọn {tab === 'VACCINE' ? 'vắc-xin' : 'thuốc'} có trong kho: khi công nhân xác nhận việc,
           hệ thống tự trừ kho và cộng chi phí vào lứa. Tên gõ tay vẫn lưu được nhưng không trừ kho.</p>}
+        {tab === 'CARE_PROCEDURE' && <p className={styles.itemHint}>Khai báo thủ thuật chăm sóc định kỳ theo ngày tuổi (ví dụ: Làm mỏ lần 1 ngày 16, Làm mỏ lần 2 ngày 45).</p>}
         {itemsError && <p className={styles.itemHint} role="status">{itemsError}</p>}
 
         <div className={styles.stepTableWrap}>
@@ -218,6 +331,7 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
             </tbody>
           </table>
           <datalist id="program-medicine-units">{MEDICINE_UNITS.map(unit => <option key={unit} value={unit} />)}</datalist>
+          <datalist id="program-drinking-units">{DRINKING_MEDICINE_UNITS.map(unit => <option key={unit} value={unit} />)}</datalist>
         </div>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={addStep} disabled={saving}><Plus size={15} />Thêm dòng</button>
       </div>

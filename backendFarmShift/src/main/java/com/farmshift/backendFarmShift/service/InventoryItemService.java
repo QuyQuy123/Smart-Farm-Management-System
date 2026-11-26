@@ -34,6 +34,8 @@ public class InventoryItemService {
     private BarnRepository barnRepository;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AccountRepository accountRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DiseaseTreatmentLogRepository diseaseTreatmentLogs;
     /** warehouseId null: mọi hàng hóa của mọi kho (dùng khi gắn hàng hóa vào chương trình nuôi). */
     public List<InventoryItemResponse> list(Long warehouseId) { return list(warehouseId, false, true); }
     public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts) { return list(warehouseId, includeReceipts, true); }
@@ -119,8 +121,10 @@ public class InventoryItemService {
     @Transactional public void delete(Long id) {
         var item = find(id);
         if (item.getStock().signum() != 0) throw new ConflictException("Không thể xóa hàng hóa đang còn tồn kho.", "INVENTORY_IN_USE", null);
-        if (programSteps.existsByInventoryItemId(id) || taskLogs.existsByInventoryItemId(id) || taskLogs.existsByStockAllocations_Item_Id(id)) {
-            throw new ConflictException("Hàng hóa đang được dùng trong chương trình nuôi hoặc phiếu việc nên không thể xóa.", "INVENTORY_IN_USE", null);
+        if (programSteps.existsByInventoryItemId(id) || taskLogs.existsByInventoryItemId(id) || taskLogs.existsByStockAllocations_Item_Id(id)
+                || (diseaseTreatmentLogs != null && (diseaseTreatmentLogs.existsByInventoryItemId(id)
+                || diseaseTreatmentLogs.existsByStockAllocations_Item_Id(id)))) {
+            throw new ConflictException("Hàng hóa đang được dùng trong chương trình nuôi, phiếu việc hoặc sổ bệnh án nên không thể xóa.", "INVENTORY_IN_USE", null);
         }
         repository.delete(item);
     }

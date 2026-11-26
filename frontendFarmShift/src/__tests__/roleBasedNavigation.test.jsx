@@ -78,6 +78,7 @@ describe('Role-Based Navigation Filtering in FarmShiftLayout', () => {
     expect(screen.getByRole('link', { name: /Xuất nhập nội bộ/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Hóa đơn nhập hàng/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Quản lý bán hàng/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Lịch sử lứa nuôi/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Sổ quỹ/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Báo cáo & Thống kê/i })).toBeInTheDocument();
 

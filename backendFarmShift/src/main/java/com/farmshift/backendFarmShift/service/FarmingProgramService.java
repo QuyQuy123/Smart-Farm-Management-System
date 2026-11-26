@@ -15,21 +15,44 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 
 import static com.farmshift.backendFarmShift.service.CycleService.clean;
 
-/** Chương trình nuôi theo giống: cám định mức, lịch vắc-xin, thuốc trộn, nhiệt độ, công việc theo ngày tuổi. */
+/** Chương trình nuôi theo giống: cám định mức, lịch uống thuốc, lịch vắc-xin & thủ thuật, thuốc trộn theo ngày tuổi. */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class FarmingProgramService {
-    private static final Set<AdministrationMethod> VACCINE_METHODS = EnumSet.of(AdministrationMethod.EYE_NOSE, AdministrationMethod.MOUTH,
+    public static final String FEED_MODE_GRAM = "GRAM_PER_BIRD_DAY";
+    public static final String FEED_MODE_BAGS = "BAGS_PER_1000_BIRDS";
+    public static final BigDecimal DEFAULT_BAG_WEIGHT_KG = new BigDecimal("25.000");
+
+    public static final Set<AdministrationMethod> VACCINE_METHODS = EnumSet.of(AdministrationMethod.EYE_NOSE, AdministrationMethod.MOUTH,
             AdministrationMethod.DRINKING_WATER, AdministrationMethod.INJECTION, AdministrationMethod.WING_WEB);
-    private static final Set<AdministrationMethod> MEDICINE_METHODS = EnumSet.of(AdministrationMethod.MIX_FEED, AdministrationMethod.MIX_WATER);
-    private static final Map<ProgramStepCategory, String> LABELS = Map.of(ProgramStepCategory.FEED, "Cám định mức",
-            ProgramStepCategory.VACCINE, "Vắc-xin", ProgramStepCategory.MEDICINE, "Thuốc trộn",
-            ProgramStepCategory.TEMPERATURE, "Nhiệt độ", ProgramStepCategory.WORK, "Công việc");
+    public static final Set<AdministrationMethod> MEDICINE_METHODS = EnumSet.of(AdministrationMethod.MIX_FEED, AdministrationMethod.MIX_WATER);
+    public static final Set<AdministrationMethod> DRINKING_MEDICINE_METHODS = EnumSet.of(
+            AdministrationMethod.HAND_DRINKER, AdministrationMethod.AUTO_DRINKER,
+            AdministrationMethod.MIX_WATER, AdministrationMethod.DRINKING_WATER);
+    public static final Set<AdministrationMethod> CARE_PROCEDURE_METHODS = EnumSet.of(AdministrationMethod.PROCEDURE);
+    private static final Map<ProgramStepCategory, String> LABELS = Map.of(
+            ProgramStepCategory.FEED, "Cám định mức",
+            ProgramStepCategory.VACCINE, "Vắc-xin",
+            ProgramStepCategory.MEDICINE, "Thuốc trộn",
+            ProgramStepCategory.DRINKING_MEDICINE, "Lịch uống thuốc",
+            ProgramStepCategory.CARE_PROCEDURE, "Thủ thuật chăm sóc",
+            ProgramStepCategory.TEMPERATURE, "Nhiệt độ",
+            ProgramStepCategory.WORK, "Công việc");
+
+    /** Quy đổi định mức cám từ bao / 1.000 con / giai đoạn sang g/con/ngày. */
+    public static BigDecimal toGramPerBirdPerDay(BigDecimal bagsPer1000Birds, BigDecimal bagWeightKg, int dayFrom, int dayTo) {
+        int days = Math.max(1, dayTo - dayFrom + 1);
+        BigDecimal weight = bagWeightKg != null && bagWeightKg.signum() > 0 ? bagWeightKg : DEFAULT_BAG_WEIGHT_KG;
+        return bagsPer1000Birds.multiply(weight)
+                .multiply(BigDecimal.valueOf(1000))
+                .divide(BigDecimal.valueOf(1000L * days), 3, RoundingMode.HALF_UP);
+    }
 
     private final FarmingProgramRepository repository;
     private final FlockRepository flockRepository;
@@ -104,8 +127,31 @@ public class FarmingProgramService {
         step.setDayTo(item.dayTo());
         step.setNote(clean(item.note()));
         switch (item.category()) {
-            case FEED -> { step.setQuantity(item.quantity()); step.setUnit("g/con/ngày"); step.setMealsPerDay(item.mealsPerDay()); }
-            case VACCINE, MEDICINE -> { step.setQuantity(item.quantity()); step.setUnit(clean(item.unit())); step.setMethod(item.method()); }
+            case FEED -> {
+                if (FEED_MODE_BAGS.equalsIgnoreCase(item.feedInputMode())) {
+                    BigDecimal bagWeight = item.bagWeightKg() != null ? item.bagWeightKg().setScale(3, RoundingMode.HALF_UP) : DEFAULT_BAG_WEIGHT_KG;
+                    BigDecimal bags = item.bagsPer1000Birds().setScale(3, RoundingMode.HALF_UP);
+                    step.setQuantity(toGramPerBirdPerDay(bags, bagWeight, item.dayFrom(), item.dayTo()));
+                    step.setFeedInputMode(FEED_MODE_BAGS);
+                    step.setBagWeightKg(bagWeight);
+                    step.setBagsPer1000Birds(bags);
+                } else {
+                    step.setQuantity(item.quantity());
+                    step.setFeedInputMode(FEED_MODE_GRAM);
+                }
+                step.setUnit("g/con/ngày");
+                step.setMealsPerDay(item.mealsPerDay());
+            }
+            case VACCINE, MEDICINE, DRINKING_MEDICINE -> {
+                step.setQuantity(item.quantity());
+                step.setUnit(clean(item.unit()));
+                step.setMethod(item.method());
+            }
+            case CARE_PROCEDURE -> {
+                step.setMethod(item.method() != null ? item.method() : AdministrationMethod.PROCEDURE);
+                step.setQuantity(item.quantity());
+                step.setUnit(clean(item.unit()));
+            }
             case TEMPERATURE -> { step.setTempMin(item.tempMin()); step.setTempMax(item.tempMax()); }
             case WORK -> { }
         }
@@ -120,7 +166,9 @@ public class FarmingProgramService {
     private InventoryItem inventoryItem(FarmingProgramStep step, Long itemId) {
         if (itemId == null) return null;
         String label = LABELS.get(step.getCategory()) + " \"" + step.getName() + "\"";
-        if (step.getCategory() == ProgramStepCategory.TEMPERATURE || step.getCategory() == ProgramStepCategory.WORK) {
+        if (step.getCategory() == ProgramStepCategory.TEMPERATURE
+                || step.getCategory() == ProgramStepCategory.WORK
+                || step.getCategory() == ProgramStepCategory.CARE_PROCEDURE) {
             throw new BadRequestException(label + ": chỉ cám, thuốc và vắc-xin mới gắn hàng hóa kho.", "PROGRAM_ITEM_NOT_ALLOWED");
         }
         InventoryItem item = inventoryRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hàng hóa trong kho."));
@@ -131,14 +179,15 @@ public class FarmingProgramService {
         }
         UsageUnit usage = UsageMath.usageUnit(step.getCategory(), step.getUnit());
         if (usage == null) {
-            throw new BadRequestException(label + ": đơn vị liều chưa rõ. Dùng dạng g/..., ml/... hoặc liều/con để trừ kho được.", "PROGRAM_ITEM_DOSE_UNIT");
+            throw new BadRequestException(label + ": đơn vị liều chưa rõ. Dùng dạng g/..., ml/..., gói/... hoặc liều/con để trừ kho được.", "PROGRAM_ITEM_DOSE_UNIT");
         }
         if (!UsageMath.compatible(item, usage)) {
             throw new BadRequestException(label + ": định mức tính theo " + usage.label() + " nhưng hàng hóa " + itemName + " đóng theo "
                     + item.getUnit().getContentUnit().label() + ", không quy đổi được.", "PROGRAM_ITEM_UNIT_MISMATCH");
         }
-        if (step.getCategory() == ProgramStepCategory.MEDICINE && UsageMath.basis(step.getCategory(), step.getUnit()) == null) {
-            throw new BadRequestException(label + ": đơn vị liều cần ghi rõ tính theo kg cám, lít nước hoặc con (ví dụ 2 g/kg cám).", "PROGRAM_ITEM_DOSE_UNIT");
+        if ((step.getCategory() == ProgramStepCategory.MEDICINE || step.getCategory() == ProgramStepCategory.DRINKING_MEDICINE)
+                && UsageMath.basis(step.getCategory(), step.getUnit()) == null) {
+            throw new BadRequestException(label + ": đơn vị liều cần ghi rõ tính theo kg cám, lít nước, con hoặc 1000 con (ví dụ 2 g/kg cám, 0,5 gói/1000 con).", "PROGRAM_ITEM_DOSE_UNIT");
         }
         if (step.getCategory() == ProgramStepCategory.VACCINE && (step.getQuantity() == null || step.getQuantity().signum() <= 0)) {
             throw new BadRequestException(label + ": cần nhập liều cho mỗi con để tính số lọ vắc-xin.", "PROGRAM_ITEM_DOSE_UNIT");
@@ -163,7 +212,22 @@ public class FarmingProgramService {
             }
             switch (step.category()) {
                 case FEED -> {
-                    if (step.quantity() == null || step.quantity().signum() <= 0 || step.mealsPerDay() == null) {
+                    boolean bagsMode = FEED_MODE_BAGS.equalsIgnoreCase(step.feedInputMode());
+                    if (step.feedInputMode() != null && !step.feedInputMode().isBlank()
+                            && !FEED_MODE_GRAM.equalsIgnoreCase(step.feedInputMode()) && !bagsMode) {
+                        throw new BadRequestException(label + ": chế độ nhập cám chỉ hỗ trợ GRAM_PER_BIRD_DAY hoặc BAGS_PER_1000_BIRDS.", "PROGRAM_FEED_INCOMPLETE");
+                    }
+                    if (bagsMode) {
+                        if (step.bagsPer1000Birds() == null || step.bagsPer1000Birds().signum() <= 0 || step.mealsPerDay() == null) {
+                            throw new BadRequestException(label + ": cần nhập định mức (bao/1.000 con) lớn hơn 0 và số cữ ăn trong ngày.", "PROGRAM_FEED_INCOMPLETE");
+                        }
+                        if (step.bagWeightKg() != null && step.bagWeightKg().signum() <= 0) {
+                            throw new BadRequestException(label + ": khối lượng 1 bao cám phải lớn hơn 0.", "PROGRAM_FEED_INCOMPLETE");
+                        }
+                        if (toGramPerBirdPerDay(step.bagsPer1000Birds(), step.bagWeightKg(), step.dayFrom(), step.dayTo()).signum() <= 0) {
+                            throw new BadRequestException(label + ": định mức sau quy đổi phải lớn hơn 0 g/con/ngày.", "PROGRAM_FEED_INCOMPLETE");
+                        }
+                    } else if (step.quantity() == null || step.quantity().signum() <= 0 || step.mealsPerDay() == null) {
                         throw new BadRequestException(label + ": cần nhập định mức (g/con/ngày) lớn hơn 0 và số cữ ăn trong ngày.", "PROGRAM_FEED_INCOMPLETE");
                     }
                 }
@@ -181,12 +245,25 @@ public class FarmingProgramService {
                         throw new BadRequestException(label + ": cần nhập liều lượng và đơn vị (ví dụ 2 g/kg cám, 1 ml/lít nước).", "PROGRAM_MEDICINE_DOSE");
                     }
                 }
+                case DRINKING_MEDICINE -> {
+                    if (step.method() == null || !DRINKING_MEDICINE_METHODS.contains(step.method())) {
+                        throw new BadRequestException(label + ": chọn phương thức uống thuốc (bình xách tay hoặc hệ thống uống tự động).", "PROGRAM_METHOD_REQUIRED");
+                    }
+                    if (step.quantity() == null || step.quantity().signum() <= 0 || step.unit() == null || step.unit().isBlank()) {
+                        throw new BadRequestException(label + ": cần nhập liều lượng và đơn vị (ví dụ 0,5 gói/1000 con, 1 g/lít nước).", "PROGRAM_MEDICINE_DOSE");
+                    }
+                }
+                case CARE_PROCEDURE -> {
+                    if (step.method() != null && !CARE_PROCEDURE_METHODS.contains(step.method())) {
+                        throw new BadRequestException(label + ": phương thức thủ thuật chăm sóc không hợp lệ.", "PROGRAM_METHOD_REQUIRED");
+                    }
+                }
                 case TEMPERATURE -> {
                     if (step.tempMin() == null || step.tempMax() == null || step.tempMin().compareTo(step.tempMax()) >= 0) {
                         throw new BadRequestException(label + ": nhiệt độ thấp nhất phải nhỏ hơn nhiệt độ cao nhất.", "PROGRAM_TEMPERATURE_RANGE");
                     }
                 }
-                case WORK -> throw new BadRequestException("Chương trình nuôi chỉ gồm cám, vắc-xin, thuốc và nhiệt độ. "
+                case WORK -> throw new BadRequestException("Chương trình nuôi chỉ gồm cám, lịch uống thuốc, vắc-xin, thủ thuật và thuốc trộn. "
                         + "Công việc chăm sóc được giao riêng, không khai báo trong chương trình.", "PROGRAM_WORK_NOT_ALLOWED");
             }
             byCategory.computeIfAbsent(step.category(), key -> new ArrayList<>()).add(step);
@@ -222,7 +299,8 @@ public class FarmingProgramService {
                 currentDay == null ? null : currentDay > step.getDayTo() ? "DONE" : currentDay >= step.getDayFrom() ? "IN_PROGRESS" : "UPCOMING",
                 step.getInventoryItem() == null ? null : step.getInventoryItem().getId(),
                 step.getInventoryItem() == null ? null : step.getInventoryItem().getProduct().getName(),
-                step.getInventoryItem() == null || step.getInventoryItem().getUnit() == null ? null : step.getInventoryItem().getUnit().getName()))
+                step.getInventoryItem() == null || step.getInventoryItem().getUnit() == null ? null : step.getInventoryItem().getUnit().getName(),
+                step.getFeedInputMode(), step.getBagWeightKg(), step.getBagsPer1000Birds()))
                 .toList();
         return new FarmingProgramResponse(program.getId(), String.format(Locale.ROOT, "CT%04d", program.getId()), program.getName(),
                 program.getBreed(), program.getDurationDays(), program.getTargetWeightMin(), program.getTargetWeightMax(),

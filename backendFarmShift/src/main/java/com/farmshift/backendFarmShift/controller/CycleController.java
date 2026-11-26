@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.controller;
 import com.farmshift.backendFarmShift.dto.request.*;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleDetailResponse;
+import com.farmshift.backendFarmShift.dto.response.CycleHistoryItemResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleSummaryResponse;
 import com.farmshift.backendFarmShift.dto.response.FlockResponse;
 import com.farmshift.backendFarmShift.security.RoleNames;
@@ -12,10 +13,12 @@ import com.farmshift.backendFarmShift.service.FlockService;
 import com.farmshift.backendFarmShift.service.WorkAssignmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
@@ -54,6 +57,22 @@ public class CycleController {
     @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
     public ApiResponse<CycleSummaryResponse> start(@PathVariable Long barnId, @Valid @RequestBody StartCycleRequest request) {
         return ApiResponse.success("Đã khai báo lứa nuôi", service.start(barnId, request));
+    }
+
+    @GetMapping("/api/cycles/history")
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER')")
+    public ApiResponse<List<CycleHistoryItemResponse>> history(
+            @RequestParam(required = false) Long areaId,
+            @RequestParam(required = false) Long barnId,
+            @RequestParam(required = false) Long programId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String search,
+            Authentication authentication
+    ) {
+        String workerEmail = isWorker(authentication) ? authentication.getName() : null;
+        return ApiResponse.success("Lịch sử lứa nuôi đã kết thúc toàn trại",
+                service.closedHistory(areaId, barnId, programId, from, to, search, canSeeFinance(authentication), workerEmail));
     }
 
     @GetMapping("/api/cycles/{id}")

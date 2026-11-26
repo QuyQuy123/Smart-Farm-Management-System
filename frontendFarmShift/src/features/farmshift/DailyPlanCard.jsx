@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { AlertTriangle, Check, ClipboardCheck, Clock, RotateCcw, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
+import { AlertTriangle, Check, ClipboardCheck, Clock, Droplets, RotateCcw, Scissors, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
 import { METHODS, formatAmount, labelOf, todayIso } from './farmAreaOptions';
 import styles from './DailyPlanCard.module.css';
 
 const SECTIONS = [
   { category: 'FEED', label: 'Cho ăn', icon: Utensils },
   { category: 'VACCINE', label: 'Vắc-xin', icon: Syringe },
-  { category: 'MEDICINE', label: 'Thuốc', icon: Pill },
+  { category: 'DRINKING_MEDICINE', label: 'Lịch uống thuốc', icon: Droplets },
+  { category: 'MEDICINE', label: 'Thuốc trộn', icon: Pill },
+  { category: 'CARE_PROCEDURE', label: 'Thủ thuật chăm sóc', icon: Scissors },
   { category: 'TEMPERATURE', label: 'Nhiệt độ', icon: Thermometer },
 ];
-const MEASURED = ['FEED', 'VACCINE', 'MEDICINE'];
+const MEASURED = ['FEED', 'VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'];
 const money = value => `${Number(value || 0).toLocaleString('vi-VN')}đ`;
 const time = value => (value ? new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '');
 

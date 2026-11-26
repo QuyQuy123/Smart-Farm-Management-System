@@ -20,12 +20,13 @@ import { FlockDetailDialog } from './FlockDetailDialog';
 import { MovementDetailDialog } from './MovementDetailDialog';
 import { AreaTabs } from './AreaTabs';
 import { DailyPlanCard } from './DailyPlanCard';
+import { DiseaseLogPanel } from './DiseaseLogPanel';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { getBarnDailyPlan } from '../../services/dailyPlanService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { useViewport } from '../../hooks/useViewport';
 import {
-  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_CATEGORIES, STEP_STATES, describeStep,
+  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_STATES, describeStep, stepCategoryLabel,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
 } from './farmAreaOptions';
 import styles from './BarnDetailView.module.css';
@@ -655,7 +656,7 @@ export const BarnDetailView = () => {
               const stepState = STEP_STATES[step.state] || STEP_STATES.UPCOMING;
               return <li key={step.id} className={step.state === 'IN_PROGRESS' ? styles.stepNow : ''}>
                 <span>Ngày {step.dayFrom}{step.dayTo !== step.dayFrom ? `–${step.dayTo}` : ''}</span>
-                <strong>{STEP_CATEGORIES.find(category => category.value === step.category)?.label}: {step.name}</strong>
+                <strong>{stepCategoryLabel(step.category)}: {step.name}</strong>
                 <small>{describeStep(step)}</small>
                 <span className={`${styles.badge} ${styles[`badge_${stepState.tone}`]}`}>{stepState.label}</span>
               </li>;
@@ -690,6 +691,18 @@ export const BarnDetailView = () => {
                 {item.photoUrls?.length ? <span className={styles.photoCount}>{item.photoUrls.length}</span> : null}</button></td></tr>)}</tbody>
           </table></div>)}
         </Card>
+
+        <DiseaseLogPanel
+          cycle={cycle}
+          flocks={detail.flocks}
+          canDaily={canDaily}
+          canFinance={canFinance}
+          isOwner={isOwner}
+          userEmail={user?.email}
+          refreshKey={revision}
+          onChanged={() => setRevision(value => value + 1)}
+          showToast={showToast}
+        />
 
         {canFinance && finance && <Card title="Khoản chi bổ sung" icon={Coins}
           actions={active && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openExpense}><PlusCircle size={15} />Thêm khoản chi</button>}>

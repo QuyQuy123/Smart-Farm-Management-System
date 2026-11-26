@@ -33,7 +33,7 @@ public class DailyTaskLog {
     @Column(name = "task_key", nullable = false, length = 120)
     private String taskKey;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 32)
     private ProgramStepCategory category;
     @Column(name = "task_name", nullable = false, length = 200)
     private String taskName;

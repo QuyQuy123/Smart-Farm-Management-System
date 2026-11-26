@@ -2,7 +2,7 @@
 -- Dữ liệu mẫu (Seed Data) chuẩn hóa cho FarmShift (Mô phỏng 86 ngày liên tục)
 -- Khoảng thời gian: 2026-09-01 đến 2026-11-25 (múi giờ Asia/Bangkok)
 -- Sinh tự động bởi scripts/generate_seed_data.py (seed=20261125)
--- Đồng bộ 100% với docs/database.md & 48 bảng vật lý PostgreSQL 16.
+-- Đồng bộ 100% với docs/database.md & 51 bảng vật lý PostgreSQL 16.
 -- =====================================================================
 
 -- 0. Dọn bỏ các cột lịch sử không còn dùng & làm sạch toàn bộ bảng dữ liệu
@@ -4860,7 +4860,7 @@ INSERT INTO ai_interaction_logs (id, request_id, session_id, account_id, usernam
 DO $$
 DECLARE tbl TEXT; seq TEXT;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY['roles', 'accounts', 'customers', 'otp_tokens', 'push_subscriptions', 'farms', 'customer_contacts', 'product_types', 'suppliers', 'warehouse_categories', 'measurement_units', 'brands', 'specifications', 'product_categories', 'inventory_items', 'internal_stock_categories', 'transfer_categories', 'internal_stock_vouchers', 'internal_stock_voucher_items', 'internal_stock_voucher_numbers', 'purchase_tags', 'purchase_invoices', 'purchase_invoice_items', 'purchase_payments', 'farm_areas', 'barns', 'barn_workers', 'farming_cycles', 'flocks', 'flock_movements', 'feed_records', 'weight_samples', 'cycle_expenses', 'cycle_carried_expenses', 'farming_programs', 'farming_program_steps', 'daily_task_logs', 'work_tasks', 'work_task_checks', 'sales_invoice_numbers', 'ai_interaction_logs'] LOOP
+  FOREACH tbl IN ARRAY ARRAY['roles', 'accounts', 'customers', 'otp_tokens', 'push_subscriptions', 'farms', 'customer_contacts', 'product_types', 'suppliers', 'warehouse_categories', 'measurement_units', 'brands', 'specifications', 'product_categories', 'inventory_items', 'internal_stock_categories', 'transfer_categories', 'internal_stock_vouchers', 'internal_stock_voucher_items', 'internal_stock_voucher_numbers', 'purchase_tags', 'purchase_invoices', 'purchase_invoice_items', 'purchase_payments', 'farm_areas', 'barns', 'barn_workers', 'farming_cycles', 'flocks', 'flock_movements', 'feed_records', 'weight_samples', 'cycle_expenses', 'cycle_carried_expenses', 'cycle_diseases', 'disease_treatment_logs', 'farming_programs', 'farming_program_steps', 'daily_task_logs', 'work_tasks', 'work_task_checks', 'sales_invoice_numbers', 'ai_interaction_logs'] LOOP
     seq := pg_get_serial_sequence(tbl, 'id');
     IF seq IS NOT NULL THEN
       EXECUTE format('SELECT setval(%L, COALESCE((SELECT MAX(id) FROM %I), 1))', seq, tbl);

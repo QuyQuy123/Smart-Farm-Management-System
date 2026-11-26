@@ -9,7 +9,7 @@ import {
     Users, BarChart3, Layers, Settings, Sliders, Radio,
     Utensils, HeartPulse, Thermometer, CheckSquare, X,
     CheckCircle, AlertTriangle, AlertCircle, ListChecks,
-    ChevronLeft, MoreHorizontal
+    ChevronLeft, MoreHorizontal, History
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification, formatNotificationTime, renderNotificationContent } from '../context/NotificationContext';
@@ -320,7 +320,9 @@ export const FarmShiftLayout = ({
     );
 
     // Area and barn pages keep the "Khu nuôi" item highlighted; their sub-navigation is a tab bar on the page.
-    const inAreaPages = location.pathname.startsWith('/areas') || location.pathname.startsWith('/barns');
+    const inAreaPages = location.pathname.startsWith('/areas')
+        || location.pathname.startsWith('/barns')
+        || location.pathname.startsWith('/cycles/history');
 
     // "Trang trại Miền Bình" -> "MB": the last two words of the farm name, shown beside the wordmark.
     const farmInitials = (farmInfo?.name || '').trim().split(/\s+/).slice(-2)
@@ -339,6 +341,7 @@ export const FarmShiftLayout = ({
     const navMenuItems = [
         { id: 'dashboard', label: 'Bảng tin', path: '/dashboard', icon: LayoutDashboard, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'areas', label: 'Khu nuôi', path: '/areas', icon: Warehouse, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
+        { id: 'cycle-history', label: 'Lịch sử lứa nuôi', path: '/cycles/history', icon: History, roles: ['ROLE_ACCOUNTANT'] },
         { id: 'today-tasks', label: 'Việc hôm nay', path: '/today-tasks', icon: ListChecks, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
         { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
         { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },

@@ -35,7 +35,15 @@ public class DailyPlanService {
     private static final BigDecimal FEED_TOLERANCE = new BigDecimal("0.10");
     private static final BigDecimal DOSE_TOLERANCE = new BigDecimal("0.01");
     private static final List<ProgramStepCategory> ORDER = List.of(ProgramStepCategory.FEED, ProgramStepCategory.VACCINE,
-            ProgramStepCategory.MEDICINE, ProgramStepCategory.TEMPERATURE, ProgramStepCategory.WORK);
+            ProgramStepCategory.DRINKING_MEDICINE, ProgramStepCategory.MEDICINE, ProgramStepCategory.CARE_PROCEDURE,
+            ProgramStepCategory.TEMPERATURE, ProgramStepCategory.WORK);
+
+    private static boolean isMeasured(ProgramStepCategory category) {
+        return category == ProgramStepCategory.FEED
+                || category == ProgramStepCategory.MEDICINE
+                || category == ProgramStepCategory.DRINKING_MEDICINE
+                || category == ProgramStepCategory.VACCINE;
+    }
 
     private final CycleService cycleService;
     private final FarmingCycleRepository cycleRepository;
@@ -257,8 +265,7 @@ public class DailyPlanService {
         Planned task = compute(cycle, day, workerEmail).tasks().stream().filter(item -> item.key.equals(request.taskKey())).findFirst()
                 .orElseThrow(() -> new BadRequestException("Việc không có trong phiếu việc ngày " + format(day) + ".", "DAILY_TASK_NOT_FOUND"));
 
-        boolean measured = task.category == ProgramStepCategory.FEED || task.category == ProgramStepCategory.MEDICINE
-                || task.category == ProgramStepCategory.VACCINE;
+        boolean measured = isMeasured(task.category);
         BigDecimal actual = !measured ? null : request.actualQuantity() != null ? request.actualQuantity().setScale(3, RoundingMode.HALF_UP) : task.total;
         if (measured && actual == null) {
             throw new BadRequestException("Chưa tính được lượng theo kế hoạch cho " + task.name + ". Hãy nhập lượng thực tế.", "DAILY_TASK_QUANTITY_REQUIRED");
@@ -517,8 +524,7 @@ public class DailyPlanService {
         List<Planned> tasks = new ArrayList<>();
         for (Planned group : groups.values()) {
             if (resolveStock) {
-                boolean measured = group.category == ProgramStepCategory.FEED || group.category == ProgramStepCategory.MEDICINE
-                        || group.category == ProgramStepCategory.VACCINE;
+                boolean measured = isMeasured(group.category);
                 if (measured && (group.unknown || group.unit == null)) {
                     group.unknown = true;
                     warnings.add(label(group.category) + " \"" + group.name + "\": chưa tính được lượng vì thiếu liều, đơn vị liều chưa rõ hoặc không có cám để trộn.");
@@ -553,8 +559,7 @@ public class DailyPlanService {
         }
         if (resolveStock) {
             for (Planned task : tasks) {
-                boolean measured = task.category == ProgramStepCategory.FEED || task.category == ProgramStepCategory.MEDICINE
-                        || task.category == ProgramStepCategory.VACCINE;
+                boolean measured = isMeasured(task.category);
                 if (task.category == ProgramStepCategory.FEED && task.unit != null) continue;
                 task.total = !measured || task.unknown || task.unit == null ? null
                         : task.shares.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add).setScale(3, RoundingMode.HALF_UP);
@@ -584,15 +589,16 @@ public class DailyPlanService {
         switch (step.getCategory()) {
             case FEED:
                 return grams(step.getQuantity(), flockDay.heads()).divide(BigDecimal.valueOf(1000), 3, RoundingMode.HALF_UP);
-            case MEDICINE, VACCINE: {
+            case MEDICINE, DRINKING_MEDICINE, VACCINE: {
                 UsageMath.Basis basis = UsageMath.basis(step.getCategory(), step.getUnit());
                 if (basis == null || UsageMath.usageUnit(step.getCategory(), step.getUnit()) == null) return null;
                 BigDecimal base = switch (basis) {
                     case PER_HEAD -> BigDecimal.valueOf(flockDay.heads());
+                    case PER_1000_HEADS -> BigDecimal.valueOf(flockDay.heads()).divide(BigDecimal.valueOf(1000), 6, RoundingMode.HALF_UP);
                     case PER_FEED_KG -> feedKg;
                     case PER_WATER_LITER -> feedKg.multiply(UsageMath.WATER_LITERS_PER_FEED_KG);
                 };
-                if (base.signum() == 0 && basis != UsageMath.Basis.PER_HEAD) return null;
+                if (base.signum() == 0 && basis != UsageMath.Basis.PER_HEAD && basis != UsageMath.Basis.PER_1000_HEADS) return null;
                 return step.getQuantity().multiply(base).setScale(3, RoundingMode.HALF_UP);
             }
             default:
@@ -604,7 +610,10 @@ public class DailyPlanService {
 
     /** Việc cùng hàng hóa (hoặc cùng tên khi chưa gắn hàng hóa) của các đàn được gộp làm một. */
     private static String identity(FarmingProgramStep step) {
-        if (step.getInventoryItem() != null && step.getCategory() != ProgramStepCategory.TEMPERATURE && step.getCategory() != ProgramStepCategory.WORK) {
+        if (step.getInventoryItem() != null
+                && step.getCategory() != ProgramStepCategory.TEMPERATURE
+                && step.getCategory() != ProgramStepCategory.WORK
+                && step.getCategory() != ProgramStepCategory.CARE_PROCEDURE) {
             return "I" + step.getInventoryItem().getId();
         }
         String name = step.getName().strip().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
@@ -816,8 +825,10 @@ public class DailyPlanService {
     private static String label(ProgramStepCategory category) {
         return switch (category) {
             case FEED -> "Cám";
-            case MEDICINE -> "Thuốc";
+            case MEDICINE -> "Thuốc trộn";
+            case DRINKING_MEDICINE -> "Lịch uống thuốc";
             case VACCINE -> "Vắc-xin";
+            case CARE_PROCEDURE -> "Thủ thuật";
             case TEMPERATURE -> "Nhiệt độ";
             case WORK -> "Công việc";
         };

@@ -4,6 +4,17 @@
 .panelHeader h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 600; color: #182b31; }
 .panelHeader h2 svg { color: #008577; }
 .panelHeader p { margin: 6px 0 0; max-width: 720px; font-size: 14.5px; color: #607781; line-height: 1.5; }
+.headerActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feedRationGroup { display: flex; flex-direction: column; gap: 4px; }
+.feedRationInputs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.convertedHint { font-size: 12.5px; color: #16794a; font-weight: 500; }
+.excelDrop { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; margin-bottom: 14px; border: 1px dashed #8fcdb8; border-radius: 10px; background: #f6fbf9; }
+.excelPickerLabel { display: inline-flex !important; align-items: center; gap: 8px; margin: 0 !important; font-weight: 600 !important; color: #1b4332 !important; }
+.excelInput { font-size: 14px; }
+.previewBox { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+.previewHeader { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: #e3f6ec; color: #16794a; }
+.previewHeader strong { display: block; color: #182b31; font-size: 15px; }
+.previewHeader span { font-size: 13.5px; color: #2d6a4f; }
 .empty { margin: 0; padding: 40px 24px; text-align: center; font-size: 14.5px; color: #71818a; }
 .empty p { margin: 0 0 14px; }
 .muted { margin: 0; font-size: 14.5px; color: #9aa7ae; }
