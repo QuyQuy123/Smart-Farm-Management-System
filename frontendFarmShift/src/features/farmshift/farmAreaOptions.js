@@ -97,6 +97,8 @@ export const FEED_INPUT_MODES = [
 ];
 
 export const DEFAULT_BAG_WEIGHT_KG = 25;
+export const MAX_STEP_QUANTITY = 99999999999.999;
+export const MAX_BAG_WEIGHT_KG = 9999999.999;
 
 /** Quy đổi định mức cám từ bao/1.000 con/giai đoạn sang g/con/ngày (làm tròn 3 chữ số thập phân). */
 export const bagsToGramPerBirdDay = (bagsPer1000Birds, bagWeightKg, dayFrom, dayTo) => {
@@ -238,19 +240,31 @@ export const validateProgram = draft => {
           ? 'Cần định mức (bao/1.000 con) lớn hơn 0 và số cữ ăn từ 1 đến 8.'
           : 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
       } else if (bagsMode) {
+        const converted = bagsToGramPerBirdDay(step.bagsPer1000Birds, step.bagWeightKg, step.dayFrom, step.dayTo);
         if (!positive(step.bagsPer1000Birds) || (step.bagWeightKg !== '' && !positive(step.bagWeightKg))) {
           message = 'Cần định mức (bao/1.000 con) lớn hơn 0 và trọng lượng bao hợp lệ.';
+        } else if (Number(step.bagsPer1000Birds) > MAX_STEP_QUANTITY
+          || (step.bagWeightKg !== '' && Number(step.bagWeightKg) > MAX_BAG_WEIGHT_KG)
+          || (converted != null && converted > MAX_STEP_QUANTITY)) {
+          message = 'Định mức hoặc trọng lượng bao vượt giới hạn tối đa cho phép.';
         }
       } else if (!positive(step.quantity)) {
         message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
+      } else if (Number(step.quantity) > MAX_STEP_QUANTITY) {
+        message = 'Định mức vượt giới hạn tối đa cho phép.';
       }
     } else if (step.category === 'VACCINE' && !VACCINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng vắc-xin.';
+    else if (step.category === 'VACCINE' && step.quantity !== '' && step.quantity != null && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
     else if (step.category === 'MEDICINE' && !MEDICINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng thuốc (trộn cám hoặc pha nước).';
     else if (step.category === 'MEDICINE' && (!positive(step.quantity) || !step.unit.trim())) message = 'Cần liều lượng và đơn vị (ví dụ 2 g/kg cám).';
+    else if (step.category === 'MEDICINE' && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
     else if (step.category === 'DRINKING_MEDICINE' && !DRINKING_MEDICINE_METHODS.some(item => item.value === step.method)) message = 'Chọn phương thức uống thuốc (bình xách tay hoặc hệ thống uống tự động).';
     else if (step.category === 'DRINKING_MEDICINE' && (!positive(step.quantity) || !step.unit.trim())) message = 'Cần liều lượng và đơn vị (ví dụ 0,5 gói/1000 con, 1 g/lít nước).';
-    else if (step.category === 'TEMPERATURE' && !(step.tempMin !== '' && step.tempMax !== '' && Number(step.tempMin) < Number(step.tempMax))) {
-      message = 'Nhiệt độ thấp nhất phải nhỏ hơn nhiệt độ cao nhất.';
+    else if (step.category === 'DRINKING_MEDICINE' && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
+    else if (step.category === 'CARE_PROCEDURE' && step.quantity !== '' && step.quantity != null && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
+    else if (step.category === 'TEMPERATURE' && !(step.tempMin !== '' && step.tempMax !== ''
+      && Number(step.tempMin) >= 10 && Number(step.tempMax) <= 45 && Number(step.tempMin) < Number(step.tempMax))) {
+      message = 'Nhiệt độ phải từ 10 đến 45°C và thấp nhất phải nhỏ hơn cao nhất.';
     }
     if (message) steps[index] = message;
   });
@@ -293,15 +307,24 @@ export const STEP_STATES = {
   UPCOMING: { label: 'Sắp tới', tone: 'info' },
 };
 
-export const todayIso = () => {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+export const VN_TIME_ZONE = 'Asia/Bangkok';
+
+export const todayIso = (now = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: VN_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const year = parts.find(part => part.type === 'year')?.value;
+  const month = parts.find(part => part.type === 'month')?.value;
+  const day = parts.find(part => part.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
 };
 
 export const addDaysIso = (iso, days) => {
-  const date = new Date(`${iso}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const [year, month, day] = String(iso).slice(0, 10).split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 };
 
 export const formatDay = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';

@@ -28,7 +28,9 @@ public class DailyStockAllocationSchemaUpgrade implements ApplicationRunner {
 
     private void ensureNumericScale6(String table, String column) {
         Integer scale = jdbc.query(
-                "SELECT numeric_scale FROM information_schema.columns WHERE LOWER(table_name) = ? AND LOWER(column_name) = ? LIMIT 1",
+                "SELECT numeric_scale FROM information_schema.columns "
+                        + "WHERE LOWER(table_schema) = COALESCE(LOWER(CURRENT_SCHEMA()), 'public') "
+                        + "AND LOWER(table_name) = ? AND LOWER(column_name) = ? LIMIT 1",
                 rs -> rs.next() ? (Integer) rs.getObject(1) : null,
                 table, column
         );

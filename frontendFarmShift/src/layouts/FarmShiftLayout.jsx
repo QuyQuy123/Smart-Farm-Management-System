@@ -432,6 +432,7 @@ export const FarmShiftLayout = ({
             location.pathname === itemPathOnly
             || (itemPathOnly === '/dashboard' && location.pathname === '/')
             || (item.id === 'areas' && inAreaPages)
+            || (item.id === 'cycle-history' && userRole === 'ROLE_ACCOUNTANT' && location.pathname.startsWith('/barns'))
             || (item.id === 'transfers' && location.pathname === '/internal-stock')
         );
     };

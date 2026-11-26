@@ -28,6 +28,10 @@ public class FarmingProgramService {
     public static final String FEED_MODE_GRAM = "GRAM_PER_BIRD_DAY";
     public static final String FEED_MODE_BAGS = "BAGS_PER_1000_BIRDS";
     public static final BigDecimal DEFAULT_BAG_WEIGHT_KG = new BigDecimal("25.000");
+    /** Giới hạn cột NUMERIC(14,3) trên farming_program_steps (quantity, bags_per_1000_birds). */
+    public static final BigDecimal MAX_STEP_QUANTITY = new BigDecimal("99999999999.999");
+    /** Giới hạn cột NUMERIC(10,3) trên farming_program_steps (bag_weight_kg). */
+    public static final BigDecimal MAX_BAG_WEIGHT_KG = new BigDecimal("9999999.999");
 
     public static final Set<AdministrationMethod> VACCINE_METHODS = EnumSet.of(AdministrationMethod.EYE_NOSE, AdministrationMethod.MOUTH,
             AdministrationMethod.DRINKING_WATER, AdministrationMethod.INJECTION, AdministrationMethod.WING_WEB);
@@ -136,20 +140,20 @@ public class FarmingProgramService {
                     step.setBagWeightKg(bagWeight);
                     step.setBagsPer1000Birds(bags);
                 } else {
-                    step.setQuantity(item.quantity());
+                    step.setQuantity(item.quantity() == null ? null : item.quantity().setScale(3, RoundingMode.HALF_UP));
                     step.setFeedInputMode(FEED_MODE_GRAM);
                 }
                 step.setUnit("g/con/ngày");
                 step.setMealsPerDay(item.mealsPerDay());
             }
             case VACCINE, MEDICINE, DRINKING_MEDICINE -> {
-                step.setQuantity(item.quantity());
+                step.setQuantity(item.quantity() == null ? null : item.quantity().setScale(3, RoundingMode.HALF_UP));
                 step.setUnit(clean(item.unit()));
                 step.setMethod(item.method());
             }
             case CARE_PROCEDURE -> {
                 step.setMethod(item.method() != null ? item.method() : AdministrationMethod.PROCEDURE);
-                step.setQuantity(item.quantity());
+                step.setQuantity(item.quantity() == null ? null : item.quantity().setScale(3, RoundingMode.HALF_UP));
                 step.setUnit(clean(item.unit()));
             }
             case TEMPERATURE -> { step.setTempMin(item.tempMin()); step.setTempMax(item.tempMax()); }
@@ -195,7 +199,15 @@ public class FarmingProgramService {
         return item;
     }
 
-    private static void validate(FarmingProgramRequest request) {
+    static void validate(FarmingProgramRequest request) {
+        if (request.targetWeightMin() != null
+                && (request.targetWeightMin().compareTo(new BigDecimal("0.01")) < 0 || request.targetWeightMin().compareTo(new BigDecimal("20")) > 0)) {
+            throw new BadRequestException("Cân nặng mục tiêu phải từ 0,01 đến 20 kg.", "PROGRAM_WEIGHT_RANGE");
+        }
+        if (request.targetWeightMax() != null
+                && (request.targetWeightMax().compareTo(new BigDecimal("0.01")) < 0 || request.targetWeightMax().compareTo(new BigDecimal("20")) > 0)) {
+            throw new BadRequestException("Cân nặng mục tiêu phải từ 0,01 đến 20 kg.", "PROGRAM_WEIGHT_RANGE");
+        }
         if (request.targetWeightMin() != null && request.targetWeightMax() != null
                 && request.targetWeightMin().compareTo(request.targetWeightMax()) > 0) {
             throw new BadRequestException("Cân nặng mục tiêu tối thiểu phải nhỏ hơn hoặc bằng tối đa.", "PROGRAM_WEIGHT_RANGE");
@@ -210,6 +222,12 @@ public class FarmingProgramService {
                 throw new BadRequestException(label + ": ngày tuổi " + step.dayTo() + " vượt thời gian nuôi " + request.durationDays() + " ngày.",
                         "PROGRAM_STEP_OUT_OF_DURATION");
             }
+            if (step.quantity() != null && step.quantity().setScale(3, RoundingMode.HALF_UP).compareTo(MAX_STEP_QUANTITY) > 0) {
+                throw new BadRequestException(label + ": định mức vượt giới hạn tối đa cho phép.", "PROGRAM_QUANTITY_OVERFLOW");
+            }
+            if (step.unit() != null && step.unit().strip().length() > 50) {
+                throw new BadRequestException(label + ": đơn vị không quá 50 ký tự.", "PROGRAM_UNIT_TOO_LONG");
+            }
             switch (step.category()) {
                 case FEED -> {
                     boolean bagsMode = FEED_MODE_BAGS.equalsIgnoreCase(step.feedInputMode());
@@ -221,11 +239,21 @@ public class FarmingProgramService {
                         if (step.bagsPer1000Birds() == null || step.bagsPer1000Birds().signum() <= 0 || step.mealsPerDay() == null) {
                             throw new BadRequestException(label + ": cần nhập định mức (bao/1.000 con) lớn hơn 0 và số cữ ăn trong ngày.", "PROGRAM_FEED_INCOMPLETE");
                         }
+                        if (step.bagsPer1000Birds().setScale(3, RoundingMode.HALF_UP).compareTo(MAX_STEP_QUANTITY) > 0) {
+                            throw new BadRequestException(label + ": định mức bao/1.000 con vượt giới hạn tối đa cho phép.", "PROGRAM_QUANTITY_OVERFLOW");
+                        }
                         if (step.bagWeightKg() != null && step.bagWeightKg().signum() <= 0) {
                             throw new BadRequestException(label + ": khối lượng 1 bao cám phải lớn hơn 0.", "PROGRAM_FEED_INCOMPLETE");
                         }
-                        if (toGramPerBirdPerDay(step.bagsPer1000Birds(), step.bagWeightKg(), step.dayFrom(), step.dayTo()).signum() <= 0) {
+                        if (step.bagWeightKg() != null && step.bagWeightKg().setScale(3, RoundingMode.HALF_UP).compareTo(MAX_BAG_WEIGHT_KG) > 0) {
+                            throw new BadRequestException(label + ": khối lượng 1 bao cám vượt giới hạn tối đa cho phép.", "PROGRAM_QUANTITY_OVERFLOW");
+                        }
+                        BigDecimal converted = toGramPerBirdPerDay(step.bagsPer1000Birds(), step.bagWeightKg(), step.dayFrom(), step.dayTo());
+                        if (converted.signum() <= 0) {
                             throw new BadRequestException(label + ": định mức sau quy đổi phải lớn hơn 0 g/con/ngày.", "PROGRAM_FEED_INCOMPLETE");
+                        }
+                        if (converted.compareTo(MAX_STEP_QUANTITY) > 0) {
+                            throw new BadRequestException(label + ": định mức sau quy đổi vượt giới hạn tối đa cho phép.", "PROGRAM_QUANTITY_OVERFLOW");
                         }
                     } else if (step.quantity() == null || step.quantity().signum() <= 0 || step.mealsPerDay() == null) {
                         throw new BadRequestException(label + ": cần nhập định mức (g/con/ngày) lớn hơn 0 và số cữ ăn trong ngày.", "PROGRAM_FEED_INCOMPLETE");
@@ -259,8 +287,9 @@ public class FarmingProgramService {
                     }
                 }
                 case TEMPERATURE -> {
-                    if (step.tempMin() == null || step.tempMax() == null || step.tempMin().compareTo(step.tempMax()) >= 0) {
-                        throw new BadRequestException(label + ": nhiệt độ thấp nhất phải nhỏ hơn nhiệt độ cao nhất.", "PROGRAM_TEMPERATURE_RANGE");
+                    if (step.tempMin() == null || step.tempMax() == null || step.tempMin().compareTo(step.tempMax()) >= 0
+                            || step.tempMin().compareTo(new BigDecimal("10")) < 0 || step.tempMax().compareTo(new BigDecimal("45")) > 0) {
+                        throw new BadRequestException(label + ": nhiệt độ phải từ 10 đến 45°C và thấp nhất nhỏ hơn cao nhất.", "PROGRAM_TEMPERATURE_RANGE");
                     }
                 }
                 case WORK -> throw new BadRequestException("Chương trình nuôi chỉ gồm cám, lịch uống thuốc, vắc-xin, thủ thuật và thuốc trộn. "

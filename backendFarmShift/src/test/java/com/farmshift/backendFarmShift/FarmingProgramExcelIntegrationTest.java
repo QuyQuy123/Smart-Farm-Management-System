@@ -56,6 +56,9 @@ class FarmingProgramExcelIntegrationTest {
     @Autowired InventoryItemRepository inventoryRepository;
     @Autowired CycleExpenseRepository expenseRepository;
     @Autowired DailyPlanService dailyPlanService;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Autowired com.farmshift.backendFarmShift.config.FarmingProgramUpgradeSchemaRunner schemaRunner;
+    @Autowired com.farmshift.backendFarmShift.config.DailyStockAllocationSchemaUpgrade stockSchemaRunner;
 
     @Test
     void templatePreviewCommitAndExportRoundTripWorks() throws Exception {
@@ -310,5 +313,75 @@ class FarmingProgramExcelIntegrationTest {
         dailyPlanService.undo(cycle.getId(), today, drinkTask.key(), "owner@farm.test", true, true);
         assertThat(inventoryRepository.findById(lot.getId()).orElseThrow().getStock()).isEqualByComparingTo("10.000000");
         assertThat(expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(cycle.getId())).isEmpty();
+    }
+
+    @Test
+    void rejectsNumericUpperBoundOverflowInExcelPreviewCommitAndJsonApiAndScopesSchemaUpgrade() throws Exception {
+        byte[] templateBytes = mvc.perform(get(API + "/excel-template")).andReturn().getResponse().getContentAsByteArray();
+
+        // 1. Excel workbook with overflowing DinhMuc, TrongLuongBaoKg, converted bags*weight, and LieuLuong
+        try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(templateBytes))) {
+            wb.getSheet(FarmingProgramExcelService.SHEET_INFO).getRow(1).getCell(0).setCellValue("CT Tràn Số");
+            // Row 1: bags=10_000_000_000 (<= 1e11) * bagWeight=50 (<= 1e7) / 1 day = 500_000_000_000 (> NUMERIC(14,3))
+            Row feed1 = wb.getSheet(FarmingProgramExcelService.SHEET_FEED).getRow(1);
+            feed1.getCell(1).setCellValue(1);
+            feed1.getCell(4).setCellValue(10_000_000_000d);
+            feed1.getCell(5).setCellValue(50d);
+            // Row 2: bagWeight exceeds NUMERIC(10,3)
+            Row feed2 = wb.getSheet(FarmingProgramExcelService.SHEET_FEED).getRow(2);
+            feed2.getCell(5).setCellValue(99_999_999d);
+            // Drinking row 1: LieuLuong exceeds NUMERIC(14,3)
+            wb.getSheet(FarmingProgramExcelService.SHEET_DRINKING).getRow(1).getCell(4).setCellValue(1e12);
+            // Vaccine row 1: DonVi exceeds VARCHAR(50) -> must fail in BOTH preview and commit (never 200 preview / 409 commit)
+            wb.getSheet(FarmingProgramExcelService.SHEET_VACCINE).getRow(1).getCell(6).setCellValue("x".repeat(55));
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            wb.write(baos);
+            MockMultipartFile overflowFile = new MockMultipartFile("file", "overflow.xlsx", XLSX_MIME, baos.toByteArray());
+
+            for (String mode : List.of("preview", "commit")) {
+                String resp = mvc.perform(multipart(API + "/import-excel").file(overflowFile).param("mode", mode))
+                        .andExpect(status().isUnprocessableEntity())
+                        .andExpect(jsonPath("$.errorCode").value("EXCEL_VALIDATION_FAILED"))
+                        .andExpect(jsonPath("$.data.valid").value(false))
+                        .andReturn().getResponse().getContentAsString();
+                JsonNode errors = mapper.readTree(resp).path("data").path("errors");
+                assertThat(errors.size()).isGreaterThanOrEqualTo(4);
+            }
+        }
+
+        // 2. Direct JSON API rejects overflowing quantity / bagWeightKg / converted quantity with 400 Bad Request (not 500 or 409)
+        Map<String, Object> badJson = Map.of(
+                "name", "CT JSON Tràn Số",
+                "breed", "Gà ta",
+                "durationDays", 30,
+                "steps", List.of(
+                        Map.of("category", "FEED", "name", "Cám 1", "dayFrom", 1, "dayTo", 1,
+                                "feedInputMode", "BAGS_PER_1000_BIRDS",
+                                "bagsPer1000Birds", new BigDecimal("10000000000"),
+                                "bagWeightKg", new BigDecimal("50"),
+                                "mealsPerDay", 3)
+                )
+        );
+        mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(badJson)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("PROGRAM_QUANTITY_OVERFLOW"));
+
+        // 3. Schema runners scope information_schema.columns to CURRENT_SCHEMA() (ignoring other schemas)
+        jdbcTemplate.execute("CREATE SCHEMA IF NOT EXISTS other_schema_test");
+        try {
+            jdbcTemplate.execute("CREATE TABLE other_schema_test.farming_program_steps (feed_input_mode VARCHAR(64))");
+            jdbcTemplate.execute("CREATE TABLE other_schema_test.inventory_items (stock NUMERIC(19,6))");
+            schemaRunner.run(new org.springframework.boot.DefaultApplicationArguments());
+            stockSchemaRunner.run(new org.springframework.boot.DefaultApplicationArguments());
+            Integer modeLen = jdbcTemplate.queryForObject(
+                    "SELECT character_maximum_length FROM information_schema.columns "
+                            + "WHERE LOWER(table_schema) = COALESCE(LOWER(CURRENT_SCHEMA()), 'public') "
+                            + "AND LOWER(table_name) = 'farming_program_steps' AND LOWER(column_name) = 'feed_input_mode'",
+                    Integer.class);
+            assertThat(modeLen).isEqualTo(30);
+        } finally {
+            jdbcTemplate.execute("DROP SCHEMA IF EXISTS other_schema_test CASCADE");
+        }
     }
 }

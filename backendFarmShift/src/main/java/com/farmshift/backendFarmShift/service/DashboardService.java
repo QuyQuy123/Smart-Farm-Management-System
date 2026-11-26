@@ -215,7 +215,9 @@ public class DashboardService {
                 if (!UPCOMING_KINDS.contains(step.category()) || inDays < 1 || inDays > UPCOMING_DAYS) continue;
                 String title = switch (step.category()) {
                     case VACCINE -> "Vắc-xin " + step.name();
+                    case DRINKING_MEDICINE -> "Uống thuốc " + step.name();
                     case MEDICINE -> "Thuốc " + step.name();
+                    case CARE_PROCEDURE -> "Thủ thuật: " + step.name();
                     default -> "Đổi cám: " + step.name();
                 };
                 result.add(new Upcoming(dateOfDay.apply(step.dayFrom()), inDays, plan.barnId(), plan.barnName(), step.category().name(),

@@ -2,6 +2,7 @@ package com.farmshift.backendFarmShift.controller;
 
 import com.farmshift.backendFarmShift.dto.request.CycleDiseaseRequest;
 import com.farmshift.backendFarmShift.dto.request.CycleDiseaseUpdateRequest;
+import com.farmshift.backendFarmShift.dto.request.DiseaseTreatmentCostRequest;
 import com.farmshift.backendFarmShift.dto.request.DiseaseTreatmentRequest;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleDiseaseResponse;
@@ -103,6 +104,17 @@ public class CycleDiseaseController {
         }
         return ApiResponse.success("Đã ghi nhận lần dùng thuốc",
                 diseaseService.addTreatment(cycleId, diseaseId, request, auth.getName(), CycleController.canSeeFinance(auth)));
+    }
+
+    @PutMapping("/{diseaseId}/treatments/{treatmentId}/cost")
+    @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT')")
+    public ApiResponse<CycleDiseaseResponse> updateTreatmentCost(@PathVariable Long cycleId,
+                                                                 @PathVariable Long diseaseId,
+                                                                 @PathVariable Long treatmentId,
+                                                                 @Valid @RequestBody DiseaseTreatmentCostRequest request,
+                                                                 Authentication auth) {
+        return ApiResponse.success("Đã cập nhật chi phí thuốc điều trị",
+                diseaseService.updateTreatmentCost(cycleId, diseaseId, treatmentId, request, auth.getName()));
     }
 
     @DeleteMapping("/{diseaseId}/treatments/{treatmentId}")

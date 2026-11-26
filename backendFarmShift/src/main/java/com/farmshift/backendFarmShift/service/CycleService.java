@@ -348,10 +348,24 @@ public class CycleService {
         if (end.isBefore(cycle.getStartDate()) || end.isAfter(today())) {
             throw new BadRequestException("Ngày kết thúc phải từ ngày bắt đầu lứa (" + format(cycle.getStartDate()) + ") đến hôm nay.", "CYCLE_END_DATE");
         }
+        LocalDate lastDiseaseStart = cycleDiseaseRepository != null ? cycleDiseaseRepository.lastStartDate(cycleId) : null;
+        LocalDate lastDiseaseEnd = cycleDiseaseRepository != null ? cycleDiseaseRepository.lastEndDate(cycleId) : null;
+        LocalDate lastTreatment = diseaseTreatmentLogRepository != null ? diseaseTreatmentLogRepository.lastTreatmentDate(cycleId) : null;
         LocalDate lastActivity = latest(movementRepository.lastMovementDate(cycleId), feedRepository.lastRecordDate(cycleId),
-                weightRepository.lastSampleDate(cycleId), expenseRepository.lastExpenseDate(cycleId));
+                weightRepository.lastSampleDate(cycleId), expenseRepository.lastExpenseDate(cycleId),
+                lastDiseaseStart, lastDiseaseEnd, lastTreatment);
         if (lastActivity != null && end.isBefore(lastActivity)) {
             throw new BadRequestException("Ngày kết thúc không được trước ngày ghi nhận cuối cùng của lứa (" + format(lastActivity) + ").", "CYCLE_END_DATE");
+        }
+        if (cycleDiseaseRepository != null) {
+            List<CycleDisease> activeDiseases = cycleDiseaseRepository.findAllByCycleIdAndStatus(cycleId, DiseaseStatus.ACTIVE);
+            if (!activeDiseases.isEmpty()) {
+                for (CycleDisease disease : activeDiseases) {
+                    disease.setStatus(DiseaseStatus.RECOVERED);
+                    disease.setEndDate(end);
+                }
+                cycleDiseaseRepository.saveAllAndFlush(activeDiseases);
+            }
         }
         cycle.setEndDate(end);
         cycle.setStatus(CycleStatus.CLOSED);

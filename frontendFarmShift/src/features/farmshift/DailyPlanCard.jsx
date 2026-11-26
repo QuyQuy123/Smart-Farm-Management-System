@@ -14,6 +14,7 @@ const SECTIONS = [
 const MEASURED = ['FEED', 'VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'];
 const money = value => `${Number(value || 0).toLocaleString('vi-VN')}đ`;
 const time = value => (value ? new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '');
+const sameEmail = (a, b) => Boolean(a && b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase());
 
 const title = task => (task.category === 'FEED' && task.meal ? `Cữ ${task.meal}${task.mealsPerDay ? `/${task.mealsPerDay}` : ''} · ${task.name}` : task.name);
 
@@ -57,7 +58,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     ...sourceExtra(task),
   }));
   const undo = task => run(task, () => onUndo(plan, task));
-  const canUndo = done => isOwner || (role === 'ROLE_FARM_WORKER' && done.doneBy === userEmail && plan.date === todayIso());
+  const canUndo = done => isOwner || (role === 'ROLE_FARM_WORKER' && sameEmail(done?.doneBy, userEmail) && plan.date === todayIso());
   // Việc được giao dùng khóa riêng ("A<id>") để báo lỗi / trạng thái đang lưu không lẫn với việc theo chương trình.
   const assignedKey = task => `A${task.id}`;
   const runAssigned = async (task, action) => {
@@ -175,7 +176,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
 
   const renderAssigned = (task, tagged = false) => {
     const busy = busyKey === `${plan.cycleId}:${assignedKey(task)}`;
-    const mine = isOwner || task.assignee.email === userEmail;
+    const mine = isOwner || sameEmail(task.assignee?.email, userEmail);
     // Chuồng chỉ có một người phụ trách và việc giao đúng người đó thì "Giao cho …" lặp lại phần Phụ trách ở đầu thẻ.
     const soleWorker = plan.workers?.length === 1 && plan.workers[0].id === task.assignee.id;
     const showTime = task.dueTime && !compact;

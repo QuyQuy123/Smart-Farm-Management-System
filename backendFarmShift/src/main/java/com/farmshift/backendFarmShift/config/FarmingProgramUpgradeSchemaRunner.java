@@ -32,7 +32,9 @@ public class FarmingProgramUpgradeSchemaRunner implements ApplicationRunner {
 
     private void ensureVarcharLength(String table, String column, int minLength) {
         Integer maxLen = jdbc.query(
-                "SELECT character_maximum_length FROM information_schema.columns WHERE LOWER(table_name) = ? AND LOWER(column_name) = ? LIMIT 1",
+                "SELECT character_maximum_length FROM information_schema.columns "
+                        + "WHERE LOWER(table_schema) = COALESCE(LOWER(CURRENT_SCHEMA()), 'public') "
+                        + "AND LOWER(table_name) = ? AND LOWER(column_name) = ? LIMIT 1",
                 rs -> rs.next() && rs.getObject(1) != null ? ((Number) rs.getObject(1)).intValue() : null,
                 table, column
         );

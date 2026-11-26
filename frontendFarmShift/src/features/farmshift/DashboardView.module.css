@@ -57,8 +57,11 @@ a.alertMain:hover { background: #f8fbfa; }
 .upText small { font-size: 12.5px; color: #607781; }
 .upcoming em { flex-shrink: 0; font-style: normal; font-size: 12.5px; font-weight: 600; color: #2d6a4f; }
 .kind { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border-radius: 8px; background: #e9f6ec; color: #2d6a4f; }
+.kind_FEED { background: #e9f6ec; color: #2d6a4f; }
 .kind_VACCINE { background: #e7edf9; color: #2f57a3; }
+.kind_DRINKING_MEDICINE { background: #e0f5f9; color: #0e7490; }
 .kind_MEDICINE { background: #fdecef; color: #b4234a; }
+.kind_CARE_PROCEDURE { background: #f3ecfb; color: #6d28d9; }
 .kind_HARVEST { background: #fff4d6; color: #a16207; }
 .upcoming em.restock_WARN { padding: 2px 9px; border-radius: 999px; background: #fff4d6; color: #a16207; }
 .upcoming em.restock_DANGER { padding: 2px 9px; border-radius: 999px; background: #fdecef; color: #b4234a; }

@@ -2,6 +2,7 @@ package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.dto.request.CycleDiseaseRequest;
 import com.farmshift.backendFarmShift.dto.request.CycleDiseaseUpdateRequest;
+import com.farmshift.backendFarmShift.dto.request.DiseaseTreatmentCostRequest;
 import com.farmshift.backendFarmShift.dto.request.DiseaseTreatmentRequest;
 import com.farmshift.backendFarmShift.dto.response.CycleDiseaseResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleDiseaseResponse.MedicineSource;
@@ -34,6 +35,9 @@ import static com.farmshift.backendFarmShift.service.CycleService.*;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CycleDiseaseService {
+    public static final BigDecimal MAX_STOCK_QUANTITY = new BigDecimal("9999999999999.999999");
+    public static final BigDecimal MAX_EXPENSE_AMOUNT = new BigDecimal("99999999999999");
+
     private final CycleService cycleService;
     private final CycleDiseaseRepository diseaseRepository;
     private final DiseaseTreatmentLogRepository treatmentRepository;
@@ -225,6 +229,9 @@ public class CycleDiseaseService {
                 throw new BadRequestException("Vui lòng nhập số lượng xuất kho lớn hơn 0.", "TREATMENT_QUANTITY_REQUIRED");
             }
             BigDecimal qty = request.stockQuantity().setScale(6, RoundingMode.HALF_UP);
+            if (qty.compareTo(MAX_STOCK_QUANTITY) > 0) {
+                throw new BadRequestException("Số lượng xuất kho vượt giới hạn cho phép.", "TREATMENT_QUANTITY_OVERFLOW");
+            }
 
             InventoryItem anchor = inventoryRepository.findWithDetailsById(request.inventoryItemId())
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thuốc trong kho."));
@@ -299,6 +306,10 @@ public class CycleDiseaseService {
             log.setCost(cost);
         }
 
+        if (cost.compareTo(MAX_EXPENSE_AMOUNT) > 0) {
+            throw new BadRequestException("Chi phí thuốc vượt giới hạn cho phép.", "TREATMENT_COST_OVERFLOW");
+        }
+
         if (cost.signum() > 0) {
             CycleExpense expense = new CycleExpense();
             expense.setCycle(cycle);
@@ -315,14 +326,84 @@ public class CycleDiseaseService {
         return toResponse(disease, logs, canSeeFinance);
     }
 
+    /**
+     * Cập nhật chi phí thủ công cho thuốc mua lẻ ngoài kho (ROLE_FARM_OWNER / ROLE_ACCOUNTANT).
+     * Đồng bộ tạo mới, cập nhật hoặc gỡ bỏ CycleExpense(MEDICINE) liên kết 1-1.
+     */
+    @Transactional
+    public CycleDiseaseResponse updateTreatmentCost(Long cycleId, Long diseaseId, Long treatmentId,
+                                                    DiseaseTreatmentCostRequest request, String user) {
+        FarmingCycle cycle = cycleService.requireActive(cycleId);
+        CycleDisease disease = diseaseRepository.findByIdAndCycleId(diseaseId, cycleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đợt bệnh."));
+        DiseaseTreatmentLog log = treatmentRepository.findByIdAndDiseaseIdForUpdate(treatmentId, diseaseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhật ký dùng thuốc."));
+        if (entityManager.contains(log)) {
+            entityManager.refresh(log);
+        }
+
+        if (log.getInventoryItem() != null || log.getStockQuantity() != null || !log.getStockAllocations().isEmpty()) {
+            throw new BadRequestException(
+                    "Chỉ cập nhật được chi phí thủ công cho thuốc mua lẻ ngoài kho. Thuốc xuất kho tự tính theo giá vốn FIFO.",
+                    "TREATMENT_FROM_STOCK");
+        }
+        if (request == null || request.manualCost() == null || request.manualCost().signum() < 0) {
+            throw new BadRequestException("Chi phí thuốc không được âm.", "TREATMENT_COST_INVALID");
+        }
+
+        BigDecimal cost = request.manualCost().setScale(0, RoundingMode.HALF_UP);
+        if (cost.compareTo(MAX_EXPENSE_AMOUNT) > 0) {
+            throw new BadRequestException("Chi phí thuốc vượt giới hạn cho phép.", "TREATMENT_COST_OVERFLOW");
+        }
+
+        if (cost.signum() > 0) {
+            log.setCost(cost);
+            CycleExpense expense = log.getExpense();
+            if (expense == null) {
+                expense = new CycleExpense();
+                expense.setCycle(cycle);
+                expense.setExpenseDate(log.getTreatmentDate());
+                expense.setCategory(ExpenseCategory.MEDICINE);
+                expense.setAmount(cost);
+                expense.setNote("Điều trị " + disease.getDiseaseName() + ": " + log.getMedicineName());
+                expense.setCreatedBy(user);
+                log.setExpense(expenseRepository.save(expense));
+            } else {
+                expense.setAmount(cost);
+                expense.setExpenseDate(log.getTreatmentDate());
+                expense.setCategory(ExpenseCategory.MEDICINE);
+                expense.setNote("Điều trị " + disease.getDiseaseName() + ": " + log.getMedicineName());
+                expenseRepository.save(expense);
+            }
+            treatmentRepository.saveAndFlush(log);
+        } else {
+            log.setCost(BigDecimal.ZERO);
+            CycleExpense oldExpense = log.getExpense();
+            if (oldExpense != null) {
+                log.setExpense(null);
+                treatmentRepository.saveAndFlush(log);
+                expenseRepository.delete(oldExpense);
+                expenseRepository.flush();
+            } else {
+                treatmentRepository.saveAndFlush(log);
+            }
+        }
+
+        List<DiseaseTreatmentLog> logs = treatmentRepository.findAllByDiseaseIdOrderByTreatmentDateAscIdAsc(diseaseId);
+        return toResponse(disease, logs, true);
+    }
+
     @Transactional
     public CycleDiseaseResponse deleteTreatment(Long cycleId, Long diseaseId, Long treatmentId,
                                                 String user, boolean isOwner, boolean canSeeFinance) {
         cycleService.requireActive(cycleId);
         CycleDisease disease = diseaseRepository.findByIdAndCycleId(diseaseId, cycleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đợt bệnh."));
-        DiseaseTreatmentLog log = treatmentRepository.findByIdAndDiseaseId(treatmentId, diseaseId)
+        DiseaseTreatmentLog log = treatmentRepository.findByIdAndDiseaseIdForUpdate(treatmentId, diseaseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhật ký dùng thuốc."));
+        if (entityManager.contains(log)) {
+            entityManager.refresh(log);
+        }
 
         if (!isOwner) {
             boolean own = log.getCreatedBy() != null && log.getCreatedBy().equalsIgnoreCase(user);

@@ -835,7 +835,7 @@ Entity: `CycleDisease`, `DiseaseTreatmentLog` & `@Embeddable DiseaseTreatmentSto
 | `inventory_item_id` | BIGINT | NOT NULL, FOREIGN KEY → `inventory_items.id`. Lô tồn kho thực tế đã trừ theo FIFO. |
 | `quantity` | NUMERIC(19,6) | NOT NULL. Số lượng đã trừ từ từng lô để hoàn trả 1:1 khi hoàn tác. |
 
-**API:** `GET /api/cycles/{cycleId}/diseases`, `GET /api/cycles/{cycleId}/diseases/medicine-sources`, `POST /api/cycles/{cycleId}/diseases`, `PUT /api/cycles/{cycleId}/diseases/{diseaseId}`, `DELETE /api/cycles/{cycleId}/diseases/{diseaseId}`, `POST /api/cycles/{cycleId}/diseases/{diseaseId}/treatments`, `DELETE /api/cycles/{cycleId}/diseases/{diseaseId}/treatments/{treatmentId}` (cùng `GET /api/cycles/history` tổng hợp số đợt bệnh & tiền thuốc của lứa `CLOSED`).
+**API:** `GET /api/cycles/{cycleId}/diseases`, `GET /api/cycles/{cycleId}/diseases/medicine-sources`, `POST /api/cycles/{cycleId}/diseases`, `PUT /api/cycles/{cycleId}/diseases/{diseaseId}`, `DELETE /api/cycles/{cycleId}/diseases/{diseaseId}`, `POST /api/cycles/{cycleId}/diseases/{diseaseId}/treatments`, `PUT /api/cycles/{cycleId}/diseases/{diseaseId}/treatments/{treatmentId}/cost`, `DELETE /api/cycles/{cycleId}/diseases/{diseaseId}/treatments/{treatmentId}` (cùng `GET /api/cycles/history` tổng hợp số đợt bệnh & tiền thuốc của lứa `CLOSED`).
 
 ### 6.9 Bảng `farming_programs` & `farming_program_steps` — Chương trình nuôi theo giống
 

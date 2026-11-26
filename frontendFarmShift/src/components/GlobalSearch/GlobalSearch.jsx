@@ -7,7 +7,7 @@ import {
   Search, X, LayoutDashboard, Warehouse, ClipboardList,
   Package, ArrowLeftRight, FileText, ShoppingCart,
   Users, BarChart3, Layers, Settings, Sliders, Fan, Thermometer,
-  HeartPulse, ShieldAlert, Zap, CornerDownLeft, Sparkles
+  HeartPulse, ShieldAlert, Zap, CornerDownLeft, Sparkles, History
 } from 'lucide-react';
 import styles from './GlobalSearch.module.css';
 
@@ -30,6 +30,15 @@ const SEARCHABLE_ITEMS = [
     path: '/areas',
     icon: Warehouse,
     keywords: ['khu nuoi', 'chuong', 'trai', 'khu mia', 'khu j', 'nha a', 'nha b']
+  },
+  {
+    id: 'cycle-history',
+    category: 'Chức năng chính',
+    title: 'Lịch sử lứa nuôi toàn trại',
+    description: 'Tra cứu lứa đã kết thúc, tỷ lệ sống, FCR, đợt bệnh và lãi/lỗ thực hiện',
+    path: '/cycles/history',
+    icon: History,
+    keywords: ['lich su lua', 'lua nuoi', 'da ket thuc', 'fcr', 'benh an', 'lai lo']
   },
   {
     id: 'journal-feed',
@@ -279,15 +288,21 @@ export const GlobalSearch = () => {
     }
   }, [isOpen]);
 
-  // Lọc theo Role người dùng
+  // Lọc theo Role người dùng khớp tuyệt đối với AppRouter.jsx
   const roleAllowedItems = SEARCHABLE_ITEMS.filter(item => {
     if (role === 'ROLE_FARM_WORKER') {
-      const blockedPaths = ['/dashboard', '/purchases', '/sales', '/account', '/reports', '/catalog-settings', '/breeding-settings', '/general-settings'];
+      const blockedPaths = [
+        '/dashboard', '/inventory', '/purchases', '/sales', '/account',
+        '/reports', '/iot', '/catalog-settings', '/breeding-settings', '/general-settings',
+      ];
       return !blockedPaths.includes(item.path);
     }
     if (role === 'ROLE_ACCOUNTANT') {
-      const blockedPaths = ['/today-tasks', '/areas', '/breeding-settings', '/general-settings'];
-      return !blockedPaths.includes(item.path);
+      const allowedPaths = [
+        '/dashboard', '/cycles/history', '/inventory', '/transfers',
+        '/internal-stock', '/purchases', '/sales', '/reports', '/profile', '/notifications',
+      ];
+      return allowedPaths.includes(item.path);
     }
     return true;
   });

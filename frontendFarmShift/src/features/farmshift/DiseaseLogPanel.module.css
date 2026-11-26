@@ -24,8 +24,11 @@
 .table th { text-align: left; padding: 7px 10px; background: #f6f9f8; color: #526770; font-weight: 600; white-space: nowrap; }
 .table td { padding: 7px 10px; border-top: 1px solid #edf1f0; color: #182b31; vertical-align: middle; }
 
+.rowActions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap; }
 .iconButton { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid #e2eae7; border-radius: 7px; background: #fff; color: #607781; cursor: pointer; }
 .iconButton:hover:not(:disabled) { color: #c63030; border-color: #f2bcbc; background: #fff0f0; }
+.editIconButton { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid #e2eae7; border-radius: 7px; background: #fff; color: #008577; cursor: pointer; }
+.editIconButton:hover:not(:disabled) { color: #00695c; border-color: #8fcdb8; background: #eef9f6; }
 
 .formBox { display: flex; flex-direction: column; gap: 12px; padding: 18px 22px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

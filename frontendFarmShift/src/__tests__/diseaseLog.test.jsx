@@ -11,6 +11,7 @@ vi.mock('../services/cycleDiseaseService', () => ({
   updateCycleDisease: vi.fn(),
   deleteCycleDisease: vi.fn(),
   addDiseaseTreatment: vi.fn(),
+  updateDiseaseTreatmentCost: vi.fn(),
   deleteDiseaseTreatment: vi.fn(),
 }));
 
@@ -186,5 +187,81 @@ describe('DiseaseLogPanel (OPS-02)', () => {
       />,
     );
     await waitFor(() => expect(service.listCycleDiseases.mock.calls.length).toBeGreaterThan(callsBefore));
+  });
+
+  it('lets accountant update cost on external treatments only and hides edit action from workers', async () => {
+    const diseaseWithExternalAndStock = {
+      ...sampleDisease(true),
+      totalMedicineCost: 260000,
+      treatments: [
+        ...sampleDisease(true).treatments,
+        {
+          id: 202,
+          treatmentDate: '2026-11-21',
+          medicineName: 'Toltrazuril mua ngoài',
+          method: 'HAND_DRINKER',
+          dosageText: '2 ml/lít nước',
+          inventoryItemId: null,
+          warehouseName: null,
+          unitName: null,
+          stockQuantity: null,
+          unitPrice: null,
+          cost: 0,
+          createdBy: 'worker@farm.test',
+        },
+      ],
+    };
+    service.listCycleDiseases.mockResolvedValue([diseaseWithExternalAndStock]);
+    service.updateDiseaseTreatmentCost.mockResolvedValue({
+      ...diseaseWithExternalAndStock,
+      totalMedicineCost: 410000,
+    });
+
+    const { unmount } = render(
+      <DiseaseLogPanel
+        cycle={cycle}
+        flocks={[]}
+        canDaily={false}
+        canFinance
+        isOwner={false}
+        userEmail="accountant@farm.test"
+        onChanged={onChanged}
+        showToast={showToast}
+      />,
+    );
+
+    expect(await screen.findByText('Toltrazuril mua ngoài')).toBeInTheDocument();
+    // Warehouse stock row must NOT show manual cost edit button
+    expect(screen.queryByRole('button', { name: 'Cập nhật tiền thuốc Baycox' })).not.toBeInTheDocument();
+
+    // External medicine row shows manual cost edit button for Accountant
+    const editBtn = screen.getByRole('button', { name: 'Cập nhật tiền thuốc Toltrazuril mua ngoài' });
+    fireEvent.click(editBtn);
+
+    const dialog = await screen.findByRole('dialog');
+    const costInput = within(dialog).getByLabelText(/Tiền thuốc \(VNĐ\)/);
+    fireEvent.change(costInput, { target: { value: '150000' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }));
+
+    await waitFor(() => expect(service.updateDiseaseTreatmentCost).toHaveBeenCalledWith(5, 101, 202, { manualCost: 150000 }));
+    expect(onChanged).toHaveBeenCalled();
+    unmount();
+
+    // Worker never sees cost edit button even on external treatments
+    service.listCycleDiseases.mockResolvedValue([{ ...diseaseWithExternalAndStock, totalMedicineCost: null }]);
+    render(
+      <DiseaseLogPanel
+        cycle={cycle}
+        flocks={[]}
+        canDaily
+        canFinance={false}
+        isOwner={false}
+        userEmail="worker@farm.test"
+        onChanged={onChanged}
+        showToast={showToast}
+      />,
+    );
+    expect(await screen.findByText('Toltrazuril mua ngoài')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Cập nhật tiền thuốc/ })).not.toBeInTheDocument();
   });
 });

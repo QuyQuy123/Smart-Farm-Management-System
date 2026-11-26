@@ -42,6 +42,10 @@ class CycleDiseaseIntegrationTest {
     @Autowired MeasurementUnitRepository unitRepository;
     @Autowired InventoryItemRepository inventoryRepository;
     @Autowired CycleExpenseRepository expenseRepository;
+    @Autowired CycleDiseaseRepository diseaseRepository;
+    @Autowired DiseaseTreatmentLogRepository treatmentLogRepository;
+    @Autowired com.farmshift.backendFarmShift.service.CycleDiseaseService cycleDiseaseService;
+    @Autowired org.springframework.transaction.PlatformTransactionManager txManager;
     @Autowired AccountRepository accountRepository;
     @Autowired RoleRepository roleRepository;
 
@@ -375,5 +379,302 @@ class CycleDiseaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(Map.of("diseaseName", "Test", "startDate", today.toString()))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "owner@farm.test", authorities = "ROLE_FARM_OWNER")
+    void closeCycleValidatesDiseaseAndZeroCostTreatmentDatesAndAutoRecoversActiveDiseases() throws Exception {
+        String base = "/api/cycles/" + cycle.getId() + "/diseases";
+
+        // Declare an ACTIVE disease starting at today - 4
+        String createdJson = mvc.perform(post(base)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "diseaseName", "Viêm ruột hoại tử",
+                                "startDate", today.minusDays(4).toString()
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long diseaseId = mapper.readTree(createdJson).path("data").path("id").asLong();
+
+        // Log a zero-cost external medicine treatment on today - 2 (no CycleExpense created)
+        mvc.perform(post(base + "/" + diseaseId + "/treatments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "treatmentDate", today.minusDays(2).toString(),
+                                "medicineName", "Amoxicillin mua lẻ"
+                        ))))
+                .andExpect(status().isCreated());
+        assertThat(expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(cycle.getId())).isEmpty();
+
+        // Closing before disease startDate (today - 5 < today - 4) must be rejected
+        mvc.perform(post("/api/cycles/" + cycle.getId() + "/close")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("endDate", today.minusDays(5).toString()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("CYCLE_END_DATE"));
+
+        // Closing before zero-cost treatmentDate (today - 3 < today - 2) must also be rejected
+        mvc.perform(post("/api/cycles/" + cycle.getId() + "/close")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("endDate", today.minusDays(3).toString()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("CYCLE_END_DATE"));
+
+        // Closing on valid date (today - 1) succeeds and transitions ACTIVE disease to RECOVERED with endDate = today - 1
+        LocalDate closeDate = today.minusDays(1);
+        mvc.perform(post("/api/cycles/" + cycle.getId() + "/close")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("endDate", closeDate.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CLOSED"));
+
+        mvc.perform(get(base))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("RECOVERED"))
+                .andExpect(jsonPath("$.data[0].endDate").value(closeDate.toString()))
+                .andExpect(jsonPath("$.data[0].treatmentDays").value(4));
+    }
+
+    @Test
+    void accountantAndOwnerCanUpdateExternalMedicineCostWhileBlockingWorkerStockAndOverflow() throws Exception {
+        String base = "/api/cycles/" + cycle.getId() + "/diseases";
+
+        // 1. Assigned worker creates disease and logs external medicine (cost = 0, no CycleExpense)
+        String diseaseJson = mvc.perform(post(base)
+                        .with(user("worker.assigned@farm.test").authorities(() -> "ROLE_FARM_WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "diseaseName", "Cầu trùng cấp",
+                                "startDate", today.minusDays(1).toString()
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long diseaseId = mapper.readTree(diseaseJson).path("data").path("id").asLong();
+
+        String extTreatJson = mvc.perform(post(base + "/" + diseaseId + "/treatments")
+                        .with(user("worker.assigned@farm.test").authorities(() -> "ROLE_FARM_WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "treatmentDate", today.minusDays(1).toString(),
+                                "medicineName", "Toltrazuril mua ngoài",
+                                "method", "HAND_DRINKER"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long extTreatmentId = mapper.readTree(extTreatJson).path("data").path("treatments").get(0).path("id").asLong();
+        assertThat(expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(cycle.getId())).isEmpty();
+
+        // Also log a warehouse stock treatment (1 bottle of lot1 = 100,000 VND)
+        String stockTreatJson = mvc.perform(post(base + "/" + diseaseId + "/treatments")
+                        .with(user("worker.assigned@farm.test").authorities(() -> "ROLE_FARM_WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "treatmentDate", today.toString(),
+                                "inventoryItemId", lot1.getId(),
+                                "stockQuantity", 1
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long stockTreatmentId = mapper.readTree(stockTreatJson).path("data").path("treatments").get(1).path("id").asLong();
+
+        String costUrl = base + "/" + diseaseId + "/treatments/" + extTreatmentId + "/cost";
+
+        // 2. Worker is forbidden from updating treatment cost
+        mvc.perform(put(costUrl)
+                        .with(user("worker.assigned@farm.test").authorities(() -> "ROLE_FARM_WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("manualCost", 150000))))
+                .andExpect(status().isForbidden());
+
+        // 3. Accountant updates external medicine cost to 180,000 -> creates CycleExpense(MEDICINE) & updates totalMedicineCost to 280,000
+        mvc.perform(put(costUrl)
+                        .with(user("acc@farm.test").authorities(() -> "ROLE_ACCOUNTANT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("manualCost", 180000))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalMedicineCost").value(280000))
+                .andExpect(jsonPath("$.data.treatments[0].cost").value(180000));
+        assertThat(expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(cycle.getId())).hasSize(2);
+
+        // 4. Even after worker marks disease RECOVERED on active cycle, Owner can still adjust external cost to 220,000 (updates same CycleExpense)
+        mvc.perform(put(base + "/" + diseaseId)
+                        .with(user("worker.assigned@farm.test").authorities(() -> "ROLE_FARM_WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("status", "RECOVERED", "endDate", today.toString()))))
+                .andExpect(status().isOk());
+
+        mvc.perform(put(costUrl)
+                        .with(user("owner@farm.test").authorities(() -> "ROLE_FARM_OWNER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("manualCost", 220000))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalMedicineCost").value(320000));
+        assertThat(expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(cycle.getId())).hasSize(2);
+
+        // 5. Accountant sets external cost back to 0 -> deletes linked CycleExpense cleanly
+        mvc.perform(put(costUrl)
+                        .with(user("acc@farm.test").authorities(() -> "ROLE_ACCOUNTANT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("manualCost", 0))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalMedicineCost").value(100000))
+                .andExpect(jsonPath("$.data.treatments[0].cost").value(0))
+                .andExpect(jsonPath("$.data.treatments[0].expenseId").doesNotExist());
+        assertThat(expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(cycle.getId())).hasSize(1);
+
+        // 6. Updating manualCost on a warehouse stock treatment must be rejected with 400 TREATMENT_FROM_STOCK
+        mvc.perform(put(base + "/" + diseaseId + "/treatments/" + stockTreatmentId + "/cost")
+                        .with(user("acc@farm.test").authorities(() -> "ROLE_ACCOUNTANT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("manualCost", 99000))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("TREATMENT_FROM_STOCK"));
+
+        // 7. Upper-bound numeric overflow checks return 400 Bad Request instead of 500 DataIntegrityViolationException
+        mvc.perform(put(costUrl)
+                        .with(user("acc@farm.test").authorities(() -> "ROLE_ACCOUNTANT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("manualCost", new BigDecimal("100000000000000")))))
+                .andExpect(status().isBadRequest());
+
+        // Reopen disease to verify addTreatment upper-bound validation
+        mvc.perform(put(base + "/" + diseaseId)
+                        .with(user("owner@farm.test").authorities(() -> "ROLE_FARM_OWNER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("status", "ACTIVE"))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post(base + "/" + diseaseId + "/treatments")
+                        .with(user("owner@farm.test").authorities(() -> "ROLE_FARM_OWNER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "treatmentDate", today.toString(),
+                                "inventoryItemId", lot1.getId(),
+                                "stockQuantity", new BigDecimal("100000000000000")
+                        ))))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post(base + "/" + diseaseId + "/treatments")
+                        .with(user("owner@farm.test").authorities(() -> "ROLE_FARM_OWNER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "treatmentDate", today.toString(),
+                                "medicineName", "Thuốc tràn số",
+                                "manualCost", new BigDecimal("100000000000000")
+                        ))))
+                .andExpect(status().isBadRequest());
+
+        // CycleExpenseRequest direct endpoint also rejects > NUMERIC(16,2) with 400 Bad Request
+        mvc.perform(post("/api/cycles/" + cycle.getId() + "/expenses")
+                        .with(user("acc@farm.test").authorities(() -> "ROLE_ACCOUNTANT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "expenseDate", today.toString(),
+                                "category", "MEDICINE",
+                                "amount", new BigDecimal("100000000000000"),
+                                "note", "Tràn số"
+                        ))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void concurrentUpdateTreatmentCostSerializesWithoutDuplicateCycleExpense() throws Exception {
+        var txNew = new org.springframework.transaction.support.TransactionTemplate(txManager);
+        txNew.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        Long[] ids = txNew.execute(status -> {
+            FarmArea a = new FarmArea();
+            a.setName("Khu Concurrency Cost");
+            a.setNameKey("khu concurrency cost");
+            a = areaRepository.saveAndFlush(a);
+
+            Barn b = new Barn();
+            b.setArea(a);
+            b.setName("Chuồng Concurrency");
+            b.setNameKey("chuồng concurrency");
+            b.setCapacity(500);
+            b.setStatus(BarnStatus.ACTIVE);
+            b = barnRepository.saveAndFlush(b);
+
+            FarmingCycle c = new FarmingCycle();
+            c.setBarn(b);
+            c.setCycleNumber(1);
+            c.setStartDate(today.minusDays(5));
+            c.setStatus(CycleStatus.ACTIVE);
+            c = cycleRepository.saveAndFlush(c);
+
+            CycleDisease d = new CycleDisease();
+            d.setCycle(c);
+            d.setDiseaseName("CRD Concurrency");
+            d.setStartDate(today.minusDays(2));
+            d.setStatus(DiseaseStatus.ACTIVE);
+            d = diseaseRepository.saveAndFlush(d);
+
+            DiseaseTreatmentLog t = new DiseaseTreatmentLog();
+            t.setDisease(d);
+            t.setTreatmentDate(today.minusDays(1));
+            t.setMedicineName("Tylosin mua lẻ");
+            t.setCost(BigDecimal.ZERO);
+            t = treatmentLogRepository.saveAndFlush(t);
+
+            return new Long[]{a.getId(), b.getId(), c.getId(), d.getId(), t.getId()};
+        });
+
+        Long areaId = ids[0], barnId = ids[1], concCycleId = ids[2], concDiseaseId = ids[3], concTreatId = ids[4];
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var ready = new java.util.concurrent.CountDownLatch(2);
+            var start = new java.util.concurrent.CountDownLatch(1);
+
+            var f1 = pool.submit(() -> {
+                ready.countDown();
+                start.await();
+                return cycleDiseaseService.updateTreatmentCost(
+                        concCycleId, concDiseaseId, concTreatId,
+                        new com.farmshift.backendFarmShift.dto.request.DiseaseTreatmentCostRequest(new BigDecimal("150000")),
+                        "acc@farm.test");
+            });
+            var f2 = pool.submit(() -> {
+                ready.countDown();
+                start.await();
+                return cycleDiseaseService.updateTreatmentCost(
+                        concCycleId, concDiseaseId, concTreatId,
+                        new com.farmshift.backendFarmShift.dto.request.DiseaseTreatmentCostRequest(new BigDecimal("180000")),
+                        "owner@farm.test");
+            });
+
+            ready.await();
+            start.countDown();
+            f1.get();
+            f2.get();
+
+            txNew.executeWithoutResult(status -> {
+                List<CycleExpense> expenses = expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(concCycleId);
+                DiseaseTreatmentLog refreshed = treatmentLogRepository.findById(concTreatId).orElseThrow();
+                assertThat(expenses).hasSize(1);
+                assertThat(refreshed.getExpense()).isNotNull();
+                assertThat(expenses.getFirst().getId()).isEqualTo(refreshed.getExpense().getId());
+                assertThat(expenses.getFirst().getAmount()).isEqualByComparingTo(refreshed.getCost());
+                assertThat(refreshed.getCost()).isIn(new BigDecimal("150000.00"), new BigDecimal("180000.00"),
+                        new BigDecimal("150000"), new BigDecimal("180000"));
+            });
+        } finally {
+            pool.shutdownNow();
+            txNew.executeWithoutResult(status -> {
+                treatmentLogRepository.findById(concTreatId).ifPresent(t -> {
+                    t.setExpense(null);
+                    treatmentLogRepository.saveAndFlush(t);
+                    treatmentLogRepository.delete(t);
+                    treatmentLogRepository.flush();
+                });
+                expenseRepository.deleteAll(expenseRepository.findAllByCycleIdOrderByExpenseDateDescIdDesc(concCycleId));
+                expenseRepository.flush();
+                diseaseRepository.deleteById(concDiseaseId);
+                cycleRepository.deleteById(concCycleId);
+                barnRepository.deleteById(barnId);
+                areaRepository.deleteById(areaId);
+            });
+        }
     }
 }

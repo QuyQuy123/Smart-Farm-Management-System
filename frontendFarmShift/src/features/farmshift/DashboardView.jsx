@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Coins, HeartCrack, Info, ListChecks, Syringe, Truck,
+  AlertTriangle, CheckCircle2, ChevronRight, ClipboardList, Coins, Droplets, HeartCrack, Info, ListChecks, Scissors, Syringe, Truck,
   Users, Wheat, Pill, Flag, RefreshCw, Map as MapIcon, PackageOpen, Sparkles,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
@@ -17,12 +17,19 @@ import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 const num = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
 const money = value => value == null ? '—' : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 0 })}đ`;
 const LEVEL_ICON = { DANGER: AlertTriangle, WARN: AlertTriangle, INFO: Info };
-const KIND = { VACCINE: { icon: Syringe, label: 'Vắc-xin' }, MEDICINE: { icon: Pill, label: 'Thuốc' }, FEED: { icon: Wheat, label: 'Đổi cám' },
-  HARVEST: { icon: Flag, label: 'Xuất chuồng' } };
+const KIND = {
+  VACCINE: { icon: Syringe, label: 'Vắc-xin' },
+  DRINKING_MEDICINE: { icon: Droplets, label: 'Uống thuốc' },
+  MEDICINE: { icon: Pill, label: 'Thuốc' },
+  CARE_PROCEDURE: { icon: Scissors, label: 'Thủ thuật' },
+  FEED: { icon: Wheat, label: 'Đổi cám' },
+  HARVEST: { icon: Flag, label: 'Xuất chuồng' },
+};
 const STATUS = { OK: 'Ổn định', WARN: 'Cần chú ý', DANGER: 'Cần xử lý' };
 
-/** Việc cần xử lý mở đúng chỗ: chuồng, Phân công, hoặc Nhập hàng (công nợ). */
-const alertLink = alert => alert.type === 'DEBT' ? '/purchases' : alert.type === 'UNASSIGNED' ? '/today-tasks?view=assign'
+/** Việc cần xử lý mở đúng chỗ: chuồng, Phân công, hoặc Nhập hàng (công nợ). Kế toán không vào được /today-tasks nên mở thẳng chuồng. */
+const alertLink = (alert, isAccountant = false) => alert.type === 'DEBT' ? '/purchases'
+  : alert.type === 'UNASSIGNED' ? (isAccountant ? (alert.barnId ? `/barns/${alert.barnId}` : null) : '/today-tasks?view=assign')
   : alert.barnId ? `/barns/${alert.barnId}` : null;
 /** "Chuong 3: 5 việc quá giờ chưa làm" → tên chuồng in nghiêng, phần còn lại, và con số đầu tiên làm huy hiệu. */
 const splitAlert = alert => {
@@ -52,6 +59,7 @@ export const DashboardView = () => {
   const { user } = useAuth();
   const role = user?.role;
   const isWorker = role === 'ROLE_FARM_WORKER';
+  const isAccountant = role === 'ROLE_ACCOUNTANT';
   const [revision, setRevision] = useState(0);
   // Kết quả gắn với lượt tải (revision); lượt mới chưa về thì đang tải.
   const cachedDashboard = dataCache.peek('/dashboard');
@@ -96,7 +104,7 @@ export const DashboardView = () => {
         <p>{data ? `Hôm nay ${formatDay(data.date)} · ${isWorker ? 'các chuồng bạn phụ trách' : 'toàn trại'}` : 'Tình hình trại trong ngày'}</p>
       </div>
       <div className={styles.headActions}>
-        <Link to="/today-tasks" className="farmshift-btn farmshift-btn-mint"><ListChecks size={16} />Việc hôm nay</Link>
+        {!isAccountant && <Link to="/today-tasks" className="farmshift-btn farmshift-btn-mint"><ListChecks size={16} />Việc hôm nay</Link>}
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)} disabled={loading}
           aria-label="Tải lại bảng tin"><RefreshCw size={15} /></button>
       </div>
@@ -120,7 +128,7 @@ export const DashboardView = () => {
                 {data.alerts.length === 0 ? <p className={styles.allGood}><CheckCircle2 size={18} />Không có việc gì cần xử lý. Mọi chuồng đang ổn.</p>
                   : <ul className={styles.alerts}>{data.alerts.map((alert, index) => {
                     const Icon = LEVEL_ICON[alert.level] || Info;
-                    const link = alertLink(alert);
+                    const link = alertLink(alert, isAccountant);
                     const { barn, text, badge } = splitAlert(alert);
                     const body = <><Icon size={16} className={styles.alertIcon} />
                       <span><strong>{barn && <em className={styles.barnName}>{barn}</em>}{barn ? `: ${text}` : text}</strong>{alert.detail && <small>{alert.detail}</small>}</span>
@@ -154,7 +162,7 @@ export const DashboardView = () => {
                 : <ul className={styles.upcoming}>{data.restock.map(item => {
                   const Icon = (KIND[item.category] || KIND.FEED).icon;
                   return <li key={item.itemId}>
-                    <span className={`${styles.kind} ${styles[`kind_${item.category}`]}`}><Icon size={15} /></span>
+                    <span className={`${styles.kind} ${styles[`kind_${item.category}`] || ''}`}><Icon size={15} /></span>
                     <span className={styles.upText}><strong>{item.productName}</strong>
                       <small>{item.warehouseName} · còn {num(item.stock, 1)} {item.unitName} · dùng {num(item.dailyNeed, 1)} {item.unitName}/ngày</small></span>
                     <em className={styles[`restock_${item.level}`]}>{restockText(item)}</em>
@@ -164,7 +172,7 @@ export const DashboardView = () => {
           </div>
 
           {/* Mặt bằng trang trại: chuồng 3D theo khu, mái theo trạng thái; công nhân chỉ thấy chuồng mình phụ trách. */}
-          <FarmPlan cards={data.barns} isWorker={isWorker} />
+          <FarmPlan cards={data.barns} isWorker={isWorker} isAccountant={isAccountant} />
 
           {data.finance && <Finance finance={data.finance} />}
 
@@ -223,7 +231,7 @@ function Barn3D({ status }) {
  * Sơ đồ trang trại: mọi chuồng (kể cả chuồng trống) nhóm theo khu, như mặt bằng. Trạng thái, ngày tuổi, việc quá giờ lấy từ
  * thẻ chuồng của bảng tin; chuồng không có lứa thì xám nhạt. Bấm ô mở chuồng.
  */
-function FarmPlan({ cards, isWorker }) {
+function FarmPlan({ cards, isWorker, isAccountant }) {
   const [barns, setBarns] = useState(null);
   useEffect(() => {
     let cancelled = false;
@@ -239,7 +247,7 @@ function FarmPlan({ cards, isWorker }) {
     area.barns.push(barn);
   });
   return <section className={styles.card} aria-label="Sơ đồ trang trại">
-    <header><h3><MapIcon size={17} />{isWorker ? 'Chuồng bạn phụ trách' : 'Sơ đồ trang trại'}</h3><Link to="/areas" className={styles.more}>Khu nuôi <ChevronRight size={15} /></Link></header>
+    <header><h3><MapIcon size={17} />{isWorker ? 'Chuồng bạn phụ trách' : 'Sơ đồ trang trại'}</h3>{!isAccountant && <Link to="/areas" className={styles.more}>Khu nuôi <ChevronRight size={15} /></Link>}</header>
     {barns === null ? <p className={styles.empty} role="status">Đang tải sơ đồ...</p>
       : areas.length === 0 ? <p className={styles.empty}>{isWorker ? 'Bạn chưa được giao chuồng nào.' : 'Chưa có khu nuôi nào.'}</p>
         : <div className={styles.farmPlan}>{areas.map(area => {

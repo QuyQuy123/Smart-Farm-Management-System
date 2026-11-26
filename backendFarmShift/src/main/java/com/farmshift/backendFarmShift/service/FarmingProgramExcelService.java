@@ -289,6 +289,12 @@ public class FarmingProgramExcelService {
 
             request = new FarmingProgramRequest(
                     name, breed, durationDays, targetMin, targetMax, description, parsedSteps);
+            try {
+                FarmingProgramService.validate(request);
+            } catch (com.farmshift.backendFarmShift.exception.BadRequestException e) {
+                errors.add(new CellError(SHEET_INFO, infoRowNumber, "TenChuongTrinh", e.getMessage()));
+                return new FarmingProgramExcelImportResponse(false, mode, errors, null, null);
+            }
         } catch (Exception e) {
             errors.add(new CellError("File", null, "file", "File Excel bị lỗi cấu trúc hoặc không thể đọc được: " + e.getMessage()));
             return new FarmingProgramExcelImportResponse(false, mode, errors, null, null);
@@ -345,10 +351,16 @@ public class FarmingProgramExcelService {
             if (amount == null || amount.signum() <= 0) {
                 if (amount != null) errors.add(new CellError(SHEET_FEED, r, "DinhMuc", "Định mức phải lớn hơn 0."));
                 rowOk = false;
+            } else if (amount.setScale(3, RoundingMode.HALF_UP).compareTo(FarmingProgramService.MAX_STEP_QUANTITY) > 0) {
+                errors.add(new CellError(SHEET_FEED, r, "DinhMuc", "Định mức vượt quá giới hạn tối đa cho phép."));
+                rowOk = false;
             }
             if (FarmingProgramService.FEED_MODE_BAGS.equals(feedMode)) {
                 if (bagWeight != null && bagWeight.signum() <= 0) {
                     errors.add(new CellError(SHEET_FEED, r, "TrongLuongBaoKg", "Trọng lượng 1 bao cám phải lớn hơn 0."));
+                    rowOk = false;
+                } else if (bagWeight != null && bagWeight.setScale(3, RoundingMode.HALF_UP).compareTo(FarmingProgramService.MAX_BAG_WEIGHT_KG) > 0) {
+                    errors.add(new CellError(SHEET_FEED, r, "TrongLuongBaoKg", "Trọng lượng 1 bao cám vượt quá giới hạn tối đa cho phép."));
                     rowOk = false;
                 }
             }
@@ -369,6 +381,10 @@ public class FarmingProgramExcelService {
                         : amount.setScale(3, RoundingMode.HALF_UP);
                 if (gramPerBirdDay.signum() <= 0) {
                     errors.add(new CellError(SHEET_FEED, r, "DinhMuc", "Định mức sau quy đổi phải lớn hơn 0 g/con/ngày."));
+                    continue;
+                }
+                if (gramPerBirdDay.compareTo(FarmingProgramService.MAX_STEP_QUANTITY) > 0) {
+                    errors.add(new CellError(SHEET_FEED, r, "DinhMuc", "Định mức sau quy đổi vượt quá giới hạn tối đa cho phép."));
                     continue;
                 }
                 validRanges.add(new FeedRow(r, dayFrom, dayTo));
@@ -427,6 +443,9 @@ public class FarmingProgramExcelService {
             }
             if (qty == null || qty.signum() <= 0) {
                 if (qty != null) errors.add(new CellError(SHEET_DRINKING, r, "LieuLuong", "Liều lượng phải lớn hơn 0."));
+                rowOk = false;
+            } else if (qty.setScale(3, RoundingMode.HALF_UP).compareTo(FarmingProgramService.MAX_STEP_QUANTITY) > 0) {
+                errors.add(new CellError(SHEET_DRINKING, r, "LieuLuong", "Liều lượng vượt quá giới hạn tối đa cho phép."));
                 rowOk = false;
             }
             if (unit.isBlank() || !ALLOWED_DRINKING_UNITS.contains(normalizeKey(unit))) {
@@ -501,6 +520,13 @@ public class FarmingProgramExcelService {
             if (qty != null && qty.signum() <= 0) {
                 errors.add(new CellError(SHEET_VACCINE, r, "LieuLuong", "Liều lượng (nếu nhập) phải lớn hơn 0."));
                 rowOk = false;
+            } else if (qty != null && qty.setScale(3, RoundingMode.HALF_UP).compareTo(FarmingProgramService.MAX_STEP_QUANTITY) > 0) {
+                errors.add(new CellError(SHEET_VACCINE, r, "LieuLuong", "Liều lượng vượt quá giới hạn tối đa cho phép."));
+                rowOk = false;
+            }
+            if (unit.length() > 50) {
+                errors.add(new CellError(SHEET_VACCINE, r, "DonVi", "Đơn vị không quá 50 ký tự."));
+                rowOk = false;
             }
             if (note.length() > 1000) {
                 errors.add(new CellError(SHEET_VACCINE, r, "GhiChu", "Ghi chú không quá 1000 ký tự."));
@@ -547,6 +573,9 @@ public class FarmingProgramExcelService {
             }
             if (qty == null || qty.signum() <= 0) {
                 if (qty != null) errors.add(new CellError(SHEET_MEDICINE, r, "LieuLuong", "Liều lượng phải lớn hơn 0."));
+                rowOk = false;
+            } else if (qty.setScale(3, RoundingMode.HALF_UP).compareTo(FarmingProgramService.MAX_STEP_QUANTITY) > 0) {
+                errors.add(new CellError(SHEET_MEDICINE, r, "LieuLuong", "Liều lượng vượt quá giới hạn tối đa cho phép."));
                 rowOk = false;
             }
             if (unit.isBlank() || !ALLOWED_MEDICINE_UNITS.contains(normalizeKey(unit))) {

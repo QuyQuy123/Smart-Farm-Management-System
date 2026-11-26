@@ -8,4 +8,5 @@ export const createCycleDisease = (cycleId, body) => data(api.post(`/cycles/${cy
 export const updateCycleDisease = (cycleId, diseaseId, body) => data(api.put(`/cycles/${cycleId}/diseases/${diseaseId}`, body));
 export const deleteCycleDisease = (cycleId, diseaseId) => data(api.delete(`/cycles/${cycleId}/diseases/${diseaseId}`));
 export const addDiseaseTreatment = (cycleId, diseaseId, body) => data(api.post(`/cycles/${cycleId}/diseases/${diseaseId}/treatments`, body));
+export const updateDiseaseTreatmentCost = (cycleId, diseaseId, treatmentId, body) => data(api.put(`/cycles/${cycleId}/diseases/${diseaseId}/treatments/${treatmentId}/cost`, body));
 export const deleteDiseaseTreatment = (cycleId, diseaseId, treatmentId) => data(api.delete(`/cycles/${cycleId}/diseases/${diseaseId}/treatments/${treatmentId}`));

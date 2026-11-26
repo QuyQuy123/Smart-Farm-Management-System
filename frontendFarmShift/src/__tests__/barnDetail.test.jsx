@@ -9,10 +9,15 @@ import * as programService from '../services/farmingProgramService';
 import * as dailyPlan from '../services/dailyPlanService';
 import * as supplierService from '../services/supplierService';
 
-const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn() }));
+const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn(), layoutProps: null }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { role: mocks.role } }) }));
-vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ pageTitle, children }) => <main><h1>{pageTitle}</h1>{children}</main> }));
+vi.mock('../layouts/FarmShiftLayout', () => ({
+  FarmShiftLayout: props => {
+    mocks.layoutProps = props;
+    return <main><h1>{props.pageTitle}</h1>{props.children}</main>;
+  },
+}));
 vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(), listFarmAreas: vi.fn(), FARM_AREAS_CHANGED: 'farm-areas-changed' }));
 vi.mock('../services/farmingProgramService', () => ({ listPrograms: vi.fn() }));
 vi.mock('../services/supplierService', () => ({ listSuppliers: vi.fn(), createSupplier: vi.fn(), updateSupplier: vi.fn(), deleteSupplier: vi.fn() }));
@@ -335,7 +340,7 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.queryByRole('button', { name: 'Ghi cám' })).not.toBeInTheDocument();
   });
 
-  it('shows accountants accounting and sales but not flock imports or losses', async () => {
+  it('shows accountants accounting and sales but not flock imports, losses, or restricted farm/task navigation links', async () => {
     mocks.role = 'ROLE_ACCOUNTANT';
     renderAt('/barns/2');
     await screen.findByText(/Lứa nuôi thứ 1, từ/);
@@ -344,5 +349,28 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.getByRole('button', { name: 'Thêm khoản chi' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Nhập đàn' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ghi hao hụt H0004' })).not.toBeInTheDocument();
+
+    // Accountant must NOT see AreaTabs, /areas/:id link, or /today-tasks link, and shortcuts must be disabled
+    expect(screen.queryByRole('navigation', { name: 'Điều hướng khu nuôi' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Khu Mía Thịt' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Mở tất cả chuồng' })).not.toBeInTheDocument();
+    expect(mocks.layoutProps.showShortcuts).toBe(false);
+    expect(mocks.layoutProps.breadcrumbs.map(b => b.path).filter(Boolean)).toEqual(['/dashboard', '/cycles/history']);
+  });
+
+  it('routes accountant error fallback to /cycles/history instead of /barns', async () => {
+    mocks.role = 'ROLE_ACCOUNTANT';
+    cycles.getBarn.mockRejectedValueOnce({ response: { status: 404 } });
+    render(
+      <MemoryRouter initialEntries={['/barns/999']}>
+        <Routes>
+          <Route path="/barns/:id" element={<BarnDetailView />} />
+          <Route path="/cycles/history" element={<div>Trang lịch sử lứa nuôi</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const backBtn = await screen.findByRole('button', { name: 'Về lịch sử lứa nuôi' });
+    fireEvent.click(backBtn);
+    expect(await screen.findByText('Trang lịch sử lứa nuôi')).toBeInTheDocument();
   });
 });

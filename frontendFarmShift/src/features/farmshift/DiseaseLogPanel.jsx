@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Pill, PlusCircle, RotateCcw, Stethoscope, Trash2 } from 'lucide-react';
+import { CheckCircle2, Pencil, Pill, PlusCircle, RotateCcw, Stethoscope, Trash2 } from 'lucide-react';
 import {
   addDiseaseTreatment, createCycleDisease, deleteCycleDisease, deleteDiseaseTreatment,
-  listCycleDiseases, listDiseaseMedicineSources, updateCycleDisease,
+  listCycleDiseases, listDiseaseMedicineSources, updateCycleDisease, updateDiseaseTreatmentCost,
 } from '../../services/cycleDiseaseService';
 import { Dialog } from './FarmAreaDialogs';
 import { DRINKING_MEDICINE_METHODS, MEDICINE_METHODS, apiErrorMessage, formatAmount, formatDay, labelOf, todayIso } from './farmAreaOptions';
@@ -81,6 +81,16 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
       dosageText: '',
       manualCost: '',
       note: '',
+    },
+    error: '',
+  });
+
+  const openEditTreatmentCost = (disease, treatment) => setModal({
+    type: 'editTreatmentCost',
+    disease,
+    treatment,
+    form: {
+      manualCost: treatment.cost != null ? String(Math.round(Number(treatment.cost))) : '0',
     },
     error: '',
   });
@@ -172,9 +182,20 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
       setModal(curr => ({ ...curr, error: 'Vui lòng nhập số lượng xuất kho lớn hơn 0.' }));
       return;
     }
+    if (fromStock && Number(form.stockQuantity) > 9999999999999) {
+      setModal(curr => ({ ...curr, error: 'Số lượng xuất kho vượt giới hạn cho phép.' }));
+      return;
+    }
     if (!fromStock && !form.medicineName.trim()) {
       setModal(curr => ({ ...curr, error: 'Vui lòng nhập tên thuốc điều trị.' }));
       return;
+    }
+    if (!fromStock && canFinance && form.manualCost !== '') {
+      const manualAmount = Number(form.manualCost);
+      if (!Number.isFinite(manualAmount) || manualAmount < 0 || manualAmount > 99999999999999) {
+        setModal(curr => ({ ...curr, error: 'Chi phí thuốc phải từ 0 đến giới hạn cho phép.' }));
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -196,10 +217,31 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
     }
   };
 
+  const submitEditTreatmentCost = async event => {
+    event.preventDefault();
+    if (busy) return;
+    const { form, disease, treatment } = modal;
+    const raw = String(form.manualCost ?? '').trim();
+    const amount = Number(raw);
+    if (raw === '' || !Number.isFinite(amount) || amount < 0 || amount > 99999999999999) {
+      setModal(curr => ({ ...curr, error: 'Vui lòng nhập chi phí thuốc hợp lệ (từ 0đ trở lên).' }));
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateDiseaseTreatmentCost(cycle.id, disease.id, treatment.id, { manualCost: Math.round(amount) });
+      await afterMutation(`Đã cập nhật chi phí thuốc "${treatment.medicineName}".`);
+    } catch (requestError) {
+      setModal(curr => ({ ...curr, error: apiErrorMessage(requestError) }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const canUndoTreatment = treatment => {
     if (isOwner) return true;
     if (!active || !userEmail || !treatment.createdBy) return false;
-    const isOwn = treatment.createdBy.toLowerCase() === userEmail.toLowerCase();
+    const isOwn = String(treatment.createdBy).trim().toLowerCase() === String(userEmail).trim().toLowerCase();
     const createdDay = treatment.createdAt ? String(treatment.createdAt).slice(0, 10) : '';
     const sameDay = treatment.treatmentDate === today || createdDay === today;
     return isOwn && sameDay;
@@ -278,9 +320,19 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
                         <td>{t.stockQuantity != null ? `${formatAmount(t.stockQuantity)} ${t.unitName || ''}`.trim() : 'Ngoài kho'}</td>
                         {canFinance && <td>{money(t.cost)}</td>}
                         <td>{t.createdBy || '—'}</td>
-                        <td>{active && canUndoTreatment(t) && <button type="button" className={styles.iconButton}
-                          title="Hoàn tác lần dùng thuốc" aria-label={`Hoàn tác thuốc ${t.medicineName}`}
-                          onClick={() => handleUndoTreatment(disease, t)} disabled={busy}><RotateCcw size={14} /></button>}</td>
+                        <td className={styles.rowActions}>
+                          {active && canFinance && t.inventoryItemId == null && t.stockQuantity == null && <button
+                            type="button"
+                            className={styles.editIconButton}
+                            title="Cập nhật chi phí thuốc ngoài kho"
+                            aria-label={`Cập nhật tiền thuốc ${t.medicineName}`}
+                            onClick={() => openEditTreatmentCost(disease, t)}
+                            disabled={busy}
+                          ><Pencil size={14} /></button>}
+                          {active && canUndoTreatment(t) && <button type="button" className={styles.iconButton}
+                            title="Hoàn tác lần dùng thuốc" aria-label={`Hoàn tác thuốc ${t.medicineName}`}
+                            onClick={() => handleUndoTreatment(disease, t)} disabled={busy}><RotateCcw size={14} /></button>}
+                        </td>
                       </tr>)}
                     </tbody>
                   </table>
@@ -396,6 +448,40 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
         <footer className={styles.footer}>
           <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setModal(null)} disabled={busy}>Hủy</button>
           <button type="submit" className="farmshift-btn farmshift-btn-mint" disabled={busy}>{busy ? 'Đang lưu...' : 'Ghi nhận dùng thuốc'}</button>
+        </footer>
+      </form>
+    </Dialog>}
+
+    {modal?.type === 'editTreatmentCost' && <Dialog
+      title={`Cập nhật tiền thuốc · ${modal.treatment.medicineName}`}
+      labelId="edit-treatment-cost-title"
+      busy={busy}
+      onClose={() => setModal(null)}
+    >
+      <form onSubmit={submitEditTreatmentCost} noValidate>
+        <div className={styles.formBox}>
+          {modal.error && <p className={styles.error} role="alert">{modal.error}</p>}
+          <p className={styles.symptoms}>
+            Đợt bệnh: <strong>{modal.disease.diseaseName}</strong> · Ngày dùng: <strong>{formatDay(modal.treatment.treatmentDate)}</strong> (Thuốc mua lẻ ngoài kho)
+          </p>
+          <div className={styles.field}>
+            <label htmlFor="edit-treatment-manual-cost">Tiền thuốc (VNĐ) *</label>
+            <input
+              id="edit-treatment-manual-cost"
+              type="number"
+              min="0"
+              max="99999999999999"
+              step="1000"
+              className="farmshift-form-control"
+              placeholder="VD: 150000"
+              value={modal.form.manualCost}
+              onChange={e => setModal(c => ({ ...c, error: '', form: { ...c.form, manualCost: e.target.value } }))}
+            />
+          </div>
+        </div>
+        <footer className={styles.footer}>
+          <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setModal(null)} disabled={busy}>Hủy</button>
+          <button type="submit" className="farmshift-btn farmshift-btn-mint" disabled={busy}>{busy ? 'Đang lưu...' : 'Lưu chi phí'}</button>
         </footer>
       </form>
     </Dialog>}

@@ -80,8 +80,9 @@ export const BarnDetailView = () => {
   const { isMobile } = useViewport();
   const role = user?.role;
   const isOwner = role === 'ROLE_FARM_OWNER';
+  const isAccountant = role === 'ROLE_ACCOUNTANT';
   const canDaily = isOwner || role === 'ROLE_FARM_WORKER';
-  const canFinance = isOwner || role === 'ROLE_ACCOUNTANT';
+  const canFinance = isOwner || isAccountant;
   const requestedCycle = searchParams.get('cycle');
 
   const [revision, setRevision] = useState(0);
@@ -423,7 +424,14 @@ export const BarnDetailView = () => {
       { key: 'amount', label: 'Số tiền (đ)', type: 'number', required: true, min: 1, step: 1 },
       { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
     ],
-    validate: values => ({ expenseDate: dateRule(values.expenseDate, 'Ngày chi'), amount: values.amount !== '' && !(Number(values.amount) > 0) ? 'Số tiền phải lớn hơn 0.' : undefined }),
+    validate: values => ({
+      expenseDate: dateRule(values.expenseDate, 'Ngày chi'),
+      amount: values.amount !== '' && !(Number(values.amount) > 0)
+        ? 'Số tiền phải lớn hơn 0.'
+        : values.amount !== '' && Number(values.amount) > 99999999999999
+          ? 'Số tiền vượt giới hạn cho phép.'
+          : undefined,
+    }),
     onSubmit: async values => { await addExpense(cycle.id, { ...values, amount: Number(values.amount), note: values.note.trim() }); return 'Đã ghi khoản chi.'; },
   });
 
@@ -435,7 +443,7 @@ export const BarnDetailView = () => {
   // ---------------------------------------------------------------- render helpers
 
   const header = barn && <div className={styles.titleBar}>
-    <div><Link to={`/areas/${barn.areaId}`}>{barn.areaName}</Link> / <span>{barn.name}</span></div>
+    <div>{canDaily ? <Link to={`/areas/${barn.areaId}`}>{barn.areaName}</Link> : <span>{barn.areaName}</span>} / <span>{barn.name}</span></div>
     <select aria-label="Chuyển sang chuồng khác" value={barn.id} onChange={event => navigate(`/barns/${event.target.value}`)}>
       {sameArea.map(item => <option key={item.id} value={item.id}>-- {item.name}</option>)}
     </select>
@@ -636,7 +644,7 @@ export const BarnDetailView = () => {
         </Card>
 
         {active && <Card title={`Việc hôm nay · ${formatDay(today)}`} icon={CalendarDays}
-          actions={<Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
+          actions={canDaily && <Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
           {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
             : dayPlan.flocks.length === 0 ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
               : <div className={styles.dayPlan}><DailyPlanCard compact plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
@@ -730,15 +738,21 @@ export const BarnDetailView = () => {
     </div></>;
   };
 
-  return <FarmShiftLayout pageTitle={barn ? barn.name : 'Chi tiết chuồng'} showShortcuts environmentHref={`/iot?barn=${encodeURIComponent(id)}`}
+  const breadcrumbs = isAccountant
+    ? [{ label: 'Bảng tin', path: '/dashboard' }, { label: 'Lịch sử lứa nuôi', path: '/cycles/history' }, ...(barn ? [{ label: barn.areaName }] : [])]
+    : [{ label: 'Quản lý khu nuôi', path: '/areas' }, ...(barn ? [{ label: barn.areaName, path: `/areas/${barn.areaId}` }] : [])];
+
+  return <FarmShiftLayout pageTitle={barn ? barn.name : 'Chi tiết chuồng'} showShortcuts={!isAccountant} environmentHref={`/iot?barn=${encodeURIComponent(id)}`}
     feedHref={barn?.activeCycleId ? `/today-tasks?cycle=${encodeURIComponent(barn.activeCycleId)}` : undefined}
     weightHref={cycle ? `/journal?tab=weight&cycle=${encodeURIComponent(cycle.id)}` : undefined}
     lossHref={cycle ? `/journal?tab=loss&cycle=${encodeURIComponent(cycle.id)}` : undefined}
-    breadcrumbs={[{ label: 'Quản lý khu nuôi', path: '/areas' }, ...(barn ? [{ label: barn.areaName, path: `/areas/${barn.areaId}` }] : [])]}>
+    breadcrumbs={breadcrumbs}>
     {loading ? <p className={styles.loading} role="status">Đang tải chi tiết chuồng...</p>
       : error ? <div role="alert" className={`${styles.card} ${styles.emptyCycle}`}><p>{error}</p>
-        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate('/barns')}>Về danh sách chuồng</button></div>
-        : <><AreaTabs areas={areas} active={barn.areaId} />{header}{detail ? renderCycle() : renderNoCycle()}</>}
+        <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => navigate(isAccountant ? '/cycles/history' : '/barns')}>
+          {isAccountant ? 'Về lịch sử lứa nuôi' : 'Về danh sách chuồng'}
+        </button></div>
+        : <>{!isAccountant && <AreaTabs areas={areas} active={barn.areaId} />}{header}{detail ? renderCycle() : renderNoCycle()}</>}
     {modal?.type === 'flock' && <FlockDetailDialog flock={modal.flock} canFinance={canFinance} onClose={() => setModal(null)} />}
     {modal?.type === 'movement' && <MovementDetailDialog movement={modal.movement} onClose={() => setModal(null)} />}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}

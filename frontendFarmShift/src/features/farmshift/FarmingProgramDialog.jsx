@@ -98,6 +98,9 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
       ? program.steps.filter(step => step.category !== 'WORK' && step.category !== 'TEMPERATURE').map(toDraftStep)
       : [emptyStep('FEED', 1)],
   }));
+  const [legacyTemperatureSteps, setLegacyTemperatureSteps] = useState(() => (
+    program ? program.steps.filter(step => step.category === 'TEMPERATURE').map(toDraftStep) : []
+  ));
   const [tab, setTab] = useState('FEED');
   const [errors, setErrors] = useState({ fields: {}, steps: {} });
   const [error, setError] = useState('');
@@ -148,12 +151,52 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     event.preventDefault();
     if (saving) return;
     const found = validateProgram(draft);
+    const durationNum = Number(draft.durationDays);
+    if (!found.fields.durationDays && !found.fields.steps && legacyTemperatureSteps.length > 0) {
+      if (legacyTemperatureSteps.some(step => Number(step.dayTo) > durationNum)) {
+        found.fields.steps = `Mốc nhiệt độ cũ vượt thời gian nuôi mới (${durationNum} ngày). Hãy tăng thời gian nuôi hoặc bấm "Gỡ mốc nhiệt độ cũ".`;
+      } else {
+        const sortedTemp = [...legacyTemperatureSteps].sort((a, b) => Number(a.dayFrom) - Number(b.dayFrom));
+        const invalidLegacyTemp = sortedTemp.some((step, idx) => {
+          const from = Number(step.dayFrom);
+          const to = Number(step.dayTo);
+          const tMin = Number(step.tempMin);
+          const tMax = Number(step.tempMax);
+          const badFields = !step.name?.trim()
+            || !Number.isInteger(from) || !Number.isInteger(to) || from < 1 || from > to || to > durationNum
+            || step.tempMin === '' || step.tempMax === '' || !Number.isFinite(tMin) || !Number.isFinite(tMax)
+            || tMin < 10 || tMax > 45 || tMin >= tMax;
+          const overlapsPrev = idx > 0 && from <= Number(sortedTemp[idx - 1].dayTo);
+          return badFields || overlapsPrev;
+        });
+        if (invalidLegacyTemp) {
+          found.fields.steps = 'Mốc nhiệt độ cũ không còn hợp lệ (ngoài dải 10–45°C hoặc bị chồng ngày). Hãy bấm "Gỡ mốc nhiệt độ cũ" trước khi lưu.';
+        }
+      }
+    }
     setErrors(found);
     const firstBad = Object.keys(found.steps).map(Number).sort((a, b) => a - b)[0];
     if (firstBad !== undefined) setTab(draft.steps[firstBad].category);
     if (Object.keys(found.fields).length || firstBad !== undefined) return;
     setSaving(true);
     setError('');
+    const preservedTemperaturePayload = legacyTemperatureSteps.map(step => ({
+      category: 'TEMPERATURE',
+      name: step.name.trim(),
+      dayFrom: Number(step.dayFrom),
+      dayTo: Number(step.dayTo),
+      quantity: null,
+      unit: '',
+      mealsPerDay: null,
+      method: null,
+      tempMin: numberOrNull(step.tempMin),
+      tempMax: numberOrNull(step.tempMax),
+      note: step.note.trim(),
+      inventoryItemId: null,
+      feedInputMode: null,
+      bagWeightKg: null,
+      bagsPer1000Birds: null,
+    }));
     const payload = {
       name: draft.name.trim(),
       breed: draft.breed.trim(),
@@ -161,32 +204,35 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
       targetWeightMin: numberOrNull(draft.targetWeightMin),
       targetWeightMax: numberOrNull(draft.targetWeightMax),
       description: draft.description.trim(),
-      steps: draft.steps.map(step => {
-        const bagsMode = step.category === 'FEED' && step.feedInputMode === 'BAGS_PER_1000_BIRDS';
-        const bagWeight = bagsMode ? (numberOrNull(step.bagWeightKg) ?? DEFAULT_BAG_WEIGHT_KG) : null;
-        const bags = bagsMode ? numberOrNull(step.bagsPer1000Birds) : null;
-        const computedQty = bagsMode
-          ? bagsToGramPerBirdDay(bags, bagWeight, step.dayFrom, step.dayTo)
-          : numberOrNull(step.quantity);
-        return {
-          category: step.category,
-          name: step.name.trim(),
-          dayFrom: Number(step.dayFrom),
-          dayTo: Number(step.dayTo),
-          quantity: computedQty,
-          unit: step.unit.trim(),
-          mealsPerDay: numberOrNull(step.mealsPerDay),
-          method: step.method || null,
-          tempMin: numberOrNull(step.tempMin),
-          tempMax: numberOrNull(step.tempMax),
-          note: step.note.trim(),
-          inventoryItemId: ['FEED', 'VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'].includes(step.category) && step.inventoryItemId
-            ? Number(step.inventoryItemId) : null,
-          feedInputMode: step.category === 'FEED' ? (step.feedInputMode || 'GRAM_PER_BIRD_DAY') : null,
-          bagWeightKg: bagWeight,
-          bagsPer1000Birds: bags,
-        };
-      }),
+      steps: [
+        ...draft.steps.map(step => {
+          const bagsMode = step.category === 'FEED' && step.feedInputMode === 'BAGS_PER_1000_BIRDS';
+          const bagWeight = bagsMode ? (numberOrNull(step.bagWeightKg) ?? DEFAULT_BAG_WEIGHT_KG) : null;
+          const bags = bagsMode ? numberOrNull(step.bagsPer1000Birds) : null;
+          const computedQty = bagsMode
+            ? bagsToGramPerBirdDay(bags, bagWeight, step.dayFrom, step.dayTo)
+            : numberOrNull(step.quantity);
+          return {
+            category: step.category,
+            name: step.name.trim(),
+            dayFrom: Number(step.dayFrom),
+            dayTo: Number(step.dayTo),
+            quantity: computedQty,
+            unit: step.unit.trim(),
+            mealsPerDay: numberOrNull(step.mealsPerDay),
+            method: step.method || null,
+            tempMin: numberOrNull(step.tempMin),
+            tempMax: numberOrNull(step.tempMax),
+            note: step.note.trim(),
+            inventoryItemId: ['FEED', 'VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'].includes(step.category) && step.inventoryItemId
+              ? Number(step.inventoryItemId) : null,
+            feedInputMode: step.category === 'FEED' ? (step.feedInputMode || 'GRAM_PER_BIRD_DAY') : null,
+            bagWeightKg: bagWeight,
+            bagsPer1000Birds: bags,
+          };
+        }),
+        ...preservedTemperaturePayload,
+      ],
     };
     try {
       if (editing) await updateProgram(program.id, payload);
@@ -303,6 +349,22 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
           })}
         </div>
         <FieldError message={errors.fields.steps} />
+        {legacyTemperatureSteps.length > 0 && <div className={styles.legacyTempNotice} role="status">
+          <span>
+            Chương trình này đang giữ nguyên <strong>{legacyTemperatureSteps.length}</strong> mốc nhiệt độ từ cấu hình cũ khi lưu (nhiệt độ hiện được theo dõi qua cảm biến IoT).
+          </span>
+          <button
+            type="button"
+            className="farmshift-btn farmshift-btn-secondary"
+            disabled={saving}
+            onClick={() => {
+              setLegacyTemperatureSteps([]);
+              setErrors(current => ({ ...current, fields: { ...current.fields, steps: undefined } }));
+            }}
+          >
+            Gỡ mốc nhiệt độ cũ
+          </button>
+        </div>}
         {tab === 'FEED' && <p className={styles.itemHint}>Chọn tên cám từ kho và chế độ nhập (g/con/ngày hoặc bao/1.000 con/giai đoạn — tự quy đổi tức thời).</p>}
         {tab === 'DRINKING_MEDICINE' && <p className={styles.itemHint}>Lịch uống thuốc úm, men tiêu hóa, thuốc bổ bằng bình xách tay (gà nhỏ) hoặc hệ thống uống tự động.</p>}
         {['VACCINE', 'MEDICINE'].includes(tab) && <p className={styles.itemHint}>

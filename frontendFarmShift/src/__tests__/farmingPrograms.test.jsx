@@ -2,6 +2,7 @@ import React from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { FarmingProgramsPanel } from '../features/farmshift/FarmingProgramsPanel';
+import { MAX_STEP_QUANTITY, todayIso, validateProgram } from '../features/farmshift/farmAreaOptions';
 import * as service from '../services/farmingProgramService';
 import { listAllInventoryItems } from '../services/inventoryItemService';
 
@@ -210,5 +211,93 @@ describe('Farming programs by breed', () => {
     expect(screen.queryByRole('button', { name: 'Nhập từ Excel' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Chỉnh sửa' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xuất Excel' })).toBeInTheDocument();
+  });
+
+  it('preserves legacy TEMPERATURE steps on edit unless explicitly removed by the owner', async () => {
+    programs = [{
+      ...gaTa(),
+      steps: [
+        ...gaTa().steps,
+        { id: 99, category: 'TEMPERATURE', name: 'Úm tuần 1', dayFrom: 1, dayTo: 7, tempMin: 31, tempMax: 33, note: 'Giữ ấm' },
+      ],
+    }];
+    service.updateProgram.mockResolvedValue({});
+
+    render(<FarmingProgramsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Chỉnh sửa' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(dialog).getByLabelText('Loại cám dòng 1')).toBeEnabled());
+
+    expect(within(dialog).getByText(/giữ nguyên/i)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu chương trình' }));
+
+    await waitFor(() => expect(service.updateProgram).toHaveBeenCalledTimes(1));
+    const savedSteps = service.updateProgram.mock.calls[0][1].steps;
+    expect(savedSteps).toContainEqual(expect.objectContaining({
+      category: 'TEMPERATURE',
+      name: 'Úm tuần 1',
+      dayFrom: 1,
+      dayTo: 7,
+      tempMin: 31,
+      tempMax: 33,
+      note: 'Giữ ấm',
+    }));
+
+    // Reopen and explicitly click "Gỡ mốc nhiệt độ cũ"
+    fireEvent.click(await screen.findByRole('button', { name: 'Chỉnh sửa' }));
+    const dialog2 = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(dialog2).getByLabelText('Loại cám dòng 1')).toBeEnabled());
+    fireEvent.click(within(dialog2).getByRole('button', { name: 'Gỡ mốc nhiệt độ cũ' }));
+    fireEvent.click(within(dialog2).getByRole('button', { name: 'Lưu chương trình' }));
+
+    await waitFor(() => expect(service.updateProgram).toHaveBeenCalledTimes(2));
+    const savedStepsAfterRemove = service.updateProgram.mock.calls[1][1].steps;
+    expect(savedStepsAfterRemove.some(s => s.category === 'TEMPERATURE')).toBe(false);
+  });
+
+  it('computes todayIso strictly in Asia/Bangkok (UTC+7) regardless of OS timezone', () => {
+    // 18:30 UTC on Nov 26 is 01:30 Nov 27 in Asia/Bangkok
+    expect(todayIso(new Date('2026-11-26T18:30:00Z'))).toBe('2026-11-27');
+    // 16:59:59 UTC on Nov 26 is 23:59:59 Nov 26 in Asia/Bangkok
+    expect(todayIso(new Date('2026-11-26T16:59:59Z'))).toBe('2026-11-26');
+  });
+
+  it('validates invalid legacy TEMPERATURE steps on edit and CARE_PROCEDURE upper-bound quantity', async () => {
+    // 1. validateProgram enforces MAX_STEP_QUANTITY on CARE_PROCEDURE too
+    const validation = validateProgram({
+      name: 'CT Test',
+      breed: 'Gà ta',
+      durationDays: '90',
+      targetWeightMin: '',
+      targetWeightMax: '',
+      steps: [
+        { category: 'FEED', name: 'Cám 1', dayFrom: '1', dayTo: '30', feedInputMode: 'GRAM_PER_BIRD_DAY', quantity: '30', mealsPerDay: '3', unit: '' },
+        { category: 'CARE_PROCEDURE', name: 'Làm mỏ', dayFrom: '16', dayTo: '16', method: 'PROCEDURE', quantity: String(MAX_STEP_QUANTITY * 10), unit: '' },
+      ],
+    });
+    expect(validation.steps[1]).toMatch(/vượt giới hạn/i);
+
+    // 2. Legacy TEMPERATURE step with out-of-range tempMax (60°C > 45°C) blocks save until removed
+    programs = [{
+      ...gaTa(),
+      steps: [
+        ...gaTa().steps,
+        { id: 100, category: 'TEMPERATURE', name: 'Mốc lỗi cũ', dayFrom: 1, dayTo: 5, tempMin: 30, tempMax: 60, note: '' },
+      ],
+    }];
+    service.updateProgram.mockResolvedValue({});
+
+    render(<FarmingProgramsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Chỉnh sửa' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(dialog).getByLabelText('Loại cám dòng 1')).toBeEnabled());
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu chương trình' }));
+    expect(await within(dialog).findByText(/Mốc nhiệt độ cũ không còn hợp lệ/i)).toBeInTheDocument();
+    expect(service.updateProgram).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gỡ mốc nhiệt độ cũ' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu chương trình' }));
+    await waitFor(() => expect(service.updateProgram).toHaveBeenCalledTimes(1));
   });
 });

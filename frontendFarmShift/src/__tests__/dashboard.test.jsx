@@ -162,4 +162,54 @@ describe('Bảng tin', () => {
     expect(screen.getByText(/Kho đủ dùng cho tuần tới/)).toBeInTheDocument();
     await waitFor(() => expect(service.getDashboard).toHaveBeenCalledTimes(2));
   });
+
+  it('hides restricted farm/task links for ROLE_ACCOUNTANT and styles DRINKING_MEDICINE / CARE_PROCEDURE restock items', async () => {
+    mocks.role = 'ROLE_ACCOUNTANT';
+    service.getDashboard.mockResolvedValue(dashboard({
+      restock: [
+        ...dashboard().restock,
+        {
+          itemId: 12,
+          warehouseName: 'Kho thuốc Khu Mía',
+          productName: 'Men tiêu hóa nước',
+          category: 'DRINKING_MEDICINE',
+          unitName: 'Gói 100g',
+          stock: 0,
+          dailyNeed: 2,
+          daysLeft: 0,
+          level: 'DANGER',
+        },
+        {
+          itemId: 13,
+          warehouseName: 'Kho vật tư Khu Mía',
+          productName: 'Lưỡi cắt mỏ',
+          category: 'CARE_PROCEDURE',
+          unitName: 'Cái',
+          stock: 0,
+          dailyNeed: 1,
+          daysLeft: 0,
+          level: 'WARN',
+        },
+      ],
+    }));
+
+    renderView();
+    expect(await screen.findByText('Chào Miền Bính')).toBeInTheDocument();
+
+    // Accountant must NOT see bouncing links to /today-tasks or /areas
+    expect(screen.queryByRole('link', { name: 'Việc hôm nay' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Khu nuôi/ })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('a[href^="/today-tasks"], a[href^="/areas"]')).toHaveLength(0);
+
+    // UNASSIGNED alert routes Accountant to /barns/:id instead of /today-tasks?view=assign
+    const todo = screen.getByRole('region', { name: 'Cần xử lý' });
+    expect(within(todo).getByRole('link', { name: /chưa có người phụ trách/ })).toHaveAttribute('href', '/barns/2');
+
+    // DRINKING_MEDICINE and CARE_PROCEDURE restock items render without 'undefined' className
+    const restock = screen.getByRole('region', { name: 'Kho cần bổ sung' });
+    const drinkRow = within(restock).getByText('Men tiêu hóa nước').closest('li');
+    const procRow = within(restock).getByText('Lưỡi cắt mỏ').closest('li');
+    expect(drinkRow.querySelector('span').className).not.toContain('undefined');
+    expect(procRow.querySelector('span').className).not.toContain('undefined');
+  });
 });

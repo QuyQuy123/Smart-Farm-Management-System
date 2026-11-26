@@ -11,7 +11,9 @@ public record DiseaseTreatmentRequest(
         AdministrationMethod method,
         @Size(max = 200, message = "Liều lượng/cách dùng không quá 200 ký tự.") String dosageText,
         @Positive(message = "Hàng hóa kho không hợp lệ.") Long inventoryItemId,
-        @DecimalMin(value = "0.000001", message = "Số lượng xuất kho phải lớn hơn 0.") BigDecimal stockQuantity,
-        @DecimalMin(value = "0", message = "Chi phí thuốc không được âm.") BigDecimal manualCost,
+        @DecimalMin(value = "0.000001", message = "Số lượng xuất kho phải lớn hơn 0.")
+        @DecimalMax(value = "9999999999999.999999", message = "Số lượng xuất kho vượt giới hạn cho phép.") BigDecimal stockQuantity,
+        @DecimalMin(value = "0", message = "Chi phí thuốc không được âm.")
+        @DecimalMax(value = "99999999999999", message = "Chi phí thuốc vượt giới hạn cho phép.") BigDecimal manualCost,
         @Size(max = 1000, message = "Ghi chú không quá 1000 ký tự.") String note
 ) { }
