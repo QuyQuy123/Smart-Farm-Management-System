@@ -343,7 +343,12 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
         {itemsError && <p className={styles.itemHint} role="status">{itemsError}</p>}
 
         <div className={styles.stepTableWrap}>
-          <table className={styles.stepTable}>
+          <table className={`${styles.stepTable} ${tab === 'FEED' ? styles.feedTable : ''}`}>
+            {tab === 'FEED' && <colgroup>
+              <col style={{ width: '9%' }} /><col style={{ width: '9%' }} />
+              <col style={{ width: '34%' }} /><col style={{ width: '14%' }} />
+              <col style={{ width: '10%' }} /><col style={{ width: '19%' }} /><col style={{ width: '5%' }} />
+            </colgroup>}
             <thead><tr><th>Từ ngày</th><th>Đến ngày</th>{COLUMNS[tab].map(column => <th key={column[0]}>{column[1]}</th>)}<th>Ghi chú</th><th /></tr></thead>
             <tbody>
               {rows.length === 0 ? <tr><td colSpan={COLUMNS[tab].length + 4} className={styles.emptyRow}>Chưa có {category.item}. Bấm "Thêm dòng" để thêm.</td></tr>
