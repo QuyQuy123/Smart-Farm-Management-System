@@ -94,6 +94,28 @@ class UpdateProfileUnitTest {
         assertTrue(validator.validate(profile("Admin", null, null, null, null, "A".repeat(256))).isEmpty());
     }
 
+    @Test void fullNameOver255CharactersIsRejectedByRequestDto() {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        assertFalse(validator.validate(profile("A".repeat(256), null, null, null, null, null)).isEmpty());
+    }
+
+    @Test void updateProfileRejectsPhoneAlreadyUsedByAnotherAccount() {
+        Account account = account("worker@smartfarm.com", RoleNames.FARM_WORKER);
+        account.setId(5L);
+        Account other = account("other@smartfarm.com", RoleNames.FARM_WORKER);
+        other.setId(9L);
+        Customer otherCustomer = new Customer();
+        otherCustomer.setAccount(other);
+        otherCustomer.setPhone("0965122004");
+        when(accountRepository.findByEmail(account.getEmail())).thenReturn(Optional.of(account));
+        when(customerRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
+                .thenReturn(java.util.List.of(otherCustomer));
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> service.updateProfile(
+                account.getEmail(), profile("Worker", null, "0965122004", null, null, null)));
+        assertEquals("MSG49", ex.getErrorCode());
+    }
+
     private static Account account(String email, String roleName) {
         Account a = new Account(); a.setEmail(email); a.setFullName("Existing");
         Role role = new Role(); role.setName(roleName); a.setRole(role); return a;

@@ -117,6 +117,16 @@ class CreateEmployeeUnitTest {
                 "Duplicate Phone Number", "unit.worker.111@smartfarm.com", "0912345678", RoleNames.FARM_WORKER, "Worker123")));
     }
 
+    @Test void initialPasswordContainingWhitespaceIsRejectedByValidationAndService() {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        var req = create("Whitespace Pass", "unit.worker.112@smartfarm.com", "0912345679", RoleNames.FARM_WORKER, " 123456 ");
+        assertFalse(validator.validate(req).isEmpty());
+
+        when(accountRepository.existsByEmailIgnoreCase("unit.worker.112@smartfarm.com")).thenReturn(false);
+        when(roleRepository.findByName(RoleNames.FARM_WORKER)).thenReturn(Optional.of(role(RoleNames.FARM_WORKER)));
+        assertThrows(com.farmshift.backendFarmShift.exception.BadRequestException.class, () -> service.createEmployee(req));
+    }
+
     private static Role role(String name) { Role role = new Role(); role.setId(7L); role.setName(name); return role; }
     private static EmployeeCreateRequest create(String name, String email, String phone, String role, String password) {
         return EmployeeCreateRequest.builder().fullName(name).email(email).phone(phone).roleName(role).password(password).build();

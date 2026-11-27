@@ -244,7 +244,11 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         Account account = new Account();
         account.setEmail(email);
-        String rawPassword = StringUtils.hasText(request.getPassword()) ? request.getPassword().trim() : "123456";
+        if (request.getPassword() != null && !request.getPassword().isEmpty()
+                && request.getPassword().chars().anyMatch(Character::isWhitespace)) {
+            throw new BadRequestException("Password must not contain whitespace.");
+        }
+        String rawPassword = StringUtils.hasText(request.getPassword()) ? request.getPassword() : "123456";
         if (rawPassword.length() < 6) {
             throw new BadRequestException("Password must be at least 6 characters.");
         }
