@@ -301,4 +301,76 @@ describe('Farming programs by breed', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu chương trình' }));
     await waitFor(() => expect(service.updateProgram).toHaveBeenCalledTimes(1));
   });
+
+  it('validates empty form submit and header blur including weight bounds and mealsPerDay integer mode', async () => {
+    programs = [];
+    render(<FarmingProgramsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Tạo chương trình' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(dialog).getByLabelText('Loại cám dòng 1')).toBeEnabled());
+
+    // 1. Submit empty form -> shows required field & step errors
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu chương trình' }));
+    expect(await within(dialog).findByText('Vui lòng nhập tên chương trình.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Vui lòng nhập giống gà.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Thời gian nuôi từ 1 đến 365 ngày.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Vui lòng chọn loại cám.')).toBeInTheDocument();
+    expect(service.createProgram).not.toHaveBeenCalled();
+
+    // 2. mealsPerDay uses numeric inputMode (integer-only, no decimals)
+    expect(within(dialog).getByLabelText('Số cữ/ngày dòng 1')).toHaveAttribute('inputMode', 'numeric');
+
+    // 3. Blur validation on header & target weight bounds
+    const nameInput = within(dialog).getByLabelText(/Tên chương trình/);
+    const breedInput = within(dialog).getByLabelText(/Giống gà/);
+    const durationInput = within(dialog).getByLabelText(/Thời gian nuôi/);
+    fireEvent.change(nameInput, { target: { value: 'Gà ta 90 ngày' } });
+    fireEvent.blur(nameInput);
+    expect(within(dialog).queryByText('Vui lòng nhập tên chương trình.')).not.toBeInTheDocument();
+
+    fireEvent.change(breedInput, { target: { value: ' ' } });
+    fireEvent.blur(breedInput);
+    expect(within(dialog).getByText('Vui lòng nhập giống gà.')).toBeInTheDocument();
+
+    fireEvent.change(durationInput, { target: { value: '400' } });
+    fireEvent.blur(durationInput);
+    expect(within(dialog).getByText('Thời gian nuôi từ 1 đến 365 ngày.')).toBeInTheDocument();
+
+    const wMin = within(dialog).getByLabelText(/Cân xuất chuồng \(kg\)/);
+    const wMax = within(dialog).getByLabelText('Cân xuất chuồng đến (kg)');
+    fireEvent.change(wMin, { target: { value: '0.001' } });
+    fireEvent.blur(wMin);
+    expect(within(dialog).getByText('Cân nặng từ 0,01 đến 20 kg.')).toBeInTheDocument();
+
+    fireEvent.change(wMin, { target: { value: '2.5' } });
+    fireEvent.change(wMax, { target: { value: '25' } });
+    fireEvent.blur(wMax);
+    expect(within(dialog).getByText('Cân nặng từ 0,01 đến 20 kg.')).toBeInTheDocument();
+
+    fireEvent.change(wMax, { target: { value: '2.0' } });
+    fireEvent.blur(wMax);
+    expect(within(dialog).getByText('Cân nặng tối đa phải lớn hơn hoặc bằng tối thiểu.')).toBeInTheDocument();
+  });
+
+  it('validates age > 365, vaccine quantity with inventory item, and unit length > 50', () => {
+    const res = validateProgram({
+      name: 'CT Test',
+      breed: 'Gà ta',
+      durationDays: '',
+      targetWeightMin: '',
+      targetWeightMax: '',
+      description: '',
+      steps: [
+        { category: 'FEED', name: 'Cám 1', dayFrom: '1', dayTo: '400', quantity: '30', mealsPerDay: '3', unit: '' },
+        { category: 'VACCINE', name: 'Lasota', dayFrom: '7', dayTo: '7', method: 'EYE_NOSE', quantity: '', inventoryItemId: '8', unit: 'liều/con' },
+        { category: 'VACCINE', name: 'Gumboro', dayFrom: '14', dayTo: '14', method: 'DRINKING_WATER', quantity: '0', unit: 'liều/con' },
+        { category: 'MEDICINE', name: 'Thuốc A', dayFrom: '15', dayTo: '20', method: 'MIX_FEED', quantity: '2', unit: 'a'.repeat(51) },
+      ],
+    });
+    expect(res.fields.durationDays).toBe('Thời gian nuôi từ 1 đến 365 ngày.');
+    expect(res.steps[0]).toBe('Ngày tuổi phải là số nguyên từ 1 đến 365.');
+    expect(res.steps[1]).toBe('Cần nhập liều lượng lớn hơn 0 để tính số lọ vắc-xin.');
+    expect(res.steps[2]).toBe('Liều lượng phải lớn hơn 0.');
+    expect(res.steps[3]).toBe('Đơn vị không quá 50 ký tự.');
+  });
 });

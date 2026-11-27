@@ -68,6 +68,7 @@
 .headerGrid :global(.farmshift-form-control) { height: 42px; }
 .headerGrid textarea:global(.farmshift-form-control) { height: auto; min-height: 64px; resize: vertical; }
 .range { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.range > * { min-width: 0; }
 .range > span { color: #8aa39a; }
 .required { color: #dc2626; }
 .invalid { border-color: #e11d48 !important; }
@@ -88,7 +89,7 @@
 .feedTable { table-layout: fixed; }
 .feedTable td input, .feedTable td select,
 .feedTable td:first-child input, .feedTable td:nth-child(2) input { width: 100%; min-width: 0; box-sizing: border-box; }
-.feedTable th:nth-child(5) { white-space: normal; }
+.feedTable th:nth-child(4), .feedTable th:nth-child(5) { white-space: normal; line-height: 1.25; }
 .itemHint { margin: 0 0 10px; font-size: 14px; color: #52796f; }
 .legacyTempNotice { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 14px; border-radius: 9px; border: 1px solid #f5e3a6; background: #fffdf5; color: #7c5800; font-size: 13.5px; }
 .rowError td { background: #fff7f7; }
@@ -101,4 +102,26 @@
 .footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #f8fbfa; border-top: 1px solid #edf1f0; }
 
 @media (max-width: 900px) { .half, .third, .twoThirds { grid-column: 1 / -1; } .sectionTabs button { flex: 0 0 auto; } }
+@media (max-width: 767px) {
+  .editorBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; }
+  .footer { flex-shrink: 0; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); flex-direction: column-reverse; gap: 8px; }
+  .footer > button { width: 100%; min-height: 44px; justify-content: center; }
+  .sectionTabs { gap: 6px; padding: 6px; }
+  .sectionTabs button { flex: 1 1 auto; padding: 8px 10px; font-size: 13.5px; }
+  .stepTableWrap { overflow: visible; border: 0; border-radius: 0; }
+  .stepTable, .feedTable { display: block; min-width: 0; width: 100%; table-layout: auto; }
+  .stepTable colgroup, .stepTable thead { display: none; }
+  .stepTable tbody { display: flex; flex-direction: column; gap: 12px; }
+  .stepTable tbody tr:not(.rowMessageRow) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; border: 1px solid #d7e5e0; border-radius: 12px; background: #fbfdfc; }
+  .stepTable tbody tr.rowError { border-color: #f4b4be; background: #fff7f7; }
+  .stepTable tbody tr.rowError td { background: transparent; }
+  .stepTable tbody td { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; min-width: 0; }
+  .stepTable tbody td[data-label]::before { content: attr(data-label); font-size: 12.5px; font-weight: 600; color: #536b76; }
+  .stepTable tbody td input, .stepTable tbody td select, .stepTable tbody td:first-child input, .stepTable tbody td:nth-child(2) input { width: 100%; min-width: 0; box-sizing: border-box; }
+  .stepTable tbody td[data-role="full"] { grid-column: 1 / -1; }
+  .stepTable tbody td[data-role="action"] { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
+  .stepTable tbody tr.rowMessageRow { display: block; margin-top: -8px; border: 1px solid #f4b4be; border-top: 0; border-radius: 0 0 10px 10px; background: #fff7f7; }
+  .stepTable tbody tr.rowMessageRow td { display: block; padding: 6px 12px 10px; }
+  .stepTable tbody td.emptyRow { grid-column: 1 / -1; }
+}
 @media (max-width: 560px) { .cards, .detail, .panelHeader { padding-left: 16px; padding-right: 16px; } }

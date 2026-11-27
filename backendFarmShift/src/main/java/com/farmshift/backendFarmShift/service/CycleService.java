@@ -104,6 +104,91 @@ public class CycleService {
                 movementsByCycle.computeIfAbsent(m.getFlock().getCycle().getId(), ignored -> new ArrayList<>()).add(m);
             }
         }
+
+        // Batch-load related flocks across barns/cycles for transfer-lineage grouping & badges (0 N+1).
+        Map<Long, Flock> flockById = new HashMap<>();
+        for (List<Flock> fl : flocksByCycle.values()) {
+            for (Flock f : fl) {
+                flockById.put(f.getId(), f);
+            }
+        }
+        Set<Long> missingFlockIds = new LinkedHashSet<>();
+        for (List<Flock> fl : flocksByCycle.values()) {
+            for (Flock f : fl) {
+                if (f.getSourceFlock() != null && !flockById.containsKey(f.getSourceFlock().getId())) {
+                    missingFlockIds.add(f.getSourceFlock().getId());
+                }
+            }
+        }
+        for (List<FlockMovement> mvs : movementsByCycle.values()) {
+            for (FlockMovement m : mvs) {
+                if ((m.getType() == FlockMovementType.TRANSFER_IN || m.getType() == FlockMovementType.TRANSFER_OUT)
+                        && m.getRelatedFlock() != null && !flockById.containsKey(m.getRelatedFlock().getId())) {
+                    missingFlockIds.add(m.getRelatedFlock().getId());
+                }
+            }
+        }
+        if (!missingFlockIds.isEmpty()) {
+            for (Flock f : flockRepository.findWithCycleAndBarnByIdIn(missingFlockIds)) {
+                flockById.put(f.getId(), f);
+            }
+        }
+
+        Map<Long, Long> ufParent = new HashMap<>();
+        java.util.function.LongUnaryOperator ufFind = new java.util.function.LongUnaryOperator() {
+            @Override
+            public long applyAsLong(long x) {
+                long p = ufParent.getOrDefault(x, x);
+                if (p != x) {
+                    p = applyAsLong(p);
+                    ufParent.put(x, p);
+                }
+                return p;
+            }
+        };
+        Set<Long> cyclesWithTransfers = new HashSet<>();
+        java.util.function.BiConsumer<Long, Long> ufUnion = (a, b) -> {
+            if (a == null || b == null || a.equals(b)) return;
+            cyclesWithTransfers.add(a);
+            cyclesWithTransfers.add(b);
+            long ra = ufFind.applyAsLong(a);
+            long rb = ufFind.applyAsLong(b);
+            if (ra != rb) {
+                if (ra < rb) ufParent.put(rb, ra);
+                else ufParent.put(ra, rb);
+            }
+        };
+
+        Map<Long, List<CycleHistoryItemResponse.TransferLink>> transferLinksByCycle = new HashMap<>();
+        for (FarmingCycle cycle : closedCycles) {
+            Long cid = cycle.getId();
+            for (Flock f : flocksByCycle.getOrDefault(cid, List.of())) {
+                if (f.getSourceFlock() != null) {
+                    Flock sf = flockById.get(f.getSourceFlock().getId());
+                    if (sf != null && sf.getCycle() != null) {
+                        ufUnion.accept(cid, sf.getCycle().getId());
+                    }
+                }
+            }
+            Map<String, CycleHistoryItemResponse.TransferLink> merged = new LinkedHashMap<>();
+            for (FlockMovement m : movementsByCycle.getOrDefault(cid, List.of())) {
+                if (m.getType() != FlockMovementType.TRANSFER_IN && m.getType() != FlockMovementType.TRANSFER_OUT) continue;
+                if (m.getRelatedFlock() == null) continue;
+                Flock rel = flockById.get(m.getRelatedFlock().getId());
+                if (rel == null || rel.getCycle() == null || rel.getCycle().getBarn() == null) continue;
+                FarmingCycle relCycle = rel.getCycle();
+                Barn relBarn = relCycle.getBarn();
+                ufUnion.accept(cid, relCycle.getId());
+                String dir = m.getType() == FlockMovementType.TRANSFER_IN ? "IN" : "OUT";
+                String key = dir + ":" + relCycle.getId();
+                merged.merge(key,
+                        new CycleHistoryItemResponse.TransferLink(dir, relCycle.getId(), cycleCode(relCycle), relBarn.getId(), relBarn.getName(), m.getQuantity()),
+                        (a, b) -> new CycleHistoryItemResponse.TransferLink(a.direction(), a.cycleId(), a.cycleCode(), a.barnId(), a.barnName(), a.quantity() + b.quantity()));
+            }
+            if (!merged.isEmpty()) {
+                transferLinksByCycle.put(cid, List.copyOf(merged.values()));
+            }
+        }
         Map<Long, List<FeedRecord>> feedsByCycle = new HashMap<>();
         for (FeedRecord record : feedRepository.findByCycleIdInOrderByRecordDateDescIdDesc(cycleIds)) {
             if (record.getCycle() != null) {
@@ -218,7 +303,11 @@ public class CycleService {
                     f == null ? null : f.totalCost(),
                     f == null ? null : f.revenue(),
                     f == null ? null : f.profit(),
-                    f == null ? null : f.costPerKg()
+                    f == null ? null : f.costPerKg(),
+                    m.weightGainKg(),
+                    m.transferredOut(),
+                    cyclesWithTransfers.contains(id) ? "G-" + ufFind.applyAsLong(id) : null,
+                    transferLinksByCycle.getOrDefault(id, List.of())
             ));
         }
         return result;
