@@ -42,6 +42,8 @@ public class ReportService {
     private final WorkTaskCheckRepository workTaskCheckRepository;
     private final AccountRepository accountRepository;
     private final WarehouseCategoryRepository warehouseRepository;
+    private final CycleDiseaseRepository cycleDiseaseRepository;
+    private final DiseaseTreatmentLogRepository diseaseTreatmentLogRepository;
 
     public ReportSummaryResponse getSummary(LocalDate from, LocalDate to) {
         LocalDate today = LocalDate.now(VN_ZONE);
@@ -74,6 +76,25 @@ public class ReportService {
                 : groupExpensesByCycle(expenseRepository.findWithCycleByCycleIdIn(cycleIds));
         Map<Long, List<CycleCarriedExpense>> carriedByCycle = cycleIds.isEmpty() ? Map.of()
                 : groupCarriedByCycle(carriedExpenseRepository.findWithCycleByCycleIdIn(cycleIds));
+        Map<Long, List<CycleDisease>> diseasesByCycle = new HashMap<>();
+        Map<Long, List<DiseaseTreatmentLog>> treatmentsByDisease = new HashMap<>();
+        if (!cycleIds.isEmpty()) {
+            List<CycleDisease> allDiseases = cycleDiseaseRepository.findAllByCycleIdIn(cycleIds);
+            List<Long> diseaseIds = new ArrayList<>(allDiseases.size());
+            for (CycleDisease d : allDiseases) {
+                if (d.getCycle() != null) {
+                    diseasesByCycle.computeIfAbsent(d.getCycle().getId(), ignored -> new ArrayList<>()).add(d);
+                }
+                diseaseIds.add(d.getId());
+            }
+            if (!diseaseIds.isEmpty()) {
+                for (DiseaseTreatmentLog log : diseaseTreatmentLogRepository.findAllByDiseaseIdInOrderByTreatmentDateAscIdAsc(diseaseIds)) {
+                    if (log.getDisease() != null) {
+                        treatmentsByDisease.computeIfAbsent(log.getDisease().getId(), ignored -> new ArrayList<>()).add(log);
+                    }
+                }
+            }
+        }
 
         // ── 1. Farm Summary & 6. Growth (FCR) ────────────────────────────────────────────────
         int sumIn = 0, sumHarvested = 0, sumDeaths = 0, sumCulls = 0, sumLive = 0, activeBarns = 0, closedCycles = 0;
@@ -82,6 +103,7 @@ public class ReportService {
         BigDecimal sumCost = BigDecimal.ZERO, sumRevenue = BigDecimal.ZERO;
         BigDecimal sumChickCost = BigDecimal.ZERO, sumFeedCost = BigDecimal.ZERO, sumOtherCost = BigDecimal.ZERO;
         BigDecimal sumMedicineCost = BigDecimal.ZERO, sumOtherDirectCost = BigDecimal.ZERO;
+        BigDecimal sumDiseaseMedicineCost = BigDecimal.ZERO;
         BigDecimal realizedProfit = BigDecimal.ZERO, wipCost = BigDecimal.ZERO, wipRevenue = BigDecimal.ZERO;
 
         List<BarnCycleRow> barnRows = new ArrayList<>();
@@ -302,6 +324,36 @@ public class ReportService {
             boolean closedAsOfTo = cycle.getStatus() == CycleStatus.CLOSED
                     && (to == null || cycle.getEndDate() == null || !cycle.getEndDate().isAfter(to));
 
+            List<CycleDisease> cycleDiseases = diseasesByCycle.getOrDefault(cycleId, List.of());
+            List<DiseaseSummaryRow> cycleDiseaseRows = new ArrayList<>();
+            BigDecimal rawDiseaseMedCost = BigDecimal.ZERO;
+            for (CycleDisease d : cycleDiseases) {
+                List<DiseaseTreatmentLog> logs = treatmentsByDisease.getOrDefault(d.getId(), List.of());
+                BigDecimal dCost = BigDecimal.ZERO;
+                for (DiseaseTreatmentLog log : logs) {
+                    if (isInPeriod(log.getTreatmentDate(), rangeFrom, rangeTo, hasDateFilter)) {
+                        dCost = dCost.add(nz(log.getCost()));
+                    }
+                }
+                BigDecimal roundedDCost = dCost.setScale(0, RoundingMode.HALF_UP);
+                boolean inRange = !hasDateFilter
+                        || overlapsRange(d.getStartDate(), d.getEndDate(), from, to)
+                        || roundedDCost.signum() > 0;
+                if (inRange) {
+                    rawDiseaseMedCost = rawDiseaseMedCost.add(roundedDCost);
+                    cycleDiseaseRows.add(new DiseaseSummaryRow(
+                            d.getId(),
+                            d.getDiseaseName(),
+                            d.getStartDate(),
+                            d.getEndDate(),
+                            d.getStatus() != null ? d.getStatus().name() : DiseaseStatus.ACTIVE.name(),
+                            roundedDCost
+                    ));
+                }
+            }
+            BigDecimal roundedDiseaseMedCost = rawDiseaseMedCost.min(roundedMedicineCost);
+            sumDiseaseMedicineCost = sumDiseaseMedicineCost.add(roundedDiseaseMedCost);
+
             barnRows.add(new BarnCycleRow(
                     cycleId, cycleCode, barn != null ? barn.getId() : null, barnName, areaName, breed,
                     cycle.getStatus() != null ? cycle.getStatus().name() : "ACTIVE",
@@ -310,7 +362,8 @@ public class ReportService {
                     survivalRate, cycleTotalCost, cycleRevenue, cycleProfit,
                     roundedChickCost, roundedFeedCost, roundedOtherCost,
                     roundedMedicineCost, roundedOtherDirectCost, fcr, avgWeightKg,
-                    roundedHarvestedWeight, biomassKg, costPerKg
+                    roundedHarvestedWeight, biomassKg, costPerKg,
+                    cycleDiseaseRows.size(), roundedDiseaseMedCost, List.copyOf(cycleDiseaseRows)
             ));
 
             sumIn += totalIn;
@@ -389,7 +442,8 @@ public class ReportService {
                 realizedProfit.setScale(0, RoundingMode.HALF_UP),
                 wipCost.setScale(0, RoundingMode.HALF_UP),
                 wipRevenue.setScale(0, RoundingMode.HALF_UP),
-                closedCycles
+                closedCycles,
+                sumDiseaseMedicineCost.setScale(0, RoundingMode.HALF_UP)
         );
 
         List<BigDecimal> validFcrs = growthRows.stream().map(GrowthCycleRow::fcr).filter(Objects::nonNull).toList();

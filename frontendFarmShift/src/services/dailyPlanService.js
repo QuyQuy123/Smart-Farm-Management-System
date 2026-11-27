@@ -18,3 +18,5 @@ const stockChanged = async request => {
 };
 export const confirmDailyTask = (cycleId, body) => stockChanged(api.post(`/cycles/${cycleId}/daily-plan/tasks`, body));
 export const undoDailyTask = (cycleId, date, taskKey) => stockChanged(api.delete(`/cycles/${cycleId}/daily-plan/tasks`, { params: { date, taskKey } }));
+export const checkRoutineTask = (cycleId, body) => data(api.post(`/cycles/${cycleId}/routine-tasks`, body));
+export const uncheckRoutineTask = (cycleId, date, taskCode) => data(api.delete(`/cycles/${cycleId}/routine-tasks`, { params: { date, taskCode } }));

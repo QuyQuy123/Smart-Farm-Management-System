@@ -20,6 +20,8 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     java.util.Optional<InventoryItem> findWithDetailsById(Long id);
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "product", "brand", "unit"})
     List<InventoryItem> findByWarehouse_Id(Long warehouseId, Sort sort);
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"warehouse", "product", "brand", "unit"})
+    List<InventoryItem> findByWarehouse_IdIn(java.util.Collection<Long> warehouseIds, Sort sort);
     List<InventoryItem> findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(Long warehouseId, Long productId);
     // Legacy product-only requests are safe only when the warehouse has a single lot.
     default java.util.Optional<InventoryItem> findByWarehouse_IdAndProduct_Id(Long warehouseId, Long productId) {

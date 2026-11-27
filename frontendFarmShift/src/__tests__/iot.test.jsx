@@ -1,9 +1,13 @@
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { api } from '../utils/api';
+import { IotEventLog } from '../features/farmshift/IotEventLog';
 import { IotView } from '../features/farmshift/IotView';
 import { listBarns, listFarmAreas } from '../services/farmAreaService';
-import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics, syncIotTelemetrySnapshot } from '../services/esp32MqttService';
+import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics } from '../services/esp32MqttService';
+
+vi.mock('../utils/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }));
 
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children }) => <main>{children}</main> }));
 vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(), listFarmAreas: vi.fn(), FARM_AREAS_CHANGED: 'farm-areas-changed' }));
@@ -20,7 +24,9 @@ afterAll(() => {
 });
 beforeEach(() => {
   vi.resetAllMocks();
-  localStorage.clear();
+  api.get.mockResolvedValue({ data: { data: [] } });
+  api.post.mockResolvedValue({ data: {} });
+  localStorage.removeItem('farmshift-esp32-temperature');
   connectEsp32.mockResolvedValue({ disconnect: vi.fn() });
   listFarmAreas.mockResolvedValue([{ id: 1, name: 'Khu Mía' }, { id: 2, name: 'Khu Hồ' }]);
   listBarns.mockResolvedValue([{ id: 11, name: 'Chuồng A1', areaId: 1 }, { id: 12, name: 'Chuồng B1', areaId: 2 }]);
@@ -42,17 +48,19 @@ it('automates a configured fan and yields to its manual switch', async () => {
   group.querySelector('details').open = true;
   fireEvent.click(within(group).getByRole('button', { name: 'Chỉnh sửa' }));
   const dialog = screen.getByRole('dialog');
-  fireEvent.change(within(dialog).getByLabelText('Relay ESP32'), { target: { value: '1' } });
+  expect(within(dialog).queryByLabelText('Relay ESP32')).not.toBeInTheDocument();
+  expect(within(dialog).queryByLabelText(/Công suất/)).not.toBeInTheDocument();
   fireEvent.click(within(dialog).getByLabelText('Điều khiển tự động'));
   fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thiết bị' }));
   act(() => {
     receive({ topic: `${ESP32_TOPIC_PREFIX}/temp1`, payload: '41' });
     receive({ topic: `${ESP32_TOPIC_PREFIX}/temp3`, payload: '43' });
   });
-  await waitFor(() => expect(publishRelay).toHaveBeenCalledWith(1, 'ON'));
-  act(() => receive({ topic: relayStatusTopics[0], payload: 'ON' }));
+  await waitFor(() => expect(publishRelay).toHaveBeenCalledWith(4, 'ON'), { timeout: 4500 });
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/barns/11/iot-events', expect.objectContaining({ deviceType: 'FAN', mode: 'AUTO' })));
+  act(() => receive({ topic: relayStatusTopics[3], payload: 'ON' }));
   fireEvent.click(within(group).getByRole('switch', { name: 'Bật tắt Quạt gió' }));
-  expect(publishRelay).toHaveBeenLastCalledWith(1, 'OFF');
+  expect(publishRelay).toHaveBeenLastCalledWith(4, 'OFF');
   expect(within(group).getByText('Điều khiển tay')).toBeInTheDocument();
 });
 
@@ -104,7 +112,7 @@ it('sends commands for assigned relays individually and as a group', async () =>
   const defaultLight = screen.getByRole('switch', { name: 'Bật tắt Hệ thống Đèn chiếu sáng' });
   fireEvent.click(within(defaultLight.closest('article')).getByRole('button', { name: 'Chỉnh sửa' }));
   dialog = screen.getByRole('dialog');
-  fireEvent.change(within(dialog).getByLabelText('Relay ESP32'), { target: { value: '2' } });
+  expect(within(dialog).queryByLabelText('Relay ESP32')).not.toBeInTheDocument();
   fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thiết bị' }));
   fireEvent.click(allLights);
   expect(publishRelay).toHaveBeenCalledWith(2, 'ON');
@@ -159,7 +167,7 @@ it('displays MQTT readings from the two installed sensor channels', async () => 
   fireEvent.click(await screen.findByRole('button', { name: 'Xem chi tiết Chuồng A1' }));
   const environment = screen.getByRole('region', { name: 'Môi trường Chuồng A1' });
   for (const value of ['27,1', '95', '28,4', '83']) {
-    expect(await within(environment).findByText(value)).toBeInTheDocument();
+    expect(await within(environment).findByText(value, {}, { timeout: 4500 })).toBeInTheDocument();
   }
   const chart = within(environment).getByRole('group', { name: 'Biểu đồ nhiệt độ Chuồng A1' });
   const marker = chart.querySelector('circle');
@@ -174,47 +182,68 @@ it('displays MQTT readings from the two installed sensor channels', async () => 
   expect(within(environment).getByText(/Trung bình hai cảm biến · .* · 27,75 °C/)).toBeInTheDocument();
 });
 
-it('syncs first sensor snapshot immediately after relay status and syncs connected=false on disconnect', async () => {
-  let setConn;
+
+it('refreshes temperatures every three seconds and logs the latest raw readings on activation', async () => {
   let receive;
+  const publishRelay = vi.fn().mockResolvedValue(undefined);
   connectEsp32.mockImplementation(async ({ onConnection, onMessage }) => {
-    setConn = onConnection;
     receive = onMessage;
     onConnection('connected');
-    return { disconnect: vi.fn(), publishRelay: vi.fn() };
+    return { disconnect: vi.fn(), publishRelay };
   });
-  open();
-  fireEvent.click(await screen.findByRole('button', { name: 'Xem chi tiết Chuồng A1' }));
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  render(<MemoryRouter initialEntries={['/iot?barn=11']}><IotView /></MemoryRouter>);
   await screen.findByText('Đã kết nối thiết bị phần cứng');
-
-  // Relay arrives first, then sensor reading immediately after
-  act(() => {
-    receive({ topic: relayStatusTopics[3], payload: 'ON' });
-  });
-  act(() => {
-    receive({ topic: `${ESP32_TOPIC_PREFIX}/temp1`, payload: '31.5' });
-    receive({ topic: `${ESP32_TOPIC_PREFIX}/humi1`, payload: '70' });
-  });
-
-  await waitFor(() => {
-    expect(syncIotTelemetrySnapshot).toHaveBeenCalledWith(expect.objectContaining({
-      barnId: 11,
-      connected: true,
-      temp1: 31.5,
-      humi1: 70,
-    }));
-  });
-
-  // On disconnect, backend registry must be notified connected: false
-  act(() => {
-    setConn('disconnected');
-  });
-
-  await waitFor(() => {
-    expect(syncIotTelemetrySnapshot).toHaveBeenLastCalledWith({
-      barnId: 11,
-      connected: false,
-      source: 'ESP32_MQTT',
+  try {
+    const environment = screen.getByRole('region', { name: 'Môi trường Chuồng A1' });
+    act(() => {
+      receive({ topic: `${ESP32_TOPIC_PREFIX}/temp1`, payload: '30' });
+      receive({ topic: `${ESP32_TOPIC_PREFIX}/temp3`, payload: '32' });
     });
-  });
+    act(() => vi.advanceTimersByTime(2999));
+    expect(within(environment).getAllByText('Chưa có dữ liệu')).toHaveLength(4);
+    act(() => vi.advanceTimersByTime(1));
+    expect(within(environment).getByText('30', { selector: 'strong' })).toBeInTheDocument();
+    act(() => receive({ topic: `${ESP32_TOPIC_PREFIX}/temp1`, payload: '35' }));
+    expect(within(environment).queryByText('35', { selector: 'strong' })).not.toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole('switch', { name: 'Bật tắt toàn bộ Quạt gió' })));
+    expect(api.post).toHaveBeenCalledWith('/barns/11/iot-events', expect.objectContaining({
+      deviceType: 'FAN', mode: 'MANUAL', temperature1: 35, temperature3: 32,
+    }));
+    act(() => vi.advanceTimersByTime(3000));
+    expect(within(environment).getByText('35', { selector: 'strong' })).toBeInTheDocument();
+    api.post.mockClear();
+    publishRelay.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => fireEvent.click(screen.getByRole('switch', { name: 'Bật tắt Hệ thống phun sương' })));
+    expect(api.post).not.toHaveBeenCalled();
+    api.post.mockRejectedValueOnce(new Error('database offline'));
+    await act(async () => fireEvent.click(screen.getByRole('switch', { name: 'Bật tắt Hệ thống phun sương' })));
+    const failedEvent = api.post.mock.calls[0][1];
+    expect(failedEvent).toMatchObject({ deviceType: 'WATER', mode: 'MANUAL', temperature1: 35 });
+    expect(screen.getByText(/Đã gửi lệnh bật nhưng chưa lưu được nhật ký/)).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Lưu lại 1 nhật ký chưa lưu' })));
+    expect(api.post.mock.calls[1][1].id).toBe(failedEvent.id);
+    expect(screen.queryByRole('button', { name: 'Lưu lại 1 nhật ký chưa lưu' })).not.toBeInTheDocument();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 16000);
+    try {
+      await act(async () => fireEvent.click(screen.getByRole('switch', { name: 'Bật tắt Hệ thống phun sương' })));
+      expect(api.post.mock.calls.at(-1)[1]).toMatchObject({ temperature1: null, temperature3: null });
+    } finally { clock.mockRestore(); }
+  } finally { vi.useRealTimers(); }
+});
+
+
+it('shows persisted activation history with temperatures and manual or automatic mode', async () => {
+  api.get.mockResolvedValueOnce({ data: { data: [{
+    id: 'event-1', deviceName: 'Quạt thông gió', relay: 4, mode: 'AUTO',
+    temperature1: 40, temperature3: 42, occurredAt: '2026-01-01T00:00:00Z', actor: 'owner@example.com',
+  }] } });
+  render(<IotEventLog barnId={11} revision={0} />);
+  expect(await screen.findByText('Đã gửi lệnh bật Quạt thông gió · Relay 4')).toBeInTheDocument();
+  expect(screen.getByText('40 °C')).toBeInTheDocument();
+  expect(screen.getByText('42 °C')).toBeInTheDocument();
+  expect(screen.getByText('41 °C')).toBeInTheDocument();
+  expect(screen.getByText(/^Tự động/)).toBeInTheDocument();
+  expect(api.get).toHaveBeenCalledWith('/barns/11/iot-events', { params: { page: 0 }, skipCache: true });
 });

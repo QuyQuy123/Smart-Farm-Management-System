@@ -32,9 +32,9 @@ public class EmployeeCreateRequest {
     @Pattern(regexp = "^(\\d{10,11})?$", message = "Phone number must be 10-11 digits")
     private String phone;
 
-    /** Initial password; if left blank or null, defaults to '123456'. Must be between 6 and 50 characters if provided. */
+    /** Initial password; if left blank or null, defaults to '123456'. Must be 6-50 characters with no whitespace if provided. */
     @Size(max = 50, message = "Password must be at most 50 characters")
-    @Pattern(regexp = "^$|^\\S{6,50}$", message = "Password must be at least 6 characters")
+    @Pattern(regexp = "^$|^\\S{6,50}$", message = "Password must be 6-50 characters and must not contain whitespace")
     private String password;
 
     private String avatarUrl;

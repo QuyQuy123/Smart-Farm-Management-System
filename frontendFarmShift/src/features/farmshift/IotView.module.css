@@ -119,6 +119,8 @@
 .deviceGroup > article { margin: 8px 0 0; background: #fff; }
 .form { padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; }
 .form label { font-size: 14px; }
+.automaticControl { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 0; }
+.automaticControl .toggle:disabled { opacity: .5; cursor: not-allowed; }
 .form label span { color: #bf3535; }
 .form small { color: #7b8e84; }
 .dialogFooter { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #f7faf8; border-top: 1px solid #e6eeea; }
@@ -148,3 +150,9 @@
   .device h4 { font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { .device, .toggle, .toggle span { transition: none; } }
+
+.eventTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.eventTable th, .eventTable td { padding: 12px; text-align: left; border-bottom: 1px solid #e6ece8; min-width: 110px; }
+
+.detail + .environment { margin-top: 24px; }
+.eventTable td:nth-child(3) { overflow-wrap: anywhere; }

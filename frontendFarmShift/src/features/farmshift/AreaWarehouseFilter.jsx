@@ -7,10 +7,11 @@ import styles from './AreaWarehouseFilter.module.css';
  */
 export function AreaWarehouseFilter({ warehouses, value, onChange }) {
   const areas = warehouseAreas(warehouses);
+  const lockedSingleArea = areas.length === 1 && value.area === String(areas[0][0]);
   return <div className={styles.filter} role="group" aria-label="Lọc kho">
     <label>Khu
       <select className="farmshift-select" value={value.area} onChange={event => onChange({ ...value, area: event.target.value })}>
-        <option value="">Tất cả khu</option>
+        {!lockedSingleArea && <option value="">Tất cả khu</option>}
         {areas.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
       </select>
     </label>

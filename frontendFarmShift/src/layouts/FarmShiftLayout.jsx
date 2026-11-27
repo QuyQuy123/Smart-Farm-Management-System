@@ -111,6 +111,7 @@ export const FarmShiftLayout = ({
     pageTitle,
     breadcrumbTitle = pageTitle,
     breadcrumbs = [],
+    hideBreadcrumbs = false,
     showShortcuts = false,
     environmentHref = '/journal?tab=env',
     feedHref = '/today-tasks',
@@ -344,7 +345,7 @@ export const FarmShiftLayout = ({
         { id: 'cycle-history', label: 'Lịch sử lứa nuôi', path: '/cycles/history', icon: History, roles: ['ROLE_ACCOUNTANT'] },
         { id: 'today-tasks', label: 'Việc hôm nay', path: '/today-tasks', icon: ListChecks, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
         { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
-        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
+        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'] },
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'] },
         { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
@@ -865,17 +866,19 @@ export const FarmShiftLayout = ({
                                     <h1 className="farmshift-page-title">
                                         {pageTitle}
                                     </h1>
-                                    <div className="farmshift-breadcrumbs">
-                                        <Link to={defaultHomeRoute}>{farmInfo.name}</Link>
-                                        <span>›</span>
-                                        {effectiveBreadcrumbs.map((bc, idx) => (
-                                            <Fragment key={idx}>
-                                                {bc.path ? <Link to={bc.path}>{bc.label}</Link> : <span>{bc.label}</span>}
-                                                <span>›</span>
-                                            </Fragment>
-                                        ))}
-                                        <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
-                                    </div>
+                                    {!hideBreadcrumbs && (
+                                        <div className="farmshift-breadcrumbs">
+                                            <Link to={defaultHomeRoute}>{farmInfo.name}</Link>
+                                            <span>›</span>
+                                            {effectiveBreadcrumbs.map((bc, idx) => (
+                                                <Fragment key={idx}>
+                                                    {bc.path ? <Link to={bc.path}>{bc.label}</Link> : <span>{bc.label}</span>}
+                                                    <span>›</span>
+                                                </Fragment>
+                                            ))}
+                                            <span style={{ color: 'var(--color-ink)', fontWeight: 500 }}>{breadcrumbTitle}</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

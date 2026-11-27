@@ -8,7 +8,7 @@ import * as service from '../services/workAssignmentService';
 const mocks = vi.hoisted(() => ({ showToast: vi.fn() }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
 vi.mock('../services/workAssignmentService', () => ({
-  getWorkBoard: vi.fn(), setBarnWorkers: vi.fn(), createWorkTask: vi.fn(), updateWorkTask: vi.fn(), deleteWorkTask: vi.fn(),
+  getWorkBoard: vi.fn(), setBarnWorkers: vi.fn(), setBarnRoutineTasks: vi.fn(), createWorkTask: vi.fn(), updateWorkTask: vi.fn(), deleteWorkTask: vi.fn(),
 }));
 
 const originalShow = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
@@ -200,5 +200,16 @@ describe('Phân công công việc (chủ trại)', () => {
     await waitFor(() => expect(service.createWorkTask).toHaveBeenCalledWith({
       barnId: 1, assigneeId: 5, title: 'Tiêm vắc-xin bổ sung', note: '', startDate: '2099-02-10', endDate: '2099-02-14', dueTime: null,
     }));
+  });
+
+  it('toggles per-barn default daily routine tasks cleanly', async () => {
+    service.setBarnRoutineTasks.mockResolvedValue(['CLEAN_FEEDERS', 'WASH_BARN']);
+    renderView();
+    await openArea();
+    const routineSection = await screen.findByLabelText('Việc hằng ngày mặc định Nhà A1');
+    const toggleBtn = within(routineSection).getByRole('button', { name: 'Thay trấu' });
+    expect(toggleBtn).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(toggleBtn);
+    await waitFor(() => expect(service.setBarnRoutineTasks).toHaveBeenCalledWith(1, ['CLEAN_FEEDERS', 'WASH_BARN']));
   });
 });

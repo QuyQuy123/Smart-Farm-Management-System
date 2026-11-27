@@ -268,8 +268,15 @@ class InternalStockIntegrationTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_FARM_WORKER")
-    void workerForbiddenFromCreatingVoucherAndFinanceHiddenInRead() throws Exception {
+    void workerCanCreateVoucherWithHiddenFinanceAndCannotCancelOrManageCategories() throws Exception {
         InternalStockCategory exportCat = categoryRepository.findByNameKey("xuất hủy").orElseThrow();
+
+        InventoryItem stockItem = new InventoryItem();
+        stockItem.setWarehouse(warehouseFeed);
+        stockItem.setProduct(productHigro);
+        stockItem.setStock(new BigDecimal("25.000"));
+        stockItem.setPrice(new BigDecimal("100000"));
+        inventoryItemRepository.saveAndFlush(stockItem);
 
         InternalStockVoucherRequest req = new InternalStockVoucherRequest(
                 "EXPORT",
@@ -278,7 +285,7 @@ class InternalStockIntegrationTest {
                 null,
                 null,
                 LocalDate.now(),
-                "Công nhân thử xuất",
+                "Công nhân lập phiếu xuất",
                 null,
                 List.of(new InternalStockVoucherItemRequest(
                         productHigro.getId(),
@@ -289,10 +296,24 @@ class InternalStockIntegrationTest {
                 ))
         );
 
-        // 403 Forbidden khi tạo
-        mvc.perform(post("/api/internal-stock/vouchers")
+        // Được phép lập phiếu (201 Created) nhưng ẩn toàn bộ giá vốn / tổng tiền
+        String createdBody = mvc.perform(post("/api/internal-stock/vouchers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.code").isNotEmpty())
+                .andExpect(jsonPath("$.data.totalAmount").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.items[0].unitPrice").value(org.hamcrest.Matchers.nullValue()))
+                .andReturn().getResponse().getContentAsString();
+
+        long createdId = mapper.readTree(createdBody).path("data").path("id").asLong();
+
+        // Vẫn chặn hủy phiếu và tạo danh mục lý do
+        mvc.perform(post("/api/internal-stock/vouchers/" + createdId + "/cancel"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/internal-stock/categories")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Lý do thử\",\"movementType\":\"EXPORT\"}"))
                 .andExpect(status().isForbidden());
 
         // GET vouchers: Được phép xem nhưng giá trị tài chính ẩn

@@ -1,5 +1,6 @@
 // src/features/farmshift/reports/reportUtils.js
 // Tiện ích chuẩn hóa dữ liệu, định dạng số/tiền tệ, phân loại vật tư, lọc chính xác và xuất CSV báo cáo.
+import { addDaysIso, todayIso } from '../farmAreaOptions';
 
 export const EMPTY_REPORT = {
   from: null,
@@ -247,32 +248,35 @@ export const csvCell = (val) => {
   return `"${str.replace(/"/g, '""')}"`;
 };
 
-export const getIsoDate = (dateObj) => dateObj.toISOString().slice(0, 10);
+export const getIsoDate = (dateObj) => {
+  if (!dateObj) return todayIso();
+  const shifted = new Date(dateObj.getTime() - dateObj.getTimezoneOffset() * 60000);
+  return shifted.toISOString().slice(0, 10);
+};
 
 export const getPresetRange = (presetKey) => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
+  const today = todayIso();
+  const y = today.slice(0, 4);
+  const m = Number(today.slice(5, 7));
   if (presetKey === 'month') {
-    const start = new Date(Date.UTC(y, m, 1));
-    const end = new Date(Date.UTC(y, m + 1, 0));
-    return { from: getIsoDate(start), to: getIsoDate(end) };
+    return { from: `${today.slice(0, 7)}-01`, to: today };
+  }
+  if (presetKey === 'last30') {
+    return { from: addDaysIso(today, -29), to: today };
   }
   if (presetKey === 'quarter') {
-    const qStartMonth = Math.floor(m / 3) * 3;
-    const start = new Date(Date.UTC(y, qStartMonth, 1));
-    const end = new Date(Date.UTC(y, qStartMonth + 3, 0));
-    return { from: getIsoDate(start), to: getIsoDate(end) };
+    const qStartMonth = String(Math.floor((m - 1) / 3) * 3 + 1).padStart(2, '0');
+    return { from: `${y}-${qStartMonth}-01`, to: today };
   }
   if (presetKey === 'year') {
-    return { from: `${y}-01-01`, to: `${y}-12-31` };
+    return { from: `${y}-01-01`, to: today };
   }
   return { from: '', to: '' };
 };
 
 export const detectPresetFromDates = (from, to) => {
   if (!from && !to) return 'all';
-  for (const key of ['month', 'quarter', 'year']) {
+  for (const key of ['month', 'last30', 'quarter', 'year']) {
     const range = getPresetRange(key);
     if (range.from === from && range.to === to) return key;
   }
@@ -410,40 +414,41 @@ export const SALES_STATUS_LABELS = {
   CREDIT: 'Ghi công nợ',
 };
 
-export const TAB_CLUSTERS = [
-  {
-    cluster: 'Hạch toán & Chăn nuôi',
-    tabs: [
-      { id: 'summary', label: 'Tổng hợp toàn trại' },
-      { id: 'growth', label: 'Xu hướng lứa nuôi (FCR)' },
-      { id: 'harvest', label: 'Báo cáo thu hoạch' },
-    ],
-  },
-  {
-    cluster: 'Mua bán & Công nợ',
-    tabs: [
-      { id: 'sales', label: 'Báo cáo bán hàng' },
-      { id: 'purchases', label: 'Báo cáo nhập hàng' },
-    ],
-  },
-  {
-    cluster: 'Kho & Vận hành',
-    tabs: [
-      { id: 'inventory', label: 'Báo cáo tồn kho' },
-      { id: 'internal', label: 'Xuất nhập nội bộ' },
-      { id: 'activity', label: 'Nhật ký hoạt động' },
-    ],
-  },
+export const REPORT_TABS = [
+  { id: 'financial', label: 'Tổng quan Tài chính' },
+  { id: 'performance', label: 'Hiệu suất & Lứa nuôi' },
+  { id: 'trade', label: 'Mua bán & Công nợ' },
+  { id: 'activity', label: 'Nhật ký hoạt động' },
 ];
 
-export const VALID_TAB_IDS = TAB_CLUSTERS.flatMap((g) => g.tabs.map((t) => t.id));
+export const VALID_TAB_IDS = REPORT_TABS.map((t) => t.id);
+
+export const resolveReportTab = (rawTab) => {
+  if (VALID_TAB_IDS.includes(rawTab)) return { tab: rawTab, tradeSubTab: null };
+  if (rawTab === 'summary') return { tab: 'financial', tradeSubTab: null };
+  if (rawTab === 'growth' || rawTab === 'harvest') return { tab: 'performance', tradeSubTab: null };
+  if (rawTab === 'sales') return { tab: 'trade', tradeSubTab: 'sales' };
+  if (rawTab === 'purchases') return { tab: 'trade', tradeSubTab: 'purchases' };
+  return { tab: 'financial', tradeSubTab: null };
+};
 
 export const getTabLabel = (tabId) => {
-  for (const group of TAB_CLUSTERS) {
-    const found = group.tabs.find((t) => t.id === tabId);
-    if (found) return found.label;
+  const found = REPORT_TABS.find((t) => t.id === tabId);
+  return found ? found.label : 'Báo cáo & Thống kê';
+};
+
+export const classifyActivityActionType = (item) => {
+  const action = String(item?.action || '').toLowerCase();
+  const mod = String(item?.module || '').toLowerCase();
+  if (/(xóa|huỷ|hủy|hoàn tác)/i.test(action)) return 'DELETE';
+  if (/(cập nhật|sửa|chỉnh|đổi|đóng lứa|thanh toán)/i.test(action)) return 'UPDATE';
+  if (
+    /(xuất|nhập|chuyển kho|hóa đơn|thu hoạch)/i.test(action)
+    || /(xuất nhập nội bộ|kho|nhập hàng|bán hàng)/i.test(mod)
+  ) {
+    return 'STOCK';
   }
-  return 'Báo cáo & Thống kê';
+  return 'CREATE';
 };
 
 const escapeRegExp = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

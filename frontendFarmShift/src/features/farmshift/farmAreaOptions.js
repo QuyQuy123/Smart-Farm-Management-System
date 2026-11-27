@@ -234,20 +234,8 @@ export const validateProgram = draft => {
     else if (from > to) message = 'Ngày tuổi bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.';
     else if (!fields.durationDays && to > duration) message = `Ngày tuổi ${to} vượt thời gian nuôi ${duration} ngày.`;
     else if (step.category === 'FEED') {
-      const bagsMode = step.feedInputMode === 'BAGS_PER_1000_BIRDS';
       if (!isWhole(step.mealsPerDay) || Number(step.mealsPerDay) < 1 || Number(step.mealsPerDay) > 8) {
-        message = bagsMode
-          ? 'Cần định mức (bao/1.000 con) lớn hơn 0 và số cữ ăn từ 1 đến 8.'
-          : 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
-      } else if (bagsMode) {
-        const converted = bagsToGramPerBirdDay(step.bagsPer1000Birds, step.bagWeightKg, step.dayFrom, step.dayTo);
-        if (!positive(step.bagsPer1000Birds) || (step.bagWeightKg !== '' && !positive(step.bagWeightKg))) {
-          message = 'Cần định mức (bao/1.000 con) lớn hơn 0 và trọng lượng bao hợp lệ.';
-        } else if (Number(step.bagsPer1000Birds) > MAX_STEP_QUANTITY
-          || (step.bagWeightKg !== '' && Number(step.bagWeightKg) > MAX_BAG_WEIGHT_KG)
-          || (converted != null && converted > MAX_STEP_QUANTITY)) {
-          message = 'Định mức hoặc trọng lượng bao vượt giới hạn tối đa cho phép.';
-        }
+        message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
       } else if (!positive(step.quantity)) {
         message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
       } else if (Number(step.quantity) > MAX_STEP_QUANTITY) {
@@ -288,9 +276,6 @@ export const describeStep = step => {
   const number = value => Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 });
   switch (step.category) {
     case 'FEED':
-      if (step.feedInputMode === 'BAGS_PER_1000_BIRDS' && step.bagsPer1000Birds != null) {
-        return `${number(step.bagsPer1000Birds)} bao/1.000 con (≈ ${number(step.quantity)} g/con/ngày) · ${step.mealsPerDay} cữ/ngày`;
-      }
       return `${number(step.quantity)} g/con/ngày · ${step.mealsPerDay} cữ/ngày`;
     case 'VACCINE': return [METHODS.find(item => item.value === step.method)?.label, step.quantity != null ? `${number(step.quantity)} ${step.unit || ''}`.trim() : null].filter(Boolean).join(' · ');
     case 'MEDICINE':
@@ -342,3 +327,36 @@ export const warehouseAreas = warehouses => [...new Map(warehouses.map(warehouse
 /** Lọc kho theo khu ('' là tất cả) và loại kho ('' là tất cả). */
 export const filterWarehouses = (warehouses, { area, kind }) => warehouses.filter(warehouse =>
   (!area || String(warehouse.areaId ?? 'none') === area) && (!kind || warehouse.kind === kind));
+
+// ---------------------------------------------------------------- việc hằng ngày mặc định theo chuồng
+
+export const CUSTOM_ROUTINE_PREFIX = 'CUSTOM:';
+export const MAX_CUSTOM_ROUTINE_LENGTH = 50;
+
+export const ROUTINE_TASK_PRESETS = [
+  { code: 'CHANGE_LITTER', title: 'Thay trấu' },
+  { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng' },
+  { code: 'WASH_BARN', title: 'Xịt rửa chuồng' },
+  { code: 'FEED_AND_WATER', title: 'Cho ăn & uống' },
+  { code: 'LOG_MORTALITY', title: 'Ghi chép hao hụt' },
+  { code: 'GIVE_SUPPLEMENTS', title: 'Cho uống thuốc bổ' },
+  { code: 'CHECK_TEMPERATURE', title: 'Kiểm tra nhiệt độ' },
+  { code: 'COLLECT_MORTALITY', title: 'Thu gom xác chết' },
+  { code: 'CHECK_EXHAUST_FANS', title: 'Kiểm tra quạt hút' },
+  { code: 'DISINFECT_WALKWAY', title: 'Sát trùng lối đi' },
+  { code: 'SAMPLE_WEIGHING', title: 'Cân mẫu gà' },
+  { code: 'CHECK_BROODER', title: 'Kiểm tra quầy úm' },
+];
+
+export const DEFAULT_ROUTINE_CODES = ['CHANGE_LITTER', 'CLEAN_FEEDERS', 'WASH_BARN'];
+
+const ROUTINE_PRESET_TITLES = new Map(ROUTINE_TASK_PRESETS.map(p => [p.code, p.title]));
+
+export const isCustomRoutineCode = code => typeof code === 'string' && code.startsWith(CUSTOM_ROUTINE_PREFIX);
+
+export const routineTaskTitle = code => {
+  if (!code) return '';
+  if (ROUTINE_PRESET_TITLES.has(code)) return ROUTINE_PRESET_TITLES.get(code);
+  if (isCustomRoutineCode(code)) return code.slice(CUSTOM_ROUTINE_PREFIX.length).trim();
+  return String(code);
+};

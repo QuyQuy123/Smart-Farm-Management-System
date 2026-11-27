@@ -2,6 +2,7 @@ package com.farmshift.backendFarmShift.controller;
 
 import com.farmshift.backendFarmShift.dto.request.*;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
+import com.farmshift.backendFarmShift.dto.response.CycleClosePreviewResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleDetailResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleHistoryItemResponse;
 import com.farmshift.backendFarmShift.dto.response.CycleSummaryResponse;
@@ -83,10 +84,17 @@ public class CycleController {
         return ApiResponse.success("Chi tiết lứa nuôi", service.detail(id, canSeeFinance(authentication)));
     }
 
+    @GetMapping("/api/cycles/{id}/close-preview")
+    @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
+    public ApiResponse<CycleClosePreviewResponse> closePreview(@PathVariable Long id) {
+        return ApiResponse.success("Xem trước kết thúc lứa nuôi", service.closePreview(id));
+    }
+
     @PostMapping("/api/cycles/{id}/close")
     @PreAuthorize("hasAuthority('ROLE_FARM_OWNER')")
-    public ApiResponse<CycleSummaryResponse> close(@PathVariable Long id, @Valid @RequestBody CloseCycleRequest request) {
-        return ApiResponse.success("Đã kết thúc lứa nuôi", service.close(id, request));
+    public ApiResponse<CycleSummaryResponse> close(@PathVariable Long id, @Valid @RequestBody CloseCycleRequest request, Authentication authentication) {
+        String actor = authentication != null ? authentication.getName() : "system";
+        return ApiResponse.success("Đã kết thúc lứa nuôi", service.close(id, request, actor));
     }
 
     @PostMapping("/api/cycles/{id}/flocks")

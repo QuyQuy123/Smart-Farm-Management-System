@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Check, ClipboardCheck, Clock, Droplets, RotateCcw, Scissors, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Clock, Droplets, RotateCcw, Scissors, Settings, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
 import { METHODS, formatAmount, labelOf, todayIso } from './farmAreaOptions';
 import styles from './DailyPlanCard.module.css';
 
@@ -18,29 +18,54 @@ const sameEmail = (a, b) => Boolean(a && b && String(a).trim().toLowerCase() ===
 
 const title = task => (task.category === 'FEED' && task.meal ? `Cữ ${task.meal}${task.mealsPerDay ? `/${task.mealsPerDay}` : ''} · ${task.name}` : task.name);
 
-/** "50 kg = 2 Bao 25kg" — lượng cả chuồng kèm số đơn vị kho cần lấy. */
-const amountText = (quantity, unit, stock, stockUnit, roundFeed = false) => {
+/** Hiển thị lượng dùng của việc kèm hướng dẫn nguyên bao / cám mở bao. */
+const amountText = (task, roundFeed = false) => {
+  const quantity = task.plannedQuantity;
   if (quantity == null) return null;
   const mainQuantity = roundFeed ? Number(quantity).toLocaleString('vi-VN', { maximumFractionDigits: 0 }) : formatAmount(quantity);
-  const main = `${mainQuantity} ${unit || ''}`.trim();
-  const stockQuantity = roundFeed && /^bao\b/i.test(stockUnit || '')
-    ? Number(stock).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : formatAmount(stock);
-  return stock != null && stockUnit ? `${main} = ${stockQuantity} ${stockUnit}` : main;
+  const main = `${mainQuantity} ${task.unit || ''}`.trim();
+  if (task.category === 'FEED' && task.stockUnit && task.bagsToOpen != null) {
+    const opened = Number(task.openedFeedKg || 0);
+    if (task.bagsToOpen === 0) {
+      return `${main} · dùng cám đã mở tại chuồng (0 ${task.stockUnit})`;
+    }
+    if (opened > 0) {
+      return `${main} · dùng ${formatAmount(opened)} kg đã mở + xuất ${formatAmount(task.bagsToOpen)} ${task.stockUnit}`;
+    }
+    return `${main} = xuất ${formatAmount(task.bagsToOpen)} ${task.stockUnit}`;
+  }
+  const stockQuantity = roundFeed && /^bao\b/i.test(task.stockUnit || '')
+    ? Number(task.plannedStock).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : formatAmount(task.plannedStock);
+  return task.plannedStock != null && task.stockUnit ? `${main} = ${stockQuantity} ${task.stockUnit}` : main;
+};
+
+const doneActualText = (done, task, roundFeed = false) => {
+  const quantity = done.actualQuantity;
+  const mainQuantity = roundFeed ? Number(quantity).toLocaleString('vi-VN', { maximumFractionDigits: 0 }) : formatAmount(quantity);
+  const main = `${mainQuantity} ${task.unit || ''}`.trim();
+  if (task.category === 'FEED' && done.stockQuantity != null) {
+    if (Number(done.stockQuantity) === 0) return `${main} (dùng cám đã mở tại chuồng)`;
+    return `${main} · xuất kho ${formatAmount(done.stockQuantity)} ${task.stockUnit || 'bao'}`;
+  }
+  return done.stockQuantity != null && task.stockUnit
+    ? `${main} = ${formatAmount(done.stockQuantity)} ${task.stockUnit}`
+    : main;
 };
 
 /**
  * Phiếu việc một ngày của một chuồng. Công nhân bấm "Xong" khi làm đúng kế hoạch, "Khác kế hoạch" khi lượng thực tế khác
  * (bắt buộc ghi lý do nếu lệch nhiều). onConfirm / onUndo trả về thông báo lỗi (chuỗi) hoặc null khi thành công.
  */
-export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, onConfirmAssigned, onUndoAssigned, showHeader = true, hideDone = false, compact = false }) {
+export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUndo, onConfirmAssigned, onUndoAssigned, onToggleRoutine, onConfigureRoutine, showHeader = true, hideDone = false, compact = false }) {
   const [editing, setEditing] = useState(null);
   const [errors, setErrors] = useState({});
   const [sourceSelections, setSourceSelections] = useState({});
   const isOwner = role === 'ROLE_FARM_OWNER';
   const canAct = isOwner || role === 'ROLE_FARM_WORKER';
   const assigned = plan.assignedTasks || [];
-  const total = plan.tasks.length + assigned.length;
-  const doneTotal = plan.doneCount + assigned.filter(task => task.done).length;
+  const routine = plan.routineTasks || [];
+  const total = plan.tasks.length + assigned.length + routine.length;
+  const doneTotal = plan.doneCount + assigned.filter(task => task.done).length + routine.filter(task => task.done).length;
   const progress = total ? Math.round((doneTotal / total) * 100) : 0;
   const ages = [...new Set(plan.flocks.map(flock => flock.ageDays))].sort((a, b) => a - b);
 
@@ -85,13 +110,15 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     tasks: plan.tasks.filter(task => task.category === section.category && !(task.category === 'FEED' && task.time) && visible(task)) }))
     .filter(section => section.tasks.length);
   const allDayAssigned = assigned.filter(task => !task.dueTime && visible(task));
+  const visibleRoutine = routine.filter(item => !(hideDone && item.done));
+  const showRoutineSection = visibleRoutine.length > 0 || (isOwner && Boolean(onConfigureRoutine));
 
   const renderTask = task => {
     const done = task.done;
     const busy = busyKey === `${plan.cycleId}:${task.key}`;
     const isEditing = editing?.key === task.key;
     const roundFeed = compact && task.category === 'FEED';
-    const planned = amountText(task.plannedQuantity, task.unit, task.plannedStock, task.stockUnit, roundFeed);
+    const planned = amountText(task, roundFeed);
     return <li key={task.key} className={`${styles.task} ${done ? styles.done : ''} ${done?.deviated ? styles.deviated : ''}`}>
       <div className={styles.info}>
         <strong>{title(task)}</strong>
@@ -120,8 +147,8 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         {done && <small className={styles.doneLine}>
           <Check size={13} />Xong lúc {time(done.doneAt)}{!compact && <>
           {` · ${done.doneBy}`}
-          {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity))
-            && ` · thực tế ${amountText(done.actualQuantity, task.unit, done.stockQuantity, task.stockUnit, roundFeed)}`}
+          {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity) || task.category === 'FEED')
+            && ` · thực tế ${doneActualText(done, task, roundFeed)}`}
           {done.cost != null && Number(done.cost) > 0 && ` · ${money(done.cost)}`}
           {done.note && ` · ${done.note}`}</>}
         </small>}
@@ -200,6 +227,24 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     </li>;
   };
 
+  const renderRoutine = item => {
+    const busy = busyKey === `${plan.cycleId}:R:${item.code}`;
+    return <li key={item.code} className={`${styles.task} ${item.done ? styles.done : ''}`}>
+      <div className={styles.info}>
+        <strong>{item.title}</strong>
+        {item.done && <small className={styles.doneLine}><Check size={13} />Xong lúc {time(item.done.doneAt)}
+          {!compact && ` · ${item.done.doneBy}`}{!compact && item.done.note && ` · ${item.done.note}`}</small>}
+        {errors[`R:${item.code}`] && <small role="alert" className={styles.error}>{errors[`R:${item.code}`]}</small>}
+      </div>
+      {canAct && onToggleRoutine && <div className={styles.actions}>
+        {item.done ? canUndo(item.done) && <button type="button" className={styles.undoButton} disabled={busy}
+          onClick={() => run({ key: `R:${item.code}` }, () => onToggleRoutine(plan, item))} aria-label={`Hoàn tác ${item.title}`}><RotateCcw size={14} />Hoàn tác</button>
+          : <button type="button" className={`farmshift-btn ${styles.doneButton}`} disabled={busy} aria-label={`Xong ${item.title}`}
+            onClick={() => run({ key: `R:${item.code}` }, () => onToggleRoutine(plan, item))}><Check size={15} />{busy ? 'Đang lưu...' : 'Xong'}</button>}
+      </div>}
+    </li>;
+  };
+
   return <section className={`${styles.card} ${compact ? styles.compact : ''}`} aria-label={`Phiếu việc ${plan.barnName}`}>
     {showHeader && <header className={styles.header}>
       <div>
@@ -222,11 +267,42 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
       {plan.warnings.map(warning => <li key={warning}><AlertTriangle size={14} />{warning}</li>)}
     </ul>}
 
-    {plan.tasks.length === 0 && assigned.length === 0 ? <p className={styles.empty}>Không có việc cho ngày này.</p>
+    {plan.openedFeeds?.length > 0 && <div className={styles.openedFeedStrip} data-testid="opened-feed-strip">
+      <strong>Cám đang mở bao tại chuồng:</strong>
+      {plan.openedFeeds.map(feed => (
+        <span key={feed.productId || feed.id} className={styles.openedFeedChip}>
+          {feed.feedName}: <strong>{formatAmount(feed.remainingKg)} kg</strong>
+        </span>
+      ))}
+    </div>}
+
+    {plan.tasks.length === 0 && assigned.length === 0 && routine.length === 0 && !(isOwner && onConfigureRoutine) ? <p className={styles.empty}>Không có việc cho ngày này.</p>
       : <div className={styles.schedule} aria-label="Lịch việc trong ngày">
-        {(allDay.length > 0 || allDayAssigned.length > 0) && <div className={styles.slot}>
+        {(allDay.length > 0 || allDayAssigned.length > 0 || showRoutineSection) && <div className={styles.slot}>
           <div className={`${styles.slotTime} ${styles.slotAllDay}`}><strong>Trong ngày</strong><small>không hẹn giờ</small></div>
           <div className={`${styles.slotTasks} ${styles.allDayTasks}`}>
+            {showRoutineSection && <div className={styles.section} data-testid="routine-tasks-bar">
+              <div className={styles.sectionHead}>
+                <h4><CheckCircle2 size={15} />Việc hằng ngày của chuồng</h4>
+                {isOwner && onConfigureRoutine && (
+                  <button
+                    type="button"
+                    className={styles.routineConfigBtn}
+                    aria-label="Cài đặt việc hằng ngày của chuồng"
+                    onClick={() => onConfigureRoutine(plan)}
+                  >
+                    <Settings size={14} aria-hidden="true" />
+                    <span>Cài đặt</span>
+                  </button>
+                )}
+              </div>
+              {visibleRoutine.length > 0 ? <ul>{visibleRoutine.map(renderRoutine)}</ul>
+                : <p className={styles.routineEmpty}>
+                  {routine.length === 0
+                    ? 'Chưa bật việc hằng ngày nào cho chuồng này. Bấm Cài đặt để chọn nhanh.'
+                    : 'Đã hoàn thành tất cả việc hằng ngày.'}
+                </p>}
+            </div>}
             {allDay.map(section => {
               const Icon = section.icon;
               return <div key={section.category} className={styles.section}>

@@ -55,8 +55,8 @@ export function CycleProfitBarChart({ cycles }) {
   }
 
   const W = 640;
-  const H = 268;
-  const PAD = { l: 58, r: 16, t: 18, b: 64 };
+  const H = 246;
+  const PAD = { l: 58, r: 16, t: 18, b: 36 };
   const plotW = W - PAD.l - PAD.r;
   const plotH = H - PAD.t - PAD.b;
 
@@ -148,10 +148,9 @@ export function CycleProfitBarChart({ cycles }) {
               });
             };
 
-            const shortLabel = `${c.barnName} (${c.cycleCode})`;
-            const displayLabel = shortLabel.length > 18 ? `${shortLabel.slice(0, 17)}…` : shortLabel;
-            const labelX = cx + 4;
-            const labelY = PAD.t + plotH + 14;
+            const rawBarn = String(c.barnName || c.cycleCode || '—').trim();
+            const displayLabel = rawBarn.length > 13 ? `${rawBarn.slice(0, 12)}…` : rawBarn;
+            const labelY = PAD.t + plotH + 18;
 
             return (
               <g
@@ -175,12 +174,11 @@ export function CycleProfitBarChart({ cycles }) {
                   fill={profit >= 0 ? CHART_COLORS.profitPos : c.isWip ? '#94a3b8' : CHART_COLORS.profitNeg}
                 />
                 <text
-                  x={labelX}
+                  x={cx}
                   y={labelY}
-                  textAnchor="end"
-                  transform={`rotate(-26 ${labelX} ${labelY})`}
+                  textAnchor="middle"
                   className={styles.axisText}
-                  fontSize="10.5"
+                  fontSize="11"
                 >
                   {displayLabel}
                 </text>
@@ -195,12 +193,22 @@ export function CycleProfitBarChart({ cycles }) {
 }
 
 /* ── Chart 2: Donut Chart — Cơ cấu Chi phí Chăn nuôi (Giống - Cám - Vắc-xin/Thuốc - Khác) ── */
-export function CostStructureDonutChart({ chickCost, feedCost, otherCost, medicineCost, otherDirectCost, totalCost }) {
+export function CostStructureDonutChart({
+  chickCost,
+  feedCost,
+  otherCost,
+  medicineCost,
+  diseaseMedicineCost = 0,
+  otherDirectCost,
+  totalCost,
+}) {
   const [tip, setTip] = useState(null);
 
   const medVal = Number(medicineCost || 0);
+  const diseaseMedVal = Math.max(0, Number(diseaseMedicineCost || 0));
+  const preventiveMedVal = diseaseMedVal > 0 ? Math.max(0, medVal - diseaseMedVal) : medVal;
   const directOtherVal = Number(otherDirectCost || 0);
-  const hasSeparateMedicine = medVal > 0 || directOtherVal > 0;
+  const hasSeparateMedicine = medVal > 0 || diseaseMedVal > 0 || directOtherVal > 0;
 
   const componentSum = Number(chickCost || 0) + Number(feedCost || 0) + (hasSeparateMedicine ? medVal + directOtherVal : Number(otherCost || 0));
   const hasBreakdown = componentSum > 0;
@@ -210,14 +218,21 @@ export function CostStructureDonutChart({ chickCost, feedCost, otherCost, medici
     ? (hasSeparateMedicine
         ? [
             { key: 'chick', label: 'Con giống', value: Number(chickCost || 0), color: CHART_COLORS.chick },
-            { key: 'feed', label: 'Thức ăn / Cám', value: Number(feedCost || 0), color: CHART_COLORS.feed },
-            { key: 'medicine', label: 'Vắc-xin & Thuốc thú y', value: medVal, color: CHART_COLORS.vaccine },
-            { key: 'operating', label: 'Chi phí vận hành khác', value: directOtherVal, color: CHART_COLORS.operating },
+            { key: 'feed', label: 'Thức ăn (Cám)', value: Number(feedCost || 0), color: CHART_COLORS.feed },
+            ...(diseaseMedVal > 0
+              ? [
+                  { key: 'diseaseMed', label: 'Thuốc trị bệnh', value: diseaseMedVal, color: CHART_COLORS.medicine },
+                  { key: 'vaccine', label: 'Vắc-xin & Phòng bệnh', value: preventiveMedVal, color: CHART_COLORS.vaccine },
+                ]
+              : [
+                  { key: 'medicine', label: 'Vắc-xin & Thuốc thú y', value: medVal, color: CHART_COLORS.vaccine },
+                ]),
+            { key: 'operating', label: 'Chi phí khác', value: directOtherVal, color: CHART_COLORS.operating },
           ]
         : [
             { key: 'chick', label: 'Con giống', value: Number(chickCost || 0), color: CHART_COLORS.chick },
-            { key: 'feed', label: 'Thức ăn / Cám', value: Number(feedCost || 0), color: CHART_COLORS.feed },
-            { key: 'other', label: 'Thuốc, vắc-xin & CP khác', value: Number(otherCost || 0), color: CHART_COLORS.other },
+            { key: 'feed', label: 'Thức ăn (Cám)', value: Number(feedCost || 0), color: CHART_COLORS.feed },
+            { key: 'other', label: 'Vắc-xin, Thuốc & CP khác', value: Number(otherCost || 0), color: CHART_COLORS.other },
           ]
       ).filter((s) => s.value > 0)
     : effectiveTotal > 0

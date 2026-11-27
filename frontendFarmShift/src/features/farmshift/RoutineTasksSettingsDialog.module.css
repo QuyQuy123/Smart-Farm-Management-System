@@ -1,0 +1,132 @@
+.intro {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #52796f;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #2d6a4f;
+  font-weight: 600;
+}
+
+.tagGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.tag:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tagInactive {
+  background: #f4f6f7;
+  border: 1px solid #d5dde0;
+  color: #4b5c63;
+}
+
+.tagInactive:hover:not(:disabled) {
+  background: #edf2f4;
+  border-color: #8fa59b;
+  color: #1b4332;
+}
+
+.tagActive {
+  background: #e6f7ec;
+  border: 1px solid #40916c;
+  color: #1b4332;
+}
+
+.tagActive:hover:not(:disabled) {
+  background: #d8f3dc;
+  border-color: #2d6a4f;
+}
+
+.customSection {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed #d7ecdc;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.addCustomTrigger {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px dashed #74c69d;
+  background: #f8fcfa;
+  color: #2d6a4f;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addCustomTrigger:hover:not(:disabled) {
+  background: #e6f7ec;
+  border-color: #2d6a4f;
+}
+
+.addCustomTrigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.customInputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.customInput {
+  flex: 1;
+  min-width: 220px;
+}
+
+.customError {
+  margin: 0;
+  font-size: 12.5px;
+  color: #c62828;
+  font-weight: 500;
+}
+
+.errorAlert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdecec;
+  color: #b42318;
+  font-size: 13.5px;
+}

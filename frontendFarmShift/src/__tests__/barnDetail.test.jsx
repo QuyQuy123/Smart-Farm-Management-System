@@ -7,7 +7,9 @@ import * as cycles from '../services/cycleService';
 import * as areas from '../services/farmAreaService';
 import * as programService from '../services/farmingProgramService';
 import * as dailyPlan from '../services/dailyPlanService';
+import * as workAssignment from '../services/workAssignmentService';
 import * as supplierService from '../services/supplierService';
+import * as diseaseService from '../services/cycleDiseaseService';
 
 const mocks = vi.hoisted(() => ({ role: 'ROLE_FARM_OWNER', showToast: vi.fn(), layoutProps: null }));
 vi.mock('../context/NotificationContext', () => ({ useNotification: () => ({ showToast: mocks.showToast }) }));
@@ -22,9 +24,22 @@ vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(), listFarmArea
 vi.mock('../services/farmingProgramService', () => ({ listPrograms: vi.fn() }));
 vi.mock('../services/supplierService', () => ({ listSuppliers: vi.fn(), createSupplier: vi.fn(), updateSupplier: vi.fn(), deleteSupplier: vi.fn() }));
 vi.mock('../services/productTypeService', () => ({ listProductTypes: vi.fn() }));
-vi.mock('../services/dailyPlanService', () => ({ getBarnDailyPlan: vi.fn(), confirmDailyTask: vi.fn(), undoDailyTask: vi.fn() }));
+vi.mock('../services/dailyPlanService', () => ({
+  getBarnDailyPlan: vi.fn(),
+  confirmDailyTask: vi.fn(),
+  undoDailyTask: vi.fn(),
+  checkRoutineTask: vi.fn(),
+  uncheckRoutineTask: vi.fn(),
+}));
+vi.mock('../services/workAssignmentService', () => ({
+  setBarnRoutineTasks: vi.fn(),
+}));
+vi.mock('../services/cycleDiseaseService', () => ({
+  listCycleDiseases: vi.fn(),
+  listDiseaseMedicineSources: vi.fn(),
+}));
 vi.mock('../services/cycleService', () => ({
-  getBarn: vi.fn(), listCycles: vi.fn(), startCycle: vi.fn(), getCycle: vi.fn(), closeCycle: vi.fn(), importFlock: vi.fn(),
+  getBarn: vi.fn(), listCycles: vi.fn(), startCycle: vi.fn(), getCycle: vi.fn(), getCloseCyclePreview: vi.fn(), closeCycle: vi.fn(), importFlock: vi.fn(),
   transferFlock: vi.fn(), assignFlockProgram: vi.fn(), assignCycleProgram: vi.fn(), recordLoss: vi.fn(), recordHarvest: vi.fn(), addFeedRecord: vi.fn(), deleteFeedRecord: vi.fn(),
   addWeightSample: vi.fn(), deleteWeightSample: vi.fn(), addExpense: vi.fn(), deleteExpense: vi.fn(),
 }));
@@ -119,6 +134,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
       { id: 1, name: 'Gà Mía thương phẩm', breed: 'Gà Mía', durationDays: 90, steps: [] },
       { id: 2, name: 'Gà ta thả vườn', breed: 'Gà ta', durationDays: 105, steps: [] },
     ]);
+    diseaseService.listCycleDiseases.mockResolvedValue([]);
+    diseaseService.listDiseaseMedicineSources.mockResolvedValue([]);
   });
 
   it('shows technical indicators, flocks, programs and accounting for the running cycle', async () => {
@@ -338,6 +355,8 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.getByRole('button', { name: 'Ghi hao hụt H0004' })).toBeInTheDocument();
     // Cám ghi khi bấm Xong cữ ăn ở Việc hôm nay, không còn nút ghi tay ở Nhật ký.
     expect(screen.queryByRole('button', { name: 'Ghi cám' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Khoản chi bổ sung/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Doanh thu/ })).not.toBeInTheDocument();
   });
 
   it('shows accountants accounting and sales but not flock imports, losses, or restricted farm/task navigation links', async () => {
@@ -346,6 +365,9 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     await screen.findByText(/Lứa nuôi thứ 1, từ/);
     expect(screen.getByText('Hạch toán')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xuất bán H0004' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Doanh thu/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Lịch sử lứa nuôi/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Khoản chi bổ sung/ }));
     expect(screen.getByRole('button', { name: 'Thêm khoản chi' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Nhập đàn' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ghi hao hụt H0004' })).not.toBeInTheDocument();
@@ -356,6 +378,58 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.queryByRole('link', { name: 'Mở tất cả chuồng' })).not.toBeInTheDocument();
     expect(mocks.layoutProps.showShortcuts).toBe(false);
     expect(mocks.layoutProps.breadcrumbs.map(b => b.path).filter(Boolean)).toEqual(['/dashboard', '/cycles/history']);
+  });
+
+  it('paginates and searches long feed records, and switches left info and detail section tabs cleanly', async () => {
+    const manyFeeds = Array.from({ length: 25 }, (_, i) => ({
+      id: i + 1,
+      date: iso(-(i % 20)),
+      label: i === 22 ? 'Cám đặc biệt Omega' : `Cám gà thịt số ${i + 1}`,
+      quantity: 100 + i,
+      amount: 1500000 + i * 1000,
+      createdBy: 'congnhan@smartfarm.com',
+    }));
+    const manyExpenses = Array.from({ length: 12 }, (_, i) => ({
+      id: i + 1,
+      date: iso(-i),
+      category: 'MEDICINE',
+      amount: 50000 + i * 1000,
+      note: `Thuốc đợt ${i + 1}`,
+      createdBy: 'owner@farm.test',
+    }));
+    cycles.getCycle.mockResolvedValue({ ...detail(), feedRecords: manyFeeds, expenses: manyExpenses });
+    renderAt('/barns/2');
+
+    // Left card switches between Lứa nuôi and Chuồng metadata
+    expect(await screen.findByText(/Lứa nuôi thứ 1, từ/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Chuồng' }));
+    expect(screen.getByText('Diện tích (m²)')).toBeInTheDocument();
+    expect(screen.getByText('Sức chứa tối đa')).toBeInTheDocument();
+
+    // Feed journal paginates at 10 rows per page by default
+    expect(screen.getByText('Hiển thị 1–10 / 25 bản ghi')).toBeInTheDocument();
+    expect(screen.getByText('Cám gà thịt số 1')).toBeInTheDocument();
+    expect(screen.queryByText('Cám gà thịt số 11')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trang sau' }));
+    expect(screen.getByText('Hiển thị 11–20 / 25 bản ghi')).toBeInTheDocument();
+    expect(screen.getByText('Cám gà thịt số 11')).toBeInTheDocument();
+
+    // Searching filters across all pages and resets to page 1
+    fireEvent.change(screen.getByLabelText('Tìm kiếm trong nhật ký'), { target: { value: 'Omega' } });
+    expect(screen.getByText('Hiển thị 1–1 / 1 bản ghi')).toBeInTheDocument();
+    expect(screen.getByText('Cám đặc biệt Omega')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm nhật ký' }));
+    expect(screen.getByText('Hiển thị 1–10 / 25 bản ghi')).toBeInTheDocument();
+
+    // Switching Band 2 tabs works cleanly (including Sổ bệnh án & paginated Khoản chi bổ sung)
+    fireEvent.click(screen.getByRole('tab', { name: /Sổ bệnh án/ }));
+    expect(await screen.findByText('Chưa ghi nhận đợt bệnh nào trong lứa nuôi này.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Khoản chi bổ sung/ }));
+    expect(screen.getByText('Hiển thị 1–10 / 12 bản ghi')).toBeInTheDocument();
+    expect(screen.getByText('Thuốc đợt 1')).toBeInTheDocument();
+    expect(screen.queryByText('Thuốc đợt 11')).not.toBeInTheDocument();
   });
 
   it('routes accountant error fallback to /cycles/history instead of /barns', async () => {
@@ -372,5 +446,168 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     const backBtn = await screen.findByRole('button', { name: 'Về lịch sử lứa nuôi' });
     fireEvent.click(backBtn);
     expect(await screen.findByText('Trang lịch sử lứa nuôi')).toBeInTheDocument();
+  });
+
+  it('shows CloseCycleDialog with opened-feed disposition and area warehouse alert, then submits action', async () => {
+    const emptyDetail = {
+      ...detail(),
+      cycle: { ...detail().cycle, currentQuantity: 0 },
+      metrics: { ...detail().metrics, currentQuantity: 0 },
+      openedFeeds: [{ id: 1, productId: 7, feedName: 'Higro 02', remainingKg: 15, remainingValue: 201000 }],
+    };
+    cycles.getCycle.mockResolvedValue(emptyDetail);
+    cycles.getCloseCyclePreview.mockResolvedValue({
+      cycleId: 20,
+      cycleNumber: 1,
+      barnId: 2,
+      barnName: 'Nhà A3',
+      areaId: 1,
+      areaName: 'Khu Mía Thịt',
+      remainingAnimals: 0,
+      otherActiveCyclesInArea: 0,
+      openedFeeds: [{ id: 1, productId: 7, feedName: 'Higro 02', warehouseName: 'Kho cám Khu Mía', unitName: 'Bao 25kg', remainingKg: 15, remainingValue: 201000 }],
+      transferTargetCycles: [{ cycleId: 30, cycleCode: 'L000030', cycleNumber: 1, barnId: 3, barnName: 'Nhà A2', areaName: 'Khu J' }],
+      areaWarehouseStocks: [{ warehouseId: 5, warehouseName: 'Kho cám Khu Mía', warehouseKind: 'FEED', productId: 7, productName: 'Higro 02', unitName: 'Bao 25kg', totalStock: 12, totalValue: 4020000 }],
+    });
+    cycles.closeCycle.mockResolvedValue({ id: 20, status: 'CLOSED' });
+
+    renderAt('/barns/2');
+    expect(await screen.findByTestId('barn-opened-feeds')).toHaveTextContent('Higro 02: 15 kg');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kết thúc lứa nuôi' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText(/Cám đang mở bao còn dư tại chuồng/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Chuồng cuối cùng trong Khu Mía Thịt/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: /Tạo phiếu Chuyển kho/ })).toHaveAttribute(
+      'href',
+      '/internal-stock?action=transfer&sourceWarehouseId=5',
+    );
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Xác nhận kết thúc' }));
+    await waitFor(() => expect(cycles.closeCycle).toHaveBeenCalledWith(20, expect.objectContaining({
+      leftoverFeedAction: 'TRANSFER_TO_CYCLE',
+      transferTargetCycleId: 30,
+    })));
+  });
+
+  it('shows routine task quick-tick buttons even when an active cycle has zero flocks', async () => {
+    const zeroFlockDetail = {
+      ...detail(),
+      cycle: { ...detail().cycle, currentQuantity: 0, initialQuantity: 0 },
+      metrics: { ...detail().metrics, currentQuantity: 0, initialQuantity: 0 },
+      flocks: [],
+    };
+    const todayIsoLocal = iso(0);
+    const zeroFlockPlan = {
+      cycleId: 20,
+      barnId: 2,
+      barnName: 'Nhà A3',
+      areaName: 'Khu Mía Thịt',
+      date: todayIsoLocal,
+      headcount: 0,
+      flocks: [],
+      tasks: [],
+      doneCount: 0,
+      warnings: [],
+      workers: [],
+      assignedTasks: [],
+      routineTasks: [
+        { code: 'CHANGE_LITTER', title: 'Thay trấu', done: null },
+        { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng', done: null },
+        { code: 'WASH_BARN', title: 'Xịt rửa chuồng', done: null },
+      ],
+    };
+    const checkedPlan = {
+      ...zeroFlockPlan,
+      routineTasks: [
+        { code: 'CHANGE_LITTER', title: 'Thay trấu', done: { id: 1, doneBy: 'owner@farm.test', doneAt: `${todayIsoLocal}T08:00:00`, note: null } },
+        ...zeroFlockPlan.routineTasks.slice(1),
+      ],
+    };
+    cycles.getCycle.mockResolvedValue(zeroFlockDetail);
+    dailyPlan.getBarnDailyPlan.mockResolvedValue(zeroFlockPlan);
+    dailyPlan.checkRoutineTask.mockResolvedValue(checkedPlan);
+
+    renderAt('/barns/2');
+    const bar = await screen.findByTestId('routine-tasks-bar');
+    expect(within(bar).getByRole('button', { name: 'Xong Thay trấu' })).toBeInTheDocument();
+    fireEvent.click(within(bar).getByRole('button', { name: 'Xong Thay trấu' }));
+    await waitFor(() => expect(dailyPlan.checkRoutineTask).toHaveBeenCalledWith(20, { date: todayIsoLocal, taskCode: 'CHANGE_LITTER' }));
+  });
+
+  it('opens RoutineTasksSettingsDialog from BarnDetail, toggles multi-select tags, adds custom tag, and saves', async () => {
+    const todayIsoLocal = iso(0);
+    const initialPlan = {
+      cycleId: 20,
+      barnId: 2,
+      barnName: 'Nhà A3',
+      areaName: 'Khu Mía Thịt',
+      date: todayIsoLocal,
+      headcount: 0,
+      flocks: [],
+      tasks: [],
+      doneCount: 0,
+      warnings: [],
+      workers: [],
+      assignedTasks: [],
+      routineTasks: [
+        { code: 'CHANGE_LITTER', title: 'Thay trấu', done: null },
+        { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng', done: null },
+        { code: 'WASH_BARN', title: 'Xịt rửa chuồng', done: null },
+      ],
+    };
+    const updatedPlan = {
+      ...initialPlan,
+      routineTasks: [
+        { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng', done: null },
+        { code: 'WASH_BARN', title: 'Xịt rửa chuồng', done: null },
+        { code: 'FEED_AND_WATER', title: 'Cho ăn & uống', done: null },
+        { code: 'CUSTOM:Kiểm tra nguồn nước uống', title: 'Kiểm tra nguồn nước uống', done: null },
+      ],
+    };
+    dailyPlan.getBarnDailyPlan.mockResolvedValueOnce(initialPlan).mockResolvedValue(updatedPlan);
+    workAssignment.setBarnRoutineTasks.mockResolvedValue([
+      'CLEAN_FEEDERS',
+      'WASH_BARN',
+      'FEED_AND_WATER',
+      'CUSTOM:Kiểm tra nguồn nước uống',
+    ]);
+
+    renderAt('/barns/2');
+    const configBtn = await screen.findByRole('button', { name: 'Cài đặt việc hằng ngày của chuồng' });
+    fireEvent.click(configBtn);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Cài đặt công việc hằng ngày (Cả chu kỳ)' })).toBeInTheDocument();
+
+    // Toggle off an active tag, toggle on an inactive preset tag
+    const litterTag = within(dialog).getByRole('button', { name: 'Thay trấu' });
+    expect(litterTag).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(litterTag);
+    expect(litterTag).toHaveAttribute('aria-pressed', 'false');
+
+    const feedWaterTag = within(dialog).getByRole('button', { name: 'Cho ăn & uống' });
+    expect(feedWaterTag).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(feedWaterTag);
+    expect(feedWaterTag).toHaveAttribute('aria-pressed', 'true');
+
+    // Add custom self-defined tag
+    fireEvent.click(within(dialog).getByRole('button', { name: '+ Thêm việc khác tự định nghĩa' }));
+    fireEvent.change(within(dialog).getByLabelText('Tên công việc hằng ngày tự định nghĩa'), {
+      target: { value: 'Kiểm tra nguồn nước uống' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Thêm' }));
+    expect(within(dialog).getByRole('button', { name: 'Kiểm tra nguồn nước uống' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Xác nhận & Áp dụng' }));
+    await waitFor(() => expect(workAssignment.setBarnRoutineTasks).toHaveBeenCalledWith(2, [
+      'CLEAN_FEEDERS',
+      'WASH_BARN',
+      'FEED_AND_WATER',
+      'CUSTOM:Kiểm tra nguồn nước uống',
+    ]));
+    expect(mocks.showToast).toHaveBeenCalledWith('Đã cập nhật công việc hằng ngày cho Nhà A3.', 'success');
+    const bar = await screen.findByTestId('routine-tasks-bar');
+    expect(within(bar).getByRole('button', { name: 'Xong Kiểm tra nguồn nước uống' })).toBeInTheDocument();
   });
 });

@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeftRight, CalendarDays, Eye, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Coins, Flag, Gauge, HeartCrack, Layers, Pencil, PlusCircle,
-  Scale, ShoppingCart, Skull, Sprout, Trash2, Users, Warehouse, Wheat,
+  ArrowLeftRight, CalendarDays, Eye, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, Coins, Flag, Gauge, HeartCrack, Layers, Pencil, PlusCircle,
+  Scale, Search, ShoppingCart, Skull, Sprout, Stethoscope, Trash2, Users, Warehouse, Wheat, X,
 } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
 import {
-  addExpense, addWeightSample, closeCycle, deleteExpense, deleteFeedRecord, deleteWeightSample,
+  addExpense, addWeightSample, deleteExpense, deleteFeedRecord, deleteWeightSample,
   assignCycleProgram, assignFlockProgram, getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
 } from '../../services/cycleService';
+import { CloseCycleDialog } from './CloseCycleDialog';
 import { BarnDialog } from './FarmAreaDialogs';
 import { listPrograms } from '../../services/farmingProgramService';
 import { FormDialog } from './CycleDialogs';
@@ -23,10 +24,12 @@ import { DailyPlanCard } from './DailyPlanCard';
 import { DiseaseLogPanel } from './DiseaseLogPanel';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { getBarnDailyPlan } from '../../services/dailyPlanService';
+import { setBarnRoutineTasks } from '../../services/workAssignmentService';
+import { RoutineTaskTagPicker, RoutineTasksSettingsDialog } from './RoutineTasksSettingsDialog';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { useViewport } from '../../hooks/useViewport';
 import {
-  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_STATES, describeStep, stepCategoryLabel,
+  DEFAULT_ROUTINE_CODES, EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_STATES, describeStep, stepCategoryLabel,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
 } from './farmAreaOptions';
 import styles from './BarnDetailView.module.css';
@@ -37,6 +40,7 @@ const isInt = value => value !== '' && Number.isInteger(Number(value));
 const IMPORT_PAYMENT_OPTIONS = [{ value: 'Trả sau', label: 'Trả sau (ghi công nợ)' }, { value: 'Thanh toán hoàn tất', label: 'Đã trả đủ tiền' }];
 
 const COST_COLORS = { chick: '#f59e0b', feed: '#06b6d4', MEDICINE: '#ef4444', OTHER: '#ec4899' };
+const DEFAULT_ROUTINE_KEY = [...DEFAULT_ROUTINE_CODES].sort().join(',');
 
 function Donut({ parts }) {
   const total = parts.reduce((sum, part) => sum + part.value, 0);
@@ -71,6 +75,93 @@ function Tabs({ tabs, value, onChange }) {
 
 const Empty = ({ children }) => <p className={styles.empty}>{children}</p>;
 
+const PAGE_SIZES = [10, 25, 50];
+
+function buildPageList(page, totalPages) {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+  const pages = [1];
+  if (page > 3) pages.push('…-left');
+  for (let p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) {
+    pages.push(p);
+  }
+  if (page < totalPages - 2) pages.push('…-right');
+  pages.push(totalPages);
+  return pages;
+}
+
+function TablePager({ total, page, pageSize, onPageChange, onPageSizeChange, label = 'Phân trang' }) {
+  if (!total) return null;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * pageSize + 1;
+  const end = Math.min(total, safePage * pageSize);
+  const pageList = buildPageList(safePage, totalPages);
+
+  return (
+    <div className={styles.pager}>
+      <span className={styles.pagerInfo}>
+        Hiển thị {num(start)}–{num(end)} / {num(total)} bản ghi
+      </span>
+      <div className={styles.pagerControls}>
+        <label className={styles.pagerSizeLabel}>
+          <select
+            aria-label="Số dòng mỗi trang"
+            className={styles.pagerSelect}
+            value={pageSize}
+            onChange={event => {
+              onPageSizeChange(Number(event.target.value));
+              onPageChange(1);
+            }}
+          >
+            {PAGE_SIZES.map(size => <option key={size} value={size}>{size} dòng</option>)}
+          </select>
+        </label>
+        {totalPages > 1 && (
+          <nav className={styles.pagerNav} aria-label={label}>
+            <button
+              type="button"
+              className={styles.pageBtn}
+              aria-label="Trang trước"
+              disabled={safePage <= 1}
+              onClick={() => onPageChange(safePage - 1)}
+            >
+              <ChevronLeft size={15} />
+            </button>
+            {pageList.map(item => (typeof item === 'string'
+              ? <span key={item} className={styles.pageEllipsis}>…</span>
+              : <button
+                  key={item}
+                  type="button"
+                  className={`${styles.pageBtn} ${item === safePage ? styles.pageActive : ''}`}
+                  aria-current={item === safePage ? 'page' : undefined}
+                  onClick={() => onPageChange(item)}
+                >
+                  {item}
+                </button>
+            ))}
+            <button
+              type="button"
+              className={styles.pageBtn}
+              aria-label="Trang sau"
+              disabled={safePage >= totalPages}
+              onClick={() => onPageChange(safePage + 1)}
+            >
+              <ChevronRight size={15} />
+            </button>
+          </nav>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const paginateRows = (rows, page, pageSize) => {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const offset = (safePage - 1) * pageSize;
+  return { safePage, items: rows.slice(offset, offset + pageSize) };
+};
+
 export const BarnDetailView = () => {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -90,10 +181,24 @@ export const BarnDetailView = () => {
   const [state, setState] = useState({ key: null });
   const [modal, setModal] = useState(null);
   const [flockTab, setFlockTab] = useState('ACTIVE');
+  const [leftInfoTab, setLeftInfoTab] = useState('CYCLE');
+  const [detailTab, setDetailTab] = useState('JOURNAL');
   const [journalTab, setJournalTab] = useState('FEED');
+  const [journalSearch, setJournalSearch] = useState('');
+  const [journalPage, setJournalPage] = useState(1);
+  const [journalPageSize, setJournalPageSize] = useState(10);
   const [expenseTab, setExpenseTab] = useState('MEDICINE');
+  const [expenseSearch, setExpenseSearch] = useState('');
+  const [expensePage, setExpensePage] = useState(1);
+  const [expensePageSize, setExpensePageSize] = useState(10);
+  const [revenuePage, setRevenuePage] = useState(1);
+  const [revenuePageSize, setRevenuePageSize] = useState(10);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
   const [financeTab, setFinanceTab] = useState('CHART');
   const [showMoreKpis, setShowMoreKpis] = useState(false);
+  const [showAllProgramSteps, setShowAllProgramSteps] = useState(false);
+  const [diseaseSummary, setDiseaseSummary] = useState(null);
 
   useEffect(() => {
     const handleAiAction = (event) => {
@@ -159,10 +264,23 @@ export const BarnDetailView = () => {
   const openStartCycle = () => setModal({
     title: 'Khai báo lứa nuôi',
     intro: 'Sau khi khai báo lứa, dùng "Nhập đàn" để nhập con giống vào chuồng. Các đàn của một lứa phải nhập cách nhau không quá 3 ngày.',
-    initial: { startDate: today, hatchDate: '', note: '' },
+    initial: { startDate: today, hatchDate: '', routineTaskCodes: DEFAULT_ROUTINE_CODES, note: '' },
     fields: [
       { key: 'startDate', label: 'Ngày bắt đầu', type: 'date', required: true, max: today },
       { key: 'hatchDate', label: 'Ngày nở (ngày tuổi 1)', type: 'date', max: today, hint: 'Để trống nếu tính ngày tuổi theo đàn nhập.' },
+      {
+        key: 'routineTaskCodes',
+        label: 'Công việc hằng ngày (cả chu kỳ)',
+        full: true,
+        hint: 'Các việc đã chọn sẽ tự động xuất hiện mỗi ngày trong suốt lứa nuôi.',
+        render: (props, setValue) => (
+          <RoutineTaskTagPicker
+            selectedCodes={Array.isArray(props.value) ? props.value : DEFAULT_ROUTINE_CODES}
+            disabled={props.disabled}
+            onChange={setValue}
+          />
+        ),
+      },
       { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
     ],
     validate: values => ({
@@ -171,22 +289,17 @@ export const BarnDetailView = () => {
     }),
     onSubmit: async values => {
       const created = await startCycle(barn.id, { startDate: values.startDate, hatchDate: values.hatchDate || null, note: values.note.trim() });
+      const chosenCodes = Array.isArray(values.routineTaskCodes) ? values.routineTaskCodes : DEFAULT_ROUTINE_CODES;
+      const chosenKey = [...new Set(chosenCodes)].sort().join(',');
+      if (chosenKey !== DEFAULT_ROUTINE_KEY) {
+        await setBarnRoutineTasks(barn.id, chosenCodes);
+      }
       setSearchParams({});
       return `Đã khai báo lứa nuôi thứ ${created.cycleNumber} cho ${barn.name}.`;
     },
   });
 
-  const openCloseCycle = () => setModal({
-    title: `Kết thúc lứa nuôi thứ ${cycle.cycleNumber}`, submitLabel: 'Xác nhận kết thúc', danger: true,
-    intro: 'Chi phí, doanh thu và nhật ký được lưu trong lịch sử lứa. Sau khi kết thúc, lứa chỉ xem được, không ghi thêm dữ liệu.',
-    initial: { endDate: today, note: '' },
-    fields: [
-      { key: 'endDate', label: 'Ngày kết thúc', type: 'date', required: true, max: today },
-      { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
-    ],
-    validate: values => ({ endDate: dateRule(values.endDate, 'Ngày kết thúc') }),
-    onSubmit: async values => { await closeCycle(cycle.id, values); return `Đã kết thúc lứa nuôi thứ ${cycle.cycleNumber}.`; },
-  });
+  const openCloseCycle = () => setModal({ type: 'close' });
 
   const room = barn ? barn.capacity - barn.currentQuantity : 0;
   const openImport = () => {
@@ -462,16 +575,31 @@ export const BarnDetailView = () => {
     </dl>
   </Card>;
 
-  const history = <Card title="Lịch sử lứa nuôi" icon={Layers}>
-    {cycles.length === 0 ? <Empty>Chuồng chưa có lứa nuôi nào.</Empty> :
+  const renderHistoryContent = () => {
+    if (cycles.length === 0) return <Empty>Chuồng chưa có lứa nuôi nào.</Empty>;
+    const pagedHistory = paginateRows(cycles, historyPage, historyPageSize);
+    return <>
       <div className={styles.tableWrap}><table className={styles.table}>
         <thead><tr><th>Lứa</th><th>Bắt đầu</th><th>Kết thúc</th><th>Số nhập</th><th>Trạng thái</th><th /></tr></thead>
-        <tbody>{cycles.map(item => <tr key={item.id} className={cycle?.id === item.id ? styles.selectedRow : ''}>
+        <tbody>{pagedHistory.items.map(item => <tr key={item.id} className={cycle?.id === item.id ? styles.selectedRow : ''}>
           <td>Lứa thứ {item.cycleNumber}</td><td>{formatDay(item.startDate)}</td><td>{formatDay(item.endDate)}</td><td>{num(item.totalIn)} con</td>
           <td><span className={`${styles.badge} ${item.status === 'ACTIVE' ? styles.badge_success : styles.badge_neutral}`}>{item.status === 'ACTIVE' ? 'Đang nuôi' : 'Đã kết thúc'}</span></td>
           <td>{cycle?.id !== item.id && <button type="button" className={styles.linkButton} onClick={() => setSearchParams(item.status === 'ACTIVE' ? {} : { cycle: String(item.id) })}>Xem</button>}</td>
         </tr>)}</tbody>
-      </table></div>}
+      </table></div>
+      <TablePager
+        total={cycles.length}
+        page={pagedHistory.safePage}
+        pageSize={historyPageSize}
+        onPageChange={setHistoryPage}
+        onPageSizeChange={setHistoryPageSize}
+        label="Phân trang lịch sử lứa nuôi"
+      />
+    </>;
+  };
+
+  const history = <Card title="Lịch sử lứa nuôi" icon={Layers}>
+    {renderHistoryContent()}
   </Card>;
 
   const renderNoCycle = () => (
@@ -529,7 +657,37 @@ export const BarnDetailView = () => {
     const harvests = detail.movements.filter(item => item.type === 'HARVEST');
     const expenses = (detail.expenses || []).filter(item => item.category === expenseTab);
 
+    const effectiveDetailTab = !canFinance && (detailTab === 'EXPENSE' || detailTab === 'REVENUE') ? 'JOURNAL' : detailTab;
+    const currentDiseaseSummary = diseaseSummary && diseaseSummary.cycleId === cycle.id ? diseaseSummary : null;
+    const journalTotalCount = detail.feedRecords.length + detail.weightSamples.length + losses.length;
+    const expenseTotalCount = (detail.expenses || []).length;
+
+    const journalNeedle = journalSearch.trim().toLowerCase();
+    const matchesText = (...parts) => !journalNeedle || parts.some(part => part != null && String(part).toLowerCase().includes(journalNeedle));
+    const filteredFeeds = detail.feedRecords.filter(item => matchesText(formatDay(item.date), item.label, item.createdBy));
+    const filteredWeights = detail.weightSamples.filter(item => matchesText(formatDay(item.date), item.note, item.createdBy));
+    const filteredLosses = losses.filter(item => matchesText(formatDay(item.movementDate), item.flockCode, labelOf(MOVEMENT_TYPES, item.type), item.relatedFlockCode, item.note));
+    const activeJournalRows = journalTab === 'FEED' ? filteredFeeds : journalTab === 'WEIGHT' ? filteredWeights : filteredLosses;
+    const pagedJournal = paginateRows(activeJournalRows, journalPage, journalPageSize);
+    const feedTotalKg = detail.feedRecords.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const feedTotalAmount = detail.feedRecords.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    const expenseNeedle = expenseSearch.trim().toLowerCase();
+    const filteredExpenses = expenses.filter(item => !expenseNeedle
+      || [formatDay(item.date), item.note, item.createdBy].some(part => part != null && String(part).toLowerCase().includes(expenseNeedle)));
+    const pagedExpenses = paginateRows(filteredExpenses, expensePage, expensePageSize);
+    const pagedHarvests = paginateRows(harvests, revenuePage, revenuePageSize);
+
     const activeFlockForQuickLoss = detail.flocks.find(flock => flock.status === 'ACTIVE' && flock.quantity > 0);
+    const sectionTabs = [
+      { value: 'JOURNAL', label: 'Nhật ký', icon: ClipboardList, count: journalTotalCount },
+      { value: 'DISEASE', label: 'Sổ bệnh án', icon: Stethoscope, count: currentDiseaseSummary?.count ?? null, alertDot: (currentDiseaseSummary?.activeCount ?? 0) > 0 },
+      ...(canFinance && finance ? [
+        { value: 'EXPENSE', label: 'Khoản chi bổ sung', icon: Coins, count: expenseTotalCount },
+        { value: 'REVENUE', label: 'Doanh thu', icon: ShoppingCart, count: harvests.length },
+      ] : []),
+      { value: 'HISTORY', label: 'Lịch sử lứa nuôi', icon: Layers, count: cycles.length },
+    ];
 
     return <>
       {isMobile && active && canDaily && (
@@ -563,17 +721,34 @@ export const BarnDetailView = () => {
       )}
       <div className={styles.columns}>
       <div className={styles.left}>
-        <Card title="Thông tin lứa nuôi" icon={Flag}>
-          <div className={styles.cycleInfo}>
-            <span className={styles.dot} />
-            <div>
-              <strong>Lứa nuôi thứ {cycle.cycleNumber}, từ {formatDay(cycle.startDate)}{cycle.endDate ? ` đến ${formatDay(cycle.endDate)}` : ''}</strong>
-              <p>Trạng thái: <span className={`${styles.badge} ${active ? styles.badge_success : styles.badge_neutral}`}>{active ? 'Đang hoạt động' : 'Đã kết thúc'}</span></p>
-              {cycle.hatchDate && <p>Ngày nở: {formatDay(cycle.hatchDate)}</p>}
-              {cycle.note && <p className={styles.muted}>{cycle.note}</p>}
-              {!active && barn.activeCycleId && <button type="button" className={styles.linkButton} onClick={() => setSearchParams({})}>← Về lứa đang nuôi</button>}
+        <Card
+          title={leftInfoTab === 'CYCLE' ? 'Thông tin lứa nuôi' : 'Thông tin chuồng'}
+          icon={leftInfoTab === 'CYCLE' ? Flag : Warehouse}
+          actions={isOwner && <button type="button" className={styles.iconButton} aria-label="Sửa thông tin chuồng" onClick={() => setModal({ type: 'barn' })}><Pencil size={15} /></button>}
+        >
+          <Tabs value={leftInfoTab} onChange={setLeftInfoTab} tabs={[{ value: 'CYCLE', label: 'Lứa nuôi' }, { value: 'BARN', label: 'Chuồng' }]} />
+          {leftInfoTab === 'CYCLE' ? (
+            <div className={styles.cycleInfo}>
+              <span className={styles.dot} />
+              <div>
+                <strong>Lứa nuôi thứ {cycle.cycleNumber}, từ {formatDay(cycle.startDate)}{cycle.endDate ? ` đến ${formatDay(cycle.endDate)}` : ''}</strong>
+                <p>Trạng thái: <span className={`${styles.badge} ${active ? styles.badge_success : styles.badge_neutral}`}>{active ? 'Đang hoạt động' : 'Đã kết thúc'}</span></p>
+                {cycle.hatchDate && <p>Ngày nở: {formatDay(cycle.hatchDate)}</p>}
+                {cycle.note && <p className={styles.muted}>{cycle.note}</p>}
+                {!active && barn.activeCycleId && <button type="button" className={styles.linkButton} onClick={() => setSearchParams({})}>← Về lứa đang nuôi</button>}
+              </div>
             </div>
-          </div>
+          ) : (
+            <dl className={styles.facts}>
+              <dt>Khu vực</dt><dd>{barn.areaName}</dd>
+              <dt>Tên chuồng</dt><dd>{barn.name}</dd>
+              <dt>Loại hình sản xuất</dt><dd>Gà thịt</dd>
+              <dt>Diện tích (m²)</dt><dd>{num(barn.areaM2, 2)}</dd>
+              <dt>Sức chứa tối đa</dt><dd>{num(barn.capacity)} con</dd>
+              <dt>Đang nuôi</dt><dd>{num(barn.currentQuantity)} con</dd>
+              <dt>Mô tả</dt><dd>{barn.description || '—'}</dd>
+            </dl>
+          )}
         </Card>
         {canFinance && finance && <section className={styles.card}>
           <Tabs value={financeTab} onChange={setFinanceTab} tabs={[{ value: 'CHART', label: 'Hạch toán' }, { value: 'TABLE', label: 'Chi phí nuôi' }]} />
@@ -593,7 +768,6 @@ export const BarnDetailView = () => {
               <tr className={styles.totalRow}><td>Tổng chi phí</td><td>{money(finance.totalCost)}</td><td>100%</td></tr></tbody>
           </table></div>}
         </section>}
-        {barnInfo}
         {isOwner && active && <Card title="Kết thúc" icon={Flag}>
           <p className={styles.closeText}>Ấn kết thúc khi lứa nuôi đã hoàn thành để có được thống kê hoạt động và bắt đầu một lứa nuôi mới.
             {metrics.currentQuantity > 0 && <strong> Còn {num(metrics.currentQuantity)} con trong chuồng: hãy xuất bán, chuyển đàn hoặc ghi hao hụt hết trước khi kết thúc.</strong>}</p>
@@ -646,61 +820,186 @@ export const BarnDetailView = () => {
         {active && <Card title={`Việc hôm nay · ${formatDay(today)}`} icon={CalendarDays}
           actions={canDaily && <Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
           {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
-            : dayPlan.flocks.length === 0 ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
+            : (dayPlan.flocks.length === 0 && !(dayPlan.routineTasks?.length > 0) && !(dayPlan.assignedTasks?.length > 0) && !isOwner)
+              ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
               : <div className={styles.dayPlan}><DailyPlanCard compact plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
                 onConfirm={dailyActions.confirm} onUndo={dailyActions.undo}
-                onConfirmAssigned={dailyActions.confirmAssigned} onUndoAssigned={dailyActions.undoAssigned} /></div>}
+                onConfirmAssigned={dailyActions.confirmAssigned} onUndoAssigned={dailyActions.undoAssigned}
+                onToggleRoutine={dailyActions.toggleRoutine}
+                onConfigureRoutine={isOwner ? () => setModal({ type: 'routineSettings' }) : undefined} /></div>}
         </Card>}
 
         <Card title="Chương trình nuôi" icon={ClipboardList}
           actions={isOwner && active && detail.flocks.some(flock => flock.status === 'ACTIVE')
             && <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={openAssignProgram}><PlusCircle size={15} />Gắn chương trình</button>}>
-          {detail.programs.length === 0 ? <Empty>Các đàn của lứa chưa gắn chương trình nuôi.</Empty> : detail.programs.map(program => <div key={program.id} className={styles.program}>
-            <div className={styles.programHead}>
-              <strong>{program.name}</strong><span className={`${styles.badge} ${styles.badge_warning}`}>{program.breed}</span>
-              <span className={styles.muted}>Ngày tuổi {program.currentDay}/{program.durationDays}</span>
+          {detail.programs.length === 0 ? <Empty>Các đàn của lứa chưa gắn chương trình nuôi.</Empty> : detail.programs.map(program => {
+            const pendingSteps = program.steps.filter(step => step.state !== 'DONE');
+            const visibleSteps = showAllProgramSteps ? pendingSteps : pendingSteps.slice(0, 5);
+            const doneCount = program.steps.length - pendingSteps.length;
+            return <div key={program.id} className={styles.program}>
+              <div className={styles.programHead}>
+                <strong>{program.name}</strong><span className={`${styles.badge} ${styles.badge_warning}`}>{program.breed}</span>
+                <span className={styles.muted}>Ngày tuổi {program.currentDay}/{program.durationDays}</span>
+              </div>
+              <ul className={styles.steps}>{visibleSteps.map(step => {
+                const stepState = STEP_STATES[step.state] || STEP_STATES.UPCOMING;
+                return <li key={step.id} className={step.state === 'IN_PROGRESS' ? styles.stepNow : ''}>
+                  <span>Ngày {step.dayFrom}{step.dayTo !== step.dayFrom ? `–${step.dayTo}` : ''}</span>
+                  <strong>{stepCategoryLabel(step.category)}: {step.name}</strong>
+                  <small>{describeStep(step)}</small>
+                  <span className={`${styles.badge} ${styles[`badge_${stepState.tone}`]}`}>{stepState.label}</span>
+                </li>;
+              })}</ul>
+              {(doneCount > 0 || pendingSteps.length > 5) && <div className={styles.programFooter}>
+                {doneCount > 0 && <p className={styles.planEmpty}>
+                  Đã qua {doneCount} nội dung. Xem đầy đủ tại Thiết lập chăn nuôi → Chương trình nuôi.</p>}
+                {pendingSteps.length > 5 && <button type="button" className={styles.linkButton} onClick={() => setShowAllProgramSteps(v => !v)}>
+                  {showAllProgramSteps ? 'Thu gọn bước' : `Xem thêm ${pendingSteps.length - 5} bước`}
+                </button>}
+              </div>}
+            </div>;
+          })}
+        </Card>
+      </div>
+    </div>
+
+    <section className={`${styles.card} ${styles.detailSection}`} aria-label="Chi tiết vận hành lứa nuôi">
+      <div className={styles.sectionTabBar}>
+        <div className={styles.sectionTabs} role="tablist" aria-label="Mục chi tiết lứa nuôi">
+          {sectionTabs.map(({ value, label, icon: Icon, count, alertDot }) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={effectiveDetailTab === value}
+              className={`${styles.sectionTab} ${effectiveDetailTab === value ? styles.sectionTabActive : ''}`}
+              onClick={() => setDetailTab(value)}
+            >
+              <Icon size={16} />
+              <span>{label}</span>
+              {alertDot && <span className={styles.activeDiseaseDot} title="Có đợt bệnh đang điều trị" />}
+              {count != null && <span className={styles.tabCount}>{count}</span>}
+            </button>
+          ))}
+        </div>
+        <div className={styles.sectionAction}>
+          {effectiveDetailTab === 'JOURNAL' && active && canDaily && journalTab === 'WEIGHT' && (
+            <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openWeight}>
+              <PlusCircle size={15} />Ghi cân mẫu
+            </button>
+          )}
+          {effectiveDetailTab === 'EXPENSE' && active && canFinance && (
+            <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openExpense}>
+              <PlusCircle size={15} />Thêm khoản chi
+            </button>
+          )}
+        </div>
+      </div>
+
+      {effectiveDetailTab === 'JOURNAL' && (
+        <div>
+          <div className={styles.subToolbar}>
+            <Tabs
+              value={journalTab}
+              onChange={tab => { setJournalTab(tab); setJournalPage(1); }}
+              tabs={[
+                { value: 'FEED', label: 'Cám' },
+                { value: 'WEIGHT', label: 'Thông số vật nuôi' },
+                { value: 'LOSS', label: 'Hao hụt & chuyển đàn' },
+              ]}
+            />
+            <div className={styles.searchBox}>
+              <Search size={15} className={styles.searchIcon} />
+              <input
+                type="search"
+                className={styles.searchInput}
+                aria-label="Tìm kiếm trong nhật ký"
+                placeholder="Tìm ngày, tên cám, ghi chú..."
+                value={journalSearch}
+                onChange={event => { setJournalSearch(event.target.value); setJournalPage(1); }}
+              />
+              {journalSearch && (
+                <button type="button" className={styles.searchClear} aria-label="Xóa tìm kiếm nhật ký"
+                  onClick={() => { setJournalSearch(''); setJournalPage(1); }}>
+                  <X size={14} />
+                </button>
+              )}
             </div>
-            <ul className={styles.steps}>{program.steps.filter(step => step.state !== 'DONE').slice(0, 8).map(step => {
-              const stepState = STEP_STATES[step.state] || STEP_STATES.UPCOMING;
-              return <li key={step.id} className={step.state === 'IN_PROGRESS' ? styles.stepNow : ''}>
-                <span>Ngày {step.dayFrom}{step.dayTo !== step.dayFrom ? `–${step.dayTo}` : ''}</span>
-                <strong>{stepCategoryLabel(step.category)}: {step.name}</strong>
-                <small>{describeStep(step)}</small>
-                <span className={`${styles.badge} ${styles[`badge_${stepState.tone}`]}`}>{stepState.label}</span>
-              </li>;
-            })}</ul>
-            {program.steps.filter(step => step.state === 'DONE').length > 0 && <p className={styles.planEmpty}>
-              Đã qua {program.steps.filter(step => step.state === 'DONE').length} nội dung. Xem đầy đủ tại Thiết lập chăn nuôi → Chương trình nuôi.</p>}
-          </div>)}
-        </Card>
+          </div>
 
-        {/* Cám không ghi tay ở đây: nhật ký cám tự có khi bấm Xong cữ ăn (theo chương trình nuôi) ở Việc hôm nay. */}
-        <Card title="Nhật ký" icon={ClipboardList} actions={active && canDaily && journalTab === 'WEIGHT'
-          && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openWeight}><PlusCircle size={15} />Ghi cân mẫu</button>}>
-          <Tabs value={journalTab} onChange={setJournalTab} tabs={[{ value: 'FEED', label: 'Cám' }, { value: 'WEIGHT', label: 'Thông số vật nuôi' }, { value: 'LOSS', label: 'Hao hụt & chuyển đàn' }]} />
-          {journalTab === 'FEED' && (detail.feedRecords.length === 0 ? <Empty>Chưa có dữ liệu. Cám được ghi khi bấm Xong cữ ăn ở Việc hôm nay.</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
-            <thead><tr><th>Ngày</th><th>Tên cám</th><th>Lượng (kg)</th>{canFinance && <th>Thành tiền</th>}<th>Người ghi</th><th /></tr></thead>
-            <tbody>{detail.feedRecords.map(item => <tr key={item.id}><td>{formatDay(item.date)}</td><td>{item.label}</td><td>{num(item.quantity, 2)}</td>
-              {canFinance && <td>{money(item.amount)}</td>}<td>{item.createdBy || '—'}</td>
-              <td>{isOwner && active && <button type="button" className={styles.iconButton} aria-label={`Xóa nhật ký cám ${formatDay(item.date)}`} onClick={() => openDelete('nhật ký cám', () => deleteFeedRecord(cycle.id, item.id))}><Trash2 size={14} /></button>}</td></tr>)}</tbody>
-          </table></div>)}
-          {journalTab === 'WEIGHT' && (detail.weightSamples.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
-            <thead><tr><th>Ngày cân</th><th>Trọng lượng TB (kg/con)</th><th>Số con cân</th><th>Ghi chú</th><th /></tr></thead>
-            <tbody>{detail.weightSamples.map(item => <tr key={item.id}><td>{formatDay(item.date)}</td><td>{num(item.quantity, 3)}</td><td>{num(item.sampleSize)}</td><td>{item.note || '—'}</td>
-              <td>{isOwner && active && <button type="button" className={styles.iconButton} aria-label={`Xóa lần cân ${formatDay(item.date)}`} onClick={() => openDelete('lần cân mẫu', () => deleteWeightSample(cycle.id, item.id))}><Trash2 size={14} /></button>}</td></tr>)}</tbody>
-          </table></div>)}
-          {journalTab === 'LOSS' && (losses.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
-            <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Khối lượng (kg)</th><th>Ghi chú</th><th aria-label="Chi tiết" /></tr></thead>
-            <tbody>{losses.map(item => <tr key={item.id}><td>{formatDay(item.movementDate)}</td><td>{item.flockCode}</td><td>{labelOf(MOVEMENT_TYPES, item.type)}
-              {item.relatedFlockCode ? ` (${item.type === 'TRANSFER_OUT' ? 'sang' : 'từ'} ${item.relatedFlockCode})` : ''}</td><td>{num(item.quantity)}</td><td>{num(item.weightKg, 2)}</td><td>{item.note || '—'}</td>
-              <td className={styles.rowActions}><button type="button" className={styles.iconButton} title="Xem chi tiết, ảnh đính kèm"
-                aria-label={`Chi tiết ${labelOf(MOVEMENT_TYPES, item.type).toLowerCase()} ngày ${formatDay(item.movementDate)} đàn ${item.flockCode}`}
-                onClick={() => setModal({ type: 'movement', movement: item })}><Eye size={15} />
-                {item.photoUrls?.length ? <span className={styles.photoCount}>{item.photoUrls.length}</span> : null}</button></td></tr>)}</tbody>
-          </table></div>)}
-        </Card>
+          {journalTab === 'FEED' && active && detail.openedFeeds?.length > 0 && (
+            <div className={styles.openedFeedBanner} data-testid="barn-opened-feeds">
+              <strong>Cám đang mở bao còn lại tại chuồng:</strong>
+              <ul className={styles.openedFeedList}>
+                {detail.openedFeeds.map(feed => (
+                  <li key={feed.productId || feed.id}>
+                    <span>{feed.feedName}: <strong>{num(feed.remainingKg, 3)} kg</strong></span>
+                    {canFinance && feed.remainingValue != null && <span>({money(feed.remainingValue)})</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
+          {journalTab === 'FEED' && detail.feedRecords.length > 0 && (
+            <p className={styles.summaryLine}>
+              Tổng lượng: <strong>{num(feedTotalKg, 1)} kg</strong>
+              {canFinance && <> · Tổng tiền cám: <strong>{money(feedTotalAmount)}</strong></>}
+            </p>
+          )}
+
+          {journalTab === 'FEED' && (detail.feedRecords.length === 0
+            ? <Empty>Chưa có dữ liệu. Cám được ghi khi bấm Xong cữ ăn ở Việc hôm nay.</Empty>
+            : filteredFeeds.length === 0
+              ? <Empty>Không tìm thấy nhật ký cám phù hợp.</Empty>
+              : <>
+                <div className={styles.tableWrap}><table className={styles.table}>
+                  <thead><tr><th>Ngày</th><th>Tên cám</th><th>Lượng (kg)</th>{canFinance && <th>Thành tiền</th>}<th>Người ghi</th><th /></tr></thead>
+                  <tbody>{pagedJournal.items.map(item => <tr key={item.id}><td>{formatDay(item.date)}</td><td>{item.label}</td><td>{num(item.quantity, 2)}</td>
+                    {canFinance && <td>{money(item.amount)}</td>}<td>{item.createdBy || '—'}</td>
+                    <td>{isOwner && active && <button type="button" className={styles.iconButton} aria-label={`Xóa nhật ký cám ${formatDay(item.date)}`} onClick={() => openDelete('nhật ký cám', () => deleteFeedRecord(cycle.id, item.id))}><Trash2 size={14} /></button>}</td></tr>)}</tbody>
+                </table></div>
+                <TablePager total={filteredFeeds.length} page={pagedJournal.safePage} pageSize={journalPageSize}
+                  onPageChange={setJournalPage} onPageSizeChange={setJournalPageSize} label="Phân trang nhật ký cám" />
+              </>)}
+
+          {journalTab === 'WEIGHT' && (detail.weightSamples.length === 0
+            ? <Empty>Chưa có dữ liệu</Empty>
+            : filteredWeights.length === 0
+              ? <Empty>Không tìm thấy lần cân mẫu phù hợp.</Empty>
+              : <>
+                <div className={styles.tableWrap}><table className={styles.table}>
+                  <thead><tr><th>Ngày cân</th><th>Trọng lượng TB (kg/con)</th><th>Số con cân</th><th>Ghi chú</th><th /></tr></thead>
+                  <tbody>{pagedJournal.items.map(item => <tr key={item.id}><td>{formatDay(item.date)}</td><td>{num(item.quantity, 3)}</td><td>{num(item.sampleSize)}</td><td>{item.note || '—'}</td>
+                    <td>{isOwner && active && <button type="button" className={styles.iconButton} aria-label={`Xóa lần cân ${formatDay(item.date)}`} onClick={() => openDelete('lần cân mẫu', () => deleteWeightSample(cycle.id, item.id))}><Trash2 size={14} /></button>}</td></tr>)}</tbody>
+                </table></div>
+                <TablePager total={filteredWeights.length} page={pagedJournal.safePage} pageSize={journalPageSize}
+                  onPageChange={setJournalPage} onPageSizeChange={setJournalPageSize} label="Phân trang cân mẫu" />
+              </>)}
+
+          {journalTab === 'LOSS' && (losses.length === 0
+            ? <Empty>Chưa có dữ liệu</Empty>
+            : filteredLosses.length === 0
+              ? <Empty>Không tìm thấy bản ghi hao hụt hoặc chuyển đàn phù hợp.</Empty>
+              : <>
+                <div className={styles.tableWrap}><table className={styles.table}>
+                  <thead><tr><th>Ngày</th><th>Đàn</th><th>Loại</th><th>Số con</th><th>Khối lượng (kg)</th><th>Ghi chú</th><th aria-label="Chi tiết" /></tr></thead>
+                  <tbody>{pagedJournal.items.map(item => <tr key={item.id}><td>{formatDay(item.movementDate)}</td><td>{item.flockCode}</td><td>{labelOf(MOVEMENT_TYPES, item.type)}
+                    {item.relatedFlockCode ? ` (${item.type === 'TRANSFER_OUT' ? 'sang' : 'từ'} ${item.relatedFlockCode})` : ''}</td><td>{num(item.quantity)}</td><td>{num(item.weightKg, 2)}</td><td>{item.note || '—'}</td>
+                    <td className={styles.rowActions}><button type="button" className={styles.iconButton} title="Xem chi tiết, ảnh đính kèm"
+                      aria-label={`Chi tiết ${labelOf(MOVEMENT_TYPES, item.type).toLowerCase()} ngày ${formatDay(item.movementDate)} đàn ${item.flockCode}`}
+                      onClick={() => setModal({ type: 'movement', movement: item })}><Eye size={15} />
+                      {item.photoUrls?.length ? <span className={styles.photoCount}>{item.photoUrls.length}</span> : null}</button></td></tr>)}</tbody>
+                </table></div>
+                <TablePager total={filteredLosses.length} page={pagedJournal.safePage} pageSize={journalPageSize}
+                  onPageChange={setJournalPage} onPageSizeChange={setJournalPageSize} label="Phân trang hao hụt" />
+              </>)}
+        </div>
+      )}
+
+      {effectiveDetailTab === 'DISEASE' && (
         <DiseaseLogPanel
+          embedded
           cycle={cycle}
           flocks={detail.flocks}
           canDaily={canDaily}
@@ -709,33 +1008,77 @@ export const BarnDetailView = () => {
           userEmail={user?.email}
           refreshKey={revision}
           onChanged={() => setRevision(value => value + 1)}
+          onSummaryChange={info => setDiseaseSummary({ cycleId: cycle.id, ...info })}
           showToast={showToast}
         />
+      )}
 
-        {canFinance && finance && <Card title="Khoản chi bổ sung" icon={Coins}
-          actions={active && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openExpense}><PlusCircle size={15} />Thêm khoản chi</button>}>
-          <Tabs value={expenseTab} onChange={setExpenseTab} tabs={EXPENSE_CATEGORIES} />
+      {effectiveDetailTab === 'EXPENSE' && canFinance && finance && (
+        <div>
+          <div className={styles.subToolbar}>
+            <Tabs
+              value={expenseTab}
+              onChange={tab => { setExpenseTab(tab); setExpensePage(1); }}
+              tabs={EXPENSE_CATEGORIES}
+            />
+            <div className={styles.searchBox}>
+              <Search size={15} className={styles.searchIcon} />
+              <input
+                type="search"
+                className={styles.searchInput}
+                aria-label="Tìm kiếm khoản chi"
+                placeholder="Tìm ngày, ghi chú, người ghi..."
+                value={expenseSearch}
+                onChange={event => { setExpenseSearch(event.target.value); setExpensePage(1); }}
+              />
+              {expenseSearch && (
+                <button type="button" className={styles.searchClear} aria-label="Xóa tìm kiếm khoản chi"
+                  onClick={() => { setExpenseSearch(''); setExpensePage(1); }}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
           <p className={styles.summaryLine}>Tổng tiền: <strong>{money(finance.expenses[expenseTab])}</strong></p>
-          {expenses.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
-            <thead><tr><th>Ngày</th><th>Số tiền</th><th>Ghi chú</th><th>Người ghi</th><th /></tr></thead>
-            <tbody>{expenses.map(item => <tr key={item.id}><td>{formatDay(item.date)}</td><td>{money(item.amount)}</td><td>{item.note || '—'}</td><td>{item.createdBy || '—'}</td>
-              <td>{active && <button type="button" className={styles.iconButton} aria-label={`Xóa khoản chi ${formatDay(item.date)}`} onClick={() => openDelete('khoản chi', () => deleteExpense(cycle.id, item.id))}><Trash2 size={14} /></button>}</td></tr>)}</tbody>
-          </table></div>}
-        </Card>}
+          {expenses.length === 0
+            ? <Empty>Chưa có dữ liệu</Empty>
+            : filteredExpenses.length === 0
+              ? <Empty>Không tìm thấy khoản chi phù hợp.</Empty>
+              : <>
+                <div className={styles.tableWrap}><table className={styles.table}>
+                  <thead><tr><th>Ngày</th><th>Số tiền</th><th>Ghi chú</th><th>Người ghi</th><th /></tr></thead>
+                  <tbody>{pagedExpenses.items.map(item => <tr key={item.id}><td>{formatDay(item.date)}</td><td>{money(item.amount)}</td><td>{item.note || '—'}</td><td>{item.createdBy || '—'}</td>
+                    <td>{active && <button type="button" className={styles.iconButton} aria-label={`Xóa khoản chi ${formatDay(item.date)}`} onClick={() => openDelete('khoản chi', () => deleteExpense(cycle.id, item.id))}><Trash2 size={14} /></button>}</td></tr>)}</tbody>
+                </table></div>
+                <TablePager total={filteredExpenses.length} page={pagedExpenses.safePage} pageSize={expensePageSize}
+                  onPageChange={setExpensePage} onPageSizeChange={setExpensePageSize} label="Phân trang khoản chi" />
+              </>}
+        </div>
+      )}
 
-        {canFinance && finance && <Card title="Doanh thu" icon={ShoppingCart}>
+      {effectiveDetailTab === 'REVENUE' && canFinance && finance && (
+        <div>
           <p className={styles.summaryLine}>Số lượng: <strong>{num(metrics.harvestedQuantity)} con</strong> · Sản lượng: <strong>{num(metrics.harvestedWeightKg, 1)} kg</strong>
             · Loại thải: <strong>{num(metrics.culls)} con</strong> · Tiền bán: <strong>{money(finance.revenue)}</strong></p>
-          {harvests.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : <div className={styles.tableWrap}><table className={styles.table}>
-            <thead><tr><th>Ngày</th><th>Đàn</th><th>Số con</th><th>Khối lượng (kg)</th><th>Đơn giá (đ/kg)</th><th>Thành tiền</th><th>Ghi chú</th></tr></thead>
-            <tbody>{harvests.map(item => <tr key={item.id}><td>{formatDay(item.movementDate)}</td><td>{item.flockCode}</td><td>{num(item.quantity)}</td><td>{num(item.weightKg, 2)}</td>
-              <td>{num(item.unitPrice)}</td><td>{money(item.amount)}</td><td>{item.note || '—'}</td></tr>)}</tbody>
-          </table></div>}
-        </Card>}
+          {harvests.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : <>
+            <div className={styles.tableWrap}><table className={styles.table}>
+              <thead><tr><th>Ngày</th><th>Đàn</th><th>Số con</th><th>Khối lượng (kg)</th><th>Đơn giá (đ/kg)</th><th>Thành tiền</th><th>Ghi chú</th></tr></thead>
+              <tbody>{pagedHarvests.items.map(item => <tr key={item.id}><td>{formatDay(item.movementDate)}</td><td>{item.flockCode}</td><td>{num(item.quantity)}</td><td>{num(item.weightKg, 2)}</td>
+                <td>{num(item.unitPrice)}</td><td>{money(item.amount)}</td><td>{item.note || '—'}</td></tr>)}</tbody>
+            </table></div>
+            <TablePager total={harvests.length} page={pagedHarvests.safePage} pageSize={revenuePageSize}
+              onPageChange={setRevenuePage} onPageSizeChange={setRevenuePageSize} label="Phân trang doanh thu" />
+          </>}
+        </div>
+      )}
 
-        {history}
-      </div>
-    </div></>;
+      {effectiveDetailTab === 'HISTORY' && (
+        <div>
+          {renderHistoryContent()}
+        </div>
+      )}
+    </section>
+    </>;
   };
 
   const breadcrumbs = isAccountant
@@ -756,6 +1099,26 @@ export const BarnDetailView = () => {
     {modal?.type === 'flock' && <FlockDetailDialog flock={modal.flock} canFinance={canFinance} onClose={() => setModal(null)} />}
     {modal?.type === 'movement' && <MovementDetailDialog movement={modal.movement} onClose={() => setModal(null)} />}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}
+    {modal?.type === 'close' && <CloseCycleDialog barn={barn} cycle={cycle} onClose={() => setModal(null)} onDone={done} />}
+    {modal?.type === 'routineSettings' && barn && (
+      <RoutineTasksSettingsDialog
+        barnId={barn.id}
+        barnName={barn.name}
+        initialCodes={(dayPlan?.routineTasks || []).map(item => item.code)}
+        onClose={() => setModal(null)}
+        onSaved={async () => {
+          setModal(null);
+          showToast(`Đã cập nhật công việc hằng ngày cho ${barn.name}.`, 'success');
+          if (cycle?.id) {
+            const freshPlan = await getBarnDailyPlan(cycle.id).catch(() => null);
+            if (freshPlan) {
+              setState(current => ({ ...current, dayPlan: freshPlan }));
+            }
+          }
+          setRevision(value => value + 1);
+        }}
+      />
+    )}
     {modal && !modal.type && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </FarmShiftLayout>;
 };

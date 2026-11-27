@@ -40,21 +40,31 @@ public class InventoryItemService {
     public List<InventoryItemResponse> list(Long warehouseId) { return list(warehouseId, false, true); }
     public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts) { return list(warehouseId, includeReceipts, true); }
     public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts, boolean canSeeFinance) {
-        return list(warehouseId, includeReceipts, canSeeFinance, null);
+        return list(warehouseId, null, includeReceipts, canSeeFinance, null);
     }
     public List<InventoryItemResponse> list(Long warehouseId, boolean includeReceipts, boolean canSeeFinance, String workerEmail) {
+        return list(warehouseId, null, includeReceipts, canSeeFinance, workerEmail);
+    }
+    public List<InventoryItemResponse> list(Long warehouseId, Long areaId, boolean includeReceipts, boolean canSeeFinance, String workerEmail) {
         boolean effectiveIncludeReceipts = canSeeFinance && includeReceipts;
-        if (!canSeeFinance) {
-            java.util.Set<Long> allowedWarehouseIds = allowedWarehouseIdsForWorker(workerEmail);
-            if (warehouseId == null || !allowedWarehouseIds.contains(warehouseId)) {
-                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem tồn kho ngoài phạm vi phân công.");
-            }
-        }
         List<InventoryItem> items;
-        if (warehouseId == null) items = repository.findAllWithDetailsBy(Sort.by("warehouse.name", "product.name"));
-        else {
+        if (warehouseId != null) {
             if (!warehouses.existsById(warehouseId)) throw new ResourceNotFoundException("Kho không tồn tại.");
-            items = repository.findByWarehouse_Id(warehouseId, Sort.by("createdAt", "id"));
+            if (areaId != null) {
+                boolean belongs = warehouses.findAllByArea_Id(areaId).stream().anyMatch(w -> w.getId().equals(warehouseId));
+                items = belongs ? repository.findByWarehouse_Id(warehouseId, Sort.by("createdAt", "id")) : List.of();
+            } else {
+                items = repository.findByWarehouse_Id(warehouseId, Sort.by("createdAt", "id"));
+            }
+        } else if (areaId != null) {
+            java.util.Set<Long> areaWarehouseIds = warehouses.findAllByArea_Id(areaId).stream()
+                    .map(com.farmshift.backendFarmShift.entity.WarehouseCategory::getId)
+                    .collect(java.util.stream.Collectors.toSet());
+            items = areaWarehouseIds.isEmpty()
+                    ? List.of()
+                    : repository.findByWarehouse_IdIn(areaWarehouseIds, Sort.by("warehouse.name", "product.name"));
+        } else {
+            items = repository.findAllWithDetailsBy(Sort.by("warehouse.name", "product.name"));
         }
         var receipts = new java.util.HashMap<Long, com.farmshift.backendFarmShift.dto.response.InventoryReceiptResponse>();
         if (effectiveIncludeReceipts) {
@@ -71,18 +81,23 @@ public class InventoryItemService {
     public InventoryItemResponse get(Long id) { return get(id, true); }
     public InventoryItemResponse get(Long id, boolean canSeeFinance) { return get(id, canSeeFinance, null); }
     public InventoryItemResponse get(Long id, boolean canSeeFinance, String workerEmail) {
-        if (!canSeeFinance) {
-            java.util.Set<Long> allowedWarehouseIds = allowedWarehouseIdsForWorker(workerEmail);
-            if (allowedWarehouseIds.isEmpty()) {
-                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem tồn kho ngoài phạm vi phân công.");
-            }
-            InventoryItem item = find(id);
-            if (item.getWarehouse() == null || !allowedWarehouseIds.contains(item.getWarehouse().getId())) {
-                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem tồn kho ngoài phạm vi phân công.");
-            }
-            return response(item, null, false);
+        return response(find(id), null, canSeeFinance);
+    }
+
+    public java.util.Set<Long> allowedAreaIdsForWorker(String workerEmail) {
+        if (workerEmail == null || workerEmail.isBlank() || workAssignmentService == null || barnRepository == null) {
+            return java.util.Set.of();
         }
-        return response(find(id), null, true);
+        java.util.Set<Long> barnIds = workAssignmentService.barnIdsOf(workerEmail);
+        if (barnIds.isEmpty()) {
+            return java.util.Set.of();
+        }
+        return barnRepository.findAllById(barnIds).stream()
+                .map(com.farmshift.backendFarmShift.entity.Barn::getArea)
+                .filter(java.util.Objects::nonNull)
+                .map(com.farmshift.backendFarmShift.entity.FarmArea::getId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     public java.util.Set<Long> allowedWarehouseIdsForWorker(String workerEmail) {
@@ -90,19 +105,9 @@ public class InventoryItemService {
             return java.util.Set.of();
         }
         java.util.Set<Long> allowed = new java.util.HashSet<>();
-        if (workAssignmentService != null && barnRepository != null) {
-            java.util.Set<Long> barnIds = workAssignmentService.barnIdsOf(workerEmail);
-            if (!barnIds.isEmpty()) {
-                java.util.Set<Long> areaIds = barnRepository.findAllById(barnIds).stream()
-                        .map(com.farmshift.backendFarmShift.entity.Barn::getArea)
-                        .filter(java.util.Objects::nonNull)
-                        .map(com.farmshift.backendFarmShift.entity.FarmArea::getId)
-                        .filter(java.util.Objects::nonNull)
-                        .collect(java.util.stream.Collectors.toSet());
-                if (!areaIds.isEmpty()) {
-                    warehouses.findAllByAreaIdIn(areaIds).forEach(w -> allowed.add(w.getId()));
-                }
-            }
+        java.util.Set<Long> areaIds = allowedAreaIdsForWorker(workerEmail);
+        if (!areaIds.isEmpty()) {
+            warehouses.findAllByAreaIdIn(areaIds).forEach(w -> allowed.add(w.getId()));
         }
         if (accountRepository != null) {
             String normalizedEmail = workerEmail.strip().toLowerCase(java.util.Locale.ROOT);

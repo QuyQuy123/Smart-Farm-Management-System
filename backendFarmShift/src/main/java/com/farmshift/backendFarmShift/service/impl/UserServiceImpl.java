@@ -8,6 +8,7 @@ import com.farmshift.backendFarmShift.dto.response.UserProfileResponse;
 import com.farmshift.backendFarmShift.entity.Account;
 import com.farmshift.backendFarmShift.entity.Customer;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
+import com.farmshift.backendFarmShift.exception.ConflictException;
 import com.farmshift.backendFarmShift.exception.ResourceNotFoundException;
 import com.farmshift.backendFarmShift.repository.AccountRepository;
 import com.farmshift.backendFarmShift.repository.CustomerRepository;
@@ -18,10 +19,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -73,6 +74,17 @@ public class UserServiceImpl implements UserService {
             }
         }
         
+        String normalizedPhone = request.getPhone() != null ? request.getPhone().trim() : null;
+        if (normalizedPhone != null && !normalizedPhone.isEmpty()) {
+            Long currentAccountId = account.getId();
+            var existingWithPhone = customerRepository.findAll((root, query, cb) -> cb.equal(root.get("phone"), normalizedPhone));
+            boolean conflict = existingWithPhone.stream()
+                    .anyMatch(c -> c.getAccount() == null || !Objects.equals(c.getAccount().getId(), currentAccountId));
+            if (conflict) {
+                throw new ConflictException("This phone number is already in use.", "MSG49", "phone");
+            }
+        }
+
         account.setFullName(request.getFullName().trim());
         if (request.getAvatarUrl() != null) {
             account.setAvatarUrl(request.getAvatarUrl().trim());
@@ -85,7 +97,7 @@ public class UserServiceImpl implements UserService {
         customer.setFullName(account.getFullName());
         customer.setAvatarUrl(account.getAvatarUrl());
         
-        if (request.getPhone() != null) customer.setPhone(request.getPhone().trim());
+        if (normalizedPhone != null) customer.setPhone(normalizedPhone);
         if (request.getCitizenId() != null) customer.setCitizenId(request.getCitizenId().trim());
         if (request.getAddress() != null) customer.setAddress(request.getAddress().trim());
         
@@ -102,6 +114,9 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     public void changePassword(String email, ChangePasswordRequest request) {
+        if (request.getNewPassword() != null && request.getNewPassword().chars().anyMatch(Character::isWhitespace)) {
+            throw new BadRequestException("New password must not contain whitespace.");
+        }
         Account account = getAccountByEmail(email);
         
         // Verify current password

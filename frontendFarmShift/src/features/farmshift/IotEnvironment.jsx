@@ -32,7 +32,7 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
   const live = range === 'live';
   useEffect(() => {
     if (!live) return;
-    const timer = setInterval(() => setClock(Date.now()), 1000);
+    const timer = setInterval(() => setClock(Date.now()), 3000);
     return () => clearInterval(timer);
   }, [live]);
   const duration = live ? 60_000 : (range === 'day' ? 1 : 7) * 86400000;

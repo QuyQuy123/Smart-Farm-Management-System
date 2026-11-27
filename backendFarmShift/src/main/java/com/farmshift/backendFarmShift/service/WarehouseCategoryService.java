@@ -31,7 +31,43 @@ public class WarehouseCategoryService {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "createdAt", "id")).stream().map(this::response).toList();
     }
 
+    public List<WarehouseCategoryResponse> listForScope(Long areaId, java.util.Set<Long> allowedWarehouseIds, java.util.Set<Long> allowedAreaIds) {
+        if (allowedWarehouseIds == null && areaId == null) {
+            return list();
+        }
+        List<WarehouseCategory> all = repository.findAllWithAreasForReport().stream()
+                .sorted(java.util.Comparator.comparing(WarehouseCategory::getCreatedAt, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()))
+                        .thenComparing(WarehouseCategory::getId, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
+                .toList();
+        if (allowedWarehouseIds != null && areaId != null) {
+            boolean areaAllowed = allowedAreaIds != null && allowedAreaIds.contains(areaId);
+            boolean hasWarehouseInArea = all.stream().anyMatch(w -> allowedWarehouseIds.contains(w.getId()) && belongsToArea(w, areaId));
+            if (!areaAllowed && !hasWarehouseInArea) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem kho của khu nuôi ngoài phạm vi phân công.");
+            }
+        }
+        return all.stream()
+                .filter(w -> allowedWarehouseIds == null || allowedWarehouseIds.contains(w.getId()))
+                .filter(w -> areaId == null || belongsToArea(w, areaId))
+                .map(this::response)
+                .toList();
+    }
+
     public WarehouseCategoryResponse get(Long id) { return response(find(id)); }
+
+    public WarehouseCategoryResponse get(Long id, java.util.Set<Long> allowedWarehouseIds) {
+        if (allowedWarehouseIds != null && !allowedWarehouseIds.contains(id)) {
+            throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem kho ngoài phạm vi phân công.");
+        }
+        return response(find(id));
+    }
+
+    private static boolean belongsToArea(WarehouseCategory w, Long areaId) {
+        if (w.getArea() != null && areaId.equals(w.getArea().getId())) {
+            return true;
+        }
+        return w.getAreas() != null && w.getAreas().stream().anyMatch(a -> a != null && areaId.equals(a.getId()));
+    }
 
     @Transactional
     public WarehouseCategoryResponse create(WarehouseCategoryRequest request) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Pencil, Pill, PlusCircle, RotateCcw, Stethoscope, Trash2 } from 'lucide-react';
 import {
   addDiseaseTreatment, createCycleDisease, deleteCycleDisease, deleteDiseaseTreatment,
@@ -20,7 +20,19 @@ const money = value => (value == null ? '—' : `${Math.round(Number(value)).toL
  * Sổ bệnh án theo dõi đợt bệnh nhiều ngày & chi phí thuốc từng đợt bệnh trong BarnDetailView (OPS-02).
  * Ẩn toàn bộ cột/chip tiền thuốc khi canFinance === false (ROLE_FARM_WORKER).
  */
-export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOwner, userEmail, refreshKey = 0, onChanged, showToast }) {
+export function DiseaseLogPanel({
+  cycle,
+  flocks = [],
+  canDaily,
+  canFinance,
+  isOwner,
+  userEmail,
+  refreshKey = 0,
+  onChanged,
+  onSummaryChange,
+  embedded = false,
+  showToast,
+}) {
   const active = cycle?.status === 'ACTIVE';
   const today = todayIso();
   const [diseases, setDiseases] = useState([]);
@@ -29,9 +41,19 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [busy, setBusy] = useState(false);
+  const loadSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+  const onSummaryChangeRef = useRef(onSummaryChange);
+  onSummaryChangeRef.current = onSummaryChange;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     if (!cycle?.id) return;
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setError('');
     try {
@@ -39,12 +61,21 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
         listCycleDiseases(cycle.id),
         active && canDaily ? listDiseaseMedicineSources(cycle.id).catch(() => []) : Promise.resolve([]),
       ]);
-      setDiseases(Array.isArray(list) ? list : []);
+      if (!mountedRef.current || seq !== loadSeqRef.current) return;
+      const nextList = Array.isArray(list) ? list : [];
+      setDiseases(nextList);
       setSources(Array.isArray(medSources) ? medSources : []);
+      onSummaryChangeRef.current?.({
+        count: nextList.length,
+        activeCount: nextList.filter(d => d.status === 'ACTIVE').length,
+      });
     } catch (requestError) {
+      if (!mountedRef.current || seq !== loadSeqRef.current) return;
       setError(apiErrorMessage(requestError));
     } finally {
-      setLoading(false);
+      if (mountedRef.current && seq === loadSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, [cycle?.id, active, canDaily]);
 
@@ -247,7 +278,7 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
     return isOwn && sameDay;
   };
 
-  return <section className={styles.panel} aria-label="Sổ bệnh án">
+  return <section className={`${styles.panel} ${embedded ? styles.panelEmbedded : ''}`} aria-label="Sổ bệnh án">
     <header className={styles.header}>
       <h3><Stethoscope size={17} />Sổ bệnh án ({diseases.length})</h3>
       {active && canDaily && <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={openCreateDisease}>
@@ -262,7 +293,10 @@ export function DiseaseLogPanel({ cycle, flocks = [], canDaily, canFinance, isOw
     </div>}
 
     {loading ? <p className={styles.empty} role="status">Đang tải sổ bệnh án...</p>
-      : error ? <p className={styles.empty}>Không tải được sổ bệnh án.</p>
+      : error ? <div className={styles.errorState} role="alert">
+          <p className={styles.errorText}>{error}</p>
+          <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={load}>Thử lại</button>
+        </div>
         : diseases.length === 0 ? <p className={styles.empty}>Chưa ghi nhận đợt bệnh nào trong lứa nuôi này.</p>
           : <div className={styles.list}>
             {diseases.map(disease => <article key={disease.id} className={styles.diseaseCard}>

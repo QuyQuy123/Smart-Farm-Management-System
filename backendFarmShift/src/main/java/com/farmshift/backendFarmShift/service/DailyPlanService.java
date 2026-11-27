@@ -1,8 +1,10 @@
 package com.farmshift.backendFarmShift.service;
 
 import com.farmshift.backendFarmShift.dto.request.DailyTaskConfirmRequest;
+import com.farmshift.backendFarmShift.dto.request.RoutineTaskCheckRequest;
 import com.farmshift.backendFarmShift.dto.response.BarnDayPlan;
 import com.farmshift.backendFarmShift.dto.response.DashboardResponse;
+import com.farmshift.backendFarmShift.dto.response.OpenedFeedBalance;
 import com.farmshift.backendFarmShift.dto.response.WorkBoard;
 import com.farmshift.backendFarmShift.entity.*;
 import com.farmshift.backendFarmShift.exception.BadRequestException;
@@ -58,6 +60,8 @@ public class DailyPlanService {
     private final FarmService farmService;
     private final DailyStockSources stockSources;
     private final FarmingProgramRepository programRepository;
+    private final CycleOpenedFeedRepository openedFeedRepository;
+    private final BarnRoutineTaskCheckRepository routineCheckRepository;
 
     record DashboardPlanData(
             List<FarmingCycle> cycles,
@@ -75,6 +79,8 @@ public class DailyPlanService {
             Map<Long, List<FlockMovement>> movementsByCycle,
             Map<LocalDate, Map<Long, List<DailyTaskLog>>> logsByDateAndCycle,
             Map<LocalDate, Map<Long, List<WorkBoard.AssignedTask>>> assignedByDateAndBarn,
+            Map<LocalDate, Map<Long, List<BarnRoutineTaskCheck>>> routineChecksByDateAndCycle,
+            Map<Long, List<CycleOpenedFeed>> openedFeedsByCycle,
             List<InventoryItem> preloadedInventory,
             Map<Long, Set<Long>> barnStoreIds,
             LocalTime firstMeal
@@ -124,7 +130,7 @@ public class DailyPlanService {
                         .thenComparing(cycle -> cycle.getBarn().getName()))
                 .toList();
         if (cycles.isEmpty()) {
-            return new PlanBatchContext(workersByBarn, List.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), null, null, null);
+            return new PlanBatchContext(workersByBarn, List.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), null, null, null);
         }
 
         List<Long> cycleIds = new ArrayList<>(cycles.size());
@@ -159,6 +165,24 @@ public class DailyPlanService {
         Map<LocalDate, Map<Long, List<WorkBoard.AssignedTask>>> assignedByDateAndBarn =
                 workAssignment.tasksByBarnInRange(barnIds, rangeFrom, rangeTo, workerEmail);
 
+        Map<LocalDate, Map<Long, List<BarnRoutineTaskCheck>>> routineChecksByDateAndCycle = new HashMap<>();
+        for (BarnRoutineTaskCheck rc : routineCheckRepository.findAllByCycleIdInAndCheckDateBetween(cycleIds, rangeFrom, rangeTo)) {
+            if (rc.getCycle() != null) {
+                routineChecksByDateAndCycle.computeIfAbsent(rc.getCheckDate(), ignored -> new HashMap<>())
+                        .computeIfAbsent(rc.getCycle().getId(), ignored -> new ArrayList<>())
+                        .add(rc);
+            }
+        }
+
+        Map<Long, List<CycleOpenedFeed>> openedFeedsByCycle = new HashMap<>();
+        if (resolveStock) {
+            for (CycleOpenedFeed opened : openedFeedRepository.findAllByCycleIdInOrderByIdAsc(cycleIds)) {
+                if (opened.getCycle() != null && opened.getRemainingKg() != null && opened.getRemainingKg().signum() > 0) {
+                    openedFeedsByCycle.computeIfAbsent(opened.getCycle().getId(), ignored -> new ArrayList<>()).add(opened);
+                }
+            }
+        }
+
         List<InventoryItem> preloadedInventory = resolveStock
                 ? inventoryRepository.findAllWithDetailsBy(Sort.by("createdAt", "id"))
                 : null;
@@ -166,7 +190,8 @@ public class DailyPlanService {
         LocalTime firstMeal = needTodayDetails ? farmService.firstMealTime() : null;
 
         return new PlanBatchContext(workersByBarn, cycles, flocksByCycle, programsById, movementsByCycle,
-                logsByDateAndCycle, assignedByDateAndBarn, preloadedInventory, barnStoreIds, firstMeal);
+                logsByDateAndCycle, assignedByDateAndBarn, routineChecksByDateAndCycle, openedFeedsByCycle,
+                preloadedInventory, barnStoreIds, firstMeal);
     }
 
     private List<BarnDayPlan> buildPlansForDay(PlanBatchContext ctx, LocalDate day, boolean canSeeFinance, boolean resolveStock) {
@@ -175,6 +200,7 @@ public class DailyPlanService {
         }
         Map<Long, List<DailyTaskLog>> dayLogsByCycle = ctx.logsByDateAndCycle().getOrDefault(day, Map.of());
         Map<Long, List<WorkBoard.AssignedTask>> dayAssignedByBarn = ctx.assignedByDateAndBarn().getOrDefault(day, Map.of());
+        Map<Long, List<BarnRoutineTaskCheck>> dayRoutineChecks = ctx.routineChecksByDateAndCycle().getOrDefault(day, Map.of());
         Map<String, BigDecimal> sharedAverages = resolveStock && canSeeFinance ? new HashMap<>() : null;
         List<BarnDayPlan> result = new ArrayList<>();
         for (FarmingCycle cycle : ctx.cycles()) {
@@ -189,8 +215,10 @@ public class DailyPlanService {
                     dayLogsByCycle.getOrDefault(cycle.getId(), List.of()),
                     ctx.workersByBarn().getOrDefault(cycle.getBarn().getId(), List.of()),
                     dayAssignedByBarn.getOrDefault(cycle.getBarn().getId(), List.of()),
+                    ctx.openedFeedsByCycle().getOrDefault(cycle.getId(), List.of()),
+                    dayRoutineChecks.getOrDefault(cycle.getId(), List.of()),
                     ctx.firstMeal());
-            if (!mapped.flocks().isEmpty() || !mapped.tasks().isEmpty() || !mapped.assignedTasks().isEmpty()) {
+            if (!mapped.flocks().isEmpty() || !mapped.tasks().isEmpty() || !mapped.assignedTasks().isEmpty() || !mapped.routineTasks().isEmpty()) {
                 result.add(mapped);
             }
         }
@@ -302,34 +330,122 @@ public class DailyPlanService {
             if (task.item == null) throw new BadRequestException(task.sources.size() > 1
                     ? "Có nhiều kho/hàng hóa phù hợp. Vui lòng chọn nguồn trước khi xác nhận."
                     : "Không tìm thấy hàng hóa có quy cách phù hợp trong kho cám/thuốc của khu nuôi.", "STOCK_SOURCE_REQUIRED");
-            BigDecimal packs = UsageMath.toStock(actual, task.unit, task.item, task.category == ProgramStepCategory.VACCINE);
-            if (sourceStock(task.lots).compareTo(packs) < 0) throw new BadRequestException("Kho chỉ còn "
-                    + amount(sourceStock(task.lots)) + " " + stockUnit(task.item) + ", cần " + amount(packs)
-                    + ". Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
-            BigDecimal remaining = packs;
-            for (InventoryItem item : task.lots) {
-                if (remaining.signum() <= 0) break;
-                entityManager.refresh(item);
-                BigDecimal take = item.getStock().min(remaining);
-                if (take.signum() <= 0) continue;
-                if (inventoryRepository.takeStock(item.getId(), take) != 1) {
-                    throw new ConflictException("Tồn kho vừa thay đổi. Vui lòng tải lại và xác nhận lại.", "STOCK_CHANGED", null);
+
+            if (task.category == ProgramStepCategory.FEED) {
+                BigDecimal kgPerBag = UsageMath.kgPerPack(task.item);
+                if (kgPerBag == null || kgPerBag.signum() <= 0) {
+                    throw new BadRequestException("Quy cách bao cám không hợp lệ.", "STOCK_UNIT_INVALID");
                 }
-                entityManager.refresh(item);
-                DailyStockAllocation allocation = new DailyStockAllocation();
-                allocation.setItem(item);
-                allocation.setQuantity(take);
-                log.getStockAllocations().add(allocation);
-                cost = cost.add(take.multiply(item.getPrice()));
-                remaining = remaining.subtract(take);
+                CycleOpenedFeed opened = openedFeedRepository
+                        .findByCycleIdAndProductId(cycleId, task.item.getProduct().getId())
+                        .orElse(null);
+                BigDecimal prevKg = opened != null && opened.getRemainingKg() != null ? opened.getRemainingKg() : BigDecimal.ZERO;
+                BigDecimal prevValue = opened != null && opened.getRemainingValue() != null ? opened.getRemainingValue() : BigDecimal.ZERO;
+                BigDecimal shortfallKg = actual.subtract(prevKg).max(BigDecimal.ZERO);
+                BigDecimal bagsToOpen = shortfallKg.signum() > 0
+                        ? shortfallKg.divide(kgPerBag, 0, RoundingMode.CEILING).setScale(6)
+                        : BigDecimal.ZERO.setScale(6);
+
+                BigDecimal openedBagsCost = BigDecimal.ZERO;
+                if (bagsToOpen.signum() > 0) {
+                    if (sourceStock(task.lots).compareTo(bagsToOpen) < 0) {
+                        throw new BadRequestException("Kho chỉ còn "
+                                + amount(sourceStock(task.lots)) + " " + stockUnit(task.item) + ", cần xuất " + amount(bagsToOpen)
+                                + " (nguyên bao). Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
+                    }
+                    BigDecimal remaining = bagsToOpen;
+                    for (InventoryItem item : task.lots) {
+                        if (remaining.signum() <= 0) break;
+                        entityManager.refresh(item);
+                        BigDecimal take = item.getStock().min(remaining);
+                        if (take.signum() <= 0) continue;
+                        if (inventoryRepository.takeStock(item.getId(), take) != 1) {
+                            throw new ConflictException("Tồn kho vừa thay đổi. Vui lòng tải lại và xác nhận lại.", "STOCK_CHANGED", null);
+                        }
+                        entityManager.refresh(item);
+                        DailyStockAllocation allocation = new DailyStockAllocation();
+                        allocation.setItem(item);
+                        allocation.setQuantity(take);
+                        log.getStockAllocations().add(allocation);
+                        openedBagsCost = openedBagsCost.add(take.multiply(item.getPrice()));
+                        remaining = remaining.subtract(take);
+                    }
+                    if (remaining.signum() > 0) {
+                        throw new BadRequestException("Kho không đủ " + task.name + ", cần "
+                                + amount(bagsToOpen) + " " + stockUnit(task.item) + ". Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
+                    }
+                }
+
+                BigDecimal openedBagsKg = bagsToOpen.multiply(kgPerBag).setScale(3, RoundingMode.HALF_UP);
+                BigDecimal poolKg = prevKg.add(openedBagsKg).setScale(3, RoundingMode.HALF_UP);
+                BigDecimal poolValue = prevValue.add(openedBagsCost).setScale(2, RoundingMode.HALF_UP);
+
+                BigDecimal newRemainingKg;
+                BigDecimal newRemainingValue;
+                if (actual.compareTo(poolKg) >= 0) {
+                    cost = poolValue.setScale(0, RoundingMode.HALF_UP);
+                    newRemainingKg = BigDecimal.ZERO.setScale(3);
+                    newRemainingValue = BigDecimal.ZERO.setScale(2);
+                } else {
+                    cost = poolValue.multiply(actual).divide(poolKg, 0, RoundingMode.HALF_UP);
+                    newRemainingKg = poolKg.subtract(actual).setScale(3, RoundingMode.HALF_UP);
+                    newRemainingValue = poolValue.subtract(cost).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                }
+
+                if (opened != null || newRemainingKg.signum() > 0) {
+                    if (opened == null) {
+                        opened = new CycleOpenedFeed();
+                        opened.setCycle(cycle);
+                        opened.setProduct(task.item.getProduct());
+                    }
+                    opened.setWarehouse(task.item.getWarehouse());
+                    opened.setUnit(task.item.getUnit());
+                    opened.setKgPerBag(kgPerBag);
+                    opened.setRemainingKg(newRemainingKg);
+                    opened.setRemainingValue(newRemainingValue);
+                    opened.setUpdatedAt(LocalDateTime.now(VN_ZONE));
+                    openedFeedRepository.saveAndFlush(opened);
+                }
+
+                log.setInventoryItem(task.item);
+                log.setStockQuantity(bagsToOpen);
+                log.setOpenedBagsKg(openedBagsKg);
+                log.setOpenedBagsCost(openedBagsCost.setScale(2, RoundingMode.HALF_UP));
+                BigDecimal bagUnitPrice = bagsToOpen.signum() > 0
+                        ? openedBagsCost.divide(bagsToOpen, 2, RoundingMode.HALF_UP)
+                        : cost.multiply(kgPerBag).divide(actual, 2, RoundingMode.HALF_UP);
+                log.setUnitPrice(bagUnitPrice);
+                log.setCost(cost);
+            } else {
+                BigDecimal packs = UsageMath.toStock(actual, task.unit, task.item, task.category == ProgramStepCategory.VACCINE);
+                if (sourceStock(task.lots).compareTo(packs) < 0) throw new BadRequestException("Kho chỉ còn "
+                        + amount(sourceStock(task.lots)) + " " + stockUnit(task.item) + ", cần " + amount(packs)
+                        + ". Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
+                BigDecimal remaining = packs;
+                for (InventoryItem item : task.lots) {
+                    if (remaining.signum() <= 0) break;
+                    entityManager.refresh(item);
+                    BigDecimal take = item.getStock().min(remaining);
+                    if (take.signum() <= 0) continue;
+                    if (inventoryRepository.takeStock(item.getId(), take) != 1) {
+                        throw new ConflictException("Tồn kho vừa thay đổi. Vui lòng tải lại và xác nhận lại.", "STOCK_CHANGED", null);
+                    }
+                    entityManager.refresh(item);
+                    DailyStockAllocation allocation = new DailyStockAllocation();
+                    allocation.setItem(item);
+                    allocation.setQuantity(take);
+                    log.getStockAllocations().add(allocation);
+                    cost = cost.add(take.multiply(item.getPrice()));
+                    remaining = remaining.subtract(take);
+                }
+                if (remaining.signum() > 0) throw new BadRequestException("Kho không đủ " + task.name + ", cần "
+                        + amount(packs) + " " + stockUnit(task.item) + ". Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
+                cost = cost.setScale(0, RoundingMode.HALF_UP);
+                log.setInventoryItem(task.item);
+                log.setStockQuantity(packs);
+                log.setUnitPrice(packs.signum() == 0 ? BigDecimal.ZERO : cost.divide(packs, 2, RoundingMode.HALF_UP));
+                log.setCost(cost);
             }
-            if (remaining.signum() > 0) throw new BadRequestException("Kho không đủ " + task.name + ", cần "
-                    + amount(packs) + " " + stockUnit(task.item) + ". Hãy nhập kho trước khi xác nhận.", "STOCK_NOT_ENOUGH");
-            cost = cost.setScale(0, RoundingMode.HALF_UP);
-            log.setInventoryItem(task.item);
-            log.setStockQuantity(packs);
-            log.setUnitPrice(packs.signum() == 0 ? BigDecimal.ZERO : cost.divide(packs, 2, RoundingMode.HALF_UP));
-            log.setCost(cost);
         }
         String source = "Việc hôm nay" + (task.meal != null ? " · cữ " + task.meal + "/" + task.meals : "") + (note.isEmpty() ? "" : " · " + note);
         if (task.category == ProgramStepCategory.FEED && actual.signum() > 0) {
@@ -370,12 +486,46 @@ public class DailyPlanService {
         if (!owner && (!log.getDoneBy().equalsIgnoreCase(user) || !date.equals(today()))) {
             throw new ConflictException("Công nhân chỉ hoàn tác được việc do mình xác nhận trong hôm nay.", "DAILY_TASK_UNDO_FORBIDDEN", null);
         }
+        if (log.getCategory() == ProgramStepCategory.FEED && log.getOpenedBagsKg() != null && log.getInventoryItem() != null) {
+            BigDecimal openedBagsKg = log.getOpenedBagsKg();
+            BigDecimal openedBagsCost = log.getOpenedBagsCost() != null ? log.getOpenedBagsCost() : BigDecimal.ZERO;
+            BigDecimal actualKg = log.getActualQuantity() != null ? log.getActualQuantity() : BigDecimal.ZERO;
+            BigDecimal mealCost = log.getCost() != null ? log.getCost() : BigDecimal.ZERO;
+            CycleOpenedFeed opened = openedFeedRepository
+                    .findByCycleIdAndProductId(cycleId, log.getInventoryItem().getProduct().getId())
+                    .orElse(null);
+            BigDecimal currentKg = opened != null && opened.getRemainingKg() != null ? opened.getRemainingKg() : BigDecimal.ZERO;
+            BigDecimal currentVal = opened != null && opened.getRemainingValue() != null ? opened.getRemainingValue() : BigDecimal.ZERO;
+            BigDecimal restoredKg = currentKg.subtract(openedBagsKg).add(actualKg).setScale(3, RoundingMode.HALF_UP);
+            if (restoredKg.signum() < 0) {
+                throw new ConflictException(
+                        "Cám mở bao từ cữ này đã được dùng ở cữ cho ăn sau. Hãy hoàn tác các cữ ăn sau trước khi hoàn tác cữ này.",
+                        "OPENED_FEED_ALREADY_CONSUMED", null);
+            }
+            BigDecimal restoredVal = restoredKg.signum() == 0
+                    ? BigDecimal.ZERO.setScale(2)
+                    : currentVal.subtract(openedBagsCost).add(mealCost).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            if (opened != null || restoredKg.signum() > 0) {
+                if (opened == null) {
+                    opened = new CycleOpenedFeed();
+                    opened.setCycle(cycle);
+                    opened.setProduct(log.getInventoryItem().getProduct());
+                    opened.setWarehouse(log.getInventoryItem().getWarehouse());
+                    opened.setUnit(log.getInventoryItem().getUnit());
+                    opened.setKgPerBag(UsageMath.kgPerPack(log.getInventoryItem()));
+                }
+                opened.setRemainingKg(restoredKg);
+                opened.setRemainingValue(restoredVal);
+                opened.setUpdatedAt(LocalDateTime.now(VN_ZONE));
+                openedFeedRepository.saveAndFlush(opened);
+            }
+        }
         if (!log.getStockAllocations().isEmpty()) {
             for (DailyStockAllocation allocation : log.getStockAllocations()) {
                 inventoryRepository.returnStock(allocation.getItem().getId(), allocation.getQuantity());
                 entityManager.refresh(allocation.getItem());
             }
-        } else if (log.getInventoryItem() != null && log.getStockQuantity() != null) {
+        } else if (log.getInventoryItem() != null && log.getStockQuantity() != null && log.getStockQuantity().signum() > 0) {
             inventoryRepository.returnStock(log.getInventoryItem().getId(), log.getStockQuantity());
             entityManager.refresh(log.getInventoryItem());
         }
@@ -385,6 +535,50 @@ public class DailyPlanService {
         logRepository.flush();
         if (record != null) feedRepository.delete(record);
         if (expense != null) expenseRepository.delete(expense);
+        return response(cycle, date, compute(cycle, date, workerEmail), canSeeFinance, workerEmail);
+    }
+
+    /** Xác nhận một công việc hằng ngày mặc định của chuồng (Thay trấu, Vệ sinh máng, Xịt rửa chuồng). */
+    @Transactional
+    public BarnDayPlan checkRoutineTask(Long cycleId, RoutineTaskCheckRequest request, String user, boolean canSeeFinance, String workerEmail) {
+        FarmingCycle cycle = cycleService.requireActive(cycleId);
+        LocalDate day = request.date();
+        checkDate(cycle, day, "Ngày làm việc");
+        String code = request.taskCode().strip();
+        if (!BarnRoutineTaskCatalog.isValid(code)) {
+            throw new BadRequestException("Mã công việc mặc định không hợp lệ.", "ROUTINE_TASK_INVALID");
+        }
+        if (!BarnRoutineTaskCatalog.enabledCodes(cycle.getBarn()).contains(code)) {
+            throw new BadRequestException("Công việc này đang tắt ở chuồng " + cycle.getBarn().getName() + ".", "ROUTINE_TASK_NOT_ENABLED");
+        }
+        if (routineCheckRepository.existsByCycleIdAndCheckDateAndTaskCode(cycleId, day, code)) {
+            throw new ConflictException("Việc này đã được xác nhận.", "ROUTINE_TASK_ALREADY_DONE", null);
+        }
+        BarnRoutineTaskCheck check = new BarnRoutineTaskCheck();
+        check.setCycle(cycle);
+        check.setBarn(cycle.getBarn());
+        check.setTaskCode(code);
+        check.setTaskTitle(BarnRoutineTaskCatalog.titleOf(code));
+        check.setCheckDate(day);
+        check.setNote(clean(request.note()));
+        check.setDoneBy(user);
+        check.setDoneAt(LocalDateTime.now(VN_ZONE));
+        routineCheckRepository.saveAndFlush(check);
+        return response(cycle, day, compute(cycle, day, workerEmail), canSeeFinance, workerEmail);
+    }
+
+    /** Hoàn tác xác nhận việc hằng ngày mặc định của chuồng. Công nhân chỉ hoàn tác việc của mình trong hôm nay. */
+    @Transactional
+    public BarnDayPlan uncheckRoutineTask(Long cycleId, LocalDate date, String taskCode, String user, boolean owner, boolean canSeeFinance, String workerEmail) {
+        FarmingCycle cycle = cycleService.requireActive(cycleId);
+        String code = taskCode == null ? "" : taskCode.strip();
+        BarnRoutineTaskCheck check = routineCheckRepository.findByCycleIdAndCheckDateAndTaskCode(cycleId, date, code)
+                .orElseThrow(() -> new ResourceNotFoundException("Việc này chưa được xác nhận."));
+        if (!owner && (!check.getDoneBy().equalsIgnoreCase(user) || !date.equals(today()))) {
+            throw new ConflictException("Công nhân chỉ hoàn tác được việc do mình xác nhận trong hôm nay.", "ROUTINE_TASK_UNDO_FORBIDDEN", null);
+        }
+        routineCheckRepository.delete(check);
+        routineCheckRepository.flush();
         return response(cycle, date, compute(cycle, date, workerEmail), canSeeFinance, workerEmail);
     }
 
@@ -679,11 +873,16 @@ public class DailyPlanService {
     // ---------------------------------------------------------------- response
 
     private BarnDayPlan response(FarmingCycle cycle, LocalDate day, Plan plan, boolean canSeeFinance, String workerEmail) {
+        List<CycleOpenedFeed> openedFeeds = day.equals(today()) || cycle.getStatus() == CycleStatus.ACTIVE
+                ? openedFeedRepository.findAllByCycleIdAndRemainingKgGreaterThanOrderByIdAsc(cycle.getId(), BigDecimal.ZERO)
+                : List.of();
         return responseWithData(
                 cycle, day, plan, canSeeFinance, true, null, null,
                 logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day),
                 workAssignment.workersOf(cycle.getBarn().getId()),
                 workAssignment.tasksOf(cycle.getBarn().getId(), day, workerEmail),
+                openedFeeds,
+                routineCheckRepository.findAllByCycleIdAndCheckDate(cycle.getId(), day),
                 farmService.firstMealTime());
     }
 
@@ -694,12 +893,24 @@ public class DailyPlanService {
             List<DailyTaskLog> allLogs,
             List<WorkBoard.WorkerRef> workers,
             List<WorkBoard.AssignedTask> assignedTasks,
+            List<CycleOpenedFeed> openedFeeds,
+            List<BarnRoutineTaskCheck> routineChecks,
             LocalTime firstMeal) {
         Barn barn = cycle.getBarn();
         Map<Long, FlockDay> flocks = new LinkedHashMap<>();
         for (FlockDay flockDay : plan.flocks()) flocks.put(flockDay.flock().getId(), flockDay);
         Map<String, DailyTaskLog> logs = new LinkedHashMap<>();
         for (DailyTaskLog log : allLogs) logs.put(log.getTaskKey(), log);
+
+        List<OpenedFeedBalance> openedFeedBalances = CycleService.toOpenedBalances(openedFeeds, canSeeFinance);
+        Map<Long, BigDecimal> remainingOpenedByProduct = new HashMap<>();
+        if (openedFeeds != null) {
+            for (CycleOpenedFeed f : openedFeeds) {
+                if (f.getProduct() != null && f.getRemainingKg() != null && f.getRemainingKg().signum() > 0) {
+                    remainingOpenedByProduct.merge(f.getProduct().getId(), f.getRemainingKg(), BigDecimal::add);
+                }
+            }
+        }
 
         List<String> warnings = new ArrayList<>(plan.warnings());
         Map<Long, BigDecimal> remainingByItem = new LinkedHashMap<>();
@@ -711,22 +922,54 @@ public class DailyPlanService {
         for (Planned task : plan.tasks()) {
             DailyTaskLog log = logs.remove(task.key);
             BigDecimal stock = null;
+            BigDecimal requiredStockForToday = null;
             BigDecimal pricedStock = null;
             BigDecimal averagePrice = null;
             BigDecimal plannedCost = null;
+            BigDecimal openedFeedKg = null;
+            Integer bagsToOpen = null;
             if (resolveStock) {
-                stock = task.item != null && task.total != null
-                        ? UsageMath.toStock(task.total, task.unit, task.item, task.category == ProgramStepCategory.VACCINE) : null;
-                // Hoạch định chi phí theo giá trung bình các kho; chưa chọn được kho nguồn thì lấy quy cách của nguồn đầu tiên.
-                InventoryItem priced = task.item != null ? task.item : task.sources.isEmpty() ? null : task.sources.getFirst().getFirst();
-                pricedStock = stock != null ? stock : priced != null && task.total != null
-                        ? UsageMath.toStock(task.total, task.unit, priced, task.category == ProgramStepCategory.VACCINE) : null;
-                averagePrice = canSeeFinance && priced != null ? averagePrice(priced, averages, preloadedInventory) : null;
+                if (task.category == ProgramStepCategory.FEED && task.item != null && task.total != null) {
+                    BigDecimal kgPerBag = UsageMath.kgPerPack(task.item);
+                    Long productId = task.item.getProduct().getId();
+                    BigDecimal availableOpened = remainingOpenedByProduct.getOrDefault(productId, BigDecimal.ZERO);
+                    openedFeedKg = availableOpened.setScale(3, RoundingMode.HALF_UP);
+                    stock = UsageMath.toStock(task.total, task.unit, task.item, false);
+                    if (log == null) {
+                        BigDecimal shortfall = task.total.subtract(availableOpened).max(BigDecimal.ZERO);
+                        int bagsInt = (shortfall.signum() > 0 && kgPerBag != null && kgPerBag.signum() > 0)
+                                ? shortfall.divide(kgPerBag, 0, RoundingMode.CEILING).intValue()
+                                : 0;
+                        bagsToOpen = bagsInt;
+                        requiredStockForToday = BigDecimal.valueOf(bagsInt).setScale(6);
+                        if (kgPerBag != null && kgPerBag.signum() > 0) {
+                            BigDecimal nextOpened = availableOpened
+                                    .add(requiredStockForToday.multiply(kgPerBag))
+                                    .subtract(task.total)
+                                    .max(BigDecimal.ZERO);
+                            remainingOpenedByProduct.put(productId, nextOpened);
+                        }
+                    } else {
+                        bagsToOpen = log.getStockQuantity() != null ? log.getStockQuantity().intValue() : 0;
+                        requiredStockForToday = log.getStockQuantity();
+                    }
+                    pricedStock = stock;
+                    averagePrice = canSeeFinance ? averagePrice(task.item, averages, preloadedInventory) : null;
+                } else {
+                    stock = task.item != null && task.total != null
+                            ? UsageMath.toStock(task.total, task.unit, task.item, task.category == ProgramStepCategory.VACCINE) : null;
+                    requiredStockForToday = stock;
+                    // Hoạch định chi phí theo giá trung bình các kho; chưa chọn được kho nguồn thì lấy quy cách của nguồn đầu tiên.
+                    InventoryItem priced = task.item != null ? task.item : task.sources.isEmpty() ? null : task.sources.getFirst().getFirst();
+                    pricedStock = stock != null ? stock : priced != null && task.total != null
+                            ? UsageMath.toStock(task.total, task.unit, priced, task.category == ProgramStepCategory.VACCINE) : null;
+                    averagePrice = canSeeFinance && priced != null ? averagePrice(priced, averages, preloadedInventory) : null;
+                }
                 plannedCost = averagePrice != null && pricedStock != null
                         ? pricedStock.multiply(averagePrice).setScale(0, RoundingMode.HALF_UP) : null;
                 if (plannedCost != null) plannedTotal = plannedTotal.add(plannedCost);
-                if (log == null && stock != null) {
-                    remainingByItem.merge(task.item.getId(), stock, BigDecimal::add);
+                if (log == null && requiredStockForToday != null && task.item != null && requiredStockForToday.signum() > 0) {
+                    remainingByItem.merge(task.item.getId(), requiredStockForToday, BigDecimal::add);
                     items.put(task.item.getId(), task.item);
                     available.put(task.item.getId(), sourceStock(task.lots));
                 }
@@ -737,7 +980,7 @@ public class DailyPlanService {
                     task.total, task.unit == null ? null : task.unit.label(), stock, task.item == null ? null : stockUnit(task.item),
                     task.item == null ? null : task.item.getId(), task.item == null ? null : task.item.getProduct().getName(),
                     task.item == null ? null : sourceStock(task.lots),
-                    task.item == null || stock == null || log != null ? null : sourceStock(task.lots).compareTo(stock) >= 0,
+                    task.item == null || requiredStockForToday == null || log != null ? null : sourceStock(task.lots).compareTo(requiredStockForToday) >= 0,
                     task.tempMin, task.tempMax, task.note,
                     task.shares.entrySet().stream().map(entry -> {
                         FlockDay flockDay = flocks.get(entry.getKey());
@@ -747,7 +990,7 @@ public class DailyPlanService {
                     log == null ? null : done(log, canSeeFinance),
                     task.sources.stream().map(lots -> new BarnDayPlan.StockSource(lots.getFirst().getId(),
                             lots.getFirst().getWarehouse().getName(), stockUnit(lots.getFirst()), sourceStock(lots))).toList(),
-                    averagePrice, plannedCost));
+                    averagePrice, plannedCost, openedFeedKg, bagsToOpen));
         }
         // Việc đã xác nhận nhưng không còn trong kế hoạch (đổi chương trình, đàn đã bán hết...) vẫn hiện để xem và hoàn tác.
         for (DailyTaskLog log : logs.values()) {
@@ -756,7 +999,7 @@ public class DailyPlanService {
                     log.getInventoryItem() == null ? null : stockUnit(log.getInventoryItem()),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getId(),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getProduct().getName(), null, null, null, null,
-                    "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance), List.of(), null, null));
+                    "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance), List.of(), null, null, null, null));
         }
         if (resolveStock) {
             remainingByItem.forEach((id, need) -> {
@@ -771,11 +1014,34 @@ public class DailyPlanService {
         List<DailyTaskLog> all = allLogs;
         BigDecimal cost = canSeeFinance ? all.stream().map(DailyTaskLog::getCost).filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(0, RoundingMode.HALF_UP) : null;
+        Map<String, BarnRoutineTaskCheck> checksByCode = new LinkedHashMap<>();
+        if (routineChecks != null) {
+            for (BarnRoutineTaskCheck rc : routineChecks) {
+                checksByCode.put(rc.getTaskCode(), rc);
+            }
+        }
+        List<BarnDayPlan.RoutineTask> routineTasks = new ArrayList<>();
+        Set<String> seenRoutineCodes = new HashSet<>();
+        for (String code : BarnRoutineTaskCatalog.enabledCodes(barn)) {
+            seenRoutineCodes.add(code);
+            BarnRoutineTaskCheck rc = checksByCode.get(code);
+            BarnDayPlan.RoutineDone done = rc == null ? null
+                    : new BarnDayPlan.RoutineDone(rc.getId(), rc.getDoneBy(), rc.getDoneAt(), rc.getNote());
+            routineTasks.add(new BarnDayPlan.RoutineTask(code, BarnRoutineTaskCatalog.titleOf(code), done));
+        }
+        for (BarnRoutineTaskCheck rc : checksByCode.values()) {
+            if (!seenRoutineCodes.contains(rc.getTaskCode())) {
+                routineTasks.add(new BarnDayPlan.RoutineTask(
+                        rc.getTaskCode(),
+                        rc.getTaskTitle(),
+                        new BarnDayPlan.RoutineDone(rc.getId(), rc.getDoneBy(), rc.getDoneAt(), rc.getNote())));
+            }
+        }
         return new BarnDayPlan(cycle.getId(), cycleCode(cycle), barn.getId(), barn.getName(), barn.getArea().getName(), day,
                 plan.flocks().stream().mapToInt(FlockDay::heads).sum(),
                 plan.flocks().stream().map(f -> new BarnDayPlan.FlockLine(f.flock().getId(), flockCode(f.flock()), f.flock().getName(),
                         f.flock().getProgram() == null ? null : f.flock().getProgram().getName(), f.age(), f.heads())).toList(),
-                tasks, all.size(), cost, canSeeFinance ? plannedTotal : null, warnings, workers, assignedTasks);
+                tasks, all.size(), cost, canSeeFinance ? plannedTotal : null, warnings, workers, assignedTasks, openedFeedBalances, routineTasks);
     }
 
     /** Giá trung bình một đơn vị tồn của mặt hàng (cùng quy cách) trong kho nguồn: bình quân theo tồn, hết tồn thì trung bình giá. */

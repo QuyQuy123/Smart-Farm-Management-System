@@ -5,9 +5,9 @@ Tài liệu này mô tả chi tiết và toàn diện cấu trúc cơ sở dữ 
 Quy ước:
 - Mỗi thay đổi về bảng, cột hoặc ràng buộc phải được cập nhật đồng bộ trong tài liệu này.
 - File dữ liệu mẫu tương ứng là [docs/insert_data.txt](file:///d:/Smart-Farm-Management-System/docs/insert_data.txt) (sinh tự động bởi [scripts/generate_seed_data.py](file:///d:/Smart-Farm-Management-System/scripts/generate_seed_data.py) theo đặc tả [seed_data_spec.md](file:///d:/Smart-Farm-Management-System/.md/seed_data_spec.md)), thực hiện dọn bỏ các cột lịch sử không còn sử dụng (`DROP COLUMN IF EXISTS lot_number, expiry_date, min_stock`, `barns.target_weight`), làm sạch toàn bộ 48 bảng dữ liệu (`TRUNCATE TABLE ... RESTART IDENTITY CASCADE`) và nạp lại bộ dữ liệu mô phỏng liên tục **86 ngày** từ `01/09/2026` đến `25/11/2026` theo múi giờ `Asia/Bangkok` (an toàn khi chạy lại nhiều lần; yêu cầu cấu trúc bảng đã tồn tại).
-- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **17 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`, `PushSubscriptionSchemaUpgrade`, `AiInteractionLogSchemaUpgrade`, `FarmingProgramUpgradeSchemaRunner`, `DiseaseRecordSchemaUpgrade`.
-- **Kiểm kê 51 bảng vật lý trong PostgreSQL:**
-  - **44 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `push_subscriptions`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `cycle_diseases`, `disease_treatment_logs`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `work_tasks`, `work_task_checks`, `sales_orders`, `sales_invoice_numbers`, `ai_interaction_logs`.
+- Backend cấu hình `spring.jpa.hibernate.ddl-auto=none` (`application.properties`) kết hợp **19 `ApplicationRunner`** tự động nâng cấp schema (`ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, gỡ ràng buộc cũ, backfill khóa băm/công nợ) và khởi tạo dữ liệu gốc khi khởi động: `FarmJournalSchemaUpgrade`, `AreaWarehouseSchemaUpgrade`, `BarnResponsibilitySchemaUpgrade`, `DailyStockAllocationSchemaUpgrade`, `InventoryLotSchemaUpgrade`, `PurchasingDebtSchemaUpgrade`, `SalesOrderSchemaUpgrade`, `TransferCategorySchemaUpgrade`, `WarehouseWorkersSchemaUpgrade`, `BrandNameKeyUpgrade`, `SupplierNameKeyUpgrade`, `SalesInvoiceCodeMigration`, `InternalStockSeedRunner`, `PushSubscriptionSchemaUpgrade`, `AiInteractionLogSchemaUpgrade`, `FarmingProgramUpgradeSchemaRunner`, `DiseaseRecordSchemaUpgrade`, `OpenedFeedSchemaUpgrade`, `BarnRoutineTaskSchemaUpgrade`.
+- **Kiểm kê 53 bảng vật lý trong PostgreSQL:**
+  - **46 JPA `@Entity`:** `roles`, `accounts`, `customers`, `otp_tokens`, `push_subscriptions`, `farms`, `customer_contacts`, `product_types`, `suppliers`, `warehouse_categories`, `measurement_units`, `brands`, `specifications`, `product_categories`, `inventory_items`, `internal_stock_categories`, `transfer_categories`, `internal_stock_vouchers`, `internal_stock_voucher_items`, `internal_stock_voucher_numbers`, `purchase_tags`, `purchase_invoices`, `purchase_invoice_items`, `purchase_payments`, `farm_areas`, `barns`, `barn_workers`, `farming_cycles`, `flocks`, `flock_movements`, `feed_records`, `weight_samples`, `cycle_expenses`, `cycle_carried_expenses`, `cycle_diseases`, `disease_treatment_logs`, `farming_programs`, `farming_program_steps`, `daily_task_logs`, `cycle_opened_feeds`, `work_tasks`, `work_task_checks`, `barn_routine_task_checks`, `sales_orders`, `sales_invoice_numbers`, `ai_interaction_logs`.
   - **2 `@Embeddable` (`@ElementCollection`):** `daily_stock_allocations` (thuộc `DailyTaskLog`), `disease_treatment_stock_allocations` (thuộc `DiseaseTreatmentLog`).
   - **5 bảng trung gian N-N (`@ManyToMany`):** `farm_area_workers`, `farm_area_warehouses`, `warehouse_workers`, `supplier_tag_mappings`, `purchase_invoice_tag_mappings`.
   - *Lưu ý:* Các `enum` Java (`BarnStatus`, `CycleStatus`, `DiseaseStatus`, `FlockGender`, `FlockMovementType`, `FlockSource`, `FlockStatus`, `ExpenseCategory`, `ProgramStepCategory`, `AdministrationMethod`, `UsageUnit`) được ánh xạ dạng `VARCHAR` trong bảng, không tạo Postgres `ENUM` type riêng. Dữ liệu IoT ESP32 và luồng Camera QR hoạt động ở RAM / `localStorage`, không tạo bảng PostgreSQL riêng.
@@ -42,9 +42,12 @@ erDiagram
     disease_treatment_logs ||--o| cycle_expenses : "books_medicine_expense"
     disease_treatment_logs ||--o{ disease_treatment_stock_allocations : "allocates_fifo_stock"
     farming_cycles ||--o{ daily_task_logs : "confirms_tasks"
+    farming_cycles ||--o{ cycle_opened_feeds : "holds_opened_feed"
     daily_task_logs ||--o| feed_records : "creates_feed"
     daily_task_logs ||--o| cycle_expenses : "creates_expense"
     daily_task_logs ||--o{ daily_stock_allocations : "allocates_stock"
+    product_categories ||--o{ cycle_opened_feeds : "opened_feed_product"
+    warehouse_categories ||--o{ cycle_opened_feeds : "opened_feed_warehouse"
     farming_programs ||--o{ farming_program_steps : "defines"
     farming_programs ||--o{ flocks : "applies_to"
     flocks ||--o| flocks : "source_flock"
@@ -652,6 +655,7 @@ Entity: `Barn`. Quản lý chuồng trại cụ thể trong từng phân khu.
 | `area_m2` | NUMERIC(10,2) | Diện tích thực tế của chuồng (m²). Dùng để tính mật độ nuôi (con/m²). |
 | `description` | VARCHAR(1000) | Mô tả quy cách chuồng, trang thiết bị giàn mát/quạt hút. |
 | `workers_override` | BOOLEAN | Cờ phân công công nhân riêng cho chuồng (nâng cấp bởi `BarnResponsibilitySchemaUpgrade`): `NULL` hoặc `FALSE` để kế thừa danh sách công nhân của Khu nuôi (`farm_area_workers`); `TRUE` để dùng danh sách công nhân riêng của chuồng (`barn_workers`). |
+| `routine_tasks` | VARCHAR(2000) | Danh sách mã công việc hằng ngày mặc định theo chuồng phân tách dấu phẩy (12 preset như `CHANGE_LITTER,CLEAN_FEEDERS,WASH_BARN` hoặc thẻ tự định nghĩa `CUSTOM:<tên>`; nâng cấp bởi `BarnRoutineTaskSchemaUpgrade`, `NULL` = bật 3 việc cơ bản). |
 | `created_at` | TIMESTAMP | Thời điểm tạo chuồng. |
 | `updated_at` | TIMESTAMP | Thời điểm cập nhật gần nhất. |
 
@@ -897,9 +901,11 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 | `planned_quantity`, `actual_quantity` | NUMERIC(14,3) | Lượng theo kế hoạch và thực tế, cùng đơn vị `usage_unit`. |
 | `usage_unit` | VARCHAR(10) | `KG` (cám), `G` / `ML` / `PACK` (thuốc, thuốc uống), `DOSE` / `ML` (vắc-xin). |
 | `inventory_item_id` | BIGINT | FOREIGN KEY → `inventory_items.id`. Hàng hóa đã trừ kho. |
-| `stock_quantity` | NUMERIC(19,6) | Số đơn vị tồn kho đã trừ (bao, lọ, gói...). Nâng cấp độ chính xác bởi `DailyStockAllocationSchemaUpgrade`. |
+| `stock_quantity` | NUMERIC(19,6) | Số đơn vị tồn kho đã trừ (cám: số nguyên bao xuất từ kho; vắc-xin: làm tròn lên nguyên lọ; thuốc: số đơn vị quy đổi). Nâng cấp độ chính xác bởi `DailyStockAllocationSchemaUpgrade`. |
 | `unit_price` | NUMERIC(19,2) | Giá một đơn vị tồn kho lúc xác nhận. |
-| `cost` | NUMERIC(16,2) | Thành tiền = `stock_quantity` × `unit_price`. |
+| `cost` | NUMERIC(16,2) | Thành tiền hạch toán vào lứa theo lượng thực tế đã dùng. |
+| `opened_bags_kg` | NUMERIC(14,3) | Số kg cám tương ứng với số nguyên bao vừa mở từ kho ở cữ này (nâng cấp bởi `OpenedFeedSchemaUpgrade`, dùng hoàn tác 1:1). |
+| `opened_bags_cost` | NUMERIC(16,2) | Giá trị của các bao nguyên vừa mở ở cữ này (VNĐ). |
 | `feed_record_id` | BIGINT | FOREIGN KEY → `feed_records.id`. Nhật ký cám sinh ra khi xác nhận cữ cám (đơn giá đ/kg = giá bao / kg mỗi bao). |
 | `expense_id` | BIGINT | FOREIGN KEY → `cycle_expenses.id`. Khoản chi `MEDICINE` sinh ra khi xác nhận thuốc / vắc-xin có tiền. |
 | `deviated` | BOOLEAN | NOT NULL. Lệch kế hoạch quá ngưỡng: cám ±10%, thuốc và vắc-xin ±1%. Khi lệch bắt buộc có `note`. |
@@ -923,9 +929,26 @@ Phiếu việc không lưu sẵn mà được tính mỗi lần xem: **định m
 
 **API:** `GET /api/daily-plan?date=` (mọi chuồng đang nuôi), `GET /api/cycles/{id}/daily-plan?date=`, `POST /api/cycles/{id}/daily-plan/tasks` `{date, taskKey, actualQuantity?, note?}` và `DELETE /api/cycles/{id}/daily-plan/tasks?date=&taskKey=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Tiền chỉ trả về cho chủ trại và kế toán.
 
-### 6.11 Bảng `farm_area_workers`, `barn_workers`, `work_tasks`, `work_task_checks` — Phân công Khu/Chuồng & Giao việc
+**Bảng `cycle_opened_feeds` (nâng cấp bởi `OpenedFeedSchemaUpgrade`) — Tồn cám mở bao còn lại tại chuồng:**
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id`. Lứa nuôi đang giữ cám lẻ. |
+| `product_id` | BIGINT | NOT NULL, FOREIGN KEY → `product_categories.id`. UNIQUE (`cycle_id`, `product_id`) qua `uk_cycle_opened_feeds_cycle_product`. |
+| `warehouse_id` | BIGINT | FOREIGN KEY → `warehouse_categories.id`. Kho cám gốc đã mở bao. |
+| `unit_id` | BIGINT | FOREIGN KEY → `measurement_units.id`. Quy cách bao (VD: Bao 25kg). |
+| `kg_per_bag` | NUMERIC(12,3) | NOT NULL. Số kg quy đổi của 1 bao chuẩn. |
+| `remaining_kg` | NUMERIC(14,3) | NOT NULL, DEFAULT 0. Lượng cám lẻ đã mở bao còn lại tại chuồng (kg); cữ ăn sau trừ từ đây trước khi xuất nguyên bao mới. |
+| `remaining_value` | NUMERIC(16,2) | NOT NULL, DEFAULT 0. Giá trị tương ứng của lượng cám mở bao còn dư (VNĐ, ẩn với công nhân). |
+| `updated_at` | TIMESTAMP | Thời điểm cập nhật gần nhất. |
 
-Entity: `FarmArea` (`workers`), `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Quản lý phân công công nhân phụ trách Khu nuôi / Chuồng nuôi và giao việc hằng ngày.
+**Quy tắc xuất nguyên bao & đóng lứa:**
+- Mọi cữ `FEED` luôn xuất **số nguyên bao** (`CEIL((actual - remaining_kg) / kg_per_bag)`) từ `inventory_items` qua FIFO `takeStock`; phần kg dư cộng vào `cycle_opened_feeds`.
+- Khi đóng lứa (`POST /api/cycles/{id}/close`), nếu còn `remaining_kg > 0` bắt buộc truyền `leftoverFeedAction` (`TRANSFER_TO_CYCLE` | `RETURN_TO_WAREHOUSE` | `WRITE_OFF`), nếu thiếu trả `409 CYCLE_HAS_OPENED_FEED`. `GET /api/cycles/{id}/close-preview` trả thông tin cám mở bao dư và tồn kho nguyên bao/lọ còn tại kho khu nuôi.
+
+### 6.11 Bảng `farm_area_workers`, `barn_workers`, `work_tasks`, `work_task_checks`, `barn_routine_task_checks` — Phân công Khu/Chuồng, Giao việc & Việc hằng ngày mặc định
+
+Entity: `FarmArea` (`workers`), `BarnWorker`, `WorkTask`, `WorkTaskCheck`, `BarnRoutineTaskCheck`. Quản lý phân công công nhân phụ trách Khu nuôi / Chuồng nuôi, việc hằng ngày mặc định theo chuồng và giao việc bổ sung.
 
 **Bảng `farm_area_workers` (nâng cấp bởi `BarnResponsibilitySchemaUpgrade`)** — công nhân phụ trách mặc định của khu nuôi:
 | Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
@@ -963,6 +986,17 @@ Entity: `FarmArea` (`workers`), `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Quả
 | `note` | VARCHAR(1000) | Ghi chú của người làm. |
 | `done_by`, `done_at` | VARCHAR(150) / TIMESTAMP | NOT NULL. Người xác nhận và thời điểm. |
 
+**Bảng `barn_routine_task_checks` (nâng cấp bởi `BarnRoutineTaskSchemaUpgrade`)** — đánh dấu hoàn thành các công việc hằng ngày mặc định của chuồng (`Thay trấu`, `Vệ sinh máng`, `Xịt rửa chuồng`) hiển thị sẵn trong **Việc hôm nay** suốt lứa nuôi (kể cả ngày 1 khi chưa nhập đàn):
+| Trường | Kiểu dữ liệu | Ràng buộc / Ý nghĩa |
+| :--- | :--- | :--- |
+| `id` | BIGSERIAL | PRIMARY KEY, tự tăng. |
+| `cycle_id` | BIGINT | NOT NULL, FOREIGN KEY → `farming_cycles.id` ON DELETE CASCADE. UNIQUE (`cycle_id`, `check_date`, `task_code`) qua `uk_barn_routine_checks_cycle_date_code`. |
+| `check_date` | DATE | NOT NULL. Ngày thực hiện (từ `cycle.start_date` tới `today` / `cycle.end_date`). Index `idx_barn_routine_checks_date`. |
+| `task_code` | VARCHAR(40) | NOT NULL. Mã preset (`CHANGE_LITTER`, `CLEAN_FEEDERS`, `WASH_BARN`). |
+| `task_title` | VARCHAR(200) | NOT NULL. Tên công việc tại thời điểm tick (`Thay trấu`, `Vệ sinh máng`, `Xịt rửa chuồng`). |
+| `note` | VARCHAR(1000) | Ghi chú của người làm (tùy chọn). |
+| `done_by`, `done_at` | VARCHAR(150) / TIMESTAMP | NOT NULL. Email người thực hiện và thời điểm xác nhận (`Asia/Bangkok`). |
+
 **Quy tắc:**
 - Chuồng có `workers_override = FALSE` (hoặc `NULL` và chưa có `barn_workers`) sẽ tự động kế thừa danh sách công nhân của Khu nuôi (`farm_area_workers`). Khi phân công công nhân vào Khu/Chuồng, công nhân tự động được quyền lấy cám/thuốc từ Kho của Khu đó.
 - Công nhân chỉ thấy phiếu việc (`/api/daily-plan`) của chuồng mình phụ trách và chỉ việc giao cho mình; xem / xác nhận phiếu việc chuồng khác bị chặn (`BARN_NOT_ASSIGNED`). Chủ trại và kế toán xem mọi chuồng.
@@ -970,7 +1004,7 @@ Entity: `FarmArea` (`workers`), `BarnWorker`, `WorkTask`, `WorkTaskCheck`. Quả
 - Không bỏ phân công công nhân còn việc được giao ở chuồng đó (`WORKER_HAS_TASKS`). Việc đã có ngày làm xong không đổi được chuồng, người làm, ngày bắt đầu (`WORK_TASK_HAS_CHECKS`).
 - Xóa chuồng thì xóa luôn phân công và việc giao của chuồng.
 
-**API:** `GET /api/barn-responsibilities`, `PUT /api/farm-areas/{id}/workers` (hoặc `/api/areas/{id}/workers`) `{workerIds}`, `PUT /api/farm-areas/{id}/worker-assignments` (hoặc `/api/areas/{id}/worker-assignments`), `DELETE /api/barns/{id}/workers/override`, `GET /api/work-assignments?date=`, `PUT /api/barns/{id}/workers` `{workerIds}`, `POST /api/work-tasks`, `PUT /api/work-tasks/{id}`, `DELETE /api/work-tasks/{id}` (`ROLE_FARM_OWNER`); `POST /api/work-tasks/{id}/checks` `{date, note}`, `DELETE /api/work-tasks/{id}/checks?date=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Phiếu việc của chuồng trả thêm `workers` và `assignedTasks`.
+**API:** `GET /api/barn-responsibilities`, `PUT /api/farm-areas/{id}/workers` (hoặc `/api/areas/{id}/workers`) `{workerIds}`, `PUT /api/farm-areas/{id}/worker-assignments` (hoặc `/api/areas/{id}/worker-assignments`), `DELETE /api/barns/{id}/workers/override`, `GET /api/work-assignments?date=`, `PUT /api/barns/{id}/workers` `{workerIds}`, `PUT /api/barns/{id}/routine-tasks` `{taskCodes}`, `POST /api/work-tasks`, `PUT /api/work-tasks/{id}`, `DELETE /api/work-tasks/{id}` (`ROLE_FARM_OWNER`); `POST /api/work-tasks/{id}/checks` `{date, note}`, `DELETE /api/work-tasks/{id}/checks?date=`, `POST /api/cycles/{id}/routine-tasks` `{date, taskCode, note}`, `DELETE /api/cycles/{id}/routine-tasks?date=&taskCode=` (`ROLE_FARM_OWNER`, `ROLE_FARM_WORKER`). Phiếu việc của chuồng trả thêm `workers`, `assignedTasks` và `routineTasks`.
 
 ---
 

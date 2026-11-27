@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, MapPinned, Pencil, Plus, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, MapPinned, Pencil, Plus, Settings, Trash2, UserCog, Users, Warehouse } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
-import { deleteWorkTask, getWorkBoard, setBarnWorkers, createWorkTask, updateWorkTask } from '../../services/workAssignmentService';
+import { deleteWorkTask, getWorkBoard, setBarnRoutineTasks, setBarnWorkers, createWorkTask, updateWorkTask } from '../../services/workAssignmentService';
 import { FormDialog } from './CycleDialogs';
 import { Dialog } from './FarmAreaDialogs';
-import { addDaysIso, apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
+import { RoutineTasksSettingsDialog } from './RoutineTasksSettingsDialog';
+import { DEFAULT_ROUTINE_CODES, ROUTINE_TASK_PRESETS, addDaysIso, apiErrorMessage, formatAmount, formatDay, isCustomRoutineCode, routineTaskTitle, todayIso } from './farmAreaOptions';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './WorkAssignmentView.module.css';
 
+/** 3 việc hằng ngày cơ bản hiển thị trực tiếp để bật/tắt 1 chạm; các việc khác & việc tự định nghĩa mở trong Cài đặt. */
+const ROUTINE_PRESETS = ROUTINE_TASK_PRESETS.slice(0, 3);
+
 /** Việc chăm sóc hay giao, để chủ trại bấm chọn nhanh khi giao việc. */
-const COMMON_TASKS = ['Rửa máng uống', 'Thay / rắc thêm trấu', 'Sát trùng lối đi, hố sát trùng', 'Kiểm tra quạt, đèn sưởi', 'Dọn phân, đảo đệm lót'];
+const COMMON_TASKS = ['Thay trấu', 'Vệ sinh máng', 'Xịt rửa chuồng', 'Kiểm tra quạt, đèn sưởi', 'Sát trùng lối đi, hố sát trùng'];
 const REPEAT_OPTIONS = [
   { value: 'ONCE', label: 'Không lặp (làm một ngày)' },
   { value: 'UNTIL', label: 'Lặp mỗi ngày đến ngày…' },
@@ -116,6 +120,29 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
   const board = state.board;
   const displayedDate = board?.date || date;
   const done = message => { setModal(null); showToast(message, 'success'); setRevision(value => value + 1); };
+  const [routineBusyBarnId, setRoutineBusyBarnId] = useState(null);
+  const toggleRoutinePreset = async (barn, code) => {
+    if (routineBusyBarnId === barn.barnId) return;
+    const current = Array.isArray(barn.routineTaskCodes) ? barn.routineTaskCodes : DEFAULT_ROUTINE_CODES;
+    let next;
+    if (current.includes(code)) {
+      next = current.filter(item => item !== code);
+    } else {
+      const presetOrder = ROUTINE_TASK_PRESETS.map(p => p.code).filter(c => c === code || current.includes(c));
+      const extras = current.filter(item => isCustomRoutineCode(item));
+      next = [...presetOrder, ...extras];
+    }
+    setRoutineBusyBarnId(barn.barnId);
+    try {
+      await setBarnRoutineTasks(barn.barnId, next);
+      showToast(`Đã cập nhật việc hằng ngày mặc định cho ${barn.barnName}.`, 'success');
+      setRevision(value => value + 1);
+    } catch (requestError) {
+      showToast(apiErrorMessage(requestError), 'error');
+    } finally {
+      setRoutineBusyBarnId(null);
+    }
+  };
   const ofWorker = barn => !workerFilter || barn.workers.some(worker => worker.id === workerFilter)
     || barn.tasks.some(task => task.assignee.id === workerFilter);
   const areas = board ? groupAreas(board.barns) : [];
@@ -135,6 +162,17 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
       return;
     }
     const editing = Boolean(task);
+    const staleAssignee = editing && !barn.workers.some(worker => String(worker.id) === String(task.assignee?.id));
+    const initialAssigneeId = !editing
+      ? String(barn.workers[0].id)
+      : !staleAssignee
+        ? String(task.assignee.id)
+        : barn.workers.length === 1
+          ? String(barn.workers[0].id)
+          : '';
+    const assigneeOptions = staleAssignee && barn.workers.length > 1
+      ? [{ value: '', label: '-- Chọn công nhân mới --' }, ...barn.workers.map(worker => ({ value: String(worker.id), label: worker.fullName }))]
+      : barn.workers.map(worker => ({ value: String(worker.id), label: worker.fullName }));
     // Việc giao lưu startDate–endDate; form cho chọn: một ngày, lặp mỗi ngày từ ngày đang xem đến ngày X, hoặc lặp trong khung từ ngày … đến ngày ….
     const start = date < today ? today : date;
     const repeat = !editing || task.endDate === task.startDate ? 'ONCE' : task.startDate === start ? 'UNTIL' : 'RANGE';
@@ -142,15 +180,43 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
     setModal({
       kind: 'form',
       title: editing ? `Sửa việc · ${barn.barnName}` : `Giao việc · ${barn.barnName}`,
+      warning: staleAssignee
+        ? `Công nhân cũ (${task.assignee?.fullName || 'không xác định'}) không còn phụ trách chuồng này — vui lòng xác nhận chuyển sang công nhân mới.`
+        : undefined,
       intro: 'Việc hiện trong phiếu việc của chuồng ở mục Việc hôm nay; công nhân bấm Xong khi làm xong. Chọn "Lặp lại" để giao việc mỗi ngày, hoặc chỉ trong một khung ngày.',
       initial: editing
-        ? { assigneeId: String(task.assignee.id), taskTitle: task.title, dueTime: time(task.dueTime), repeat, onceDate: task.startDate, ...span, note: task.note || '' }
-        : { assigneeId: String(barn.workers[0].id), taskTitle: '', dueTime: '', repeat, onceDate: start, ...span, note: '' },
+        ? { assigneeId: initialAssigneeId, taskTitle: task.title, dueTime: time(task.dueTime), repeat, onceDate: task.startDate, ...span, note: task.note || '' }
+        : { assigneeId: initialAssigneeId, taskTitle: '', dueTime: '', repeat, onceDate: start, ...span, note: '' },
       fields: [
-        { key: 'assigneeId', label: 'Công nhân', type: 'select', required: true, options: barn.workers.map(worker => ({ value: String(worker.id), label: worker.fullName })) },
+        { key: 'assigneeId', label: 'Công nhân', type: 'select', required: true, options: assigneeOptions },
         { key: 'dueTime', label: 'Giờ làm', type: 'time', hint: 'Không bắt buộc.' },
         // Khóa không đặt là 'title' vì FormDialog dùng id cycle-form-title cho tiêu đề hộp thoại.
-        { key: 'taskTitle', label: 'Tên công việc', required: true, full: true, placeholder: `Ví dụ: ${COMMON_TASKS.slice(0, 3).join(', ')}` },
+        {
+          key: 'taskTitle',
+          label: 'Tên công việc',
+          required: true,
+          full: true,
+          placeholder: `Ví dụ: ${COMMON_TASKS.slice(0, 3).join(', ')}`,
+          render: (props, setValue) => (
+            <>
+              <input {...props} maxLength={200} placeholder={`Ví dụ: ${COMMON_TASKS.slice(0, 3).join(', ')}`} />
+              <div className={styles.quickTaskBar} aria-label="Chọn nhanh công việc">
+                <span className={styles.quickTaskLabel}>Chọn nhanh:</span>
+                {COMMON_TASKS.map(item => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={styles.quickTaskChip}
+                    disabled={props.disabled}
+                    onClick={() => setValue(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </>
+          ),
+        },
         { key: 'repeat', label: 'Lặp lại', type: 'select', required: true, full: true, options: REPEAT_OPTIONS },
         { key: 'onceDate', label: 'Ngày làm', type: 'date', required: true, min: editing ? undefined : today, visible: values => values.repeat === 'ONCE' },
         { key: 'toDate', label: 'Lặp mỗi ngày đến', type: 'date', required: true, min: start, visible: values => values.repeat === 'UNTIL',
@@ -289,6 +355,46 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
                     : barn.workers.map(worker => <span key={worker.id} className={styles.chip}>{worker.fullName}</span>)}
                 </div>
               </div>
+              <div className={styles.routineBox} aria-label={`Việc hằng ngày mặc định ${barn.barnName}`}>
+                <div className={styles.routineHead}>
+                  <span className={styles.label}>Việc hằng ngày mặc định (cả lứa)</span>
+                  <button
+                    type="button"
+                    className={styles.ghost}
+                    disabled={loading || Boolean(state.error)}
+                    aria-label={`Cài đặt việc hằng ngày ${barn.barnName}`}
+                    onClick={() => setModal({ kind: 'routineSettings', barn })}
+                  >
+                    <Settings size={15} />Cài đặt
+                  </button>
+                </div>
+                <div className={styles.routineChips}>
+                  {(() => {
+                    const activeCodes = Array.isArray(barn.routineTaskCodes) ? barn.routineTaskCodes : DEFAULT_ROUTINE_CODES;
+                    const coreCodes = new Set(ROUTINE_PRESETS.map(p => p.code));
+                    const items = [
+                      ...ROUTINE_PRESETS,
+                      ...activeCodes.filter(code => !coreCodes.has(code)).map(code => ({ code, title: routineTaskTitle(code) })),
+                    ];
+                    return items.map(preset => {
+                      const enabled = activeCodes.includes(preset.code);
+                      return (
+                        <button
+                          key={preset.code}
+                          type="button"
+                          aria-pressed={enabled}
+                          disabled={loading || Boolean(state.error) || routineBusyBarnId === barn.barnId}
+                          className={`${styles.routineChip} ${enabled ? styles.routineChipOn : ''}`}
+                          onClick={() => toggleRoutinePreset(barn, preset.code)}
+                        >
+                          {enabled ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                          <span>{preset.title}</span>
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
               <p className={styles.bookStat}>
                 <strong>{barn.tasks.filter(task => task.done).length}/{barn.tasks.length}</strong> việc đã xong
                 <span>Ngày {formatDay(displayedDate)}</span>
@@ -336,6 +442,15 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
         </div>}
 
     {modal?.kind === 'workers' && <BarnWorkersDialog barn={modal.barn} workers={board.workers} onClose={() => setModal(null)} onSaved={done} />}
+    {modal?.kind === 'routineSettings' && (
+      <RoutineTasksSettingsDialog
+        barnId={modal.barn.barnId}
+        barnName={modal.barn.barnName}
+        initialCodes={Array.isArray(modal.barn.routineTaskCodes) ? modal.barn.routineTaskCodes : DEFAULT_ROUTINE_CODES}
+        onClose={() => setModal(null)}
+        onSaved={() => done(`Đã cập nhật công việc hằng ngày mặc định cho ${modal.barn.barnName}.`)}
+      />
+    )}
     {modal?.kind === 'form' && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </>;
 }

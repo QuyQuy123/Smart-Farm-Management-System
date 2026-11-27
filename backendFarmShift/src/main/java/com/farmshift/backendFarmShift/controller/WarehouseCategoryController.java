@@ -18,8 +18,8 @@ public class WarehouseCategoryController {
     private final WarehouseCategoryService service;
 
     @GetMapping
-    public ApiResponse<List<WarehouseCategoryResponse>> list() {
-        return ApiResponse.success("Danh sách danh mục kho", service.list());
+    public ApiResponse<List<WarehouseCategoryResponse>> list(@RequestParam(required = false) Long areaId) {
+        return ApiResponse.success("Danh sách danh mục kho", service.listForScope(areaId, null, null));
     }
 
     @GetMapping("/{id}")

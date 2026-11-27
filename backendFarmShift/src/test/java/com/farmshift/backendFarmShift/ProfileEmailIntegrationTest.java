@@ -69,6 +69,12 @@ class ProfileEmailIntegrationTest {
         mvc.perform(put("/api/user/profile").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"fullName\":\"Owner\",\"email\":\"invalid\"}"))
             .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/user/profile").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Owner\",\"email\":\"admin@localhost\"}"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/user/profile").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Owner\",\"email\":\"hiepgacute1989@gmail.c\"}"))
+            .andExpect(status().isBadRequest());
         assertTrue(accounts.existsByEmail("email-owner@test.local"));
     }
 

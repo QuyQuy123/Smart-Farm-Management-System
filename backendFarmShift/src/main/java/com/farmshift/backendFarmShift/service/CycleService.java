@@ -37,6 +37,9 @@ public class CycleService {
     private final CycleExpenseRepository expenseRepository;
     private final CycleCarriedExpenseRepository carriedExpenseRepository;
     private final PurchaseInvoiceRepository invoiceRepository;
+    private final CycleOpenedFeedRepository openedFeedRepository;
+    private final WarehouseCategoryRepository warehouseRepository;
+    private final InventoryItemRepository inventoryRepository;
 
     @Autowired(required = false)
     private BarnRepository barnRepository;
@@ -335,8 +338,105 @@ public class CycleService {
         return feeds.stream().map(f -> f.getQuantityKg().multiply(f.getUnitPrice())).reduce(cycle.getCarriedFeedCost(), BigDecimal::add);
     }
 
+    @Transactional(readOnly = true)
+    public CycleClosePreviewResponse closePreview(Long cycleId) {
+        FarmingCycle cycle = requireActive(cycleId);
+        Barn barn = cycle.getBarn();
+        FarmArea area = barn.getArea();
+        Long areaId = area != null ? area.getId() : null;
+        int remainingAnimals = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycleId)
+                .stream().mapToInt(Flock::getQuantity).sum();
+
+        List<FarmingCycle> activeCycles = repository.findAllWithBarnAndAreaByStatus(CycleStatus.ACTIVE);
+        int otherActiveInArea = 0;
+        List<CycleClosePreviewResponse.TargetCycleOption> targets = new ArrayList<>();
+        for (FarmingCycle other : activeCycles) {
+            if (Objects.equals(other.getId(), cycleId)) continue;
+            Barn otherBarn = other.getBarn();
+            FarmArea otherArea = otherBarn != null ? otherBarn.getArea() : null;
+            Long otherAreaId = otherArea != null ? otherArea.getId() : null;
+            if (areaId != null && Objects.equals(areaId, otherAreaId)) {
+                otherActiveInArea++;
+            }
+            targets.add(new CycleClosePreviewResponse.TargetCycleOption(
+                    other.getId(),
+                    cycleCode(other),
+                    other.getCycleNumber(),
+                    otherBarn != null ? otherBarn.getId() : null,
+                    otherBarn != null ? otherBarn.getName() : "",
+                    otherArea != null ? otherArea.getName() : ""
+            ));
+        }
+        targets.sort(Comparator
+                .comparing((CycleClosePreviewResponse.TargetCycleOption t) ->
+                        area != null && area.getName().equals(t.areaName()) ? 0 : 1)
+                .thenComparing(CycleClosePreviewResponse.TargetCycleOption::areaName)
+                .thenComparing(CycleClosePreviewResponse.TargetCycleOption::barnName));
+
+        List<OpenedFeedBalance> openedFeeds = toOpenedBalances(
+                openedFeedRepository.findAllByCycleIdAndRemainingKgGreaterThanOrderByIdAsc(cycleId, BigDecimal.ZERO),
+                true);
+
+        List<CycleClosePreviewResponse.AreaWarehouseStockItem> warehouseStocks = new ArrayList<>();
+        if (areaId != null) {
+            List<WarehouseCategory> areaWhs = warehouseRepository.findAllByArea_Id(areaId);
+            Set<Long> whIds = new HashSet<>();
+            for (WarehouseCategory wh : areaWhs) {
+                whIds.add(wh.getId());
+            }
+            if (!whIds.isEmpty()) {
+                Map<String, List<InventoryItem>> grouped = new LinkedHashMap<>();
+                for (InventoryItem item : inventoryRepository.findAllWithDetailsBy(org.springframework.data.domain.Sort.by("warehouse.name", "product.name", "id"))) {
+                    if (item.getWarehouse() == null || !whIds.contains(item.getWarehouse().getId())) continue;
+                    if (item.getStock() == null || item.getStock().signum() <= 0) continue;
+                    Long unitId = item.getUnit() != null ? item.getUnit().getId() : null;
+                    String key = item.getWarehouse().getId() + ":" + item.getProduct().getId() + ":" + unitId;
+                    grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(item);
+                }
+                for (List<InventoryItem> lots : grouped.values()) {
+                    InventoryItem first = lots.getFirst();
+                    BigDecimal totalStock = lots.stream().map(InventoryItem::getStock).reduce(BigDecimal.ZERO, BigDecimal::add);
+                    if (totalStock.signum() <= 0) continue;
+                    BigDecimal totalVal = lots.stream()
+                            .map(l -> l.getStock().multiply(l.getPrice() != null ? l.getPrice() : BigDecimal.ZERO))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .setScale(0, RoundingMode.HALF_UP);
+                    warehouseStocks.add(new CycleClosePreviewResponse.AreaWarehouseStockItem(
+                            first.getWarehouse().getId(),
+                            first.getWarehouse().getName(),
+                            first.getWarehouse().getKind(),
+                            first.getProduct().getId(),
+                            first.getProduct().getName(),
+                            first.getUnit() != null ? first.getUnit().getName() : "",
+                            totalStock,
+                            totalVal
+                    ));
+                }
+            }
+        }
+
+        return new CycleClosePreviewResponse(
+                cycle.getId(),
+                cycle.getCycleNumber(),
+                barn.getId(),
+                barn.getName(),
+                areaId,
+                area != null ? area.getName() : "",
+                remainingAnimals,
+                otherActiveInArea,
+                openedFeeds,
+                targets,
+                warehouseStocks
+        );
+    }
+
     @Transactional
     public CycleSummaryResponse close(Long cycleId, CloseCycleRequest request) {
+        return close(cycleId, request, "system");
+    }
+
+    @Transactional
+    public CycleSummaryResponse close(Long cycleId, CloseCycleRequest request, String actor) {
         FarmingCycle cycle = requireActive(cycleId);
         Barn barn = lockBarn(cycle.getBarn().getId());
         int remaining = flockRepository.findAllByCycleIdOrderByImportDateAscIdAsc(cycleId).stream().mapToInt(Flock::getQuantity).sum();
@@ -357,6 +457,9 @@ public class CycleService {
         if (lastActivity != null && end.isBefore(lastActivity)) {
             throw new BadRequestException("Ngày kết thúc không được trước ngày ghi nhận cuối cùng của lứa (" + format(lastActivity) + ").", "CYCLE_END_DATE");
         }
+
+        String leftoverSummaryNote = handleOpenedFeedAtClose(cycle, end, request, actor);
+
         if (cycleDiseaseRepository != null) {
             List<CycleDisease> activeDiseases = cycleDiseaseRepository.findAllByCycleIdAndStatus(cycleId, DiseaseStatus.ACTIVE);
             if (!activeDiseases.isEmpty()) {
@@ -369,12 +472,151 @@ public class CycleService {
         }
         cycle.setEndDate(end);
         cycle.setStatus(CycleStatus.CLOSED);
-        if (request.note() != null && !request.note().isBlank()) {
-            cycle.setNote((cycle.getNote() == null || cycle.getNote().isBlank() ? "" : cycle.getNote() + "\n") + request.note().strip());
+        String combinedNote = clean(request.note());
+        if (leftoverSummaryNote != null && !leftoverSummaryNote.isBlank()) {
+            combinedNote = combinedNote.isEmpty() ? leftoverSummaryNote : combinedNote + "\n" + leftoverSummaryNote;
+        }
+        if (!combinedNote.isBlank()) {
+            cycle.setNote((cycle.getNote() == null || cycle.getNote().isBlank() ? "" : cycle.getNote() + "\n") + combinedNote);
         }
         barn.setStatus(BarnStatus.INACTIVE);
         barn.setCurrentQuantity(0);
         return summary(repository.saveAndFlush(cycle));
+    }
+
+    private String handleOpenedFeedAtClose(FarmingCycle cycle, LocalDate endDate, CloseCycleRequest request, String actor) {
+        List<CycleOpenedFeed> openedFeeds = openedFeedRepository.findAllByCycleIdAndRemainingKgGreaterThanOrderByIdAsc(cycle.getId(), BigDecimal.ZERO);
+        if (openedFeeds.isEmpty()) {
+            return null;
+        }
+        LeftoverFeedAction action = request.leftoverFeedAction();
+        if (action == null) {
+            throw new ConflictException(
+                    "Chuồng còn cám đang mở bao chưa xử lý. Vui lòng chọn phương án xử lý cám lẻ còn dư trước khi kết thúc lứa.",
+                    "CYCLE_HAS_OPENED_FEED", null);
+        }
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(VN_ZONE);
+        String itemsDesc = openedFeeds.stream()
+                .map(f -> f.getProduct().getName() + ": " + f.getRemainingKg().stripTrailingZeros().toPlainString() + " kg")
+                .collect(java.util.stream.Collectors.joining(", "));
+
+        switch (action) {
+            case TRANSFER_TO_CYCLE -> {
+                if (request.transferTargetCycleId() == null || Objects.equals(request.transferTargetCycleId(), cycle.getId())) {
+                    throw new BadRequestException("Vui lòng chọn lứa nuôi đang hoạt động hợp lệ để chuyển cám dư.", "LEFTOVER_TARGET_INVALID");
+                }
+                FarmingCycle target = repository.findById(request.transferTargetCycleId())
+                        .filter(c -> c.getStatus() == CycleStatus.ACTIVE)
+                        .orElseThrow(() -> new BadRequestException("Chuồng nhận cám phải đang có lứa nuôi hoạt động.", "LEFTOVER_TARGET_INVALID"));
+                for (CycleOpenedFeed src : openedFeeds) {
+                    CycleOpenedFeed dest = openedFeedRepository.findByCycleIdAndProductId(target.getId(), src.getProduct().getId())
+                            .orElseGet(() -> {
+                                CycleOpenedFeed created = new CycleOpenedFeed();
+                                created.setCycle(target);
+                                created.setProduct(src.getProduct());
+                                created.setWarehouse(src.getWarehouse());
+                                created.setUnit(src.getUnit());
+                                created.setKgPerBag(src.getKgPerBag());
+                                return created;
+                            });
+                    if (dest.getWarehouse() == null) dest.setWarehouse(src.getWarehouse());
+                    if (dest.getUnit() == null) dest.setUnit(src.getUnit());
+                    dest.setRemainingKg(dest.getRemainingKg().add(src.getRemainingKg()).setScale(3, RoundingMode.HALF_UP));
+                    dest.setRemainingValue(dest.getRemainingValue().add(src.getRemainingValue()).setScale(2, RoundingMode.HALF_UP));
+                    dest.setUpdatedAt(now);
+                    openedFeedRepository.saveAndFlush(dest);
+
+                    src.setRemainingKg(BigDecimal.ZERO.setScale(3));
+                    src.setRemainingValue(BigDecimal.ZERO.setScale(2));
+                    src.setUpdatedAt(now);
+                    openedFeedRepository.saveAndFlush(src);
+                }
+                return "Chuyển cám mở bao dư (" + itemsDesc + ") sang " + target.getBarn().getName() + " (" + cycleCode(target) + ").";
+            }
+            case RETURN_TO_WAREHOUSE -> {
+                for (CycleOpenedFeed src : openedFeeds) {
+                    BigDecimal kgPerBag = src.getKgPerBag() != null && src.getKgPerBag().signum() > 0
+                            ? src.getKgPerBag() : BigDecimal.valueOf(25);
+                    BigDecimal returnPacks = src.getRemainingKg().divide(kgPerBag, 6, RoundingMode.HALF_UP);
+                    InventoryItem targetLot = findReturnLotForOpenedFeed(cycle, src);
+                    if (targetLot == null) {
+                        throw new BadRequestException("Không tìm thấy lô kho nguồn để nhập hoàn cám " + src.getProduct().getName() + ".",
+                                "LEFTOVER_WAREHOUSE_NOT_FOUND");
+                    }
+                    inventoryRepository.returnStock(targetLot.getId(), returnPacks);
+                    src.setRemainingKg(BigDecimal.ZERO.setScale(3));
+                    src.setRemainingValue(BigDecimal.ZERO.setScale(2));
+                    src.setUpdatedAt(now);
+                    openedFeedRepository.saveAndFlush(src);
+                }
+                return "Nhập hoàn kho cám lẻ còn dư (" + itemsDesc + ").";
+            }
+            case WRITE_OFF -> {
+                for (CycleOpenedFeed src : openedFeeds) {
+                    BigDecimal lossAmt = src.getRemainingValue() != null
+                            ? src.getRemainingValue().setScale(0, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+                    if (lossAmt.signum() > 0) {
+                        CycleExpense exp = new CycleExpense();
+                        exp.setCycle(cycle);
+                        exp.setExpenseDate(endDate);
+                        exp.setCategory(ExpenseCategory.OTHER);
+                        exp.setAmount(lossAmt);
+                        exp.setNote("Hao hụt cám lẻ còn dư khi kết thúc lứa: " + src.getProduct().getName()
+                                + " (" + src.getRemainingKg().stripTrailingZeros().toPlainString() + " kg)");
+                        exp.setCreatedBy(actor != null && !actor.isBlank() ? actor : "system");
+                        expenseRepository.saveAndFlush(exp);
+                    }
+                    src.setRemainingKg(BigDecimal.ZERO.setScale(3));
+                    src.setRemainingValue(BigDecimal.ZERO.setScale(2));
+                    src.setUpdatedAt(now);
+                    openedFeedRepository.saveAndFlush(src);
+                }
+                return "Ghi nhận hao hụt cám lẻ còn dư (" + itemsDesc + ").";
+            }
+        }
+        return null;
+    }
+
+    private InventoryItem findReturnLotForOpenedFeed(FarmingCycle cycle, CycleOpenedFeed src) {
+        Long productId = src.getProduct().getId();
+        Long unitId = src.getUnit() != null ? src.getUnit().getId() : null;
+        if (src.getWarehouse() != null) {
+            List<InventoryItem> inWh = inventoryRepository.findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(
+                    src.getWarehouse().getId(), productId);
+            for (int i = inWh.size() - 1; i >= 0; i--) {
+                InventoryItem item = inWh.get(i);
+                if (unitId == null || (item.getUnit() != null && Objects.equals(item.getUnit().getId(), unitId))) {
+                    return item;
+                }
+            }
+            if (!inWh.isEmpty()) return inWh.getLast();
+        }
+        if (cycle.getBarn() != null && cycle.getBarn().getArea() != null) {
+            for (WarehouseCategory wh : warehouseRepository.findAllByArea_Id(cycle.getBarn().getArea().getId())) {
+                if (wh.getKind() != null && !AreaWarehouseService.FEED.equalsIgnoreCase(wh.getKind())) continue;
+                List<InventoryItem> lots = inventoryRepository.findByWarehouse_IdAndProduct_IdOrderByCreatedAtAscIdAsc(wh.getId(), productId);
+                if (!lots.isEmpty()) return lots.getLast();
+            }
+        }
+        return null;
+    }
+
+    static List<OpenedFeedBalance> toOpenedBalances(List<CycleOpenedFeed> list, boolean canSeeFinance) {
+        if (list == null || list.isEmpty()) return List.of();
+        return list.stream()
+                .filter(f -> f.getRemainingKg() != null && f.getRemainingKg().signum() > 0)
+                .map(f -> new OpenedFeedBalance(
+                        f.getId(),
+                        f.getProduct().getId(),
+                        f.getProduct().getName(),
+                        f.getWarehouse() != null ? f.getWarehouse().getId() : null,
+                        f.getWarehouse() != null ? f.getWarehouse().getName() : "",
+                        f.getUnit() != null ? f.getUnit().getName() : "",
+                        f.getKgPerBag(),
+                        f.getRemainingKg(),
+                        canSeeFinance ? f.getRemainingValue() : null
+                ))
+                .toList();
     }
 
     record DashboardCycleSnapshot(
@@ -491,7 +733,8 @@ public class CycleService {
                 samples.stream().map(s -> new CycleRecordResponse(s.getId(), "WEIGHT", s.getSampleDate(), "Cân mẫu", s.getAvgWeightKg(),
                         null, null, s.getSampleSize(), null, s.getNote(), s.getCreatedBy())).toList(),
                 canSeeFinance ? expenses.stream().map(e -> new CycleRecordResponse(e.getId(), "EXPENSE", e.getExpenseDate(), e.getCategory().name(),
-                        null, null, e.getAmount(), null, e.getCategory().name(), e.getNote(), e.getCreatedBy())).toList() : null);
+                        null, null, e.getAmount(), null, e.getCategory().name(), e.getNote(), e.getCreatedBy())).toList() : null,
+                toOpenedBalances(openedFeedRepository.findAllByCycleIdAndRemainingKgGreaterThanOrderByIdAsc(cycleId, BigDecimal.ZERO), canSeeFinance));
     }
 
     // ---------------------------------------------------------------- shared rules

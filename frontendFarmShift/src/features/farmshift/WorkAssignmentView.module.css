@@ -199,6 +199,19 @@
 
 /* Khung hẹp (màn nhỏ hoặc chừa chỗ cho danh sách công nhân): gập lại còn một trang, bỏ gáy sổ. */
 .barnsSingle { container-type: inline-size; }
+.routineBox { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; background: #f6faf7; border: 1px solid #e3efe6; }
+.book .routineBox { background: rgba(255, 255, 255, 0.55); border-color: rgba(150, 118, 64, 0.3); }
+.routineHead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.routineHead small { font-size: 12.5px; color: #52796f; }
+.routineChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.routineChip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 999px; border: 1px solid #c9dcd0; background: #ffffff; color: #4b5563; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.routineChip:hover:not(:disabled) { border-color: #2d6a4f; color: #1b4332; }
+.routineChipOn { background: #1b4332; border-color: #1b4332; color: #ffffff; }
+.routineChipOn:hover:not(:disabled) { background: #2d6a4f; border-color: #2d6a4f; color: #ffffff; }
+.quickTaskBar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.quickTaskLabel { font-size: 12.5px; font-weight: 600; color: #52796f; }
+.quickTaskChip { padding: 4px 10px; border-radius: 999px; border: 1px solid #c5dfd0; background: #f6faf7; color: #1b4332; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.quickTaskChip:hover:not(:disabled) { background: #e6f7ec; border-color: #2d6a4f; }
 @container (max-width: 620px) {
   .book { grid-template-columns: minmax(0, 1fr); padding: 10px; }
   .book::after { display: none; }

@@ -1,5 +1,6 @@
 package com.farmshift.backendFarmShift.service;
 
+import com.farmshift.backendFarmShift.dto.request.BarnRoutineTasksRequest;
 import com.farmshift.backendFarmShift.dto.request.BarnWorkersRequest;
 import com.farmshift.backendFarmShift.dto.request.WorkTaskCheckRequest;
 import com.farmshift.backendFarmShift.dto.request.WorkTaskRequest;
@@ -60,7 +61,8 @@ public class WorkAssignmentService {
                 .map(barn -> new WorkBoard.BarnAssignment(barn.getId(), barn.getName(), barn.getArea().getId(), barn.getArea().getName(),
                         activeCycles.get(barn.getId()), barn.getCurrentQuantity(),
                         workersByBarn.getOrDefault(barn.getId(), List.of()).stream().map(WorkAssignmentService::ref).toList(),
-                        tasksByBarn.getOrDefault(barn.getId(), List.of()).stream().map(task -> response(task, checks.get(task.getId()))).toList()))
+                        tasksByBarn.getOrDefault(barn.getId(), List.of()).stream().map(task -> response(task, checks.get(task.getId()))).toList(),
+                        BarnRoutineTaskCatalog.enabledCodes(barn)))
                 .toList();
 
         List<WorkBoard.WorkerSummary> summaries = workers.stream().map(worker -> {
@@ -78,6 +80,15 @@ public class WorkAssignmentService {
         return responsibilities.setBarn(barnId, request.workerIds(), user);
     }
 
+    /** Cấu hình danh sách việc hằng ngày mặc định được bật trên chuồng (áp dụng từ đầu đến cuối lứa). */
+    @Transactional
+    public List<String> setBarnRoutineTasks(Long barnId, BarnRoutineTasksRequest request) {
+        Barn barn = barnService.find(barnId);
+        barn.setRoutineTasks(BarnRoutineTaskCatalog.encode(request.taskCodes()));
+        barnRepository.saveAndFlush(barn);
+        return BarnRoutineTaskCatalog.enabledCodes(barn);
+    }
+
     // ---------------------------------------------------------------- tasks
 
     @Transactional
@@ -91,8 +102,10 @@ public class WorkAssignmentService {
     @Transactional
     public WorkBoard.AssignedTask update(Long id, WorkTaskRequest request) {
         WorkTask task = findTask(id);
+        boolean oldAssigneeNoLongerInBarn = !isWorkerOfBarn(task.getAssignee().getEmail(), task.getBarn().getId());
+        boolean assigneeChangeBlocked = !task.getAssignee().getId().equals(request.assigneeId()) && !oldAssigneeNoLongerInBarn;
         if (checkRepository.existsByTaskId(id) && (!task.getBarn().getId().equals(request.barnId())
-                || !task.getAssignee().getId().equals(request.assigneeId()) || !task.getStartDate().equals(request.startDate()))) {
+                || assigneeChangeBlocked || !task.getStartDate().equals(request.startDate()))) {
             throw new BadRequestException("Việc đã có ngày làm xong nên không đổi được chuồng, người làm hoặc ngày bắt đầu. "
                     + "Hãy kết thúc việc này và giao việc mới.", "WORK_TASK_HAS_CHECKS");
         }
