@@ -9,6 +9,7 @@ import {
   apiErrorMessage, itemFitsStep, itemsForStep, stockKind, uniqueByName, validateProgram,
 } from './farmAreaOptions';
 import { StockNamePicker } from './StockNamePicker';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './FarmingPrograms.module.css';
 
 const text = value => (value == null ? '' : String(value));
@@ -98,6 +99,7 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
   const [errors, setErrors] = useState({ fields: {}, steps: {} });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [items, setItems] = useState([]);
   const [itemsError, setItemsError] = useState('');
   const [itemsLoading, setItemsLoading] = useState(true);
@@ -124,18 +126,24 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
   }, []);
 
   const setField = (key, value) => {
+    setDirty(true);
     setDraft(current => ({ ...current, [key]: value }));
     setErrors(current => ({ ...current, fields: { ...current.fields, [key]: undefined } }));
   };
   const setStep = (index, key, value) => {
+    setDirty(true);
     setDraft(current => ({ ...current, steps: current.steps.map((step, i) => (i === index ? { ...step, [key]: value } : step)) }));
     setErrors(current => ({ ...current, steps: { ...current.steps, [index]: undefined } }));
   };
-  const addStep = () => setDraft(current => {
-    const last = current.steps.filter(step => step.category === tab).reduce((max, step) => Math.max(max, Number(step.dayTo) || 0), 0);
-    return { ...current, steps: [...current.steps, emptyStep(tab, last + 1)] };
-  });
+  const addStep = () => {
+    setDirty(true);
+    setDraft(current => {
+      const last = current.steps.filter(step => step.category === tab).reduce((max, step) => Math.max(max, Number(step.dayTo) || 0), 0);
+      return { ...current, steps: [...current.steps, emptyStep(tab, last + 1)] };
+    });
+  };
   const removeStep = index => {
+    setDirty(true);
     setDraft(current => ({ ...current, steps: current.steps.filter((_, i) => i !== index) }));
     setErrors(current => ({ ...current, steps: {} }));
   };
@@ -236,8 +244,16 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     {input}
     <FieldError message={errors.fields[key]} />
   </div>;
-  const headerInput = (key, props = {}) => <input id={`program-${key}`} className={`farmshift-form-control ${errors.fields[key] ? styles.invalid : ''}`}
-    value={draft[key]} onChange={event => setField(key, event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields[key])} {...props} />;
+  const headerInput = (key, props = {}) => {
+    const cls = `farmshift-form-control ${errors.fields[key] ? styles.invalid : ''}`;
+    if (props.type === 'number') {
+      const { type: _type, min: _min, max, step, ...rest } = props;
+      return <QuantityInput id={`program-${key}`} inputClassName={cls} allowDecimal={Boolean(step && String(step).includes('.'))} max={max}
+        value={draft[key]} onChange={event => setField(key, event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields[key])} {...rest} />;
+    }
+    return <input id={`program-${key}`} className={cls}
+      value={draft[key]} onChange={event => setField(key, event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields[key])} {...props} />;
+  };
 
   const rows = draft.steps.map((step, index) => ({ step, index })).filter(row => row.step.category === tab);
   const category = STEP_CATEGORIES.find(item => item.value === tab);
@@ -278,13 +294,14 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     if (kind === 'unit') return <input {...common} list="program-medicine-units" />;
     if (kind === 'drinkingUnit') return <input {...common} list="program-drinking-units" />;
     if (kind === 'number') {
-      return <input {...common} type="number" min="0" step={extra} inputMode="decimal"
+      const { className, ...rest } = common;
+      return <QuantityInput {...rest} inputClassName={className} allowDecimal
         placeholder={key === 'quantity' && row.step.category === 'FEED' ? 'g/con/ngày' : undefined} />;
     }
     return <input {...common} placeholder={extra} maxLength={200} />;
   };
 
-  return <Dialog title={editing ? 'Chỉnh sửa chương trình nuôi' : 'Tạo chương trình nuôi'} labelId="farming-program-title" busy={saving} onClose={onClose} wide className={styles.editor}>
+  return <Dialog title={editing ? 'Chỉnh sửa chương trình nuôi' : 'Tạo chương trình nuôi'} labelId="farming-program-title" busy={saving} isDirty={dirty} onClose={onClose} wide className={styles.editor}>
     <form onSubmit={submit} noValidate>
       <div className={styles.editorBody}>
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
@@ -353,9 +370,9 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
             <tbody>
               {rows.length === 0 ? <tr><td colSpan={COLUMNS[tab].length + 4} className={styles.emptyRow}>Chưa có {category.item}. Bấm "Thêm dòng" để thêm.</td></tr>
                 : rows.map(row => <Fragment key={row.index}><tr className={errors.steps[row.index] ? styles.rowError : ''}>
-                  <td><input aria-label={`Từ ngày dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="1" value={row.step.dayFrom}
+                  <td><QuantityInput aria-label={`Từ ngày dòng ${row.index + 1}`} inputClassName="farmshift-form-control" value={row.step.dayFrom}
                     onChange={event => setStep(row.index, 'dayFrom', event.target.value)} disabled={saving} /></td>
-                  <td><input aria-label={`Đến ngày dòng ${row.index + 1}`} className="farmshift-form-control" type="number" min="1" value={row.step.dayTo}
+                  <td><QuantityInput aria-label={`Đến ngày dòng ${row.index + 1}`} inputClassName="farmshift-form-control" value={row.step.dayTo}
                     onChange={event => setStep(row.index, 'dayTo', event.target.value)} disabled={saving} /></td>
                   {COLUMNS[tab].map(column => <td key={column[0]}>{cell(row, column)}</td>)}
                   <td><input aria-label={`Ghi chú dòng ${row.index + 1}`} className="farmshift-form-control" value={row.step.note} maxLength={1000}

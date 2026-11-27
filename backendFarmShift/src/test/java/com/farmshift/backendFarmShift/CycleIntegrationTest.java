@@ -345,11 +345,35 @@ class CycleIntegrationTest {
     }
 
     @Test
-    void flockFollowsItsBreedProgramWithTodaysPlan() throws Exception {
+    void importFlockWithoutProgramSucceeds() throws Exception {
         long cycle = startCycle(barnId, START);
         Map<String, Object> noProgram = flock("Gà Mía", "MIXED", START, 100);
         noProgram.remove("programId");
-        post("/api/cycles/" + cycle + "/flocks", noProgram).andExpect(status().isBadRequest());
+        post("/api/cycles/" + cycle + "/flocks", noProgram)
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.programId").isEmpty());
+    }
+
+    @Test
+    void importFlockRejectsAgeSpreadOverThreeDays() throws Exception {
+        long cycle = startCycle(barnId, START);
+        importFlock(cycle, "Đàn 1", "MALE", START, 100);
+
+        Map<String, Object> tooOld = flock("Đàn lệch tuổi", "FEMALE", START, 100);
+        tooOld.put("ageAtImport", 10);
+        post("/api/cycles/" + cycle + "/flocks", tooOld)
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("FLOCK_AGE_SPREAD"));
+
+        Map<String, Object> withinRange = flock("Đàn hợp lệ", "FEMALE", START, 100);
+        withinRange.put("ageAtImport", 4);
+        post("/api/cycles/" + cycle + "/flocks", withinRange)
+            .andExpect(status().isCreated());
+    }
+
+    @Test
+    void flockFollowsItsBreedProgramWithTodaysPlan() throws Exception {
+        long cycle = startCycle(barnId, START);
         Map<String, Object> unknownProgram = flock("Gà Mía", "MIXED", START, 100);
         unknownProgram.put("programId", 99999);
         post("/api/cycles/" + cycle + "/flocks", unknownProgram).andExpect(status().isNotFound());

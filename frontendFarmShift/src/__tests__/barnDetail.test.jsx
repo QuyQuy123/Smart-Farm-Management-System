@@ -198,25 +198,30 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Nhập đàn' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/Chuồng còn chỗ cho 20.000 con/)).toBeInTheDocument();
-    expect(within(field(dialog, /Chương trình nuôi/)).getAllByRole('option')).toHaveLength(2);
-    fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '2' } });
+    expect(within(dialog).queryByLabelText(/Chương trình nuôi/)).not.toBeInTheDocument();
     fireEvent.change(field(dialog, /Tên đàn/), { target: { value: 'MÍA XÔ' } });
     fireEvent.change(field(dialog, /Giới tính/), { target: { value: 'MIXED' } });
     fireEvent.change(field(dialog, /Ngày nhập/), { target: { value: iso(-13) } });
+    expect(within(dialog).getByText(/quá 3 ngày/)).toBeInTheDocument();
+    fireEvent.change(field(dialog, /Ngày tuổi lúc nhập/), { target: { value: '3222' } });
+    expect(within(dialog).getByText('Ngày tuổi lúc nhập phải là số nguyên từ 1 đến 365.')).toBeInTheDocument();
+    fireEvent.change(field(dialog, /Ngày tuổi lúc nhập/), { target: { value: '10' } });
+    expect(within(dialog).getByText(/chênh lệch quá 3 ngày/)).toBeInTheDocument();
     fireEvent.change(field(dialog, /Số lượng nhập/), { target: { value: '25000' } });
+    expect(within(dialog).getByText('Chuồng chỉ còn chỗ cho 20.000 con.')).toBeInTheDocument();
     fireEvent.change(field(dialog, /Giá con giống/), { target: { value: '11000' } });
     await within(dialog).findByRole('option', { name: /Giống Dabaco/ });
     fireEvent.change(field(dialog, /Nhà cung cấp con giống/), { target: { value: '6' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
-    expect(await within(dialog).findByText(/quá 3 ngày/)).toBeInTheDocument();
-    expect(within(dialog).getByText('Chuồng chỉ còn chỗ cho 20.000 con.')).toBeInTheDocument();
     expect(cycles.importFlock).not.toHaveBeenCalled();
 
     fireEvent.change(field(dialog, /Ngày nhập/), { target: { value: iso(-14) } });
+    fireEvent.change(field(dialog, /Ngày tuổi lúc nhập/), { target: { value: '1' } });
     fireEvent.change(field(dialog, /Số lượng nhập/), { target: { value: '5000' } });
+    expect(within(dialog).queryByText('Ngày tuổi lúc nhập phải là số nguyên từ 1 đến 365.')).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await waitFor(() => expect(cycles.importFlock).toHaveBeenCalledWith(20, {
-      programId: 2, name: 'MÍA XÔ', gender: 'MIXED', importDate: iso(-14), ageAtImport: 1, quantity: 5000, avgWeight: 0.04, unitPrice: 11000,
+      name: 'MÍA XÔ', gender: 'MIXED', importDate: iso(-14), ageAtImport: 1, quantity: 5000, avgWeight: 0.04, unitPrice: 11000,
       supplierId: 6, paymentStatus: 'Trả sau', note: '',
     }));
     expect(mocks.showToast).toHaveBeenCalledWith('Đã nhập đàn MÍA XÔ (5.000 con).', 'success');
@@ -270,7 +275,7 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     await waitFor(() => expect(mocks.showToast).toHaveBeenCalledWith(expect.stringContaining('Đã mở lứa mới'), 'success'));
   });
 
-  it('lets the owner attach a breed program to all running flocks at once', async () => {
+  it('lets the owner attach a single shared breed program to all running flocks in the barn', async () => {
     cycles.assignCycleProgram.mockResolvedValue({});
     programService.listPrograms.mockResolvedValue([
       { id: 1, name: 'Gà Mía thương phẩm', breed: 'Gà Mía', durationDays: 90, steps: [] },
@@ -279,9 +284,7 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     renderAt('/barns/2');
     fireEvent.click(await screen.findByRole('button', { name: 'Gắn chương trình' }));
     const dialog = await screen.findByRole('dialog');
-    // "All running flocks" is the default, followed by each flock.
-    expect(within(field(dialog, /Đàn đang nuôi/)).getAllByRole('option').map(option => option.textContent)[0]).toBe('Tất cả đàn đang nuôi (2 đàn)');
-    expect(within(field(dialog, /Đàn đang nuôi/)).getAllByRole('option')).toHaveLength(3);
+    expect(within(dialog).queryByLabelText(/Đàn đang nuôi/)).not.toBeInTheDocument();
     // The flocks are 18 days old, so a 7-day program is rejected before calling the API.
     fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '3' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
@@ -292,18 +295,6 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
     await waitFor(() => expect(cycles.assignCycleProgram).toHaveBeenCalledWith(20, 1));
     expect(mocks.showToast).toHaveBeenCalledWith('Đã gắn chương trình Gà Mía thương phẩm cho 2 đàn đang nuôi.', 'success');
-  });
-
-  it('can still attach a program to a single flock', async () => {
-    cycles.assignFlockProgram.mockResolvedValue({});
-    renderAt('/barns/2');
-    fireEvent.click(await screen.findByRole('button', { name: 'Gắn chương trình' }));
-    const dialog = await screen.findByRole('dialog');
-
-    fireEvent.change(field(dialog, /Đàn đang nuôi/), { target: { value: '5' } });
-    fireEvent.change(field(dialog, /Chương trình nuôi/), { target: { value: '1' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu và đóng lại' }));
-    await waitFor(() => expect(cycles.assignFlockProgram).toHaveBeenCalledWith(5, 1));
   });
 
   it('confirms a meal from the barn page and refreshes the journal and costs', async () => {
@@ -352,7 +343,7 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     expect(screen.queryByRole('button', { name: 'Nhập đàn' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Kết thúc lứa nuôi' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xuất bán H0004' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ghi hao hụt H0004' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ghi hao hụt H0004' })).not.toBeInTheDocument();
     // Cám ghi khi bấm Xong cữ ăn ở Việc hôm nay, không còn nút ghi tay ở Nhật ký.
     expect(screen.queryByRole('button', { name: 'Ghi cám' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Khoản chi bổ sung/ })).not.toBeInTheDocument();
@@ -364,7 +355,7 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
     renderAt('/barns/2');
     await screen.findByText(/Lứa nuôi thứ 1, từ/);
     expect(screen.getByText('Hạch toán')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Xuất bán H0004' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xuất bán H0004' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Doanh thu/ })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Lịch sử lứa nuôi/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /Khoản chi bổ sung/ }));

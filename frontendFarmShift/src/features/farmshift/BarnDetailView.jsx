@@ -10,7 +10,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
 import {
   addExpense, addWeightSample, deleteExpense, deleteFeedRecord, deleteWeightSample,
-  assignCycleProgram, assignFlockProgram, getBarn, getCycle, importFlock, listCycles, recordHarvest, recordLoss, startCycle, transferFlock,
+  assignCycleProgram, getBarn, getCycle, importFlock, listCycles, recordLoss, startCycle, transferFlock,
 } from '../../services/cycleService';
 import { CloseCycleDialog } from './CloseCycleDialog';
 import { BarnDialog } from './FarmAreaDialogs';
@@ -28,6 +28,8 @@ import { setBarnRoutineTasks } from '../../services/workAssignmentService';
 import { RoutineTaskTagPicker, RoutineTasksSettingsDialog } from './RoutineTasksSettingsDialog';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { useViewport } from '../../hooks/useViewport';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
+import { formatBarnOption, sortBarnsForOperation } from '../../utils/selectFormatters';
 import {
   DEFAULT_ROUTINE_CODES, EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_STATES, describeStep, stepCategoryLabel,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
@@ -305,23 +307,36 @@ export const BarnDetailView = () => {
   const openImport = () => {
     const first = metrics.firstImportDate;
     const windowEnd = first ? addDaysIso(first, MAX_IMPORT_SPREAD_DAYS) : null;
+    const minImportDate = first ? [addDaysIso(first, -MAX_IMPORT_SPREAD_DAYS), cycle.startDate].sort()[1] : cycle.startDate;
+    const maxImportDate = windowEnd && windowEnd < today ? windowEnd : today;
+    const firstFlock = (detail?.flocks || []).find(f => f.sourceType === 'PURCHASE') || (detail?.flocks || [])[0] || null;
+    const ageBoundsFor = importDate => {
+      if (!firstFlock || !importDate) return null;
+      const firstHatch = addDaysIso(firstFlock.importDate, -(Number(firstFlock.ageAtImport || 1) - 1));
+      const diffDays = Math.round((Date.parse(`${importDate}T00:00:00Z`) - Date.parse(`${firstHatch}T00:00:00Z`)) / 86400000);
+      const expectedAge = diffDays + 1;
+      return {
+        expectedAge,
+        minAge: Math.max(1, expectedAge - MAX_IMPORT_SPREAD_DAYS),
+        maxAge: Math.min(365, expectedAge + MAX_IMPORT_SPREAD_DAYS),
+      };
+    };
+    const defaultAgeBounds = ageBoundsFor(maxImportDate);
+    const defaultAge = defaultAgeBounds ? Math.min(365, Math.max(1, defaultAgeBounds.expectedAge)) : 1;
     setModal({
       title: 'Nhập đàn vào lứa',
-      intro: `${first ? `Đàn đầu tiên nhập ngày ${formatDay(first)}: các đàn tiếp theo phải nhập trong khoảng ${formatDay([addDaysIso(first, -MAX_IMPORT_SPREAD_DAYS), cycle.startDate].sort()[1])} – ${formatDay(windowEnd < today ? windowEnd : today)}. `
+      intro: `${first ? `Đàn đầu tiên nhập ngày ${formatDay(first)}: các đàn tiếp theo phải nhập trong khoảng ${formatDay(minImportDate)} – ${formatDay(maxImportDate)}. `
         : `Các đàn của lứa phải nhập cách nhau không quá ${MAX_IMPORT_SPREAD_DAYS} ngày. `}Chuồng còn chỗ cho ${num(room)} con (sức chứa ${num(barn.capacity)}).`,
-      warning: programs.length ? null : 'Chưa có chương trình nuôi. Vào Thiết lập chăn nuôi → Chương trình nuôi để tạo chương trình cho giống gà trước khi nhập đàn.',
-      initial: { programId: programs[0] ? String(programs[0].id) : '', name: '', gender: 'MALE', importDate: windowEnd && windowEnd < today ? windowEnd : today, ageAtImport: '1', quantity: '', avgWeight: '0.04', unitPrice: '', supplierId: '', paymentStatus: 'Trả sau', note: '' },
+      warning: room <= 0 ? 'Chuồng đã đầy sức chứa, không thể nhập thêm đàn.' : null,
+      initial: { name: '', gender: 'MALE', importDate: maxImportDate, ageAtImport: String(defaultAge), quantity: '', avgWeight: '0.04', unitPrice: '', supplierId: '', paymentStatus: 'Trả sau', note: '' },
       fields: [
-        { key: 'programId', label: 'Chương trình nuôi (giống)', type: 'select', required: true, full: true,
-          hint: 'Cám định mức, lịch vắc-xin, thuốc và nhiệt độ của đàn sẽ theo chương trình này.',
-          options: programs.length ? programs.map(program => ({ value: String(program.id), label: `${program.name} · ${program.breed} · ${program.durationDays} ngày` }))
-            : [{ value: '', label: 'Chưa có chương trình nuôi' }] },
         { key: 'name', label: 'Tên đàn', required: true, placeholder: 'Ví dụ: MÍA-DABACO TRỐNG' },
         { key: 'gender', label: 'Giới tính', type: 'select', required: true, options: FLOCK_GENDERS },
-        { key: 'importDate', label: 'Ngày nhập', type: 'date', required: true, max: today },
-        { key: 'ageAtImport', label: 'Ngày tuổi lúc nhập', type: 'number', required: true, min: 1, step: 1 },
-        { key: 'quantity', label: 'Số lượng nhập (con)', type: 'number', required: true, min: 1, step: 1 },
-        { key: 'avgWeight', label: 'Trọng lượng TB (kg/con)', type: 'number', required: true, min: 0, step: 0.001 },
+        { key: 'importDate', label: 'Ngày nhập', type: 'date', required: true, min: minImportDate, max: maxImportDate },
+        { key: 'ageAtImport', label: 'Ngày tuổi lúc nhập', type: 'number', required: true, min: 1, max: 365, step: 1, suffix: 'ngày',
+          hint: firstFlock ? `Chênh lệch tối đa ${MAX_IMPORT_SPREAD_DAYS} ngày tuổi so với đàn đầu tiên.` : undefined },
+        { key: 'quantity', label: 'Số lượng nhập (con)', type: 'number', required: true, min: 1, max: room > 0 ? room : undefined, showMaxButton: room > 0, step: 1, suffix: 'con' },
+        { key: 'avgWeight', label: 'Trọng lượng TB (kg/con)', type: 'number', required: true, min: 0.001, max: 500, step: 0.001, suffix: 'kg' },
         { key: 'supplierId', label: 'Nhà cung cấp con giống', required: true, full: true,
           hint: 'Lưu xong, hệ thống tự tạo hóa đơn nhập hàng (số con × giá con giống) cho nhà cung cấp này ở mục Nhập hàng, liên kết với đàn và lứa.',
           render: (props, setValue) => <SupplierPicker props={props} onPick={setValue} canCreate={isOwner} /> },
@@ -338,15 +353,25 @@ export const BarnDetailView = () => {
             found.importDate = `Đàn nhập sau không được cách đàn đầu tiên (${formatDay(first)}) quá ${MAX_IMPORT_SPREAD_DAYS} ngày. Hãy khai báo lứa mới.`;
           }
         }
-        if (!isInt(values.quantity) || Number(values.quantity) < 1) found.quantity = 'Số lượng nhập phải là số nguyên lớn hơn 0.';
+        if (room <= 0) found.quantity = 'Chuồng đã đầy sức chứa, không thể nhập thêm đàn.';
+        else if (!isInt(values.quantity) || Number(values.quantity) < 1) found.quantity = 'Số lượng nhập phải là số nguyên lớn hơn 0.';
         else if (Number(values.quantity) > room) found.quantity = `Chuồng chỉ còn chỗ cho ${num(room)} con.`;
-        if (!isInt(values.ageAtImport) || Number(values.ageAtImport) < 1) found.ageAtImport = 'Ngày tuổi phải là số nguyên từ 1.';
-        if (!(Number(values.avgWeight) > 0)) found.avgWeight = 'Trọng lượng trung bình phải lớn hơn 0.';
+        if (!isInt(values.ageAtImport) || Number(values.ageAtImport) < 1 || Number(values.ageAtImport) > 365) {
+          found.ageAtImport = 'Ngày tuổi lúc nhập phải là số nguyên từ 1 đến 365.';
+        } else {
+          const bounds = ageBoundsFor(values.importDate);
+          if (bounds && (Number(values.ageAtImport) < bounds.minAge || Number(values.ageAtImport) > bounds.maxAge)) {
+            found.ageAtImport = `Ngày tuổi lúc nhập chênh lệch quá ${MAX_IMPORT_SPREAD_DAYS} ngày so với đàn đầu tiên (cho phép ${bounds.minAge}–${bounds.maxAge} ngày tuổi).`;
+          }
+        }
+        if (!(Number(values.avgWeight) > 0) || Number(values.avgWeight) > 500) {
+          found.avgWeight = 'Trọng lượng trung bình phải lớn hơn 0 và không quá 500 kg/con.';
+        }
         if (values.unitPrice !== '' && Number(values.unitPrice) < 0) found.unitPrice = 'Giá con giống không được âm.';
         return found;
       },
       onSubmit: async values => {
-        const created = await importFlock(cycle.id, { ...values, programId: Number(values.programId), name: values.name.trim(), ageAtImport: Number(values.ageAtImport),
+        const created = await importFlock(cycle.id, { ...values, name: values.name.trim(), ageAtImport: Number(values.ageAtImport),
           quantity: Number(values.quantity), avgWeight: Number(values.avgWeight), unitPrice: Number(values.unitPrice), supplierId: Number(values.supplierId), note: values.note.trim() });
         return `Đã nhập đàn ${values.name.trim()} (${num(values.quantity)} con)${created?.purchaseInvoiceCode ? ` và tạo hóa đơn nhập hàng ${created.purchaseInvoiceCode}` : ''}.`;
       },
@@ -381,10 +406,13 @@ export const BarnDetailView = () => {
             return [{ value: '', label: counted && targets.length ? `Không có chuồng trống đủ chỗ cho ${num(moving)} con` : 'Không có chuồng trống' }];
           } },
         { key: 'quantity', label: 'Số con chuyển', required: true,
-          render: (common, setQuantity) => <div className={styles.quantityRow}>
-            <input {...common} type="number" min={1} max={flock.quantity} step={1} inputMode="numeric" />
-            {half > 0 && <button type="button" className={styles.halfButton} disabled={common.disabled} onClick={() => setQuantity(String(half))}>Chia đôi</button>}
-          </div> },
+          render: (common, setQuantity) => {
+            const { className, ...rest } = common;
+            return <div className={styles.quantityRow}>
+              <QuantityInput {...rest} inputClassName={className} suffix="con" max={flock.quantity} showMaxButton />
+              {half > 0 && <button type="button" className={styles.halfButton} disabled={common.disabled} onClick={() => setQuantity(String(half))}>Chia đôi</button>}
+            </div>;
+          } },
         { key: 'transferDate', label: 'Ngày chuyển', type: 'date', required: true, max: today },
         { key: 'name', label: 'Tên đàn mới' },
         { key: 'avgWeight', label: 'Trọng lượng TB (kg/con)', type: 'number', min: 0, step: 0.001, hint: 'Để trống để lấy lần cân gần nhất.' },
@@ -422,32 +450,26 @@ export const BarnDetailView = () => {
   };
 
   /**
-   * Gắn / đổi chương trình nuôi cho tất cả đàn đang nuôi (mặc định) hoặc từng đàn.
-   * Lịch tính theo ngày tuổi hiện tại nên chương trình phải dài hơn tuổi đàn.
+   * Gắn / đổi một chương trình nuôi chung cho tất cả đàn đang nuôi trong chuồng.
+   * Lịch tính theo ngày tuổi hiện tại nên chương trình phải dài hơn tuổi đàn lớn nhất.
    */
   const openAssignProgram = () => {
     const flocks = detail.flocks.filter(flock => flock.status === 'ACTIVE');
     const shared = flocks.every(flock => flock.programId === flocks[0]?.programId) ? flocks[0]?.programId : null;
-    const flockLabel = flock => `${flock.code} · ${flock.name} · ${flock.currentAgeDays} ngày tuổi · ${flock.programName || 'chưa có chương trình'}`;
     setModal({
-      title: 'Gắn chương trình nuôi cho đàn',
-      intro: 'Lịch cám, vắc-xin, thuốc và nhiệt độ của đàn sẽ chạy theo chương trình, tính từ ngày tuổi hiện tại của đàn.',
+      title: 'Gắn chương trình nuôi cho chuồng',
+      intro: 'Toàn bộ đàn đang nuôi trong cùng chuồng sẽ dùng chung một chương trình nuôi (cám, vắc-xin, thuốc và nhiệt độ tính theo ngày tuổi).',
       warning: programs.length ? null : 'Chưa có chương trình nuôi. Vào Thiết lập chăn nuôi → Chương trình nuôi để tạo trước.',
-      initial: { flockId: 'ALL', programId: shared ? String(shared) : programs[0] ? String(programs[0].id) : '' },
+      initial: { programId: shared ? String(shared) : programs[0] ? String(programs[0].id) : '' },
       fields: [
-        { key: 'flockId', label: 'Đàn đang nuôi', type: 'select', required: true, full: true,
-          options: [{ value: 'ALL', label: `Tất cả đàn đang nuôi (${flocks.length} đàn)` },
-            ...flocks.map(flock => ({ value: String(flock.id), label: flockLabel(flock) }))] },
         { key: 'programId', label: 'Chương trình nuôi (giống)', type: 'select', required: true, full: true,
           options: programs.length ? programs.map(program => ({ value: String(program.id), label: `${program.name} · ${program.breed} · ${program.durationDays} ngày` }))
             : [{ value: '', label: 'Chưa có chương trình nuôi' }] },
       ],
       validate: values => {
-        const chosen = values.flockId === 'ALL' ? flocks : flocks.filter(item => String(item.id) === values.flockId);
-        const oldest = chosen.reduce((max, item) => (!max || item.currentAgeDays > max.currentAgeDays ? item : max), null);
+        const oldest = flocks.reduce((max, item) => (!max || item.currentAgeDays > max.currentAgeDays ? item : max), null);
         const program = programs.find(item => String(item.id) === values.programId);
         return {
-          flockId: chosen.length ? undefined : 'Vui lòng chọn đàn.',
           programId: !program ? 'Vui lòng chọn chương trình nuôi.'
             : oldest && oldest.currentAgeDays > program.durationDays
               ? `Đàn ${oldest.code} đã ${oldest.currentAgeDays} ngày tuổi, vượt thời gian nuôi ${program.durationDays} ngày của chương trình.` : undefined,
@@ -455,12 +477,8 @@ export const BarnDetailView = () => {
       },
       onSubmit: async values => {
         const name = programs.find(item => String(item.id) === values.programId)?.name;
-        if (values.flockId === 'ALL') {
-          await assignCycleProgram(cycle.id, Number(values.programId));
-          return `Đã gắn chương trình ${name} cho ${flocks.length} đàn đang nuôi.`;
-        }
-        await assignFlockProgram(Number(values.flockId), Number(values.programId));
-        return `Đã gắn chương trình ${name} cho đàn.`;
+        await assignCycleProgram(cycle.id, Number(values.programId));
+        return `Đã gắn chương trình ${name} cho ${flocks.length} đàn đang nuôi.`;
       },
     });
   };
@@ -483,28 +501,6 @@ export const BarnDetailView = () => {
     onSubmit: async values => {
       await recordLoss(flock.id, { ...values, quantity: Number(values.quantity), weightKg: values.weightKg === '' ? null : Number(values.weightKg), note: values.note.trim() });
       return `Đã ghi ${labelOf(MOVEMENT_TYPES, values.type).toLowerCase()} ${num(values.quantity)} con.`;
-    },
-  });
-
-  const openHarvest = flock => setModal({
-    title: `Xuất bán · ${flock.code}`,
-    initial: { movementDate: today, quantity: '', weightKg: '', unitPrice: '', note: '' },
-    fields: [
-      { key: 'movementDate', label: 'Ngày xuất bán', type: 'date', required: true, max: today },
-      { key: 'quantity', label: 'Số con xuất bán', type: 'number', required: true, min: 1, max: flock.quantity, step: 1 },
-      { key: 'weightKg', label: 'Tổng khối lượng (kg)', type: 'number', required: true, min: 0, step: 0.01 },
-      { key: 'unitPrice', label: 'Đơn giá bán (đ/kg)', type: 'number', required: true, min: 0, step: 1 },
-      { key: 'note', label: 'Khách hàng / ghi chú', type: 'textarea', full: true },
-    ],
-    validate: values => ({
-      movementDate: dateRule(values.movementDate, 'Ngày xuất bán', flock.importDate),
-      quantity: !isInt(values.quantity) || Number(values.quantity) < 1 ? 'Số con phải là số nguyên lớn hơn 0.'
-        : Number(values.quantity) > flock.quantity ? `Đàn chỉ còn ${num(flock.quantity)} con.` : undefined,
-      weightKg: values.weightKg !== '' && !(Number(values.weightKg) > 0) ? 'Tổng khối lượng phải lớn hơn 0.' : undefined,
-    }),
-    onSubmit: async values => {
-      await recordHarvest(flock.id, { ...values, quantity: Number(values.quantity), weightKg: Number(values.weightKg), unitPrice: Number(values.unitPrice), note: values.note.trim() });
-      return `Đã ghi xuất bán ${num(values.quantity)} con.`;
     },
   });
 
@@ -558,7 +554,7 @@ export const BarnDetailView = () => {
   const header = barn && <div className={styles.titleBar}>
     <div>{canDaily ? <Link to={`/areas/${barn.areaId}`}>{barn.areaName}</Link> : <span>{barn.areaName}</span>} / <span>{barn.name}</span></div>
     <select aria-label="Chuyển sang chuồng khác" value={barn.id} onChange={event => navigate(`/barns/${event.target.value}`)}>
-      {sameArea.map(item => <option key={item.id} value={item.id}>-- {item.name}</option>)}
+      {sortBarnsForOperation(sameArea).map(item => <option key={item.id} value={item.id}>{formatBarnOption(item)}</option>)}
     </select>
   </div>;
 
@@ -808,11 +804,9 @@ export const BarnDetailView = () => {
                 <td className={styles.rowActions}>
                   <button type="button" className={styles.iconButton} title="Xem chi tiết đàn" aria-label={`Chi tiết đàn ${flock.code}`}
                     onClick={() => setModal({ type: 'flock', flock })}><Eye size={15} /></button>
-                  {active && flock.status === 'ACTIVE' && <>
-                  {isOwner && <button type="button" className={styles.iconButton} title="Tách / chuyển đàn" aria-label={`Chuyển đàn ${flock.code}`} onClick={() => openTransfer(flock)}><ArrowLeftRight size={15} /></button>}
-                  {canDaily && <button type="button" className={styles.iconButton} title="Ghi hao hụt / loại thải" aria-label={`Ghi hao hụt ${flock.code}`} onClick={() => openLoss(flock)}><Skull size={15} /></button>}
-                  {canFinance && <button type="button" className={styles.iconButton} title="Xuất bán" aria-label={`Xuất bán ${flock.code}`} onClick={() => openHarvest(flock)}><ShoppingCart size={15} /></button>}
-                </>}</td>
+                  {active && flock.status === 'ACTIVE' && isOwner && (
+                    <button type="button" className={styles.iconButton} title="Tách / chuyển đàn" aria-label={`Chuyển đàn ${flock.code}`} onClick={() => openTransfer(flock)}><ArrowLeftRight size={15} /></button>
+                  )}</td>
               </tr>)}</tbody>
             </table></div>}
         </Card>

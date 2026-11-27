@@ -4,6 +4,7 @@ import {
   Fan, CheckCircle, Thermometer, Droplets,
   Lightbulb, Sliders, Video
 } from 'lucide-react';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 
 export const EnvironmentalTab = ({
   envRows,
@@ -72,10 +73,9 @@ export const EnvironmentalTab = ({
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Thermometer size={15} color="var(--color-info)" />
-                          <input
-                            type="number"
-                            step="0.1"
-                            className="farmshift-form-control"
+                          <QuantityInput
+                            allowDecimal
+                            inputClassName="farmshift-form-control"
                             style={{ width: '75px', padding: '4px 8px', height: '34px' }}
                             value={row.temp}
                             onChange={(e) => handleEnvChange(idx, 'temp', e.target.value)}
@@ -86,9 +86,8 @@ export const EnvironmentalTab = ({
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Droplets size={15} color="#0284c7" />
-                          <input
-                            type="number"
-                            className="farmshift-form-control"
+                          <QuantityInput
+                            inputClassName="farmshift-form-control"
                             style={{ width: '75px', padding: '4px 8px', height: '34px' }}
                             value={row.humidity}
                             onChange={(e) => handleEnvChange(idx, 'humidity', e.target.value)}

@@ -13,7 +13,8 @@ export function IotEventLog({ barnId, revision }) {
     let cancelled = false;
     setState({ loading: true, rows: [], error: '' });
     api.get(`/barns/${barnId}/iot-events`, { params: { page }, skipCache: true }).then(response => {
-      if (!cancelled) setState({ loading: false, rows: response.data.data, error: '' });
+      const rows = Array.isArray(response?.data?.data) ? response.data.data : [];
+      if (!cancelled) setState({ loading: false, rows, error: '' });
     }).catch(() => {
       if (!cancelled) setState({ loading: false, rows: [], error: 'Không tải được nhật ký thiết bị.' });
     });

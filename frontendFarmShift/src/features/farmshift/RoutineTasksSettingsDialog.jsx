@@ -174,11 +174,18 @@ export function RoutineTaskTagPicker({ selectedCodes = DEFAULT_ROUTINE_CODES, on
  * Modal cài đặt công việc hằng ngày mặc định áp dụng từ hôm nay tới cuối chu kỳ nuôi của chuồng.
  */
 export function RoutineTasksSettingsDialog({ barnId, barnName, initialCodes, onClose, onSaved }) {
+  const [initialList] = useState(() =>
+    (Array.isArray(initialCodes) ? [...initialCodes] : [...DEFAULT_ROUTINE_CODES]).sort()
+  );
   const [selectedCodes, setSelectedCodes] = useState(() =>
     Array.isArray(initialCodes) ? [...initialCodes] : [...DEFAULT_ROUTINE_CODES]
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const sortedSelected = [...selectedCodes].sort();
+  const isDirty =
+    sortedSelected.length !== initialList.length ||
+    sortedSelected.some((code, idx) => code !== initialList[idx]);
 
   const handleConfirm = async () => {
     if (saving) return;
@@ -198,6 +205,7 @@ export function RoutineTasksSettingsDialog({ barnId, barnName, initialCodes, onC
       title="Cài đặt công việc hằng ngày (Cả chu kỳ)"
       labelId="routine-tasks-settings-title"
       busy={saving}
+      isDirty={isDirty}
       onClose={onClose}
       wide
     >

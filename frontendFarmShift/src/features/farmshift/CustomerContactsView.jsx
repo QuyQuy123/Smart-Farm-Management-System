@@ -34,9 +34,13 @@ function CustomerDialog({ mode, customer, onClose, onSaved }) {
       onSaved(deleting ? 'Đã xóa khách hàng.' : 'Đã lưu khách hàng thành công.');
     } catch (error) { setError(errorMessage(error)); setSaving(false); }
   };
+  const isDirty = !readOnly && !deleting && (
+    name !== (customer?.name || '') ||
+    phone !== (customer?.phone || '')
+  );
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="customer-title"
-    onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-    onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}>
     <section className={styles.modal}>
       <header className={styles.modalHeader}><h2 id="customer-title">{title}</h2><button type="button" className={styles.iconButton} onClick={onClose} disabled={saving} aria-label="Đóng"><X size={20} /></button></header>
       <form onSubmit={submit}><div className={styles.modalBody}>

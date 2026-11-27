@@ -67,7 +67,9 @@ function BarnWorkersDialog({ barn, workers, onClose, onSaved }) {
       setSaving(false);
     }
   };
-  return <Dialog title={`Phân công chuồng ${barn.barnName}`} labelId="barn-workers-title" busy={saving} onClose={onClose}>
+  const [initialIds] = useState(() => barn.workers.map(worker => worker.id).sort().join(','));
+  const isDirty = [...chosen].sort().join(',') !== initialIds;
+  return <Dialog title={`Phân công chuồng ${barn.barnName}`} labelId="barn-workers-title" busy={saving} isDirty={isDirty} onClose={onClose}>
     <div className={styles.dialogBody}>
       <p className={styles.dialogIntro}>Chọn công nhân phụ trách chuồng. Họ sẽ thấy phiếu việc của chuồng này ở mục Việc hôm nay.</p>
       {error && <p role="alert" className={styles.dialogError}>{error}</p>}

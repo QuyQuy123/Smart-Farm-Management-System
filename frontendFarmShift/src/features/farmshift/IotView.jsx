@@ -12,6 +12,7 @@ import { api } from '../../utils/api';
 import { IotEventLog } from './IotEventLog';
 import { IotEnvironment } from './IotEnvironment';
 import { PhoneCamera } from './PhoneCamera';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './IotView.module.css';
 
 const TYPES = {
@@ -34,9 +35,11 @@ function CameraScreen({ barnName }) {
 }
 
 function DeviceDialog({ device, devices, onClose, onSave }) {
-  const [form, setForm] = useState(device || { name: '', type: 'FAN', power: '' });
+  const [initialForm] = useState(() => device || { name: '', type: 'FAN', power: '' });
+  const [form, setForm] = useState(() => device || { name: '', type: 'FAN', power: '' });
   const set = (key, value) => setForm(current => ({ ...current, [key]: value }));
-  return <Dialog title={device ? 'Chỉnh sửa thiết bị' : 'Thêm thiết bị'} labelId="iot-device-title" onClose={onClose}>
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
+  return <Dialog title={device ? 'Chỉnh sửa thiết bị' : 'Thêm thiết bị'} labelId="iot-device-title" isDirty={isDirty} onClose={onClose}>
     <form onSubmit={event => {
       event.preventDefault();
       if (form.name.trim()) onSave({ ...form, name: form.name.trim() });
@@ -56,7 +59,7 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
             disabled={devices.some(item => item.id !== device?.id && item.relay === relay)}>Relay {relay}</option>)}
         </select>
         <label htmlFor="iot-power">Công suất (kW, không bắt buộc)</label>
-        <input id="iot-power" className="farmshift-form-control" type="number" min="0" step="0.01" value={form.power} onChange={event => set('power', event.target.value)} />
+        <QuantityInput id="iot-power" allowDecimal suffix="kW" inputClassName="farmshift-form-control" value={form.power} onChange={event => set('power', event.target.value)} />
         <small>Chọn relay theo dây đang nối trên ESP32.</small>
         </>}
         <div className={styles.automaticControl}>
@@ -73,7 +76,7 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
         </>}
         {form.automatic && form.type !== 'LIGHT' && <>
           <label htmlFor="iot-temperature">Bật khi nhiệt độ vượt (°C)</label>
-          <input id="iot-temperature" className="farmshift-form-control" type="number" required step="0.1"
+          <QuantityInput id="iot-temperature" allowDecimal suffix="°C" required inputClassName="farmshift-form-control"
             value={form.threshold ?? (form.type === 'FAN' ? 40 : 42)} onChange={event => set('threshold', event.target.value)} />
           {form.type !== 'FAN' && <small>Tính theo trung bình hai cảm biến. Tắt khi giảm xuống thấp hơn ngưỡng ít nhất 1 °C.</small>}
         </>}

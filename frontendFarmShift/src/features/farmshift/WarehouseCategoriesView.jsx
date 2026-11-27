@@ -42,9 +42,14 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
     } catch (error) { setError(errorMessage(error)); setSaving(false); }
   };
 
+  const isDirty = !readOnly && !deleting && (
+    name !== (category?.name || '') ||
+    description !== (category?.description || '')
+  );
+
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="warehouse-category-title"
-    onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-    onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}>
     <section className={styles.modal}>
       <header className={styles.modalHeader}>
         <h2 id="warehouse-category-title">{title}</h2>

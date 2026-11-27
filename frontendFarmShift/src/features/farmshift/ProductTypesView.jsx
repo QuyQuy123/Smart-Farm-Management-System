@@ -3,6 +3,7 @@ import { Plus, Search, Eye, Pencil, Trash2, X, Layers, AlertCircle } from 'lucid
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listProductTypes, createProductType, updateProductType, deleteProductType } from '../../services/productTypeService';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './WarehouseCategoriesView.module.css';
 
 const formatDate = value => value ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
@@ -64,10 +65,16 @@ function ProductTypeDialog({ mode, item, onClose, onSaved, canEdit }) {
     }
   };
 
+  const isDirty = !readOnly && !deleting && (
+    name !== (item?.name || '') ||
+    description !== (item?.description || '') ||
+    quantity !== (item?.quantity !== undefined && item?.quantity !== null ? String(item.quantity) : '0')
+  );
+
   return (
     <dialog ref={dialog} className={styles.dialog} aria-labelledby="product-type-modal-title"
-      onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-      onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+      onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }}
+      onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}>
       <section className={styles.modal}>
         <header className={styles.modalHeader}>
           <h2 id="product-type-modal-title">{title}</h2>
@@ -96,11 +103,9 @@ function ProductTypeDialog({ mode, item, onClose, onSaved, canEdit }) {
                 {mode !== 'create' && (
                   <>
                     <label htmlFor="product-type-quantity">Số lượng</label>
-                    <input
+                    <QuantityInput
                       id="product-type-quantity"
-                      type="number"
-                      min="0"
-                      className="farmshift-form-control"
+                      inputClassName="farmshift-form-control"
                       placeholder="0"
                       value={quantity}
                       onChange={event => setQuantity(event.target.value)}

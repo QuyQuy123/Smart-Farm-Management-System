@@ -552,3 +552,10 @@ Product UI screenshots inside demo-card grids retain native aspect ratios (typic
 - Form validation states beyond `text-input-focus` are not extracted — error and success states for inputs would need a dedicated form page to confirm.
 - The pricing comparison table's checkmark glyph and column-divider widths are described structurally but not formalized as tokens.
 - The CSS variable `--theme_button-background-primary: #1b61c9` exists at `:root` but is not used as the primary CTA color anywhere on the marketing site. It maps to the link/info color role instead. Documented here so future extractions don't re-trip over the misleading variable name.
+
+## Frontend Form & Input UX Rules (`frontendFarmShift`)
+
+- NEVER use raw `<input type="number">` for currency, quantities, weights, or livestock counts. Always use `CurrencyInput` or `QuantityInput`.
+- All currency inputs must format thousand separators (`.`) live, block mouse wheel changes, auto-select `0` on focus, and set `inputMode="numeric"`.
+- All Barn/Cycle and Warehouse/Inventory dropdowns must use shared contextual formatters displaying live headcount/age or remaining stock.
+- All submission buttons must lock (`disabled` + loading state) during pending requests to prevent double-submit; dirty form modals must not dismiss on accidental backdrop clicks.

@@ -523,11 +523,12 @@ export const AccountView = () => {
     }
   };
 
+  const [editStaffInitial, setEditStaffInitial] = useState(null);
   // ── 3. Update Employee ─────────────────────────────────────────────────────
   const handleOpenEdit = (employee) => {
     setEditAvatarFile(null);
     setEditAvatarCrop(null);
-    setEditStaff({
+    const snapshot = {
       id: employee.id,
       fullName: employee.fullName || '',
       email: employee.email || '',
@@ -536,7 +537,9 @@ export const AccountView = () => {
       roleName: employee.roleName || 'ROLE_FARM_WORKER',
       isActive: employee.isActive !== undefined ? employee.isActive : true,
       avatarUrl: employee.avatarUrl || ''
-    });
+    };
+    setEditStaff(snapshot);
+    setEditStaffInitial(snapshot);
     setFormError('');
     setShowEditModal(true);
   };
@@ -1621,7 +1624,10 @@ export const AccountView = () => {
       {/* ── MODAL 1: CREATE EMPLOYEE ──────────────────────────────────────── */}
       {showAddModal && (
         <div className="farmshift-modal-backdrop" onClick={event => {
-          if (event.target === event.currentTarget && !isSubmitting) setShowAddModal(false);
+          const isAddDirty = Boolean(
+            newStaff.fullName || newStaff.email || newStaff.phone || newStaff.password || newStaff.avatarUrl || newStaff.roleName !== 'ROLE_FARM_WORKER'
+          );
+          if (event.target === event.currentTarget && !isSubmitting && !isAddDirty) setShowAddModal(false);
         }}>
           <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
             <div className="farmshift-modal-header">
@@ -1911,7 +1917,10 @@ export const AccountView = () => {
       {/* ── MODAL 3: UPDATE EMPLOYEE & ROLE ───────────────────────────────── */}
       {showEditModal && (
         <div className="farmshift-modal-backdrop" onClick={event => {
-          if (event.target === event.currentTarget && !isSubmitting) setShowEditModal(false);
+          const isEditDirty = Boolean(editAvatarFile) || (
+            editStaffInitial && JSON.stringify(editStaff) !== JSON.stringify(editStaffInitial)
+          );
+          if (event.target === event.currentTarget && !isSubmitting && !isEditDirty) setShowEditModal(false);
         }}>
           <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
             <div className="farmshift-modal-header">

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { MoreVertical, Eye, Pencil, Trash2, X, Plus } from 'lucide-react';
 import { updatePurchase, deletePurchase } from '../../services/purchaseService';
 import { useNotification } from '../../context/NotificationContext';
+import { CurrencyInput } from '../../components/CurrencyInput/CurrencyInput';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './WarehouseCategoriesView.module.css';
 import purchaseStyles from './PurchasesView.module.css';
 function InvoiceDialog({ mode, invoice, suppliers, tags, onClose, onSaved }) {
@@ -35,7 +37,15 @@ function InvoiceDialog({ mode, invoice, suppliers, tags, onClose, onSaved }) {
       onSaved(deleting ? 'Đã xóa hóa đơn.' : 'Đã cập nhật hóa đơn.');
     } catch (error) { setError(error.response?.data?.message || 'Không lưu được thay đổi. Vui lòng thử lại.'); setSaving(false); }
   }
-  return <dialog ref={ref} className={styles.dialog} aria-labelledby="invoice-action-title" onCancel={event => { event.preventDefault(); if (!saving) onClose(); }} onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}><section className={`${styles.modal} ${!deleting ? purchaseStyles.editModal : ''}`}>
+  const isDirty = !deleting && (
+    date !== (invoice.date || '') ||
+    referenceCode !== (invoice.referenceCode || '') ||
+    note !== (invoice.note || '') ||
+    Number(discountAmount || 0) !== Number(invoice.discountAmount || 0) ||
+    Number(otherCost || 0) !== Number(invoice.otherCost || 0) ||
+    items.length !== (invoice.items || []).length
+  );
+  return <dialog ref={ref} className={styles.dialog} aria-labelledby="invoice-action-title" onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }} onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}><section className={`${styles.modal} ${!deleting ? purchaseStyles.editModal : ''}`}>
     <header className={styles.modalHeader}><h2 id="invoice-action-title">{deleting ? 'Xóa' : 'Sửa'} hóa đơn {invoice.code}</h2><button type="button" className={styles.iconButton} aria-label="Đóng" disabled={saving} onClick={onClose}><X size={18} /></button></header>
     <form onSubmit={submit}><div className={`${styles.modalBody} ${!deleting ? purchaseStyles.editBody : ''}`}>
       {error && <p role="alert" className={styles.error}>{error}</p>}
@@ -53,9 +63,9 @@ function InvoiceDialog({ mode, invoice, suppliers, tags, onClose, onSaved }) {
           <div className={purchaseStyles.editItemsHeading}><strong>Chi tiết các mặt hàng nhập:</strong><button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={saving} onClick={() => setItems(rows => [...rows, { name: '', qty: 1, unit: '', price: 0 }])}><Plus size={14} />Thêm dòng hàng</button></div>
           {items.map((item, index) => <div className={purchaseStyles.editItemRow} key={index}>
             <label>Tên hàng hóa *<input aria-label={`Tên hàng hóa ${index + 1}`} className="farmshift-form-control" required maxLength={200} value={item.name} onChange={event => changeItem(index, 'name', event.target.value)} disabled={saving} /></label>
-            <label>Số lượng *<input aria-label={`Số lượng ${index + 1}`} className="farmshift-form-control" type="number" required min="0.001" step="0.001" value={item.qty} onChange={event => changeItem(index, 'qty', event.target.value)} disabled={saving} /></label>
+            <label>Số lượng *<QuantityInput aria-label={`Số lượng ${index + 1}`} inputClassName="farmshift-form-control" allowDecimal required value={item.qty} onChange={event => changeItem(index, 'qty', event.target.value)} disabled={saving} /></label>
             <label>Đơn vị *<input aria-label={`Đơn vị ${index + 1}`} className="farmshift-form-control" required maxLength={50} value={item.unit} onChange={event => changeItem(index, 'unit', event.target.value)} disabled={saving} /></label>
-            <label>Đơn giá (VNĐ) *<input aria-label={`Đơn giá ${index + 1}`} className="farmshift-form-control" type="number" required min="0" step="1" value={item.price} onChange={event => changeItem(index, 'price', event.target.value)} disabled={saving} /></label>
+            <label>Đơn giá (VNĐ) *<CurrencyInput aria-label={`Đơn giá ${index + 1}`} inputClassName="farmshift-form-control" showWords={false} required value={item.price} onChange={event => changeItem(index, 'price', event.target.value)} disabled={saving} /></label>
             <label>Thành tiền<output>{Math.round(Number(item.qty || 0) * Number(item.price || 0)).toLocaleString('vi-VN')} đ</output></label>
             <button type="button" className={styles.iconButton} aria-label={`Xóa dòng hàng ${index + 1}`} disabled={saving || items.length === 1} onClick={() => setItems(rows => rows.filter((_, i) => i !== index))}><Trash2 size={15} /></button>
           </div>)}
@@ -63,8 +73,8 @@ function InvoiceDialog({ mode, invoice, suppliers, tags, onClose, onSaved }) {
         <div className="farmshift-form-group"><label htmlFor="edit-invoice-note">Ghi chú</label><textarea id="edit-invoice-note" className="farmshift-form-control" rows={3} maxLength={1000} value={note} onChange={event => setNote(event.target.value)} disabled={saving} /></div>
         <fieldset disabled={saving} className={purchaseStyles.editTags}><legend>Thẻ tag</legend>{tags.map(tag => <label key={tag.id} ><input type="checkbox" checked={tagIds.includes(tag.id)} onChange={event => setTagIds(ids => event.target.checked ? [...ids, tag.id] : ids.filter(id => id !== tag.id))} />{tag.name}</label>)}</fieldset>
         <div className={purchaseStyles.editStatuses}>
-          <div><label htmlFor="edit-discount">Chiết khấu (VNĐ)</label><input id="edit-discount" type="number" min="0" step="1" required className="farmshift-form-control" value={discountAmount} onChange={event => setDiscountAmount(event.target.value)} disabled={saving} /></div>
-          <div><label htmlFor="edit-other-cost">Chi phí khác (VNĐ)</label><input id="edit-other-cost" type="number" min="0" step="1" required className="farmshift-form-control" value={otherCost} onChange={event => setOtherCost(event.target.value)} disabled={saving} /></div>
+          <div><label htmlFor="edit-discount">Chiết khấu (VNĐ)</label><CurrencyInput id="edit-discount" required inputClassName="farmshift-form-control" value={discountAmount} onChange={event => setDiscountAmount(event.target.value)} disabled={saving} /></div>
+          <div><label htmlFor="edit-other-cost">Chi phí khác (VNĐ)</label><CurrencyInput id="edit-other-cost" required inputClassName="farmshift-form-control" value={otherCost} onChange={event => setOtherCost(event.target.value)} disabled={saving} /></div>
         </div>
         <div className={purchaseStyles.editTotal}>Tổng tiền: <strong>{total.toLocaleString('vi-VN')} đ</strong></div>
       </>}

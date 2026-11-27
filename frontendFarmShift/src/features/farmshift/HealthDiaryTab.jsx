@@ -1,6 +1,7 @@
 // src/features/farmshift/HealthDiaryTab.jsx
 // Nhật ký Sức khỏe đàn gà, Cân mẫu, Tỷ lệ hao hụt & Phác đồ điều trị
 import { CheckCircle, Camera } from 'lucide-react';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 
 export const HealthDiaryTab = ({
   healthRows,
@@ -127,19 +128,17 @@ export const HealthDiaryTab = ({
                         <span className="farmshift-badge farmshift-badge-neutral">Ngày {row.dayAge}</span>
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="farmshift-form-control"
+                        <QuantityInput
+                          allowDecimal
+                          inputClassName="farmshift-form-control"
                           style={{ width: '90px', padding: '4px 8px', height: '34px' }}
                           value={row.avgWeight}
                           onChange={(e) => handleHealthChange(idx, 'avgWeight', e.target.value)}
                         />
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          className="farmshift-form-control"
+                        <QuantityInput
+                          inputClassName="farmshift-form-control"
                           style={{ width: '80px', padding: '4px 8px', height: '34px', color: row.cullCount > 2 ? 'var(--color-signature-coral)' : 'inherit' }}
                           value={row.cullCount}
                           onChange={(e) => handleHealthChange(idx, 'cullCount', e.target.value)}

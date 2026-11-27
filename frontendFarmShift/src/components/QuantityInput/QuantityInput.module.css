@@ -1,0 +1,148 @@
+/* QuantityInput.module.css — Micro-UX quantity / weight input aligned with DESIGN.md */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.label {
+  font-size: var(--fs-body-md, 13.5px);
+  font-weight: var(--fw-medium, 500);
+  color: var(--color-ink, #181d26);
+  line-height: var(--lh-body, 1.4);
+}
+
+.row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.field {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 12px;
+  background-color: var(--color-canvas, #ffffff);
+  color: var(--color-ink, #181d26);
+  font-family: var(--font-sans, inherit);
+  font-size: var(--fs-body-md, 14px);
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--color-hairline, #d7e0dc);
+  border-radius: var(--rounded-sm, 6px);
+  outline: none;
+  -moz-appearance: textfield;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field::-webkit-outer-spin-button,
+.field::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.field:focus {
+  border-color: var(--color-info-border, #019788);
+  box-shadow: 0 0 0 3px rgba(1, 151, 136, 0.14);
+}
+
+.field:disabled,
+.field[readonly] {
+  background-color: var(--color-surface-soft, #f4f7f6);
+  color: var(--color-muted, #64748b);
+  cursor: not-allowed;
+}
+
+.withSuffix {
+  padding-right: 50px;
+}
+
+.withWideSuffix {
+  padding-right: 72px;
+}
+
+.suffix {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-muted, #64748b);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.maxBtn {
+  flex-shrink: 0;
+  padding: 0 11px;
+  min-height: 38px;
+  border-radius: var(--rounded-sm, 6px);
+  border: 1px solid #bfe3db;
+  background-color: #eef8f5;
+  color: #00796b;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.maxBtn:hover:not(:disabled) {
+  background-color: #dcf2ec;
+  border-color: #019788;
+}
+
+.maxBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hasError {
+  border-color: #e11d48 !important;
+}
+
+.hasError:focus {
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.14) !important;
+}
+
+.hasWarning {
+  border-color: #d97706 !important;
+  background-color: #fffdf5;
+}
+
+.hasWarning:focus {
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.16) !important;
+}
+
+.helper {
+  font-size: 12px;
+  color: var(--color-muted, #64748b);
+  line-height: 1.3;
+}
+
+.warningMsg {
+  font-size: 12px;
+  color: #b45309;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.errorMsg {
+  font-size: 12px;
+  color: #e11d48;
+  font-weight: 500;
+  line-height: 1.3;
+}
