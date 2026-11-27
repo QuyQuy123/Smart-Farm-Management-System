@@ -85,6 +85,10 @@
 .stepTable td { padding: 6px; border-top: 1px solid #edf1f0; vertical-align: middle; }
 .stepTable td input, .stepTable td select { min-width: 70px; padding: 7px 8px; font-size: 14.5px; }
 .stepTable td:first-child input, .stepTable td:nth-child(2) input { width: 74px; }
+.feedTable { table-layout: fixed; }
+.feedTable td input, .feedTable td select,
+.feedTable td:first-child input, .feedTable td:nth-child(2) input { width: 100%; min-width: 0; box-sizing: border-box; }
+.feedTable th:nth-child(5) { white-space: normal; }
 .itemHint { margin: 0 0 10px; font-size: 14px; color: #52796f; }
 .legacyTempNotice { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 14px; border-radius: 9px; border: 1px solid #f5e3a6; background: #fffdf5; color: #7c5800; font-size: 13.5px; }
 .rowError td { background: #fff7f7; }
