@@ -6,6 +6,7 @@ import { Calendar, ClipboardList, Edit3, FileSpreadsheet, Plus, Target, X } from
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useNotification } from '../../context/NotificationContext';
 import { FarmingProgramsPanel } from './FarmingProgramsPanel';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import tabStyles from './BreedingSettingsTabs.module.css';
 
 // A card with `to` opens another screen instead of a tab here: care work is assigned on Việc hôm nay › Phân công.
@@ -191,22 +192,22 @@ export const BreedingSettingsView = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Từ ngày tuổi *</label>
-                    <input
-                      type="number"
+                    <QuantityInput
                       required
+                      suffix="ngày"
                       placeholder="1"
-                      className="farmshift-form-control"
+                      inputClassName="farmshift-form-control"
                       value={newGrowth.from}
                       onChange={(e) => setNewGrowth({ ...newGrowth, from: e.target.value })}
                     />
                   </div>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Đến ngày tuổi *</label>
-                    <input
-                      type="number"
+                    <QuantityInput
                       required
+                      suffix="ngày"
                       placeholder="21"
-                      className="farmshift-form-control"
+                      inputClassName="farmshift-form-control"
                       value={newGrowth.to}
                       onChange={(e) => setNewGrowth({ ...newGrowth, to: e.target.value })}
                     />

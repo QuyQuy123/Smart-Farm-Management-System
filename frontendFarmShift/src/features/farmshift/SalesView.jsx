@@ -17,6 +17,9 @@ import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { useViewport } from '../../hooks/useViewport';
 import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
+import { CurrencyInput } from '../../components/CurrencyInput/CurrencyInput';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
+import { sortBarnsForOperation } from '../../utils/selectFormatters';
 
 const broadcastFarmAreasChanged = () => {
   window.dispatchEvent(new Event('farm-areas-changed'));
@@ -235,15 +238,29 @@ export const SalesView = () => {
     setCyclesLoading(true);
     setCyclesError('');
     try {
-      const barns = await listBarns();
+      const barns = sortBarnsForOperation(await listBarns());
       const options = await Promise.all(barns.map(async barn => {
         const cycles = await listCycles(barn.id);
-        return (cycles || []).map(cycle => ({
-          id: String(cycle.id), areaName: barn.areaName, barnName: barn.name, cycleCode: cycle.code,
-          label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}`,
-        }));
+        return (cycles || []).map(cycle => {
+          const headcount = cycle.currentBirds ?? cycle.currentQuantity ?? barn.current ?? barn.currentQuantity ?? null;
+          const ageDays = cycle.ageDays ?? cycle.currentAgeDays ?? barn.ageDays ?? null;
+          const metaParts = [];
+          if (headcount !== null && headcount !== undefined) metaParts.push(`Còn ${Number(headcount).toLocaleString('vi-VN')} con`);
+          if (ageDays !== null && ageDays !== undefined) metaParts.push(`${ageDays} ngày`);
+          const meta = metaParts.length ? ` (${metaParts.join(' · ')})` : '';
+          return {
+            id: String(cycle.id), areaName: barn.areaName, barnName: barn.name, cycleCode: cycle.code,
+            headcount: headcount !== null && headcount !== undefined ? Number(headcount) : null,
+            label: `${barn.areaName} - ${barn.name} - ${cycle.code || `Lứa ${cycle.cycleNumber}`}${meta}`,
+          };
+        });
       }));
-      setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }, ...options.flat()] : options.flat());
+      const flatOptions = options.flat().sort((a, b) => {
+        const aEmpty = a.headcount !== null && a.headcount <= 0 ? 1 : 0;
+        const bEmpty = b.headcount !== null && b.headcount <= 0 ? 1 : 0;
+        return aEmpty - bEmpty;
+      });
+      setCycleOptions(sale ? [{ id: '__existing__', label: sale.flock }, ...flatOptions] : flatOptions);
     } catch {
       setCycleOptions([]);
       setCyclesError('Không thể tải khu nuôi - chuồng - lứa. Vui lòng thử lại.');
@@ -613,7 +630,12 @@ export const SalesView = () => {
 
       {/* Creation lives in its own tab; editing keeps the existing dialog. */}
       {(activeTab === 'create' || showAddModal) && (
-        <div className={showAddModal ? 'farmshift-modal-backdrop' : styles.salePage} onClick={event => { if (showAddModal && event.target === event.currentTarget && !saving) closeSaleForm(); }}>
+        <div className={showAddModal ? 'farmshift-modal-backdrop' : styles.salePage} onClick={event => {
+          const isSaleFormDirty = Boolean(
+            newSale.customer || newSale.quantity || newSale.totalWeight || newSale.unitPrice || newSale.note
+          );
+          if (showAddModal && event.target === event.currentTarget && !saving && !isSaleFormDirty) closeSaleForm();
+        }}>
           <div className={showAddModal ? `farmshift-modal ${styles.modal} ${styles.saleModal}` : `farmshift-card ${styles.salePageCard}`} role={showAddModal ? 'dialog' : 'region'} aria-modal={showAddModal ? true : undefined} aria-labelledby="sale-modal-title">
             <div className="farmshift-modal-header">
               <h3 id="sale-modal-title" className="farmshift-modal-title">{editingSale ? `Chỉnh sửa hóa đơn ${editingSale.code}` : 'Tạo đơn bán hàng'}</h3>
@@ -717,48 +739,60 @@ export const SalesView = () => {
                   {!cyclesLoading && !cyclesError && cycleOptions.length === 0 && <p className={styles.hint}>Chưa có lứa nuôi trong cơ sở dữ liệu.</p>}
                 </div>
 
-                <div className={styles.fieldRow}>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Số con xuất <span className={styles.required}>*</span></label>
-                    <input
-                      type="number"
-                      min="1"
-                      required
-                      placeholder="VD: 1000"
-                      className="farmshift-form-control"
-                      step="1"
-                      value={newSale.quantity}
-                      onChange={(e) => setNewSale({ ...newSale, quantity: e.target.value })}
-                    />
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Tổng khối lượng (kg) <span className={styles.required}>*</span></label>
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="any"
-                      required
-                      placeholder="VD: 2150"
-                      className="farmshift-form-control"
-                      value={newSale.totalWeight}
-                      onChange={(e) => setNewSale({ ...newSale, totalWeight: e.target.value })}
-                    />
-                  </div>
-                  <div className="farmshift-form-group">
-                    <label className="farmshift-form-label">Đơn giá (đ/kg) <span className={styles.required}>*</span></label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[1-9][0-9.]*"
-                      title="Nhập đơn giá lớn hơn 0"
-                      required
-                      placeholder="VD: 78.000"
-                      className="farmshift-form-control"
-                      value={newSale.unitPrice.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
-                      onChange={(e) => setNewSale({ ...newSale, unitPrice: e.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '') })}
-                    />
-                  </div>
-                </div>
+                {(() => {
+                  const selectedCycleOpt = cycleOptions.find(opt => String(opt.id) === String(newSale.flock));
+                  const maxHeads = selectedCycleOpt?.headcount > 0 ? selectedCycleOpt.headcount : undefined;
+                  const qtyNum = Number(newSale.quantity || 0);
+                  const weightNum = Number(newSale.totalWeight || 0);
+                  const avgWeight = qtyNum > 0 && weightNum > 0 ? weightNum / qtyNum : 0;
+                  const avgWeightWarn = avgWeight > 6
+                    ? `Trọng lượng bình quân cao bất thường (${avgWeight.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} kg/con). Vui lòng kiểm tra lại.`
+                    : '';
+                  return (
+                    <div className={styles.fieldRow}>
+                      <div className="farmshift-form-group">
+                        <label className="farmshift-form-label">Số con xuất <span className={styles.required}>*</span></label>
+                        <QuantityInput
+                          required
+                          suffix="con"
+                          max={maxHeads}
+                          showMaxButton={Boolean(maxHeads)}
+                          placeholder="VD: 1000"
+                          inputClassName="farmshift-form-control"
+                          value={newSale.quantity}
+                          onChange={(e) => setNewSale({ ...newSale, quantity: e.target.value })}
+                        />
+                      </div>
+                      <div className="farmshift-form-group">
+                        <label className="farmshift-form-label">Tổng khối lượng (kg) <span className={styles.required}>*</span></label>
+                        <QuantityInput
+                          allowDecimal
+                          required
+                          suffix="kg"
+                          warning={avgWeightWarn}
+                          placeholder="VD: 2150"
+                          inputClassName="farmshift-form-control"
+                          value={newSale.totalWeight}
+                          onChange={(e) => setNewSale({ ...newSale, totalWeight: e.target.value })}
+                        />
+                      </div>
+                      <div className="farmshift-form-group">
+                        <label className="farmshift-form-label">Đơn giá (đ/kg) <span className={styles.required}>*</span></label>
+                        <CurrencyInput
+                          suffix="đ/kg"
+                          showWords={false}
+                          pattern="[1-9][0-9.]*"
+                          title="Nhập đơn giá lớn hơn 0"
+                          required
+                          placeholder="VD: 78.000"
+                          inputClassName="farmshift-form-control"
+                          value={newSale.unitPrice}
+                          onChange={(e) => setNewSale({ ...newSale, unitPrice: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-tax-code">Mã số thuế</label>
@@ -835,7 +869,7 @@ export const SalesView = () => {
                 </div>
                 {newSale.paymentStatus === 'PARTIAL' && <div className="farmshift-form-group">
                   <label className="farmshift-form-label" htmlFor="sale-paid-amount">Số tiền đã trả (đ) <span className={styles.required}>*</span></label>
-                  <input id="sale-paid-amount" type="text" inputMode="numeric" required pattern="[1-9][0-9.]*" title="Nhập số tiền đã trả lớn hơn 0" className="farmshift-form-control" value={newSale.paidAmount.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} onChange={event => setNewSale({ ...newSale, paidAmount: event.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '') })} />
+                  <CurrencyInput id="sale-paid-amount" required pattern="[1-9][0-9.]*" title="Nhập số tiền đã trả lớn hơn 0" inputClassName="farmshift-form-control" value={newSale.paidAmount} onChange={event => setNewSale({ ...newSale, paidAmount: event.target.value })} />
                 </div>}
 
                 <div className={`farmshift-form-group ${newSale.paymentStatus === 'PARTIAL' ? styles.fullField : styles.wideField}`}>
@@ -847,7 +881,12 @@ export const SalesView = () => {
                     onChange={(e) => setNewSale({ ...newSale, note: e.target.value })}
                   />
                 </div>
-                <p className={styles.saleTotal}>Tổng tiền: <strong>{formatMoney(Number(newSale.totalWeight) * Number(newSale.unitPrice))}</strong></p>
+                <p className={styles.saleTotal}>
+                  {Number(newSale.quantity) > 0 && Number(newSale.totalWeight) > 0 && (
+                    <>Bình quân: <strong>{(Number(newSale.totalWeight) / Number(newSale.quantity)).toLocaleString('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg/con</strong> · </>
+                  )}
+                  Tổng tiền: <strong>{formatMoney(Number(newSale.totalWeight) * Number(newSale.unitPrice))}</strong>
+                </p>
               </div>
 
               <div className="farmshift-modal-footer">
@@ -871,7 +910,7 @@ export const SalesView = () => {
 
       {payment && (
         <div className="farmshift-modal-backdrop" onClick={event => {
-          if (event.target === event.currentTarget && !paying) setPayment(null);
+          if (event.target === event.currentTarget && !paying && !payment.amount) setPayment(null);
         }}>
           <form className={`farmshift-modal ${styles.modal} ${styles.paymentModal}`} role="dialog" aria-modal="true" aria-labelledby="sales-payment-title" onSubmit={submitPayment}>
             <div className="farmshift-modal-header">
@@ -889,12 +928,14 @@ export const SalesView = () => {
               </div>
               <div className="farmshift-form-group">
                 <label className="farmshift-form-label" htmlFor="sales-payment-amount">Số tiền thanh toán (đ)</label>
-                <input id="sales-payment-amount" className="farmshift-form-control" type="text" inputMode="decimal"
-                  required value={payment.amount.replace(/^\d+/, digits => digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.'))}
-                  disabled={paying} onChange={event => {
-                    const amount = event.target.value.replace(/\./g, '').replace(/^0+(?=\d)/, '');
-                    if (/^\d*(,\d{0,2})?$/.test(amount)) setPayment(previous => ({ ...previous, amount }));
-                  }} />
+                <CurrencyInput
+                  id="sales-payment-amount"
+                  inputClassName="farmshift-form-control"
+                  required
+                  value={payment.amount}
+                  disabled={paying}
+                  onChange={event => setPayment(previous => ({ ...previous, amount: event.target.value }))}
+                />
               </div>
               {paymentError && <p role="alert" className={styles.error}>{paymentError}</p>}
             </div>

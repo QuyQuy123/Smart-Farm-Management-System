@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UpdateProfileRequest {
-    @jakarta.validation.constraints.Email(message = "Email không hợp lệ")
-    @Size(min = 1, max = 50)
+    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", message = "Email không hợp lệ")
+    @Size(max = 255, message = "Email không được vượt quá 255 ký tự")
     private String email;
     
     @NotBlank(message = "Full name is required")

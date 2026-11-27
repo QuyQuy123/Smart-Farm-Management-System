@@ -104,11 +104,14 @@ export function CloseCycleDialog({ barn, cycle, onClose, onDone }) {
     }
   };
 
+  const isDirty = endDate !== today || note.trim() !== '';
+
   return (
     <Dialog
       title={`Kết thúc lứa nuôi thứ ${cycle.cycleNumber}`}
       labelId="close-cycle-dialog-title"
       busy={saving}
+      isDirty={isDirty}
       onClose={onClose}
       wide
     >

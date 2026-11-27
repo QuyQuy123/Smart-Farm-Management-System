@@ -10,6 +10,8 @@ import { useNotification } from '../../context/NotificationContext';
 
 import { TransferCategoriesView } from './TransferCategoriesView';
 import { listTransferCategories, TRANSFER_TYPES } from '../../services/transferCategoryService';
+import { CurrencyInput } from '../../components/CurrencyInput/CurrencyInput';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 
 export const TransfersView = () => {
   const { showToast } = useNotification();
@@ -407,14 +409,14 @@ export const TransfersView = () => {
                             />
                           </td>
                           <td>
-                            <input
-                              type="number"
-                              className="farmshift-form-control"
+                            <QuantityInput
+                              allowDecimal
+                              inputClassName="farmshift-form-control"
                               style={{ height: '34px', padding: '4px 8px' }}
                               value={it.qty}
                               onChange={(e) => {
                                 const copy = [...newSlip.items];
-                                copy[idx].qty = Number(e.target.value);
+                                copy[idx].qty = Number(e.target.value || 0);
                                 setNewSlip({ ...newSlip, items: copy });
                               }}
                             />
@@ -433,14 +435,15 @@ export const TransfersView = () => {
                             />
                           </td>
                           <td>
-                            <input
-                              type="number"
-                              className="farmshift-form-control"
+                            <CurrencyInput
+                              showWords={false}
+                              suffix=""
+                              inputClassName="farmshift-form-control"
                               style={{ height: '34px', padding: '4px 8px' }}
                               value={it.price}
                               onChange={(e) => {
                                 const copy = [...newSlip.items];
-                                copy[idx].price = Number(e.target.value);
+                                copy[idx].price = Number(e.target.value || 0);
                                 setNewSlip({ ...newSlip, items: copy });
                               }}
                             />

@@ -58,6 +58,7 @@ public class FlockService {
         LocalDate date = request.importDate();
         checkDate(cycle, date, "Ngày nhập đàn");
         checkImportWindow(cycle, date);
+        checkAgeSpread(cycle, date, request.ageAtImport());
         checkCapacity(barn, request.quantity());
         Supplier supplier = request.supplierId() == null ? null : supplierRepository.findById(request.supplierId())
                 .orElseThrow(() -> new ResourceNotFoundException("Nhà cung cấp đã chọn không tồn tại."));
@@ -65,15 +66,26 @@ public class FlockService {
         Flock flock = new Flock();
         flock.setCycle(cycle);
         flock.setName(FarmAreaService.normalizeName(request.name()));
-        flock.setProgram(programService.find(request.programId()));
+        flock.setImportDate(date);
+        flock.setAgeAtImport(request.ageAtImport());
+        if (request.programId() != null) {
+            flock.setProgram(programService.find(request.programId()));
+        } else {
+            FarmingProgram existingProgram = repository.findAllByCycleIdOrderByImportDateAscIdAsc(cycleId).stream()
+                    .filter(f -> f.getStatus() == FlockStatus.ACTIVE && f.getProgram() != null)
+                    .map(Flock::getProgram)
+                    .findFirst()
+                    .orElse(null);
+            if (existingProgram != null && ageOn(flock, today()) <= existingProgram.getDurationDays()) {
+                flock.setProgram(existingProgram);
+            }
+        }
         flock.setGender(request.gender());
         flock.setSourceType(FlockSource.PURCHASE);
         flock.setSupplier(supplier);
         // source_note giữ tên nguồn nhập dạng chữ cho dữ liệu cũ / báo cáo; có nhà cung cấp thì lấy tên nhà cung cấp.
         flock.setSourceNote(supplier != null ? supplier.getName()
                 : request.sourceNote() == null || request.sourceNote().isBlank() ? "Khác" : request.sourceNote().strip());
-        flock.setImportDate(date);
-        flock.setAgeAtImport(request.ageAtImport());
         flock.setImportQuantity(request.quantity());
         flock.setImportAvgWeight(request.avgWeight());
         flock.setUnitPrice(request.unitPrice());
@@ -284,6 +296,34 @@ public class FlockService {
         if (ChronoUnit.DAYS.between(first, last) > MAX_IMPORT_SPREAD_DAYS) {
             throw new BadRequestException("Các đàn trong một lứa phải nhập cách nhau không quá " + MAX_IMPORT_SPREAD_DAYS
                     + " ngày (đàn đầu tiên nhập ngày " + format(imports.get(0)) + "). Hãy khai báo lứa nuôi mới cho đàn này.", "FLOCK_IMPORT_WINDOW");
+        }
+    }
+
+    /** Ngày tuổi lúc nhập của các đàn trong cùng một chuồng/lứa không được chênh lệch quá {@link CycleService#MAX_IMPORT_SPREAD_DAYS} ngày. */
+    private void checkAgeSpread(FarmingCycle cycle, LocalDate importDate, int ageAtImport) {
+        List<Flock> all = repository.findAllByCycleIdOrderByImportDateAscIdAsc(cycle.getId());
+        List<Flock> existing = all.stream().filter(f -> f.getSourceType() == FlockSource.PURCHASE).toList();
+        if (existing.isEmpty()) existing = all;
+        if (existing.isEmpty()) return;
+
+        LocalDate newHatch = importDate.minusDays(ageAtImport - 1L);
+        LocalDate minHatch = newHatch;
+        LocalDate maxHatch = newHatch;
+        for (Flock f : existing) {
+            LocalDate hatch = f.getImportDate().minusDays(f.getAgeAtImport() - 1L);
+            if (hatch.isBefore(minHatch)) minHatch = hatch;
+            if (hatch.isAfter(maxHatch)) maxHatch = hatch;
+        }
+        if (ChronoUnit.DAYS.between(minHatch, maxHatch) > MAX_IMPORT_SPREAD_DAYS) {
+            LocalDate firstHatch = existing.get(0).getImportDate().minusDays(existing.get(0).getAgeAtImport() - 1L);
+            long expectedAge = ChronoUnit.DAYS.between(firstHatch, importDate) + 1;
+            long minAllowed = Math.max(1, expectedAge - MAX_IMPORT_SPREAD_DAYS);
+            long maxAllowed = Math.min(365, expectedAge + MAX_IMPORT_SPREAD_DAYS);
+            throw new BadRequestException(
+                    "Ngày tuổi lúc nhập chênh lệch quá " + MAX_IMPORT_SPREAD_DAYS
+                            + " ngày so với đàn đầu tiên (cho phép " + minAllowed + "–" + maxAllowed
+                            + " ngày tuổi vào ngày " + format(importDate) + "). Hãy khai báo lứa nuôi mới.",
+                    "FLOCK_AGE_SPREAD");
         }
     }
 

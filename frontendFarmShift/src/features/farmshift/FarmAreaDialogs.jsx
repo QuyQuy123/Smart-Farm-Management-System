@@ -3,6 +3,7 @@ import { AlertCircle, AlertTriangle, X } from 'lucide-react';
 import { createBarn, createFarmArea, deleteBarn, deleteFarmArea, updateBarn, updateFarmArea } from '../../services/farmAreaService';
 import { listWarehouseCategories } from '../../services/warehouseCategoryService';
 import { BIRDS_PER_M2, apiErrorMessage, suggestCapacity, validateBarn } from './farmAreaOptions';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './AreasView.module.css';
 
 // Validation (400) and duplicate-name (409) responses carry { field: message } in data.
@@ -11,7 +12,7 @@ const apiFieldErrors = error => {
   return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
 };
 
-export function Dialog({ title, labelId, busy, onClose, wide, className = '', children }) {
+export function Dialog({ title, labelId, busy, isDirty = false, onClose, wide, className = '', children }) {
   const dialog = useRef(null);
   useEffect(() => {
     const element = dialog.current;
@@ -21,8 +22,8 @@ export function Dialog({ title, labelId, busy, onClose, wide, className = '', ch
     return () => { element.close(); document.body.style.overflow = overflow; };
   }, []);
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby={labelId}
-    onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}
-    onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    onCancel={event => { event.preventDefault(); if (!busy && !isDirty) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !busy && !isDirty) onClose(); }}>
     <section className={`${styles.modal} ${wide ? styles.modalWide : ''} ${className}`}>
       <header className={styles.modalHeader}>
         <h2 id={labelId}>{title}</h2>
@@ -53,7 +54,8 @@ export function AreaDialog({ area, onClose, onSaved }) {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const set = (key, value) => { setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+  const [dirty, setDirty] = useState(false);
+  const set = (key, value) => { setDirty(true); setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +90,7 @@ export function AreaDialog({ area, onClose, onSaved }) {
     }
   };
 
-  return <Dialog title={editing ? 'Chỉnh sửa khu nuôi' : 'Thêm mới khu nuôi'} labelId="farm-area-dialog-title" busy={saving} onClose={onClose} wide>
+  return <Dialog title={editing ? 'Chỉnh sửa khu nuôi' : 'Thêm mới khu nuôi'} labelId="farm-area-dialog-title" busy={saving} isDirty={dirty} onClose={onClose} wide>
     <form onSubmit={submit} noValidate>
       <div className={styles.modalBody}>
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
@@ -146,10 +148,12 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   // Capacity follows the area suggestion until the owner types their own number.
   const [capacityAuto, setCapacityAuto] = useState(() => !barn || String(suggestCapacity(barn.areaM2 ?? '')) === String(barn.capacity));
-  const set = (key, value) => { setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+  const set = (key, value) => { setDirty(true); setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
   const setArea = value => {
+    setDirty(true);
     const suggested = suggestCapacity(value);
     setForm(current => ({ ...current, areaM2: value, ...(capacityAuto && suggested ? { capacity: String(suggested) } : {}) }));
     setErrors(current => ({ ...current, areaM2: undefined, capacity: undefined }));
@@ -200,7 +204,7 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
     onChange: event => set(key, event.target.value), 'aria-invalid': Boolean(errors[key]), 'aria-describedby': errors[key] ? `barn-${key}-error` : undefined,
   });
 
-  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : fixedArea ? `Tạo Chuồng · ${fixedArea.name}` : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} onClose={onClose} wide className={styles.barnModal}>
+  return <Dialog title={editing ? 'Chỉnh sửa chuồng' : fixedArea ? `Tạo Chuồng · ${fixedArea.name}` : 'Tạo Chuồng'} labelId="barn-dialog-title" busy={saving} isDirty={dirty} onClose={onClose} wide className={styles.barnModal}>
     <form onSubmit={submit} noValidate>
       <div className={styles.modalBody}>
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}
@@ -209,10 +213,14 @@ export function BarnDialog({ barn, areas, defaultAreaId, onClose, onSaved }) {
             {areas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
           </select>, true)}
           {field('name', 'Tên chuồng', <input {...inputProps('name')} maxLength={100} placeholder="Ví dụ: Nhà A1" autoFocus />, true)}
-          {field('areaM2', 'Diện tích (m²)', <input {...inputProps('areaM2')} onChange={event => setArea(event.target.value)}
-            type="number" min="0" step="0.01" inputMode="decimal" placeholder="Ví dụ: 1000" />)}
-          {field('capacity', 'Sức chứa tối đa (con)', <input {...inputProps('capacity')} onChange={event => setCapacity(event.target.value)}
-            type="number" min="1" step="1" inputMode="numeric" placeholder="Ví dụ: 8000" />, true, capacityHint)}
+          {field('areaM2', 'Diện tích (m²)', (() => {
+            const { className, ...rest } = inputProps('areaM2');
+            return <QuantityInput {...rest} inputClassName={className} allowDecimal suffix="m²" onChange={event => setArea(event.target.value)} placeholder="Ví dụ: 1000" />;
+          })())}
+          {field('capacity', 'Sức chứa tối đa (con)', (() => {
+            const { className, ...rest } = inputProps('capacity');
+            return <QuantityInput {...rest} inputClassName={className} suffix="con" onChange={event => setCapacity(event.target.value)} placeholder="Ví dụ: 8000" />;
+          })(), true, capacityHint)}
         </div>
         <p className={styles.formHint}>{editing
           ? `Đang nuôi ${(barn.currentQuantity || 0).toLocaleString('vi-VN')} con. Số con chỉ thay đổi qua nhập đàn, chuyển đàn, hao hụt và xuất bán.`

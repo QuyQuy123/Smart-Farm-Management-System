@@ -61,6 +61,8 @@ export const generateEmailFromName = (fullName) => {
   return clean ? `${clean}@smartfarm.com` : '';
 };
 
+const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
 // Dynamic Field Validation for Personal Profile (Real-time FE Validation)
 export const validateProfileField = (field, value, allValues = {}) => {
   const val = value !== undefined && value !== null ? String(value).trim() : '';
@@ -75,6 +77,18 @@ export const validateProfileField = (field, value, allValues = {}) => {
       }
       if (val.length > 100) {
         return 'Họ và tên không được vượt quá 100 ký tự.';
+      }
+      return '';
+
+    case 'email':
+      if (!val) {
+        return 'Email tài khoản là bắt buộc, không được để trống.';
+      }
+      if (val.length > 255) {
+        return 'Email tài khoản không được vượt quá 255 ký tự.';
+      }
+      if (!EMAIL_REGEX.test(val)) {
+        return 'Email không đúng định dạng (VD: ten@domain.com).';
       }
       return '';
 
@@ -133,8 +147,11 @@ export const validateProfileField = (field, value, allValues = {}) => {
   }
 };
 
-export const validateAllProfile = (formData) => {
+export const validateAllProfile = (formData, { requireEmail = false } = {}) => {
   const fields = ['fullName', 'phone', 'citizenId', 'dateOfBirth', 'address'];
+  if (requireEmail || (formData.email !== undefined && String(formData.email).trim() !== '')) {
+    fields.push('email');
+  }
   const errors = {};
   fields.forEach(f => {
     const err = validateProfileField(f, formData[f], formData);
@@ -253,6 +270,7 @@ export const AccountView = () => {
     id: null,
     fullName: '',
     email: '',
+    originalEmail: '',
     phone: '',
     roleName: 'ROLE_FARM_WORKER',
     isActive: true,
@@ -505,19 +523,23 @@ export const AccountView = () => {
     }
   };
 
+  const [editStaffInitial, setEditStaffInitial] = useState(null);
   // ── 3. Update Employee ─────────────────────────────────────────────────────
   const handleOpenEdit = (employee) => {
     setEditAvatarFile(null);
     setEditAvatarCrop(null);
-    setEditStaff({
+    const snapshot = {
       id: employee.id,
       fullName: employee.fullName || '',
       email: employee.email || '',
+      originalEmail: employee.email || '',
       phone: employee.phone || '',
       roleName: employee.roleName || 'ROLE_FARM_WORKER',
       isActive: employee.isActive !== undefined ? employee.isActive : true,
       avatarUrl: employee.avatarUrl || ''
-    });
+    };
+    setEditStaff(snapshot);
+    setEditStaffInitial(snapshot);
     setFormError('');
     setShowEditModal(true);
   };
@@ -545,9 +567,26 @@ export const AccountView = () => {
     e.preventDefault();
     setFormError('');
 
-    if (!editStaff.fullName.trim() || !editStaff.email.trim()) {
+    const trimmedEmail = editStaff.email.trim();
+    if (!editStaff.fullName.trim() || !trimmedEmail) {
       setFormError(getSystemMessage('MSG02'));
       return;
+    }
+
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      setFormError('Email không đúng định dạng (VD: ten@domain.com).');
+      return;
+    }
+
+    const originalEmail = (editStaff.originalEmail || '').trim().toLowerCase();
+    const currentUserEmail = (user?.email || '').trim().toLowerCase();
+    const isEditingSelf = Boolean(originalEmail && currentUserEmail && originalEmail === currentUserEmail);
+
+    if (isEditingSelf && trimmedEmail.toLowerCase() !== originalEmail) {
+      const confirmed = window.confirm(
+        `Bạn đang thay đổi email đăng nhập của chính mình từ "${editStaff.originalEmail}" sang "${trimmedEmail}". Bạn có chắc chắn muốn tiếp tục?`
+      );
+      if (!confirmed) return;
     }
 
     setIsSubmitting(true);
@@ -559,14 +598,37 @@ export const AccountView = () => {
         setEditStaff(current => ({ ...current, avatarUrl }));
         setEditAvatarFile(null);
       }
-      await updateEmployee(editStaff.id, {
+      const updated = await updateEmployee(editStaff.id, {
         fullName: editStaff.fullName.trim(),
-        email: editStaff.email.trim(),
+        email: trimmedEmail,
         phone: editStaff.phone.trim() || null,
         roleName: editStaff.roleName,
         isActive: editStaff.isActive,
         avatarUrl
       });
+
+      if (isEditingSelf && updated) {
+        setProfileForm(prev => ({
+          ...prev,
+          email: updated.email ?? trimmedEmail,
+          fullName: updated.fullName ?? editStaff.fullName.trim(),
+          phone: updated.phone ?? '',
+          citizenId: updated.citizenId ?? prev.citizenId,
+          address: updated.address ?? prev.address,
+          dateOfBirth: updated.dateOfBirth ?? prev.dateOfBirth,
+          avatarUrl: updated.avatarUrl ?? ''
+        }));
+        updateUser({
+          email: updated.email ?? trimmedEmail,
+          name: updated.fullName ?? editStaff.fullName.trim(),
+          fullName: updated.fullName ?? editStaff.fullName.trim(),
+          phone: updated.phone ?? '',
+          avatarUrl: updated.avatarUrl ?? '',
+          ...(updated.citizenId !== undefined ? { citizenId: updated.citizenId || '' } : {}),
+          ...(updated.address !== undefined ? { address: updated.address || '' } : {}),
+          ...(updated.dateOfBirth !== undefined ? { dateOfBirth: updated.dateOfBirth || '' } : {})
+        });
+      }
 
       showToast('MSG03', 'success');
       setShowEditModal(false);
@@ -639,6 +701,9 @@ export const AccountView = () => {
       const url = await fileService.uploadAvatar(croppedFile, croppedBase64);
       setProfileForm(prev => ({ ...prev, avatarUrl: url }));
       updateUser({ avatarUrl: url });
+      if (canManageStaff) {
+        setStaffRevision(r => r + 1);
+      }
       setProfileMessage({ type: 'success', text: 'Đã lưu ảnh đại diện thành công.' });
     } catch (err) {
       setProfileMessage({ type: 'error', text: err.response?.data?.message || 'Không lưu được ảnh đại diện. Vui lòng thử lại.' });
@@ -689,8 +754,10 @@ export const AccountView = () => {
     setProfileMessage({ type: '', text: '' });
 
     // 1. Mark all fields touched for instant visual feedback
+    const isOwner = user?.role === 'ROLE_FARM_OWNER';
     const allTouched = {
       fullName: true,
+      ...(isOwner ? { email: true } : {}),
       phone: true,
       citizenId: true,
       dateOfBirth: true,
@@ -699,7 +766,7 @@ export const AccountView = () => {
     setProfileTouched(allTouched);
 
     // 2. Validate all fields client-side dynamically
-    const validationErrors = validateAllProfile(profileForm);
+    const validationErrors = validateAllProfile(profileForm, { requireEmail: isOwner });
     setProfileErrors(validationErrors);
 
     const errorFields = Object.keys(validationErrors).filter(k => validationErrors[k]);
@@ -723,10 +790,19 @@ export const AccountView = () => {
       return; // STOP! Do not call Backend API with invalid data!
     }
 
+    const nextEmail = profileForm.email.trim();
+    const currentEmail = (user?.email || '').trim();
+    if (isOwner && currentEmail && nextEmail.toLowerCase() !== currentEmail.toLowerCase()) {
+      const confirmed = window.confirm(
+        `Bạn đang thay đổi email đăng nhập từ "${currentEmail}" sang "${nextEmail}". Email mới sẽ được dùng cho các lần đăng nhập sau. Bạn có chắc chắn muốn lưu?`
+      );
+      if (!confirmed) return;
+    }
+
     setIsSavingProfile(true);
     try {
       const payload = {
-        ...(user?.role === 'ROLE_FARM_OWNER' ? { email: profileForm.email.trim() } : {}),
+        ...(isOwner ? { email: nextEmail } : {}),
         fullName: (profileForm.fullName || '').trim(),
         avatarUrl: profileForm.avatarUrl || null,
         phone: profileForm.phone?.trim() || null,
@@ -754,6 +830,9 @@ export const AccountView = () => {
         dateOfBirth: updated.dateOfBirth || '',
         avatarUrl: updated.avatarUrl || ''
       });
+      if (canManageStaff) {
+        setStaffRevision(r => r + 1);
+      }
       setProfileErrors({});
       setProfileTouched({});
       setProfileMessage({ type: 'success', text: getSystemMessage('MSG13') });
@@ -1177,17 +1256,41 @@ export const AccountView = () => {
                   </div>
 
                   <div className="farmshift-form-group">
-                    <label className="farmshift-form-label" style={{ marginBottom: '4px' }}>Email tài khoản</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="farmshift-form-label" htmlFor="profile-email" style={{ margin: 0 }}>
+                        Email tài khoản {user?.role === 'ROLE_FARM_OWNER' && '*'}
+                      </label>
+                      {user?.role === 'ROLE_FARM_OWNER' && profileTouched.email && !profileErrors.email && profileForm.email && (
+                        <span style={{ fontSize: '13px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <CheckCircle size={12} /> Hợp lệ
+                        </span>
+                      )}
+                    </div>
                     <input
+                      id="profile-email"
+                      name="email"
                       type="email"
                       readOnly={user?.role !== 'ROLE_FARM_OWNER'}
                       required
-                      maxLength={50}
-                      className="farmshift-form-control"
+                      maxLength={255}
+                      className={`farmshift-form-control ${
+                        user?.role === 'ROLE_FARM_OWNER' && profileTouched.email && profileErrors.email
+                          ? 'is-invalid'
+                          : user?.role === 'ROLE_FARM_OWNER' && profileTouched.email && !profileErrors.email && profileForm.email
+                          ? 'is-valid'
+                          : ''
+                      }`}
                       style={user?.role !== 'ROLE_FARM_OWNER' ? { backgroundColor: 'var(--color-surface-soft)', cursor: 'not-allowed' } : undefined}
                       value={profileForm.email}
-                      onChange={e => setProfileForm(prev => ({ ...prev, email: e.target.value }))}
+                      onChange={e => handleProfileFieldChange('email', e.target.value)}
+                      onBlur={() => user?.role === 'ROLE_FARM_OWNER' && handleProfileFieldBlur('email')}
                     />
+                    {user?.role === 'ROLE_FARM_OWNER' && profileTouched.email && profileErrors.email && (
+                      <div className="farmshift-field-error-msg" role="alert">
+                        <AlertCircle size={13} />
+                        <span>{profileErrors.email}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="farmshift-form-group">
@@ -1276,7 +1379,7 @@ export const AccountView = () => {
                 <div className="farmshift-form-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                     <label className="farmshift-form-label" htmlFor="profile-dateOfBirth" style={{ margin: 0 }}>
-                      Ngày sinh (dd/mm/yyyy)
+                      Ngày sinh
                     </label>
                     {profileTouched.dateOfBirth && !profileErrors.dateOfBirth && profileForm.dateOfBirth && (
                       <span style={{ fontSize: '13px', color: '#059669', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -1521,7 +1624,10 @@ export const AccountView = () => {
       {/* ── MODAL 1: CREATE EMPLOYEE ──────────────────────────────────────── */}
       {showAddModal && (
         <div className="farmshift-modal-backdrop" onClick={event => {
-          if (event.target === event.currentTarget && !isSubmitting) setShowAddModal(false);
+          const isAddDirty = Boolean(
+            newStaff.fullName || newStaff.email || newStaff.phone || newStaff.password || newStaff.avatarUrl || newStaff.roleName !== 'ROLE_FARM_WORKER'
+          );
+          if (event.target === event.currentTarget && !isSubmitting && !isAddDirty) setShowAddModal(false);
         }}>
           <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
             <div className="farmshift-modal-header">
@@ -1811,7 +1917,10 @@ export const AccountView = () => {
       {/* ── MODAL 3: UPDATE EMPLOYEE & ROLE ───────────────────────────────── */}
       {showEditModal && (
         <div className="farmshift-modal-backdrop" onClick={event => {
-          if (event.target === event.currentTarget && !isSubmitting) setShowEditModal(false);
+          const isEditDirty = Boolean(editAvatarFile) || (
+            editStaffInitial && JSON.stringify(editStaff) !== JSON.stringify(editStaffInitial)
+          );
+          if (event.target === event.currentTarget && !isSubmitting && !isEditDirty) setShowEditModal(false);
         }}>
           <div className="farmshift-modal" style={{ maxWidth: '540px' }}>
             <div className="farmshift-modal-header">

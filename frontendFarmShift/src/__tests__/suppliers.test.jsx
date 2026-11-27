@@ -115,4 +115,32 @@ describe('Supplier CRUD', () => {
     expect(within(dialog).getAllByText('10.000.000 đ').length).toBeGreaterThanOrEqual(1);
     expect(within(dialog).getAllByText('15.000.000 đ').length).toBeGreaterThanOrEqual(1);
   });
+
+  it('blocks backdrop click and cancel when edit dialog is dirty, but allows when clean or in view mode', async () => {
+    render(<SuppliersView />);
+    await screen.findByText('Công ty A');
+
+    // View mode is always dismissible on backdrop click
+    fireEvent.click(screen.getByRole('button', { name: 'Xem Công ty A' }));
+    const viewDialog = await screen.findByRole('dialog');
+    fireEvent.click(viewDialog);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    // Edit mode: dirty blocks backdrop click and cancel
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa Công ty A' }));
+    const editDialog = await screen.findByRole('dialog');
+    const nameInput = within(editDialog).getByLabelText(/Đơn vị cung cấp/);
+    fireEvent.change(nameInput, { target: { value: 'Công ty A (đã sửa)' } });
+
+    fireEvent.click(editDialog);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent(editDialog, new Event('cancel', { cancelable: true }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // Reverting to initial value makes it clean -> backdrop click closes it
+    fireEvent.change(nameInput, { target: { value: 'Công ty A' } });
+    fireEvent.click(editDialog);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
 });

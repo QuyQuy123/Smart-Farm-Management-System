@@ -4,6 +4,7 @@ import { listBrands } from '../../services/brandService';
 import { listMeasurementUnits } from '../../services/measurementUnitService';
 import { createInventoryItem, updateInventoryItem, deleteInventoryItem } from '../../services/inventoryItemService';
 import { fileService } from '../../services/fileService';
+import { formatShortVietnameseCurrency } from '../../utils/selectFormatters';
 import styles from './WarehouseCategoriesView.module.css';
 
 const formatPrice = value => {
@@ -90,9 +91,18 @@ export const InventoryItemDialog = ({ mode, item, warehouse, canSeeFinance = tru
     if (!['image/jpeg', 'image/png', 'image/gif'].includes(selected.type) || selected.size > 5 * 1024 * 1024) { setError('Chọn ảnh JPEG, PNG hoặc GIF tối đa 5MB.'); return; }
     setFile(selected); setError('');
   };
+  const isDirty = !readOnly && !deleting && (
+    name !== (item?.name || '') ||
+    brandId !== String(item?.brandId || '') ||
+    unitId !== String(item?.unitId || '') ||
+    price !== String(item?.price ?? '') ||
+    imageUrl !== (item?.imageUrl || '') ||
+    Boolean(file)
+  );
+  const priceWordsHint = formatShortVietnameseCurrency(Number(price));
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="inventory-item-title"
-    onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-    onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}>
     <section className={`${styles.modal} ${!deleting ? styles.modalWide : ''}`}>
       <header className={styles.modalHeader}><h2 id="inventory-item-title">{title}</h2><button type="button" className={styles.iconButton} disabled={saving} aria-label="Đóng" onClick={onClose}><X size={20} /></button></header>
       <form onSubmit={submit}><div className={styles.modalBody}>
@@ -122,7 +132,8 @@ export const InventoryItemDialog = ({ mode, item, warehouse, canSeeFinance = tru
           {(canSeeFinance || !readOnly) && (
             <div className={styles.formField}>
             <label htmlFor="inventory-price">Giá tiền (đ) {!readOnly && <span className={styles.required}>*</span>}</label>
-            <input id="inventory-price" type="text" inputMode="decimal" className="farmshift-form-control" placeholder="Ví dụ: 320.000" value={formatPrice(price)} onChange={event => { const parsed = parsePrice(event.target.value); if (parsed !== null) setPrice(parsed); }} required readOnly={readOnly} disabled={saving} />
+            <input id="inventory-price" type="text" inputMode="decimal" className="farmshift-form-control" placeholder="Ví dụ: 320.000" value={formatPrice(price)} onChange={event => { const parsed = parsePrice(event.target.value); if (parsed !== null) setPrice(parsed); }} onFocus={event => { if (event.target.value.trim() === '0') event.target.select(); }} onWheel={event => event.currentTarget.blur()} required readOnly={readOnly} disabled={saving} />
+            {priceWordsHint && <small style={{ fontSize: '12px', color: 'var(--color-muted, #60726e)', marginTop: '4px', display: 'block' }}>{priceWordsHint}</small>}
             </div>
           )}
           <div className={styles.formField}>

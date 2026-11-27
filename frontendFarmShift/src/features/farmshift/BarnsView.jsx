@@ -11,6 +11,7 @@ import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { INITIAL_FARMSHIFT_DATA } from '../../data/farmshiftMockData';
 import { CctvPlayer } from '../../components/CctvPlayer';
 import { StockTempChart } from '../../components/StockTempChart';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 
 export const BarnsView = () => {
   const location = useLocation();
@@ -1110,11 +1111,10 @@ export const BarnsView = () => {
 
                 <div className="farmshift-form-group">
                   <label className="farmshift-form-label">Số chuồng ban đầu</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    className="farmshift-form-control"
+                  <QuantityInput
+                    max={20}
+                    suffix="chuồng"
+                    inputClassName="farmshift-form-control"
                     value={newArea.barnCount}
                     onChange={(e) => setNewArea({ ...newArea, barnCount: e.target.value })}
                   />
@@ -1192,19 +1192,19 @@ export const BarnsView = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Quy mô thiết kế (con)</label>
-                    <input
-                      type="number"
+                    <QuantityInput
                       required
-                      className="farmshift-form-control"
+                      suffix="con"
+                      inputClassName="farmshift-form-control"
                       value={newBarn.capacity}
                       onChange={(e) => setNewBarn({ ...newBarn, capacity: e.target.value })}
                     />
                   </div>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Số con nhập ban đầu</label>
-                    <input
-                      type="number"
-                      className="farmshift-form-control"
+                    <QuantityInput
+                      suffix="con"
+                      inputClassName="farmshift-form-control"
                       value={newBarn.current}
                       onChange={(e) => setNewBarn({ ...newBarn, current: e.target.value })}
                     />
@@ -1214,19 +1214,19 @@ export const BarnsView = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Ngày tuổi</label>
-                    <input
-                      type="number"
-                      className="farmshift-form-control"
+                    <QuantityInput
+                      suffix="ngày"
+                      inputClassName="farmshift-form-control"
                       value={newBarn.ageDays}
                       onChange={(e) => setNewBarn({ ...newBarn, ageDays: e.target.value })}
                     />
                   </div>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Cân nặng trung bình (kg)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="farmshift-form-control"
+                    <QuantityInput
+                      allowDecimal
+                      suffix="kg"
+                      inputClassName="farmshift-form-control"
                       value={newBarn.avgWeight}
                       onChange={(e) => setNewBarn({ ...newBarn, avgWeight: e.target.value })}
                     />
@@ -1333,11 +1333,10 @@ export const BarnsView = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Số lượng con giống nhập *</label>
-                    <input
-                      type="number"
+                    <QuantityInput
                       required
-                      min="1"
-                      className="farmshift-form-control"
+                      suffix="con"
+                      inputClassName="farmshift-form-control"
                       value={newCycle.initialQty}
                       onChange={(e) => setNewCycle({ ...newCycle, initialQty: e.target.value })}
                     />
@@ -1345,10 +1344,10 @@ export const BarnsView = () => {
 
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Trọng lượng mục tiêu xuất (kg)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="farmshift-form-control"
+                    <QuantityInput
+                      allowDecimal
+                      suffix="kg"
+                      inputClassName="farmshift-form-control"
                       value={newCycle.targetWeight}
                       onChange={(e) => setNewCycle({ ...newCycle, targetWeight: e.target.value })}
                     />

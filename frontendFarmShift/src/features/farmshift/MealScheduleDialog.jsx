@@ -28,16 +28,28 @@ const stepText = meals => {
 export function MealScheduleDialog({ onClose, onSaved }) {
   const { showToast } = useNotification();
   const [first, setFirst] = useState('');
+  const [initialFirst, setInitialFirst] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let active = true;
     getFarm()
-      .then(farm => { if (active) setFirst(farm?.firstMealTime ? String(farm.firstMealTime).slice(0, 5) : DEFAULT_FIRST_MEAL); })
-      .catch(() => { if (active) setFirst(DEFAULT_FIRST_MEAL); });
+      .then(farm => {
+        if (!active) return;
+        const val = farm?.firstMealTime ? String(farm.firstMealTime).slice(0, 5) : DEFAULT_FIRST_MEAL;
+        setFirst(val);
+        setInitialFirst(val);
+      })
+      .catch(() => {
+        if (!active) return;
+        setFirst(DEFAULT_FIRST_MEAL);
+        setInitialFirst(DEFAULT_FIRST_MEAL);
+      });
     return () => { active = false; };
   }, []);
+
+  const isDirty = Boolean(initialFirst) && first !== initialFirst;
 
   const valid = /^\d{2}:\d{2}$/.test(first) && first >= '04:00' && first <= '10:00';
   const submit = async event => {
@@ -55,7 +67,7 @@ export function MealScheduleDialog({ onClose, onSaved }) {
     }
   };
 
-  return <Dialog title="Giờ cho ăn" labelId="meal-schedule-title" busy={saving} onClose={onClose}>
+  return <Dialog title="Giờ cho ăn" labelId="meal-schedule-title" busy={saving} isDirty={isDirty} onClose={onClose}>
     <form onSubmit={submit} noValidate>
       <div className={areaStyles.modalBody}>
         {error && <p role="alert" className={areaStyles.error}><AlertCircle size={16} />{error}</p>}

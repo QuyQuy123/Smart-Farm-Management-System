@@ -1,6 +1,7 @@
 // src/features/farmshift/FeedDiaryTab.jsx
 // Nhật ký Cữ ăn & Quản lý thức ăn từng chuồng nuôi
 import { Plus } from 'lucide-react';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 
 export const FeedDiaryTab = ({
   feedRows,
@@ -61,18 +62,18 @@ export const FeedDiaryTab = ({
                       </td>
                       <td style={{ fontSize: '14.5px', color: 'var(--color-ink)' }}>{row.feedType}</td>
                       <td>
-                        <input
-                          type="number"
-                          className="farmshift-form-control"
+                        <QuantityInput
+                          allowDecimal
+                          inputClassName="farmshift-form-control"
                           style={{ width: '90px', padding: '6px 10px', height: '36px' }}
                           value={row.meal1}
                           onChange={(e) => handleMealChange(idx, 'meal1', e.target.value)}
                         />
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          className="farmshift-form-control"
+                        <QuantityInput
+                          allowDecimal
+                          inputClassName="farmshift-form-control"
                           style={{ width: '90px', padding: '6px 10px', height: '36px' }}
                           value={row.meal2}
                           onChange={(e) => handleMealChange(idx, 'meal2', e.target.value)}
@@ -80,9 +81,9 @@ export const FeedDiaryTab = ({
                       </td>
                       {showFeedMeal3 && (
                         <td>
-                          <input
-                            type="number"
-                            className="farmshift-form-control"
+                          <QuantityInput
+                            allowDecimal
+                            inputClassName="farmshift-form-control"
                             style={{ width: '90px', padding: '6px 10px', height: '36px' }}
                             value={row.meal3}
                             onChange={(e) => handleMealChange(idx, 'meal3', e.target.value)}

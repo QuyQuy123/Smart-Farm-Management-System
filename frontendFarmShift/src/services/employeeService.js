@@ -1,6 +1,7 @@
 // src/services/employeeService.js
 // Service kết nối API Quản lý Nhân sự (Employee Management) với Spring Boot Backend (/api/employees)
 import { api } from '../utils/api';
+import { setAuthToken } from '../utils/authStorage';
 
 /**
  * Lấy danh sách nhân viên kèm tìm kiếm keyword và bộ lọc role / isActive
@@ -69,7 +70,11 @@ export const createEmployee = async (employeeData) => {
  */
 export const updateEmployee = async (id, updateData) => {
   const response = await api.put(`/employees/${id}`, updateData);
-  return response.data?.data || response.data;
+  const employee = response.data?.data || response.data;
+  if (employee?.token) {
+    setAuthToken(employee.token);
+  }
+  return employee;
 };
 
 export default {

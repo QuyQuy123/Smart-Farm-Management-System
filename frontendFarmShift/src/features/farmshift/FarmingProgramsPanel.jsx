@@ -8,6 +8,7 @@ import { FarmingProgramDialog } from './FarmingProgramDialog';
 import { FarmingProgramExcelModal } from './FarmingProgramExcelModal';
 import { FormDialog } from './CycleDialogs';
 import { STEP_CATEGORIES, apiErrorMessage, describeStep, stepCategoryLabel } from './farmAreaOptions';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './FarmingPrograms.module.css';
 
 const weight = value => Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
@@ -142,7 +143,7 @@ export function FarmingProgramsPanel() {
 
               <div className={styles.lookup}>
                 <label htmlFor="program-lookup-day"><CalendarDays size={16} />Tra cứu theo ngày tuổi</label>
-                <input id="program-lookup-day" className="farmshift-form-control" type="number" min="1" max={selected.durationDays} value={lookupDay}
+                <QuantityInput id="program-lookup-day" inputClassName="farmshift-form-control" value={lookupDay}
                   onChange={event => setLookupDay(event.target.value)} />
                 <span className={styles.lookupResult}>{todaySteps.length === 0 ? 'Không có nội dung nào trong ngày này.'
                   : todaySteps.map(step => `${stepCategoryLabel(step.category)}: ${step.name}${describeStep(step) ? ` (${describeStep(step)})` : ''}`).join(' · ')}</span>
