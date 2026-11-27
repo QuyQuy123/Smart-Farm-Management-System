@@ -24,10 +24,12 @@ import { DailyPlanCard } from './DailyPlanCard';
 import { DiseaseLogPanel } from './DiseaseLogPanel';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { getBarnDailyPlan } from '../../services/dailyPlanService';
+import { setBarnRoutineTasks } from '../../services/workAssignmentService';
+import { RoutineTaskTagPicker, RoutineTasksSettingsDialog } from './RoutineTasksSettingsDialog';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { useViewport } from '../../hooks/useViewport';
 import {
-  EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_STATES, describeStep, stepCategoryLabel,
+  DEFAULT_ROUTINE_CODES, EXPENSE_CATEGORIES, FLOCK_GENDERS, MAX_IMPORT_SPREAD_DAYS, MOVEMENT_TYPES, STEP_STATES, describeStep, stepCategoryLabel,
   addDaysIso, apiErrorMessage, formatDay, labelOf, todayIso,
 } from './farmAreaOptions';
 import styles from './BarnDetailView.module.css';
@@ -38,6 +40,7 @@ const isInt = value => value !== '' && Number.isInteger(Number(value));
 const IMPORT_PAYMENT_OPTIONS = [{ value: 'Trả sau', label: 'Trả sau (ghi công nợ)' }, { value: 'Thanh toán hoàn tất', label: 'Đã trả đủ tiền' }];
 
 const COST_COLORS = { chick: '#f59e0b', feed: '#06b6d4', MEDICINE: '#ef4444', OTHER: '#ec4899' };
+const DEFAULT_ROUTINE_KEY = [...DEFAULT_ROUTINE_CODES].sort().join(',');
 
 function Donut({ parts }) {
   const total = parts.reduce((sum, part) => sum + part.value, 0);
@@ -261,10 +264,23 @@ export const BarnDetailView = () => {
   const openStartCycle = () => setModal({
     title: 'Khai báo lứa nuôi',
     intro: 'Sau khi khai báo lứa, dùng "Nhập đàn" để nhập con giống vào chuồng. Các đàn của một lứa phải nhập cách nhau không quá 3 ngày.',
-    initial: { startDate: today, hatchDate: '', note: '' },
+    initial: { startDate: today, hatchDate: '', routineTaskCodes: DEFAULT_ROUTINE_CODES, note: '' },
     fields: [
       { key: 'startDate', label: 'Ngày bắt đầu', type: 'date', required: true, max: today },
       { key: 'hatchDate', label: 'Ngày nở (ngày tuổi 1)', type: 'date', max: today, hint: 'Để trống nếu tính ngày tuổi theo đàn nhập.' },
+      {
+        key: 'routineTaskCodes',
+        label: 'Công việc hằng ngày (cả chu kỳ)',
+        full: true,
+        hint: 'Các việc đã chọn sẽ tự động xuất hiện mỗi ngày trong suốt lứa nuôi.',
+        render: (props, setValue) => (
+          <RoutineTaskTagPicker
+            selectedCodes={Array.isArray(props.value) ? props.value : DEFAULT_ROUTINE_CODES}
+            disabled={props.disabled}
+            onChange={setValue}
+          />
+        ),
+      },
       { key: 'note', label: 'Ghi chú', type: 'textarea', full: true },
     ],
     validate: values => ({
@@ -273,6 +289,11 @@ export const BarnDetailView = () => {
     }),
     onSubmit: async values => {
       const created = await startCycle(barn.id, { startDate: values.startDate, hatchDate: values.hatchDate || null, note: values.note.trim() });
+      const chosenCodes = Array.isArray(values.routineTaskCodes) ? values.routineTaskCodes : DEFAULT_ROUTINE_CODES;
+      const chosenKey = [...new Set(chosenCodes)].sort().join(',');
+      if (chosenKey !== DEFAULT_ROUTINE_KEY) {
+        await setBarnRoutineTasks(barn.id, chosenCodes);
+      }
       setSearchParams({});
       return `Đã khai báo lứa nuôi thứ ${created.cycleNumber} cho ${barn.name}.`;
     },
@@ -799,12 +820,13 @@ export const BarnDetailView = () => {
         {active && <Card title={`Việc hôm nay · ${formatDay(today)}`} icon={CalendarDays}
           actions={canDaily && <Link to="/today-tasks" className={styles.linkButton}>Mở tất cả chuồng</Link>}>
           {!dayPlan ? <Empty>Không tải được phiếu việc hôm nay.</Empty>
-            : (dayPlan.flocks.length === 0 && !(dayPlan.routineTasks?.length > 0) && !(dayPlan.assignedTasks?.length > 0))
+            : (dayPlan.flocks.length === 0 && !(dayPlan.routineTasks?.length > 0) && !(dayPlan.assignedTasks?.length > 0) && !isOwner)
               ? <Empty>Chưa có đàn đang nuôi trong chuồng.</Empty>
               : <div className={styles.dayPlan}><DailyPlanCard compact plan={dayPlan} userEmail={user?.email} role={role} busyKey={dailyActions.busyKey}
                 onConfirm={dailyActions.confirm} onUndo={dailyActions.undo}
                 onConfirmAssigned={dailyActions.confirmAssigned} onUndoAssigned={dailyActions.undoAssigned}
-                onToggleRoutine={dailyActions.toggleRoutine} /></div>}
+                onToggleRoutine={dailyActions.toggleRoutine}
+                onConfigureRoutine={isOwner ? () => setModal({ type: 'routineSettings' }) : undefined} /></div>}
         </Card>}
 
         <Card title="Chương trình nuôi" icon={ClipboardList}
@@ -1078,6 +1100,25 @@ export const BarnDetailView = () => {
     {modal?.type === 'movement' && <MovementDetailDialog movement={modal.movement} onClose={() => setModal(null)} />}
     {modal?.type === 'barn' && <BarnDialog barn={barn} areas={areas} onClose={() => setModal(null)} onSaved={done} />}
     {modal?.type === 'close' && <CloseCycleDialog barn={barn} cycle={cycle} onClose={() => setModal(null)} onDone={done} />}
+    {modal?.type === 'routineSettings' && barn && (
+      <RoutineTasksSettingsDialog
+        barnId={barn.id}
+        barnName={barn.name}
+        initialCodes={(dayPlan?.routineTasks || []).map(item => item.code)}
+        onClose={() => setModal(null)}
+        onSaved={async () => {
+          setModal(null);
+          showToast(`Đã cập nhật công việc hằng ngày cho ${barn.name}.`, 'success');
+          if (cycle?.id) {
+            const freshPlan = await getBarnDailyPlan(cycle.id).catch(() => null);
+            if (freshPlan) {
+              setState(current => ({ ...current, dayPlan: freshPlan }));
+            }
+          }
+          setRevision(value => value + 1);
+        }}
+      />
+    )}
     {modal && !modal.type && <FormDialog key={modal.title} {...modal} onClose={() => setModal(null)} onDone={done} />}
   </FarmShiftLayout>;
 };

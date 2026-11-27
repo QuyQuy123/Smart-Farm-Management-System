@@ -7,6 +7,7 @@ import * as cycles from '../services/cycleService';
 import * as areas from '../services/farmAreaService';
 import * as programService from '../services/farmingProgramService';
 import * as dailyPlan from '../services/dailyPlanService';
+import * as workAssignment from '../services/workAssignmentService';
 import * as supplierService from '../services/supplierService';
 import * as diseaseService from '../services/cycleDiseaseService';
 
@@ -29,6 +30,9 @@ vi.mock('../services/dailyPlanService', () => ({
   undoDailyTask: vi.fn(),
   checkRoutineTask: vi.fn(),
   uncheckRoutineTask: vi.fn(),
+}));
+vi.mock('../services/workAssignmentService', () => ({
+  setBarnRoutineTasks: vi.fn(),
 }));
 vi.mock('../services/cycleDiseaseService', () => ({
   listCycleDiseases: vi.fn(),
@@ -526,8 +530,84 @@ describe('Barn detail: farming cycle, flocks and journal', () => {
 
     renderAt('/barns/2');
     const bar = await screen.findByTestId('routine-tasks-bar');
-    expect(within(bar).getByRole('button', { name: /Thay trấu/ })).toBeInTheDocument();
-    fireEvent.click(within(bar).getByRole('button', { name: /Thay trấu/ }));
+    expect(within(bar).getByRole('button', { name: 'Xong Thay trấu' })).toBeInTheDocument();
+    fireEvent.click(within(bar).getByRole('button', { name: 'Xong Thay trấu' }));
     await waitFor(() => expect(dailyPlan.checkRoutineTask).toHaveBeenCalledWith(20, { date: todayIsoLocal, taskCode: 'CHANGE_LITTER' }));
+  });
+
+  it('opens RoutineTasksSettingsDialog from BarnDetail, toggles multi-select tags, adds custom tag, and saves', async () => {
+    const todayIsoLocal = iso(0);
+    const initialPlan = {
+      cycleId: 20,
+      barnId: 2,
+      barnName: 'Nhà A3',
+      areaName: 'Khu Mía Thịt',
+      date: todayIsoLocal,
+      headcount: 0,
+      flocks: [],
+      tasks: [],
+      doneCount: 0,
+      warnings: [],
+      workers: [],
+      assignedTasks: [],
+      routineTasks: [
+        { code: 'CHANGE_LITTER', title: 'Thay trấu', done: null },
+        { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng', done: null },
+        { code: 'WASH_BARN', title: 'Xịt rửa chuồng', done: null },
+      ],
+    };
+    const updatedPlan = {
+      ...initialPlan,
+      routineTasks: [
+        { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng', done: null },
+        { code: 'WASH_BARN', title: 'Xịt rửa chuồng', done: null },
+        { code: 'FEED_AND_WATER', title: 'Cho ăn & uống', done: null },
+        { code: 'CUSTOM:Kiểm tra nguồn nước uống', title: 'Kiểm tra nguồn nước uống', done: null },
+      ],
+    };
+    dailyPlan.getBarnDailyPlan.mockResolvedValueOnce(initialPlan).mockResolvedValue(updatedPlan);
+    workAssignment.setBarnRoutineTasks.mockResolvedValue([
+      'CLEAN_FEEDERS',
+      'WASH_BARN',
+      'FEED_AND_WATER',
+      'CUSTOM:Kiểm tra nguồn nước uống',
+    ]);
+
+    renderAt('/barns/2');
+    const configBtn = await screen.findByRole('button', { name: 'Cài đặt việc hằng ngày của chuồng' });
+    fireEvent.click(configBtn);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Cài đặt công việc hằng ngày (Cả chu kỳ)' })).toBeInTheDocument();
+
+    // Toggle off an active tag, toggle on an inactive preset tag
+    const litterTag = within(dialog).getByRole('button', { name: 'Thay trấu' });
+    expect(litterTag).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(litterTag);
+    expect(litterTag).toHaveAttribute('aria-pressed', 'false');
+
+    const feedWaterTag = within(dialog).getByRole('button', { name: 'Cho ăn & uống' });
+    expect(feedWaterTag).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(feedWaterTag);
+    expect(feedWaterTag).toHaveAttribute('aria-pressed', 'true');
+
+    // Add custom self-defined tag
+    fireEvent.click(within(dialog).getByRole('button', { name: '+ Thêm việc khác tự định nghĩa' }));
+    fireEvent.change(within(dialog).getByLabelText('Tên công việc hằng ngày tự định nghĩa'), {
+      target: { value: 'Kiểm tra nguồn nước uống' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Thêm' }));
+    expect(within(dialog).getByRole('button', { name: 'Kiểm tra nguồn nước uống' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Xác nhận & Áp dụng' }));
+    await waitFor(() => expect(workAssignment.setBarnRoutineTasks).toHaveBeenCalledWith(2, [
+      'CLEAN_FEEDERS',
+      'WASH_BARN',
+      'FEED_AND_WATER',
+      'CUSTOM:Kiểm tra nguồn nước uống',
+    ]));
+    expect(mocks.showToast).toHaveBeenCalledWith('Đã cập nhật công việc hằng ngày cho Nhà A3.', 'success');
+    const bar = await screen.findByTestId('routine-tasks-bar');
+    expect(within(bar).getByRole('button', { name: 'Xong Kiểm tra nguồn nước uống' })).toBeInTheDocument();
   });
 });

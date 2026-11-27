@@ -345,7 +345,7 @@ export const FarmShiftLayout = ({
         { id: 'cycle-history', label: 'Lịch sử lứa nuôi', path: '/cycles/history', icon: History, roles: ['ROLE_ACCOUNTANT'] },
         { id: 'today-tasks', label: 'Việc hôm nay', path: '/today-tasks', icon: ListChecks, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
         { id: 'journal', label: 'Ghi nhật ký', path: '/journal', icon: ClipboardList, roles: ['ROLE_FARM_OWNER', 'ROLE_FARM_WORKER'] },
-        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
+        { id: 'inventory', label: 'Kho hàng hóa', path: '/inventory', icon: Package, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'] },
         { id: 'transfers', label: 'Xuất nhập nội bộ', path: '/transfers', icon: ArrowLeftRight, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER'] },
         { id: 'purchases', label: 'Hóa đơn nhập hàng', path: '/purchases', icon: FileText, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },
         { id: 'sales', label: 'Quản lý bán hàng', path: '/sales', icon: ShoppingCart, roles: ['ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT'] },

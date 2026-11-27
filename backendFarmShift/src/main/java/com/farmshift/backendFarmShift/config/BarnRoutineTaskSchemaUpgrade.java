@@ -20,7 +20,8 @@ public class BarnRoutineTaskSchemaUpgrade implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        jdbc.execute("ALTER TABLE barns ADD COLUMN IF NOT EXISTS routine_tasks VARCHAR(500)");
+        jdbc.execute("ALTER TABLE barns ADD COLUMN IF NOT EXISTS routine_tasks VARCHAR(2000)");
+        widenRoutineTasksColumn();
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS barn_routine_task_checks (
                     id BIGSERIAL PRIMARY KEY,
@@ -36,5 +37,17 @@ public class BarnRoutineTaskSchemaUpgrade implements ApplicationRunner {
                 """);
         jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS uk_barn_routine_checks_cycle_date_code ON barn_routine_task_checks(cycle_id, check_date, task_code)");
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_barn_routine_checks_date ON barn_routine_task_checks(check_date)");
+    }
+
+    private void widenRoutineTasksColumn() {
+        try {
+            jdbc.execute("ALTER TABLE barns ALTER COLUMN routine_tasks TYPE VARCHAR(2000)");
+        } catch (Exception ignored) {
+            try {
+                jdbc.execute("ALTER TABLE barns ALTER COLUMN routine_tasks SET DATA TYPE VARCHAR(2000)");
+            } catch (Exception ignoredToo) {
+                // Column already widened or managed by JPA test DDL.
+            }
+        }
     }
 }

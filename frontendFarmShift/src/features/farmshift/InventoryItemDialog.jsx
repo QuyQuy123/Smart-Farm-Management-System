@@ -19,7 +19,7 @@ const parsePrice = value => {
   return digits + (fraction === undefined ? '' : `.${fraction}`);
 };
 
-export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved }) => {
+export const InventoryItemDialog = ({ mode, item, warehouse, canSeeFinance = true, onClose, onSaved }) => {
   const dialog = useRef(null);
   const [name, setName] = useState(item?.name || '');
   const [brandId, setBrandId] = useState(String(item?.brandId || ''));
@@ -119,10 +119,12 @@ export const InventoryItemDialog = ({ mode, item, warehouse, onClose, onSaved })
           </select>}
           {!readOnly && !loading && !metadataError && !units.length && <p className={styles.error}>Chưa có đơn vị tính. Vui lòng thêm tại Thiết lập danh mục → Đơn vị tính.</p>}
           </div>
-          <div className={styles.formField}>
-          <label htmlFor="inventory-price">Giá tiền (đ) {!readOnly && <span className={styles.required}>*</span>}</label>
-          <input id="inventory-price" type="text" inputMode="decimal" className="farmshift-form-control" placeholder="Ví dụ: 320.000" value={formatPrice(price)} onChange={event => { const parsed = parsePrice(event.target.value); if (parsed !== null) setPrice(parsed); }} required readOnly={readOnly} disabled={saving} />
-          </div>
+          {(canSeeFinance || !readOnly) && (
+            <div className={styles.formField}>
+            <label htmlFor="inventory-price">Giá tiền (đ) {!readOnly && <span className={styles.required}>*</span>}</label>
+            <input id="inventory-price" type="text" inputMode="decimal" className="farmshift-form-control" placeholder="Ví dụ: 320.000" value={formatPrice(price)} onChange={event => { const parsed = parsePrice(event.target.value); if (parsed !== null) setPrice(parsed); }} required readOnly={readOnly} disabled={saving} />
+            </div>
+          )}
           <div className={styles.formField}>
           <label htmlFor="inventory-stock">Tồn kho</label><input id="inventory-stock" className="farmshift-form-control" value={item?.stock ?? 0} readOnly />
           </div>

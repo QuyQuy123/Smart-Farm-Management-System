@@ -105,7 +105,7 @@ class InventoryItemIntegrationTest {
         mvc.perform(post(API).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of("name", "   ")))).andExpect(status().isBadRequest());
     }
     @Test @WithMockUser(authorities="ROLE_FARM_WORKER")
-    void workerCannotListAllOrUnassignedWarehousesAndOnlySeesAssignedQuantityWithoutPriceOrReceipts() throws Exception {
+    void workerCanReadAllWarehousesWithoutPriceOrReceiptsAndCannotMutate() throws Exception {
         var area = new FarmArea();
         area.setName("Khu được giao");
         area.setNameKey("khu được giao");
@@ -177,10 +177,22 @@ class InventoryItemIntegrationTest {
         var workerAuth = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("worker.inv@farm.test")
                 .authorities(() -> "ROLE_FARM_WORKER");
 
-        // Unassigned or unfiltered list / detail / write are forbidden
-        mvc.perform(get(API).with(workerAuth)).andExpect(status().isForbidden());
-        mvc.perform(get(API).with(workerAuth).param("warehouseId", warehouseId.toString())).andExpect(status().isForbidden());
-        mvc.perform(get(API + "/" + unassignedItem.getId()).with(workerAuth)).andExpect(status().isForbidden());
+        // Workers can read across all warehouses for read-only inventory/internal transfers, while write endpoints stay forbidden
+        mvc.perform(get(API).with(workerAuth)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].price").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data[0].receipt").value(org.hamcrest.Matchers.nullValue()));
+        mvc.perform(get(API).with(workerAuth).param("warehouseId", warehouseId.toString()).param("includeReceipts", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].stock").value(20))
+                .andExpect(jsonPath("$.data[0].price").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data[0].receipt").value(org.hamcrest.Matchers.nullValue()));
+        mvc.perform(get(API + "/" + unassignedItem.getId()).with(workerAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stock").value(20))
+                .andExpect(jsonPath("$.data.price").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.receipt").value(org.hamcrest.Matchers.nullValue()));
         mvc.perform(post(API).with(workerAuth).contentType(MediaType.APPLICATION_JSON).content(payload(Map.of()))).andExpect(status().isForbidden());
         mvc.perform(delete(API + "/" + assignedItem.getId()).with(workerAuth)).andExpect(status().isForbidden());
 

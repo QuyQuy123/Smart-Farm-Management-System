@@ -33,12 +33,13 @@ public class InventoryItemController {
     @PreAuthorize("hasAnyAuthority('ROLE_FARM_OWNER', 'ROLE_ACCOUNTANT', 'ROLE_FARM_WORKER')")
     public ApiResponse<List<InventoryItemResponse>> list(
             @RequestParam(required = false) Long warehouseId,
+            @RequestParam(required = false) Long areaId,
             @RequestParam(defaultValue = "false") boolean includeReceipts,
             Authentication authentication
     ) {
         boolean finance = canSeeFinance(authentication);
         String workerEmail = isWorker(authentication) ? authentication.getName() : null;
-        return ApiResponse.success("Danh sách hàng hóa", service.list(warehouseId, finance && includeReceipts, finance, workerEmail));
+        return ApiResponse.success("Danh sách hàng hóa", service.list(warehouseId, areaId, finance && includeReceipts, finance, workerEmail));
     }
 
     @GetMapping("/{id}")

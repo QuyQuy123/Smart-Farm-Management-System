@@ -655,7 +655,7 @@ Entity: `Barn`. Quản lý chuồng trại cụ thể trong từng phân khu.
 | `area_m2` | NUMERIC(10,2) | Diện tích thực tế của chuồng (m²). Dùng để tính mật độ nuôi (con/m²). |
 | `description` | VARCHAR(1000) | Mô tả quy cách chuồng, trang thiết bị giàn mát/quạt hút. |
 | `workers_override` | BOOLEAN | Cờ phân công công nhân riêng cho chuồng (nâng cấp bởi `BarnResponsibilitySchemaUpgrade`): `NULL` hoặc `FALSE` để kế thừa danh sách công nhân của Khu nuôi (`farm_area_workers`); `TRUE` để dùng danh sách công nhân riêng của chuồng (`barn_workers`). |
-| `routine_tasks` | VARCHAR(500) | Danh sách mã công việc hằng ngày mặc định theo chuồng phân tách dấu phẩy (`CHANGE_LITTER,CLEAN_FEEDERS,WASH_BARN`; nâng cấp bởi `BarnRoutineTaskSchemaUpgrade`, `NULL` = bật cả 3 preset). |
+| `routine_tasks` | VARCHAR(2000) | Danh sách mã công việc hằng ngày mặc định theo chuồng phân tách dấu phẩy (12 preset như `CHANGE_LITTER,CLEAN_FEEDERS,WASH_BARN` hoặc thẻ tự định nghĩa `CUSTOM:<tên>`; nâng cấp bởi `BarnRoutineTaskSchemaUpgrade`, `NULL` = bật 3 việc cơ bản). |
 | `created_at` | TIMESTAMP | Thời điểm tạo chuồng. |
 | `updated_at` | TIMESTAMP | Thời điểm cập nhật gần nhất. |
 

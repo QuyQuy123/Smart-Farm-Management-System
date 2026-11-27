@@ -39,6 +39,7 @@ export const InternalStockView = () => {
   const { isMobile } = useViewport();
   const isWorker = user?.role === 'ROLE_FARM_WORKER';
   const canMutate = user?.role === 'ROLE_FARM_OWNER' || user?.role === 'ROLE_ACCOUNTANT';
+  const canCreateVoucher = canMutate || isWorker;
 
   const initialSearchParams = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search)
@@ -50,7 +51,7 @@ export const InternalStockView = () => {
   // Tabs: 'create' | 'vouchers' | 'categories'
   const [activeTab, setActiveTabState] = useState(() => {
     if (initialLinkedSearch) return 'vouchers';
-    if (initialAction === 'transfer' && canMutate) return 'create';
+    if (initialAction === 'transfer' && canCreateVoucher) return 'create';
     return getPersistedTab('farmshift_tab_internal_stock', 'vouchers');
   });
   const setActiveTab = (tab) => {
@@ -335,7 +336,7 @@ export const InternalStockView = () => {
 
   const handleSubmitVoucher = async (e) => {
     e.preventDefault();
-    if (!canMutate) {
+    if (!canCreateVoucher) {
       showToast('Bạn không có quyền lập phiếu xuất nhập kho.', 'error');
       return;
     }
@@ -465,7 +466,7 @@ export const InternalStockView = () => {
             >
               <RefreshCw size={15} /> Làm mới
             </button>
-            {canMutate && activeTab === 'vouchers' && (
+            {canCreateVoucher && activeTab === 'vouchers' && (
               <button
                 type="button"
                 className="farmshift-btn farmshift-btn-mint"

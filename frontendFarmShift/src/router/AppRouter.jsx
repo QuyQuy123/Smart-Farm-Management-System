@@ -114,7 +114,7 @@ export const AppRouter = () => {
         {/* Phân công công việc nằm trong Việc hôm nay (tab Phân công). */}
         <Route path="/work-assignments" element={<Navigate to="/today-tasks?view=assign" replace />} />
         <Route path="/journal" element={<ProtectedRoute allowedRoles={FARM_ROLES}><JournalView /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><InventoryView /></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute allowedRoles={ALL_ROLES}><InventoryView /></ProtectedRoute>} />
         <Route path="/transfers" element={<ProtectedRoute allowedRoles={ALL_ROLES}><TransfersView /></ProtectedRoute>} />
         <Route path="/internal-stock" element={<ProtectedRoute allowedRoles={ALL_ROLES}><InternalStockView /></ProtectedRoute>} />
         <Route path="/purchases" element={<ProtectedRoute allowedRoles={FINANCE_ROLES}><PurchasesView /></ProtectedRoute>} />

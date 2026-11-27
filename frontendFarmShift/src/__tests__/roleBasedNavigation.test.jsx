@@ -113,11 +113,11 @@ describe('Role-Based Navigation Filtering in FarmShiftLayout', () => {
     expect(screen.getByRole('link', { name: /Khu nuôi/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Việc hôm nay/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Ghi nhật ký/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Kho hàng hóa/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Xuất nhập nội bộ/i })).toBeInTheDocument();
 
     // Worker should NOT see financial/accounting/management tabs:
     expect(screen.queryByRole('link', { name: /Bảng tin/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Kho hàng hóa/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Hóa đơn nhập hàng/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Quản lý bán hàng/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Sổ quỹ/i })).not.toBeInTheDocument();

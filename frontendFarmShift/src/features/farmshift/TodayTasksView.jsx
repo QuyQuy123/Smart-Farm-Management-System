@@ -3,8 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, ChevronRight as Open, Clock, ListChecks, UserCog, Warehouse } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
 import { getFarmDailyPlan } from '../../services/dailyPlanService';
 import { DailyPlanCard } from './DailyPlanCard';
+import { RoutineTasksSettingsDialog } from './RoutineTasksSettingsDialog';
 import { useDailyPlanActions } from './useDailyPlanActions';
 import { WorkAssignmentPanel } from './WorkAssignmentView';
 import { MealScheduleDialog } from './MealScheduleDialog';
@@ -26,11 +28,13 @@ const ageText = plan => {
  */
 export const TodayTasksView = () => {
   const { user } = useAuth();
+  const { showToast } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const today = todayIso();
   const [date, setDate] = useState(today);
   const [hideDone, setHideDone] = useState(false);
   const [mealSchedule, setMealSchedule] = useState(false);
+  const [routineModalPlan, setRoutineModalPlan] = useState(null);
   const [assignSummary, setAssignSummary] = useState(null);
   const [revision, setRevision] = useState(0);
   const cachedPlans = dataCache.peek(`/daily-plan?date=${today}`) || dataCache.peek('/daily-plan') || dataCache.peek(`/daily-plans/farm?date=${today}`) || dataCache.peek('/daily-plans/farm');
@@ -128,13 +132,28 @@ export const TodayTasksView = () => {
 
     {mealSchedule && <MealScheduleDialog onClose={() => setMealSchedule(false)}
       onSaved={() => { setMealSchedule(false); setRevision(value => value + 1); }} />}
+    {routineModalPlan && (
+      <RoutineTasksSettingsDialog
+        barnId={routineModalPlan.barnId}
+        barnName={routineModalPlan.barnName}
+        initialCodes={(routineModalPlan.routineTasks || []).map(item => item.code)}
+        onClose={() => setRoutineModalPlan(null)}
+        onSaved={() => {
+          const barnName = routineModalPlan.barnName;
+          setRoutineModalPlan(null);
+          showToast(`Đã cập nhật công việc hằng ngày cho ${barnName}.`, 'success');
+          setRevision(value => value + 1);
+        }}
+      />
+    )}
     {assigning ? <WorkAssignmentPanel date={date} onDateChange={setDate} onSummary={setAssignSummary} /> : loading ? <p className={styles.state} role="status">Đang tải phiếu việc...</p>
       : state.error ? <div className={styles.state} role="alert"><p>{state.error}</p>
         <button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setRevision(value => value + 1)}>Thử lại</button></div>
         : opened ? <div className={styles.detail}>
           <button type="button" className={styles.back} onClick={() => open(null)}><ArrowLeft size={16} />Tất cả chuồng</button>
           <DailyPlanCard plan={opened} userEmail={user?.email} role={user?.role} busyKey={busyKey} onConfirm={confirm} onUndo={undo}
-            onConfirmAssigned={confirmAssigned} onUndoAssigned={undoAssigned} onToggleRoutine={toggleRoutine} hideDone={hideDone} />
+            onConfirmAssigned={confirmAssigned} onUndoAssigned={undoAssigned} onToggleRoutine={toggleRoutine}
+            onConfigureRoutine={isOwner ? plan => setRoutineModalPlan(plan) : undefined} hideDone={hideDone} />
         </div>
           : state.plans.length === 0 ? <p className={styles.state}>{user?.role === 'ROLE_FARM_WORKER'
             ? 'Bạn chưa được phân công chuồng nào đang nuôi. Liên hệ chủ trại để được phân công.'

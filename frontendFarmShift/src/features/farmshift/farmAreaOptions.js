@@ -327,3 +327,36 @@ export const warehouseAreas = warehouses => [...new Map(warehouses.map(warehouse
 /** Lọc kho theo khu ('' là tất cả) và loại kho ('' là tất cả). */
 export const filterWarehouses = (warehouses, { area, kind }) => warehouses.filter(warehouse =>
   (!area || String(warehouse.areaId ?? 'none') === area) && (!kind || warehouse.kind === kind));
+
+// ---------------------------------------------------------------- việc hằng ngày mặc định theo chuồng
+
+export const CUSTOM_ROUTINE_PREFIX = 'CUSTOM:';
+export const MAX_CUSTOM_ROUTINE_LENGTH = 50;
+
+export const ROUTINE_TASK_PRESETS = [
+  { code: 'CHANGE_LITTER', title: 'Thay trấu' },
+  { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng' },
+  { code: 'WASH_BARN', title: 'Xịt rửa chuồng' },
+  { code: 'FEED_AND_WATER', title: 'Cho ăn & uống' },
+  { code: 'LOG_MORTALITY', title: 'Ghi chép hao hụt' },
+  { code: 'GIVE_SUPPLEMENTS', title: 'Cho uống thuốc bổ' },
+  { code: 'CHECK_TEMPERATURE', title: 'Kiểm tra nhiệt độ' },
+  { code: 'COLLECT_MORTALITY', title: 'Thu gom xác chết' },
+  { code: 'CHECK_EXHAUST_FANS', title: 'Kiểm tra quạt hút' },
+  { code: 'DISINFECT_WALKWAY', title: 'Sát trùng lối đi' },
+  { code: 'SAMPLE_WEIGHING', title: 'Cân mẫu gà' },
+  { code: 'CHECK_BROODER', title: 'Kiểm tra quầy úm' },
+];
+
+export const DEFAULT_ROUTINE_CODES = ['CHANGE_LITTER', 'CLEAN_FEEDERS', 'WASH_BARN'];
+
+const ROUTINE_PRESET_TITLES = new Map(ROUTINE_TASK_PRESETS.map(p => [p.code, p.title]));
+
+export const isCustomRoutineCode = code => typeof code === 'string' && code.startsWith(CUSTOM_ROUTINE_PREFIX);
+
+export const routineTaskTitle = code => {
+  if (!code) return '';
+  if (ROUTINE_PRESET_TITLES.has(code)) return ROUTINE_PRESET_TITLES.get(code);
+  if (isCustomRoutineCode(code)) return code.slice(CUSTOM_ROUTINE_PREFIX.length).trim();
+  return String(code);
+};

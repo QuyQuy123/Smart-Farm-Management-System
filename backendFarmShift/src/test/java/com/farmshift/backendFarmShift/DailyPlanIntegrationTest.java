@@ -541,6 +541,34 @@ class DailyPlanIntegrationTest {
         mvc.perform(get("/api/work-assignments").param("date", TODAY.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.barns[?(@.barnId == " + emptyBarn + ")].routineTaskCodes.length()").value(2));
+
+        // Owner selects expanded presets + a custom self-defined tag, while duplicate preset title deduplicates cleanly
+        send(put("/api/barns/" + emptyBarn + "/routine-tasks"), Map.of(
+                "taskCodes", List.of("FEED_AND_WATER", "CHECK_EXHAUST_FANS", "CUSTOM:Thay trấu", "CUSTOM:Kiểm tra nguồn nước uống")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data[0]").value("CHANGE_LITTER"))
+                .andExpect(jsonPath("$.data[1]").value("FEED_AND_WATER"))
+                .andExpect(jsonPath("$.data[2]").value("CHECK_EXHAUST_FANS"))
+                .andExpect(jsonPath("$.data[3]").value("CUSTOM:Kiểm tra nguồn nước uống"));
+
+        // Invalid custom tag containing comma is rejected cleanly with 400
+        send(put("/api/barns/" + emptyBarn + "/routine-tasks"), Map.of("taskCodes", List.of("CUSTOM:Việc, lỗi")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("ROUTINE_TASK_INVALID"));
+
+        // Custom routine tag can be checked and unchecked identically to built-in presets
+        send(post("/api/cycles/" + emptyCycle + "/routine-tasks"),
+                Map.of("date", TODAY.toString(), "taskCode", "CUSTOM:Kiểm tra nguồn nước uống"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.routineTasks[3].title").value("Kiểm tra nguồn nước uống"))
+                .andExpect(jsonPath("$.data.routineTasks[3].done.doneBy").isNotEmpty());
+
+        mvc.perform(delete("/api/cycles/" + emptyCycle + "/routine-tasks")
+                        .param("date", TODAY.toString())
+                        .param("taskCode", "CUSTOM:Kiểm tra nguồn nước uống"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.routineTasks[3].done").doesNotExist());
     }
 
 }

@@ -153,7 +153,7 @@ describe('DailyPlanCard', () => {
     expect(screen.getByText('7 kg · dùng cám đã mở tại chuồng (0 Bao 25kg)')).toBeInTheDocument();
   });
 
-  it('renders routine task quick-tick buttons and calls onToggleRoutine on click', async () => {
+  it('renders routine tasks inside the all-day unscheduled slot and calls onToggleRoutine on click', async () => {
     const onToggleRoutine = vi.fn().mockResolvedValue(null);
     const routineTasks = [
       { code: 'CHANGE_LITTER', title: 'Thay trấu', done: null },
@@ -173,18 +173,38 @@ describe('DailyPlanCard', () => {
       />,
     );
 
+    expect(screen.getByText('Trong ngày')).toBeInTheDocument();
+    expect(screen.getByText('không hẹn giờ')).toBeInTheDocument();
     const bar = screen.getByTestId('routine-tasks-bar');
-    expect(bar).toHaveTextContent('Việc hằng ngày');
+    expect(bar).toHaveTextContent('Việc hằng ngày của chuồng');
     expect(screen.getByText('1/3')).toBeInTheDocument();
 
-    const changeLitterBtn = screen.getByRole('button', { name: /Thay trấu/ });
-    expect(changeLitterBtn).toHaveAttribute('aria-pressed', 'false');
-    fireEvent.click(changeLitterBtn);
+    fireEvent.click(screen.getByRole('button', { name: 'Xong Thay trấu' }));
     await waitFor(() => expect(onToggleRoutine).toHaveBeenCalledWith(current, routineTasks[0]));
 
-    const cleanFeedersBtn = screen.getByRole('button', { name: /Vệ sinh máng/ });
-    expect(cleanFeedersBtn).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(cleanFeedersBtn);
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tác Vệ sinh máng' }));
     await waitFor(() => expect(onToggleRoutine).toHaveBeenCalledWith(current, routineTasks[1]));
+    expect(screen.queryByRole('button', { name: 'Cài đặt việc hằng ngày của chuồng' })).not.toBeInTheDocument();
+  });
+
+  it('shows the Cài đặt button only for farm owner and triggers onConfigureRoutine', () => {
+    const onConfigureRoutine = vi.fn();
+    const routineTasks = [{ code: 'CHANGE_LITTER', title: 'Thay trấu', done: null }];
+    const current = { ...plan, date: todayIso(), tasks: [], routineTasks };
+    render(
+      <DailyPlanCard
+        plan={current}
+        role="ROLE_FARM_OWNER"
+        userEmail="owner@farm.test"
+        busyKey={null}
+        onConfirm={vi.fn()}
+        onUndo={vi.fn()}
+        onToggleRoutine={vi.fn()}
+        onConfigureRoutine={onConfigureRoutine}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cài đặt việc hằng ngày của chuồng' }));
+    expect(onConfigureRoutine).toHaveBeenCalledWith(current);
   });
 });

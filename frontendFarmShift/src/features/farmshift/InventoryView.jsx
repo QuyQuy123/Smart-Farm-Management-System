@@ -10,7 +10,7 @@ import { listInventoryItems } from '../../services/inventoryItemService';
 import { INVENTORY_CHANGED } from '../../utils/inventoryEvents';
 import { groupInventoryItems, inventoryStockKg } from '../../utils/inventoryGroups';
 import { InventoryItemDialog } from './InventoryItemDialog';
-import { filterWarehouses } from './farmAreaOptions';
+import { filterWarehouses, warehouseAreas } from './farmAreaOptions';
 import { AreaWarehouseFilter } from './AreaWarehouseFilter';
 import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
 import { useViewport } from '../../hooks/useViewport';
@@ -48,8 +48,12 @@ export const InventoryView = () => {
   const [itemsRevision, setItemsRevision] = useState(0);
   const [expanded, setExpanded] = useState(new Set());
   const [search, setSearch] = useState(''), [modal, setModal] = useState(null);
-  // Lọc kho theo khu / loại kho; kho đang mở không còn trong bộ lọc thì chuyển sang kho đầu tiên còn hiện.
-  const [areaFilter, setAreaFilter] = useState({ area: '', kind: '' });
+  // Lọc kho theo khu / loại kho; nếu phạm vi chỉ có 1 khu thì tự động chọn sẵn khu đó.
+  const [areaFilter, setAreaFilter] = useState(() => {
+    const initialList = cachedWarehouses ? sortWarehouseCategories(cachedWarehouses) : [];
+    const initialAreas = warehouseAreas(initialList);
+    return initialAreas.length === 1 ? { area: String(initialAreas[0][0]), kind: '' } : { area: '', kind: '' };
+  });
   const shownCategories = filterWarehouses(categories, areaFilter);
   const changeAreaFilter = next => {
     setAreaFilter(next);
@@ -77,7 +81,19 @@ export const InventoryView = () => {
         const ordered = sortWarehouseCategories(await listWarehouseCategories());
         if (cancelled || current !== requestId) return;
         setCategories(ordered);
-        setSelectedCategory(value => ordered.some(category => category.id === value) ? value : ordered[0]?.id ?? null);
+        const areas = warehouseAreas(ordered);
+        const areaKeys = new Set(areas.map(([areaKey]) => String(areaKey)));
+        let nextFilter = null;
+        setAreaFilter(prev => {
+          const resolvedArea = areas.length === 1
+            ? String(areas[0][0])
+            : (prev.area && areaKeys.has(prev.area) ? prev.area : '');
+          nextFilter = { area: resolvedArea, kind: prev.kind };
+          return nextFilter.area === prev.area && nextFilter.kind === prev.kind ? prev : nextFilter;
+        });
+        const scoped = nextFilter ? filterWarehouses(ordered, nextFilter) : ordered;
+        const visibleList = scoped.length > 0 ? scoped : ordered;
+        setSelectedCategory(value => visibleList.some(category => category.id === value) ? value : visibleList[0]?.id ?? null);
         setItemsRevision(value => value + 1);
       } catch {
         if (!cancelled && current === requestId) setCategoryError('Không tải được danh mục kho. Vui lòng thử lại.');
@@ -135,7 +151,8 @@ export const InventoryView = () => {
       setExpanded(new Set());
       setLastWarehouseId(selectedCategory);
     }
-    const cachedItems = dataCache.peek(`/inventory-items?includeReceipts=true&warehouseId=${selectedCategory}`);
+    const cacheKey = `/inventory-items?includeReceipts=${canSeeFinance}&warehouseId=${selectedCategory}`;
+    const cachedItems = dataCache.peek(cacheKey);
     if (cachedItems && Array.isArray(cachedItems)) {
       setItems(cachedItems);
     } else {
@@ -143,16 +160,16 @@ export const InventoryView = () => {
     }
     if (!selectedCategory) { setLoadingItems(false); return; }
     setLoadingItems(!cachedItems);
-    listInventoryItems(selectedCategory, true).then(data => {
+    listInventoryItems(selectedCategory, canSeeFinance).then(data => {
       if (!cancelled) {
         setItems(data);
-        dataCache.set(`/inventory-items?includeReceipts=true&warehouseId=${selectedCategory}`, data);
+        dataCache.set(cacheKey, data);
       }
     })
       .catch(error => { if (!cancelled) setItemError(error.response?.data?.message || 'Không tải được hàng hóa. Vui lòng thử lại.'); })
       .finally(() => { if (!cancelled) setLoadingItems(false); });
     return () => { cancelled = true; };
-  }, [selectedCategory, itemsRevision]);
+  }, [selectedCategory, itemsRevision, canSeeFinance]);
 
   const warehouse = categories.find(category => category.id === selectedCategory);
   const needle = search.trim().toLocaleLowerCase('vi');
@@ -181,6 +198,7 @@ export const InventoryView = () => {
   };
 
   const totalStockValue = filtered.reduce((sum, item) => sum + (Number(item.stock || 0) * Number(item.price || 0)), 0);
+  const tableColSpan = (isTablet ? 6 : 8) - (canSeeFinance ? 0 : 1);
   const mobileSummaryItems = [
     { label: 'Mặt hàng', value: `${filtered.length}` },
     ...(canSeeFinance ? [{ label: 'Tổng giá trị tồn', value: money(totalStockValue), tone: 'teal' }] : []),
@@ -190,7 +208,7 @@ export const InventoryView = () => {
     actions={canEdit && <button type="button" className="farmshift-btn farmshift-btn-mint" disabled={loadingCategories || !!categoryError || !warehouse} onClick={() => open('create')}><Plus size={16} />Tạo hàng hóa</button>}>
     {loadingCategories && <p role="status">Đang tải danh mục kho...</p>}
     {categoryError && <div role="alert" className={styles.error}>{categoryError}<button type="button" className="farmshift-btn farmshift-btn-secondary" onClick={() => setCategoryRevision(value => value + 1)}>Thử lại</button></div>}
-    {!loadingCategories && !categoryError && !categories.length && <div className="farmshift-card" style={{ padding: '24px', marginBottom: '20px' }}>Chưa có danh mục kho. <Link to="/catalog-settings">Thêm danh mục kho trong Thiết lập danh mục</Link> để bắt đầu.</div>}
+    {!loadingCategories && !categoryError && !categories.length && <div className="farmshift-card" style={{ padding: '24px', marginBottom: '20px' }}>{canEdit ? <>Chưa có danh mục kho. <Link to="/catalog-settings">Thêm danh mục kho trong Thiết lập danh mục</Link> để bắt đầu.</> : 'Chưa có kho hàng hóa nào thuộc phạm vi chuồng/khu bạn phụ trách.'}</div>}
     {categories.length > 0 && <div className="farmshift-card" style={{ marginBottom: '12px', padding: 0 }}>
       <AreaWarehouseFilter warehouses={categories} value={areaFilter} onChange={changeAreaFilter} /></div>}
     <div className="farmshift-tabs" style={{ overflowX: 'auto' }}>{shownCategories.map(category => <button type="button" key={category.id} className={`farmshift-tab-btn ${category.id === selectedCategory ? 'active' : ''}`} onClick={() => { setSelectedCategory(category.id); setSearch(''); }}>{category.name}</button>)}</div>
@@ -264,7 +282,7 @@ export const InventoryView = () => {
         </div>
       ) : <div className="farmshift-table-container" style={{ border: 0 }}><table className={`farmshift-table ${styles.table}`}>
         <thead><tr>{!isTablet && <th>Ảnh</th>}<th>Tên hàng hóa</th>{canSeeFinance && <th>Giá trung bình</th>}<th>Tồn kho</th><th>Tồn kho (kg)</th><th>Đơn vị</th>{!isTablet && <th>Nhãn hiệu</th>}<th>Thao tác</th></tr></thead>
-        <tbody>{loadingItems || loadingCategories ? <tr><td colSpan={8} className={styles.empty} role="status">Đang tải hàng hóa...</td></tr> : !filtered.length ? <tr><td colSpan={8} className={styles.empty}>{search ? 'Không tìm thấy hàng hóa phù hợp.' : 'Chưa có hàng hóa thuộc danh mục kho này.'}</td></tr> : filtered.map((item, index) => <Fragment key={item.key}>
+        <tbody>{loadingItems || loadingCategories ? <tr><td colSpan={tableColSpan} className={styles.empty} role="status">Đang tải hàng hóa...</td></tr> : !filtered.length ? <tr><td colSpan={tableColSpan} className={styles.empty}>{search ? 'Không tìm thấy hàng hóa phù hợp.' : 'Chưa có hàng hóa thuộc danh mục kho này.'}</td></tr> : filtered.map((item, index) => <Fragment key={item.key}>
         <tr>
           {!isTablet && <td><div className={styles.inventoryImage}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} width={56} height={56} loading={index < 8 ? 'eager' : 'lazy'} decoding="async" /> : <Package size={25} color="#008577" />}</div></td>}
           <td><div className={styles.inventoryGroupName}><button type="button" className={styles.iconButton} aria-label={`${expanded.has(item.key) ? 'Thu gọn' : 'Mở'} lịch sử ${item.name}`} aria-expanded={expanded.has(item.key)} aria-controls={`inventory-history-${item.id}`} onClick={() => toggleHistory(item.key)}>{expanded.has(item.key) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button><strong>{item.name}</strong></div></td>
@@ -273,10 +291,10 @@ export const InventoryView = () => {
           <td>{item.unitName || '—'}</td>{!isTablet && <td>{item.brandName || '—'}</td>}
           <td>{item.lots.length === 1 ? actions(item.lots[0]) : <button type="button" className={styles.iconButton} title="Xem lịch sử nhập" aria-label={`Xem ${item.name}`} onClick={() => toggleHistory(item.key)}><Eye size={16} /></button>}</td>
         </tr>
-        {expanded.has(item.key) && <tr className={styles.inventoryHistoryRow}><td colSpan={8}>
+        {expanded.has(item.key) && <tr className={styles.inventoryHistoryRow}><td colSpan={tableColSpan}>
           <section id={`inventory-history-${item.id}`} className={styles.inventoryHistory} aria-label={`Lịch sử nhập ${item.name}`}>
             <h3>Lịch sử nhập — {item.name}</h3>
-            <p>Giá trung bình = tổng đơn giá các lần nhập / số lần nhập. Tồn kho là tổng số lượng còn lại.</p>
+            <p>{canSeeFinance ? 'Giá trung bình = tổng đơn giá các lần nhập / số lần nhập. Tồn kho là tổng số lượng còn lại.' : 'Tồn kho là tổng số lượng còn lại của các đợt nhập trong kho.'}</p>
             <table className="farmshift-table"><thead><tr><th>Ngày nhập</th><th>Số lượng nhập</th>{canSeeFinance && <th>Đơn giá nhập</th>}<th>Thao tác</th></tr></thead>
               <tbody>{item.lots.map((lot, lotIndex) => <tr key={lot.id}>
                 <td>{receiptDate(lot)}</td>
@@ -290,6 +308,6 @@ export const InventoryView = () => {
         </Fragment>)}</tbody>
       </table></div>}
     </div>
-    {modal && <InventoryItemDialog key={`${modal.mode}-${modal.item?.id || 'new'}`} {...modal} onClose={() => setModal(null)} onSaved={text => { setModal(null); showToast(text, 'success'); setItemsRevision(value => value + 1); }} />}
+    {modal && <InventoryItemDialog key={`${modal.mode}-${modal.item?.id || 'new'}`} {...modal} canSeeFinance={canSeeFinance} onClose={() => setModal(null)} onSaved={text => { setModal(null); showToast(text, 'success'); setItemsRevision(value => value + 1); }} />}
   </FarmShiftLayout>;
 };

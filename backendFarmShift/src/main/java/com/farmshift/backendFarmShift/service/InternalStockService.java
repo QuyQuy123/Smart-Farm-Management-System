@@ -71,6 +71,9 @@ public class InternalStockService {
             List<Predicate> predicates = new ArrayList<>();
 
             if (allowedWarehouseIds != null) {
+                if (warehouseId != null && !allowedWarehouseIds.contains(warehouseId)) {
+                    throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem phiếu của kho ngoài phạm vi phân công.");
+                }
                 if (allowedWarehouseIds.isEmpty()) {
                     predicates.add(cb.disjunction());
                 } else {
@@ -147,6 +150,11 @@ public class InternalStockService {
 
     @Transactional
     public InternalStockVoucherResponse create(InternalStockVoucherRequest request, String createdBy) {
+        return create(request, createdBy, true);
+    }
+
+    @Transactional
+    public InternalStockVoucherResponse create(InternalStockVoucherRequest request, String createdBy, boolean canSeeFinance) {
         InternalStockCategory category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Danh mục phiếu không tồn tại."));
 
@@ -315,7 +323,7 @@ public class InternalStockService {
         }
 
         voucher = voucherRepository.save(voucher);
-        return toResponse(voucher, true);
+        return toResponse(voucher, canSeeFinance);
     }
 
     @Transactional
