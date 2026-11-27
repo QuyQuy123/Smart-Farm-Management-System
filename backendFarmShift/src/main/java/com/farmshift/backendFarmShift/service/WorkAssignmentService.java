@@ -102,8 +102,10 @@ public class WorkAssignmentService {
     @Transactional
     public WorkBoard.AssignedTask update(Long id, WorkTaskRequest request) {
         WorkTask task = findTask(id);
+        boolean oldAssigneeNoLongerInBarn = !isWorkerOfBarn(task.getAssignee().getEmail(), task.getBarn().getId());
+        boolean assigneeChangeBlocked = !task.getAssignee().getId().equals(request.assigneeId()) && !oldAssigneeNoLongerInBarn;
         if (checkRepository.existsByTaskId(id) && (!task.getBarn().getId().equals(request.barnId())
-                || !task.getAssignee().getId().equals(request.assigneeId()) || !task.getStartDate().equals(request.startDate()))) {
+                || assigneeChangeBlocked || !task.getStartDate().equals(request.startDate()))) {
             throw new BadRequestException("Việc đã có ngày làm xong nên không đổi được chuồng, người làm hoặc ngày bắt đầu. "
                     + "Hãy kết thúc việc này và giao việc mới.", "WORK_TASK_HAS_CHECKS");
         }

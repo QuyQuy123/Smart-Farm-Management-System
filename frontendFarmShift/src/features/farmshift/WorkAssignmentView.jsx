@@ -162,6 +162,17 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
       return;
     }
     const editing = Boolean(task);
+    const staleAssignee = editing && !barn.workers.some(worker => String(worker.id) === String(task.assignee?.id));
+    const initialAssigneeId = !editing
+      ? String(barn.workers[0].id)
+      : !staleAssignee
+        ? String(task.assignee.id)
+        : barn.workers.length === 1
+          ? String(barn.workers[0].id)
+          : '';
+    const assigneeOptions = staleAssignee && barn.workers.length > 1
+      ? [{ value: '', label: '-- Chọn công nhân mới --' }, ...barn.workers.map(worker => ({ value: String(worker.id), label: worker.fullName }))]
+      : barn.workers.map(worker => ({ value: String(worker.id), label: worker.fullName }));
     // Việc giao lưu startDate–endDate; form cho chọn: một ngày, lặp mỗi ngày từ ngày đang xem đến ngày X, hoặc lặp trong khung từ ngày … đến ngày ….
     const start = date < today ? today : date;
     const repeat = !editing || task.endDate === task.startDate ? 'ONCE' : task.startDate === start ? 'UNTIL' : 'RANGE';
@@ -169,12 +180,15 @@ export function WorkAssignmentPanel({ date, onSummary, onDateChange }) {
     setModal({
       kind: 'form',
       title: editing ? `Sửa việc · ${barn.barnName}` : `Giao việc · ${barn.barnName}`,
+      warning: staleAssignee
+        ? `Công nhân cũ (${task.assignee?.fullName || 'không xác định'}) không còn phụ trách chuồng này — vui lòng xác nhận chuyển sang công nhân mới.`
+        : undefined,
       intro: 'Việc hiện trong phiếu việc của chuồng ở mục Việc hôm nay; công nhân bấm Xong khi làm xong. Chọn "Lặp lại" để giao việc mỗi ngày, hoặc chỉ trong một khung ngày.',
       initial: editing
-        ? { assigneeId: String(task.assignee.id), taskTitle: task.title, dueTime: time(task.dueTime), repeat, onceDate: task.startDate, ...span, note: task.note || '' }
-        : { assigneeId: String(barn.workers[0].id), taskTitle: '', dueTime: '', repeat, onceDate: start, ...span, note: '' },
+        ? { assigneeId: initialAssigneeId, taskTitle: task.title, dueTime: time(task.dueTime), repeat, onceDate: task.startDate, ...span, note: task.note || '' }
+        : { assigneeId: initialAssigneeId, taskTitle: '', dueTime: '', repeat, onceDate: start, ...span, note: '' },
       fields: [
-        { key: 'assigneeId', label: 'Công nhân', type: 'select', required: true, options: barn.workers.map(worker => ({ value: String(worker.id), label: worker.fullName })) },
+        { key: 'assigneeId', label: 'Công nhân', type: 'select', required: true, options: assigneeOptions },
         { key: 'dueTime', label: 'Giờ làm', type: 'time', hint: 'Không bắt buộc.' },
         // Khóa không đặt là 'title' vì FormDialog dùng id cycle-form-title cho tiêu đề hộp thoại.
         {
