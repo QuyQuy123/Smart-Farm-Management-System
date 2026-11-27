@@ -26,6 +26,7 @@ public class IotEventSchemaUpgrade implements ApplicationRunner {
                 actor VARCHAR(255) NOT NULL
             )
             """);
+        jdbc.execute("CREATE TABLE IF NOT EXISTS barn_cameras (barn_id BIGINT PRIMARY KEY, stream_path VARCHAR(100) NOT NULL)");
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_iot_events_barn_time ON iot_activation_events(barn_id, occurred_at DESC, id)");
     }
 }

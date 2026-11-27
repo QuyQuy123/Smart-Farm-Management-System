@@ -156,3 +156,22 @@
 
 .detail + .environment { margin-top: 24px; }
 .eventTable td:nth-child(3) { overflow-wrap: anywhere; }
+
+.mediaFrame { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #15221e; margin-top: 16px; border-radius: 12px; }
+
+.mediaTitle { display: flex; align-items: center; gap: 10px; }
+.mediaTitle svg { color: #008577; flex-shrink: 0; }
+.mediaButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 12px; border: 1px solid #c2e2d9; border-radius: 8px; background: #e3f3ed; color: #287b68; font-size: 13px !important; font-weight: 500; cursor: pointer; flex-shrink: 0; }
+.mediaButton:hover:not(:disabled) { background: #d3ebe2; border-color: #a9d4c6; }
+.mediaButton:focus-visible { outline: 3px solid #85d7ca; outline-offset: 3px; }
+.mediaButton:disabled { opacity: .55; cursor: wait; }
+.mediaSettings { display: flex; align-items: flex-end; gap: 10px; margin-top: 14px; padding: 12px; background: #f8fbf9; border: 1px solid #e0ece6; border-radius: 12px; }
+.mediaField { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: #6a8176; }
+.mediaField input { box-sizing: border-box; width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid #dbe7e0; border-radius: 7px; background: white; color: #183a32; font: inherit; font-size: 13px; font-weight: 400; }
+.mediaField input::placeholder { color: #8a9b91; }
+.mediaField input:focus { outline: 2px solid #008577; outline-offset: 2px; border-color: #008577; }
+@media (max-width: 540px) {
+  .mediaSettings { flex-direction: column; align-items: stretch; padding: 12px; }
+  .mediaTitle { font-size: 15px; }
+  .mediaButton { padding: 7px 12px; }
+}

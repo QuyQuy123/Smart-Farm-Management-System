@@ -11,7 +11,7 @@ import { Dialog } from './FarmAreaDialogs';
 import { api } from '../../utils/api';
 import { IotEventLog } from './IotEventLog';
 import { IotEnvironment } from './IotEnvironment';
-import { PhoneCamera } from './PhoneCamera';
+import { MediaCamera } from './MediaCamera';
 import styles from './IotView.module.css';
 
 const TYPES = {
@@ -331,7 +331,7 @@ export function IotView() {
             </div>
             <div className={styles.detail}>
               <div className={styles.monitoring}>
-                <PhoneCamera key={barn.id} barn={barn}><CameraScreen barnName={barn.name} /></PhoneCamera>
+                <MediaCamera key={barn.id} barn={barn} />
                 <IotEnvironment key={`environment:${barn.id}`} barnName={barn.name} readings={sensorReadings} connected={connection === 'connected'} history={temperatureHistory} liveHistory={liveTemperatures} />
                 {logError && <p role="alert">{logError}</p>}
                 {failedEvents.length > 0 && <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={retryingLogs} onClick={retryEventLogs}>Lưu lại {failedEvents.length} nhật ký chưa lưu</button>}
@@ -387,7 +387,7 @@ export function IotView() {
             {groups.filter(area => area.barns.length || !query).map(area => <section key={area.id} className={styles.area} aria-label={area.name}>
               <header><span className={styles.areaIcon}><Warehouse size={20} /></span><h3>{area.name}</h3><span>{area.barns.length} chuồng</span></header>
               {area.barns.length === 0 ? <p className={styles.empty}>Khu này chưa có chuồng.</p> : <div className={styles.grid}>{area.barns.map(item => <article key={item.id} className={styles.barn}>
-                <CameraScreen barnName={item.name} /><div className={styles.cardSensors}><span>Nhiệt độ <strong>— °C</strong></span><span>Độ ẩm <strong>— %</strong></span></div><footer><div><h4>{item.name}</h4><small>Camera chưa kết nối</small></div>
+                <CameraScreen barnName={item.name} /><div className={styles.cardSensors}><span>Nhiệt độ <strong>— °C</strong></span><span>Độ ẩm <strong>— %</strong></span></div><footer><div><h4>{item.name}</h4><small>Mở chi tiết để xem camera trực tiếp</small></div>
                   <button type="button" aria-label={`Xem chi tiết ${item.name}`} onClick={() => setParams({ barn: String(item.id) })}>Xem chi tiết<ChevronRight size={17} /></button></footer>
               </article>)}</div>}
             </section>)}
