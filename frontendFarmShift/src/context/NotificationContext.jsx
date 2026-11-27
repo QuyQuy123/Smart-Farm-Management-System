@@ -326,15 +326,17 @@ export const NotificationProvider = ({ children }) => {
     // Phân loại nguồn thao tác tự động dựa vào nội dung thông báo
     let source = 'Hệ thống FarmShift';
     const textLower = (text || '').toLowerCase();
-    if (textLower.includes('hồ sơ') || textLower.includes('cá nhân')) source = 'Hồ sơ cá nhân';
+    const hasWord = (word) => new RegExp(`(?:^|[\\s.,:;!?()[\\]"'/-])${word}(?:$|[\\s.,:;!?()[\\]"'/-])`, 'i').test(textLower);
+    if (textLower.includes('thông báo') || textLower.includes('web push')) source = 'Thông báo & Cảnh báo';
+    else if (textLower.includes('hồ sơ') || textLower.includes('cá nhân')) source = 'Hồ sơ cá nhân';
     else if (textLower.includes('mật khẩu') || textLower.includes('bảo mật')) source = 'Bảo mật tài khoản';
-    else if (textLower.includes('nhân viên') || textLower.includes('nhân sự')) source = 'Tài khoản & Nhân sự';
-    else if (textLower.includes('quạt') || textLower.includes('đèn') || textLower.includes('iot')) source = 'Điều khiển thiết bị IoT';
-    else if (textLower.includes('chuồng') || textLower.includes('nhà') || textLower.includes('khu')) source = 'Khu nuôi & Chuồng trại';
-    else if (textLower.includes('kho') || textLower.includes('nhập hàng') || textLower.includes('xuất')) source = 'Kho hàng hóa';
-    else if (textLower.includes('bán') || textLower.includes('đơn hàng')) source = 'Quản lý bán hàng';
+    else if (textLower.includes('nhân viên') || textLower.includes('nhân sự') || textLower.includes('tài khoản')) source = 'Tài khoản & Nhân sự';
+    else if (textLower.includes('quạt') || textLower.includes('đèn') || hasWord('iot')) source = 'Điều khiển thiết bị IoT';
+    else if (textLower.includes('chuồng') || hasWord('nhà') || hasWord('khu')) source = 'Khu nuôi & Chuồng trại';
+    else if (hasWord('kho') || textLower.includes('tồn kho') || textLower.includes('nhập hàng') || textLower.includes('xuất kho')) source = 'Kho hàng hóa';
+    else if (textLower.includes('đơn bán') || textLower.includes('xuất bán') || textLower.includes('đơn hàng')) source = 'Quản lý bán hàng';
     else if (textLower.includes('công nợ') || textLower.includes('thanh toán') || textLower.includes('hóa đơn')) source = 'Hóa đơn & Công nợ';
-    else if (textLower.includes('tiêu chuẩn') || textLower.includes('định mức')) source = 'Thiết lập chăn nuôi';
+    else if (textLower.includes('tiêu chuẩn') || textLower.includes('định mức') || textLower.includes('chương trình nuôi')) source = 'Thiết lập chăn nuôi';
 
     const toastObj = {
       id: 'toast-' + createdAt + '-' + Math.random().toString(36).slice(2, 6),

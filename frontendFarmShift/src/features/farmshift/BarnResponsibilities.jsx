@@ -206,9 +206,9 @@ export function BarnResponsibilities({ canEdit }) {
           <GoToBarnsButton />
         </div>
       )
-      : <div className="farmshift-table-container" style={{ border: 'none' }}><table className={`farmshift-table ${styles.table}`}>
+      : <div className={`farmshift-table-container ${styles.tableWrap}`} style={{ border: 'none' }}><table className={`farmshift-table ${styles.table}`}>
         <thead><tr><th>Khu nuôi / Chuồng nuôi</th><th>Phạm vi phân công</th><th>Công nhân phụ trách</th></tr></thead>
-        {data.areas.map(area => <tbody key={area.id}>
+        {data.areas.map(area => <tbody key={area.id} className={styles.areaGroup}>
           <tr className={styles.areaRow}>
             <th scope="row">
               <div className={styles.areaHeading}>
@@ -221,10 +221,10 @@ export function BarnResponsibilities({ canEdit }) {
               </div>
               <small>{area.barns.length} chuồng nuôi</small>
             </th>
-            <td><span className={styles.scope}>Toàn khu nuôi</span></td><td>{assignment(area)}</td></tr>
-          {area.barns.map(barn => <tr key={barn.id}><th scope="row" className={styles.barnName}>{barn.name}</th>
-            <td><span className={barn.inherited ? styles.inherited : styles.custom}>{barn.inherited ? 'Kế thừa từ khu' : 'Phân công riêng'}</span></td>
-            <td>{assignment(area, barn)}</td></tr>)}
+            <td className={styles.scopeCell}><span className={styles.scope}>Toàn khu nuôi</span></td><td className={styles.assignmentCell}>{assignment(area)}</td></tr>
+          {area.barns.map(barn => <tr key={barn.id} className={styles.barnRow}><th scope="row" className={styles.barnName}>{barn.name}</th>
+            <td className={styles.scopeCell}><span className={barn.inherited ? styles.inherited : styles.custom}>{barn.inherited ? 'Kế thừa từ khu' : 'Phân công riêng'}</span></td>
+            <td className={styles.assignmentCell}>{assignment(area, barn)}</td></tr>)}
           {!area.barns.length && <tr><td colSpan={3} className={styles.emptyArea}>Chưa có chuồng. Chuồng mới sẽ tự kế thừa công nhân của khu.</td></tr>}
         </tbody>)}
       </table></div>}

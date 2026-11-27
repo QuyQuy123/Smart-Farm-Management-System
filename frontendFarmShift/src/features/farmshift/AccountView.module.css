@@ -8,3 +8,210 @@
   background-color: #d3ecdf;
   border-color: #91c9ad;
 }
+
+.staffToolbar {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-hairline);
+  margin: 0;
+  gap: 12px;
+}
+
+.staffSearchBox {
+  width: min(100%, 340px);
+}
+
+.staffFilterGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.staffTableWrap {
+  padding: 0;
+}
+
+.staffTable th {
+  white-space: nowrap;
+}
+
+.staffNameCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.staffNameCell strong {
+  color: var(--color-ink);
+  font-size: 15px;
+}
+
+.staffAvatar,
+.staffAvatarLg {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background-color: var(--color-surface-soft);
+  border: 1px solid var(--color-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-weight: 600;
+  color: var(--color-ink);
+  font-size: 14.5px;
+}
+
+.staffAvatarLg {
+  width: 40px;
+  height: 40px;
+  font-size: 15.5px;
+}
+
+.staffAvatar img,
+.staffAvatarLg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.staffEmailCell,
+.staffPhoneCell {
+  color: var(--color-body);
+  font-size: 14.5px;
+}
+
+.staffScopeCell {
+  color: var(--color-muted);
+  font-size: 14.5px;
+}
+
+.nowrapCell {
+  white-space: nowrap;
+}
+
+.actionsCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.staffMobileCard {
+  background: #ffffff;
+  border: 1px solid #e3ebe8;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.staffMobileHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.staffMobileIdentity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.staffMobileIdentity > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.staffMobileIdentity strong {
+  font-size: 15.5px;
+  color: var(--color-ink);
+  line-height: 1.3;
+}
+
+.staffMobileEmail {
+  font-size: 13px;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.staffMobileMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #edf2f4;
+}
+
+.staffMobileMeta > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.staffMobileMeta span:first-child {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.staffMobileMeta strong {
+  font-size: 14px;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.staffMobileMetaFull {
+  grid-column: 1 / -1;
+}
+
+.staffMobileActions {
+  display: flex;
+  gap: 8px;
+}
+
+.staffMobileBtn {
+  flex: 1;
+  min-height: 38px;
+  justify-content: center;
+}
+
+@media (max-width: 767px) {
+  .staffToolbar {
+    padding: 14px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .staffSearchBox {
+    width: 100%;
+  }
+
+  .staffFilterGroup {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .staffFilterGroup select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .staffTableWrap {
+    padding: 12px;
+  }
+}

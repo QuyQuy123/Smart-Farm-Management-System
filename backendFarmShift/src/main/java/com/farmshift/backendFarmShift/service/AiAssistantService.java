@@ -4527,11 +4527,11 @@ public class AiAssistantService {
             }
             Map<String, Object> navSummary = new LinkedHashMap<>();
             navSummary.put("title", uiCommand != null
-                    ? "⚡ Mở form & điền sẵn thông tin tức thì (0 tốn token AI)"
-                    : "⚡ Điều hướng màn hình tức thì (0 tốn token AI)");
+                    ? "Mở form & điền sẵn thông tin"
+                    : "Điều hướng nhanh");
             navSummary.put("detail", uiCommand != null
-                    ? "Tự động chuyển trang và điền sẵn tham số đầu vào chỉ với 1 câu lệnh, không tốn chi phí AI"
-                    : "Định tuyến cục bộ (<5ms), giúp thao tác nhanh không cần tìm qua nhiều lớp menu");
+                    ? "Đã chuyển trang và điền sẵn thông tin theo yêu cầu."
+                    : "Đã mở màn hình theo yêu cầu.");
             navSummary.put("timestamp", LocalDateTime.now(CycleService.VN_ZONE).toString());
 
             return AiAssistantResponse.builder()

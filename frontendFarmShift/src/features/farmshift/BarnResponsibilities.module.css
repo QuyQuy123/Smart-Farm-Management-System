@@ -79,6 +79,25 @@
 .workerGrid .workerSelected { background: #eff8f3; border-color: #9acdb3; }
 .workerGrid input { accent-color: #20805b; }
 .workerGrid small { display: block; color: var(--color-muted); font-size: 12px; }
+@media (max-width: 767px) {
+  .header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .tableWrap { overflow-x: visible; }
+  .table { display: block; width: 100%; min-width: 0; }
+  .table thead { display: none; }
+  .areaGroup { display: flex; flex-direction: column; margin: 12px; border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden; background: #fff; }
+  .areaRow, .barnRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; padding: 12px 14px; border-bottom: 1px solid var(--color-hairline); }
+  .areaGroup tr:last-child { border-bottom: none; }
+  .table tr th, .table tr td { display: block; width: auto; padding: 0; border: 0; text-align: left; }
+  .areaRow th { grid-column: 1 / -1; }
+  .areaRow small { margin: 6px 0 0 0; }
+  .areaRow .scopeCell { grid-column: 1 / -1; }
+  .barnRow .barnName { grid-column: 1; padding-left: 0; font-weight: 600; color: var(--color-ink); align-self: center; }
+  .barnRow .scopeCell { grid-column: 2; justify-self: end; align-self: center; }
+  .assignmentCell { grid-column: 1 / -1; padding-top: 8px; border-top: 1px dashed #dce9e2; }
+  .assignment { width: 100%; justify-content: space-between; gap: 8px 10px; }
+  .editButton { min-height: 34px; padding: 6px 10px; border-radius: 8px; background: #edf7f2; font-weight: 500; }
+  .emptyArea { display: block; padding: 12px 14px; }
+}
 @media (max-width: 600px) {
   .dialogBody { padding: 16px; }
   .footer { padding: 14px 16px; }

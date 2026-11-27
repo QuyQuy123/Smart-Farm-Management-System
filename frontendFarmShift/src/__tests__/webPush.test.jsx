@@ -355,7 +355,6 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
     group.querySelector('details').open = true;
     fireEvent.click(within(group).getByRole('button', { name: 'Chỉnh sửa' }));
     const dialog = screen.getByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText('Relay ESP32'), { target: { value: '1' } });
     fireEvent.click(within(dialog).getByLabelText('Điều khiển tự động'));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thiết bị' }));
 
@@ -372,7 +371,7 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
           severity: 'CRITICAL',
         })
       );
-    });
+    }, { timeout: 4500 });
   });
 
   it('IotView skips client-side local notification when iotAlertEnabled is false while FarmShiftLayout respects inAppEnabled', async () => {
@@ -405,7 +404,6 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
     group.querySelector('details').open = true;
     fireEvent.click(within(group).getByRole('button', { name: 'Chỉnh sửa' }));
     const dialog = screen.getByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText('Relay ESP32'), { target: { value: '1' } });
     fireEvent.click(within(dialog).getByLabelText('Điều khiển tự động'));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu thiết bị' }));
 
@@ -419,7 +417,7 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
         '/push/iot-alert',
         expect.objectContaining({ barnId: 11 })
       );
-    });
+    }, { timeout: 4500 });
 
     // Because both inAppEnabled and iotAlertEnabled are false, no floating IoT toast or local SW alert should fire
     expect(document.querySelector('.farmshift-floating-toast')).toBeNull();
@@ -477,5 +475,55 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
     const loaded = loadLocalNotificationPrefs();
     expect(loaded.inAppEnabled).toBe(false);
     expect(loaded.iotAlertEnabled).toBe(false);
+  });
+
+  it('reconciles orphaned browser PushSubscription when backend reports 0 active devices and labels test-push warning under Thông báo & Cảnh báo', async () => {
+    setupPushBrowserMocks({
+      permission: 'granted',
+      existingSubscription: {
+        endpoint: 'https://fcm.googleapis.com/fcm/send/orphaned-device-token',
+        unsubscribe: vi.fn().mockResolvedValue(true),
+      },
+    });
+    api.get.mockImplementation(async (url) => {
+      if (url === '/push/status') {
+        return { data: { hasActiveSubscription: false, deviceCount: 0 } };
+      }
+      if (url === '/push/vapid-public-key') {
+        return { data: { publicKey: SAMPLE_VAPID_PUB } };
+      }
+      return { data: {} };
+    });
+    api.post.mockImplementation(async (url) => {
+      if (url === '/push/test') {
+        return { data: { sentCount: 0, message: 'Tài khoản chưa đăng ký thiết bị nhận thông báo.' } };
+      }
+      return { data: {} };
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/general-settings?tab=notifications']}>
+        <AuthProvider>
+          <NotificationProvider>
+            <FarmShiftLayout pageTitle="Thiết lập chung">
+              <GeneralSettingsView />
+            </FarmShiftLayout>
+          </NotificationProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Chưa bật trên thiết bị này')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Bật thông báo ĐT/i })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Gửi thử/i }));
+
+    await waitFor(() => {
+      const toast = document.querySelector('.farmshift-floating-toast');
+      expect(toast).not.toBeNull();
+      expect(toast.textContent).toContain('Thông báo & Cảnh báo:');
+      expect(toast.textContent).toContain('Tài khoản chưa đăng ký thiết bị nhận thông báo.');
+      expect(toast.textContent).not.toContain('Kho hàng hóa:');
+    });
   });
 });

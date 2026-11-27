@@ -773,6 +773,17 @@
     font-size: 13px;
     padding: 5px 10px;
   }
+
+  .actionCardFooter {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .actionNavBtn {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
+  }
 }
 
 /* ── Action Execution Card (Executed System Action) ── */

@@ -539,6 +539,12 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
 
   const { isMobile, isTablet, isDesktop } = useViewport();
 
+  const navigateToRoute = useCallback((route) => {
+    if (!route) return;
+    navigate(route);
+    if (isMobile) setIsOpen(false);
+  }, [navigate, isMobile, setIsOpen]);
+
   // Sync Side-Drawer layout offset synchronously before paint (Desktop only)
   useLayoutEffect(() => {
     const active = Boolean(isDesktop && isOpen && isExpanded);
@@ -1249,7 +1255,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
 
       // Điều hướng màn hình nếu AI yêu cầu
       if (response.navigateTo) {
-        navigate(response.navigateTo);
+        navigateToRoute(response.navigateTo);
       }
     } catch (error) {
       if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope || sessionEpochRef.current !== requestEpoch) {
@@ -1339,7 +1345,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
         window.dispatchEvent(new CustomEvent('farmshift:ai-action', { detail: response }));
       }
       if (response.navigateTo) {
-        navigate(response.navigateTo);
+        navigateToRoute(response.navigateTo);
       }
     } catch (err) {
       if (!mountedRef.current || ownerScopeRef.current !== requestOwnerScope || sessionEpochRef.current !== requestEpoch) {
@@ -1986,7 +1992,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                             <button
                               type="button"
                               className={styles.actionNavBtn}
-                              onClick={() => navigate(dest.route)}
+                              onClick={() => navigateToRoute(dest.route)}
                               title={`Chuyển tới ${dest.route}`}
                             >
                               <span>{dest.label}</span>
@@ -2044,7 +2050,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                       type="button"
                       className={styles.botDeepLinkBtn}
                       data-testid="bot-deeplink-btn"
-                      onClick={() => navigate(msg.navigateTo)}
+                      onClick={() => navigateToRoute(msg.navigateTo)}
                     >
                       <span>{getDeepLinkLabel(msg.navigateTo)}</span>
                       <ExternalLink size={12} />
@@ -2241,7 +2247,7 @@ export const AIChatbot = ({ userRole: propRole, role: legacyRole, userScope: pro
                 ref={inputRef}
                 type="text"
                 className={styles.input}
-                placeholder={isListening ? 'Đang nhận diện giọng nói...' : effectivePlaceholder}
+                placeholder={isListening ? 'Đang nhận diện giọng nói...' : (isMobile ? 'Hỏi hoặc ra lệnh cho trợ lý AI...' : effectivePlaceholder)}
                 value={input}
                 onChange={e => {
                   if (!e.target.value.trim()) isVoiceDraftRef.current = false;

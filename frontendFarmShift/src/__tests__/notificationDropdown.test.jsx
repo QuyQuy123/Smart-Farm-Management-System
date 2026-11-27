@@ -8,7 +8,7 @@ import { AuthProvider } from '../context/AuthContext';
 
 // Helper component that can trigger notifications within the context
 const NotificationTrigger = () => {
-  const { sendNotification } = useNotification();
+  const { sendNotification, showToast, activeToast } = useNotification();
   return (
     <div>
       <button
@@ -21,6 +21,14 @@ const NotificationTrigger = () => {
       >
         Send Test Notification
       </button>
+      <button
+        onClick={() => showToast('Tài khoản chưa đăng ký thiết bị nhận thông báo.', 'warning')}
+      >
+        Trigger Push Warning Toast
+      </button>
+      {activeToast && (
+        <div data-testid="active-toast-source">{activeToast.barn}</div>
+      )}
       <div data-testid="outside-element">Outside Area</div>
     </div>
   );
@@ -158,5 +166,15 @@ describe('Notification Dropdown Interactions', () => {
 
     fireEvent.click(screen.getByText('Xóa tất cả'));
     expect(screen.getByText('Chưa có thông báo nào')).toBeInTheDocument();
+  });
+
+  it('classifies "Tài khoản chưa đăng ký thiết bị nhận thông báo." as Thông báo & Cảnh báo rather than Kho hàng hóa', () => {
+    renderLayout();
+
+    fireEvent.click(screen.getByText('Trigger Push Warning Toast'));
+
+    const sourceEl = screen.getByTestId('active-toast-source');
+    expect(sourceEl).toHaveTextContent('Thông báo & Cảnh báo');
+    expect(sourceEl).not.toHaveTextContent('Kho hàng hóa');
   });
 });

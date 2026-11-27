@@ -89,12 +89,12 @@ public class NavigationCommandHandler implements AssistantCommandHandler {
         }
 
         Map<String, Object> navSummary = new LinkedHashMap<>();
-        navSummary.put("title", "⚡ Điều hướng tức thì (0 tốn token AI)");
-        navSummary.put("detail", "Định tuyến cục bộ sang " + route.label() + " (<5ms), bỏ qua hoàn toàn mô hình AI");
+        navSummary.put("title", "Điều hướng nhanh");
+        navSummary.put("detail", "Đã mở màn hình " + route.label() + ".");
         navSummary.put("timestamp", LocalDateTime.now(CycleService.VN_ZONE).toString());
 
         return AiAssistantResponse.builder()
-                .reply("🚀 Đang chuyển bạn sang màn hình **" + route.label() + "** *(điều hướng cục bộ tức thì, 0 tốn token AI)*.")
+                .reply("Đang mở màn hình **" + route.label() + "**.")
                 .actionType("NAVIGATE_AND_PREFILL")
                 .executed(true)
                 .navigateTo(route.path())

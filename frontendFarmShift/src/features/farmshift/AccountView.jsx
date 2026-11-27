@@ -27,6 +27,8 @@ import employeeFormStyles from './EmployeeForm.module.css';
 import styles from './AccountView.module.css';
 import { dataCache } from '../../services/dataCache';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
+import { useViewport } from '../../hooks/useViewport';
 
 const ROLE_DISPLAY = {
   ROLE_FARM_OWNER: {
@@ -202,6 +204,7 @@ export const validateAllPassword = (formData) => {
 export const AccountView = () => {
   const { user, updateUser } = useAuth();
   const { showToast } = useNotification();
+  const { isMobile } = useViewport();
   const canManageStaff = user?.role === 'ROLE_FARM_OWNER';
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
@@ -945,6 +948,173 @@ export const AccountView = () => {
     }
   };
 
+  const getRoleInfo = (st) => ROLE_DISPLAY[st.roleName] || {
+    label: st.roleName || 'Nhân viên',
+    badgeClass: 'farmshift-badge-neutral',
+    barn: 'Khu chuồng trại'
+  };
+
+  const renderAvatar = (st, large = false) => (
+    <div className={large ? styles.staffAvatarLg : styles.staffAvatar}>
+      {st.avatarUrl ? (
+        <img src={st.avatarUrl} alt="" />
+      ) : (
+        (st.fullName || st.email || 'U').charAt(0).toUpperCase()
+      )}
+    </div>
+  );
+
+  const renderStatusBadge = (st) => {
+    const isOwner = st.roleName === 'ROLE_FARM_OWNER';
+    return (
+      <span
+        className={`farmshift-badge ${st.isActive ? 'farmshift-badge-success' : 'farmshift-badge-danger'} ${styles.nowrapCell}`}
+        style={{ cursor: isOwner ? 'default' : 'pointer' }}
+        onClick={() => !isOwner && handleQuickToggleActive(st)}
+        title={isOwner ? 'Tài khoản Chủ trại không thể vô hiệu hóa' : 'Bấm để đổi trạng thái'}
+      >
+        {st.isActive ? 'Đang hoạt động' : 'Đã tạm khóa'}
+      </span>
+    );
+  };
+
+  const staffColumns = [
+    {
+      key: 'employee',
+      label: 'Nhân viên',
+      primary: true,
+      render: (_, st) => (
+        <div className={styles.staffNameCell}>
+          {renderAvatar(st)}
+          <strong>{st.fullName || 'Chưa đặt tên'}</strong>
+        </div>
+      ),
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      render: (_, st) => <span className={styles.staffEmailCell}>{st.email}</span>,
+    },
+    {
+      key: 'phone',
+      label: 'Số điện thoại',
+      render: (_, st) => <span className={`${styles.staffPhoneCell} ${styles.nowrapCell}`}>{st.phone || '—'}</span>,
+    },
+    {
+      key: 'role',
+      label: 'Vai trò phân quyền',
+      render: (_, st) => {
+        const roleInfo = getRoleInfo(st);
+        return (
+          <span className={`farmshift-badge ${roleInfo.badgeClass} ${styles.nowrapCell}`}>
+            {roleInfo.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'scope',
+      label: 'Phạm vi phụ trách',
+      hideOnTablet: true,
+      render: (_, st) => {
+        const roleInfo = getRoleInfo(st);
+        return <span className={styles.staffScopeCell}>{st.barnAssigned || roleInfo.barn}</span>;
+      },
+    },
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      isBadge: true,
+      render: (_, st) => renderStatusBadge(st),
+    },
+    {
+      key: 'actions',
+      label: 'Thao tác',
+      isAction: true,
+      align: 'center',
+      width: '120px',
+      render: (_, st) => (
+        <div className={styles.actionsCell}>
+          <button
+            type="button"
+            className="farmshift-btn farmshift-btn-secondary"
+            onClick={() => handleViewDetails(st)}
+            title="Xem chi tiết"
+            aria-label={`Xem chi tiết ${st.fullName || st.email}`}
+            style={{ padding: '6px 8px' }}
+          >
+            <Eye size={14} />
+          </button>
+          <button
+            type="button"
+            className="farmshift-btn farmshift-btn-secondary"
+            onClick={() => handleOpenEdit(st)}
+            title="Chỉnh sửa & Phân quyền"
+            aria-label={`Chỉnh sửa ${st.fullName || st.email}`}
+            style={{ padding: '6px 8px' }}
+          >
+            <Edit2 size={14} />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const renderStaffMobileCard = (st) => {
+    const roleInfo = getRoleInfo(st);
+    return (
+      <div className={styles.staffMobileCard}>
+        <div className={styles.staffMobileHead}>
+          <div className={styles.staffMobileIdentity}>
+            {renderAvatar(st, true)}
+            <div>
+              <strong>{st.fullName || 'Chưa đặt tên'}</strong>
+              <span className={styles.staffMobileEmail}>{st.email}</span>
+            </div>
+          </div>
+          {renderStatusBadge(st)}
+        </div>
+        <div className={styles.staffMobileMeta}>
+          <div>
+            <span>Vai trò</span>
+            <span className={`farmshift-badge ${roleInfo.badgeClass} ${styles.nowrapCell}`}>
+              {roleInfo.label}
+            </span>
+          </div>
+          <div>
+            <span>Số điện thoại</span>
+            <strong>{st.phone || '—'}</strong>
+          </div>
+          <div className={styles.staffMobileMetaFull}>
+            <span>Phạm vi phụ trách</span>
+            <strong>{st.barnAssigned || roleInfo.barn}</strong>
+          </div>
+        </div>
+        <div className={styles.staffMobileActions}>
+          <button
+            type="button"
+            className={`farmshift-btn farmshift-btn-secondary ${styles.staffMobileBtn}`}
+            onClick={() => handleViewDetails(st)}
+          >
+            <Eye size={14} /> Xem chi tiết
+          </button>
+          <button
+            type="button"
+            className={`farmshift-btn farmshift-btn-secondary ${styles.staffMobileBtn}`}
+            onClick={() => handleOpenEdit(st)}
+          >
+            <Edit2 size={14} /> Chỉnh sửa
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const staffSummaryItems = [
+    { label: 'Tổng nhân sự', value: `${staffList.length}` },
+    { label: 'Đang hoạt động', value: `${staffList.filter(s => s.isActive).length}`, tone: 'teal' },
+  ];
+
   return (
     <FarmShiftLayout
       pageTitle={canManageStaff ? 'Tài khoản & Nhân sự' : 'Hồ sơ cá nhân'}
@@ -993,8 +1163,8 @@ export const AccountView = () => {
         <div className="farmshift-card">
 
           {/* Toolbar: Search keyword & Filters */}
-          <div className="farmshift-toolbar" style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-hairline)', margin: 0 }}>
-            <div className="farmshift-search-box" style={{ width: '320px' }}>
+          <div className={`farmshift-toolbar ${styles.staffToolbar}`}>
+            <div className={`farmshift-search-box ${styles.staffSearchBox}`}>
               {isLoadingStaff ? (
                 <RefreshCw size={16} className="farmshift-spin" style={{ color: 'var(--color-primary)' }} />
               ) : (
@@ -1018,7 +1188,7 @@ export const AccountView = () => {
               )}
             </div>
 
-            <div className="farmshift-filter-group">
+            <div className={`farmshift-filter-group ${styles.staffFilterGroup}`}>
               <select
                 className="farmshift-select"
                 value={filterRole}
@@ -1044,126 +1214,25 @@ export const AccountView = () => {
             </div>
           </div>
 
-          {/* Table Container */}
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
-              <thead>
-                <tr>
-                  <th>Nhân viên</th>
-                  <th>Email</th>
-                  <th>Số điện thoại</th>
-                  <th>Vai trò phân quyền</th>
-                  <th>Phạm vi phụ trách</th>
-                  <th>Trạng thái</th>
-                  <th style={{ textAlign: 'center', width: '130px' }}>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoadingStaff ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-muted)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                        <RefreshCw size={18} className="farmshift-spin" />
-                        <span>Đang tải danh sách nhân viên từ hệ thống...</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : staffList.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
-                      <AlertCircle size={24} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--color-muted)' }} />
-                      <p style={{ margin: 0, fontWeight: 500 }}>{getSystemMessage('MSG01')}</p>
-                      <p style={{ margin: '4px 0 0', fontSize: '14.5px' }}>Thử thay đổi từ khóa tìm kiếm hoặc bỏ bớt bộ lọc.</p>
-                    </td>
-                  </tr>
-                ) : (
-                  staffList.map(st => {
-                    const roleInfo = ROLE_DISPLAY[st.roleName] || {
-                      label: st.roleName || 'Nhân viên',
-                      badgeClass: 'farmshift-badge-neutral',
-                      barn: 'Khu chuồng trại'
-                    };
-                    const isOwner = st.roleName === 'ROLE_FARM_OWNER';
-
-                    return (
-                      <tr key={st.id || st.email}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{
-                              width: '34px',
-                              height: '34px',
-                              flexShrink: 0,
-                              aspectRatio: '1 / 1',
-                              borderRadius: '50%',
-                              backgroundColor: 'var(--color-surface-soft)',
-                              border: '1px solid var(--color-hairline)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              overflow: 'hidden',
-                              fontWeight: 600,
-                              color: 'var(--color-ink)',
-                              fontSize: '14.5px'
-                            }}>
-                              {st.avatarUrl ? (
-                                <img src={st.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              ) : (
-                                (st.fullName || st.email || 'U').charAt(0).toUpperCase()
-                              )}
-                            </div>
-                            <div>
-                              <strong style={{ color: 'var(--color-ink)', fontSize: '15px', display: 'block' }}>
-                                {st.fullName || 'Chưa đặt tên'}
-                              </strong>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ color: 'var(--color-body)', fontSize: '14.5px' }}>{st.email}</td>
-                        <td style={{ color: 'var(--color-body)', fontSize: '14.5px' }}>{st.phone || '—'}</td>
-                        <td>
-                          <span className={`farmshift-badge ${roleInfo.badgeClass}`}>
-                            {roleInfo.label}
-                          </span>
-                        </td>
-                        <td style={{ color: 'var(--color-muted)', fontSize: '14.5px' }}>
-                          {st.barnAssigned || roleInfo.barn}
-                        </td>
-                        <td>
-                          <span
-                            className={`farmshift-badge ${st.isActive ? 'farmshift-badge-success' : 'farmshift-badge-danger'}`}
-                            style={{ cursor: isOwner ? 'default' : 'pointer' }}
-                            onClick={() => !isOwner && handleQuickToggleActive(st)}
-                            title={isOwner ? 'Tài khoản Chủ trại không thể vô hiệu hóa' : 'Bấm để đổi trạng thái'}
-                          >
-                            {st.isActive ? 'Đang hoạt động' : 'Đã tạm khóa'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                            <button
-                              className="farmshift-btn farmshift-btn-secondary"
-                              onClick={() => handleViewDetails(st)}
-                              title="Xem chi tiết"
-                              style={{ padding: '6px 8px' }}
-                            >
-                              <Eye size={14} />
-                            </button>
-                            <button
-                              className="farmshift-btn farmshift-btn-secondary"
-                              onClick={() => handleOpenEdit(st)}
-                              title="Chỉnh sửa & Phân quyền"
-                              style={{ padding: '6px 8px' }}
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          {/* Responsive Table / Mobile Cards */}
+          <div className={styles.staffTableWrap}>
+            <ResponsiveDataTable
+              columns={staffColumns}
+              data={staffList}
+              rowKey={st => st.id || st.email}
+              mode="card-on-mobile"
+              loading={isLoadingStaff}
+              summaryItems={isMobile && !isLoadingStaff ? staffSummaryItems : []}
+              renderMobileCard={renderStaffMobileCard}
+              tableClassName={styles.staffTable}
+              emptyState={
+                <div style={{ textAlign: 'center', color: 'var(--color-muted)' }}>
+                  <AlertCircle size={24} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--color-muted)' }} />
+                  <p style={{ margin: 0, fontWeight: 500 }}>{getSystemMessage('MSG01')}</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '14.5px' }}>Thử thay đổi từ khóa tìm kiếm hoặc bỏ bớt bộ lọc.</p>
+                </div>
+              }
+            />
           </div>
         </div>
       )}

@@ -236,8 +236,10 @@ export const GeneralSettingsView = () => {
     getPushStatus()
       .then((status) => {
         if (cancelled || !status) return;
-        setPushSubscribed(Boolean(status.localSubscribed));
-        setPushDeviceCount(Number(status.deviceCount || 0));
+        const serverCount = Number(status.deviceCount || 0);
+        const syncedOnServer = Boolean(status.hasActiveSubscription) || serverCount > 0;
+        setPushSubscribed(Boolean(status.localSubscribed) && syncedOnServer);
+        setPushDeviceCount(serverCount);
       })
       .catch(() => {});
 
@@ -286,6 +288,10 @@ export const GeneralSettingsView = () => {
     try {
       const res = await sendTestPushNotification();
       const ok = Number(res?.sentCount || 0) > 0;
+      if (!ok) {
+        setPushSubscribed(false);
+        setPushDeviceCount(0);
+      }
       const msg = res?.message || (ok
         ? 'Đã gửi thông báo thử nghiệm tới thiết bị của bạn.'
         : 'Tài khoản chưa đăng ký thiết bị nhận thông báo.');
@@ -433,7 +439,7 @@ export const GeneralSettingsView = () => {
             )}
             <fieldset disabled={isLoadingFarm || isSavingFarm || !canEditFarm || !!farmError} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
               <div className="farmshift-card-body">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className={styles.formGrid2}>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Tên cơ sở / Hộ kinh doanh *</label>
                     <input
@@ -458,7 +464,7 @@ export const GeneralSettingsView = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className={styles.formGrid2}>
                   <div className="farmshift-form-group">
                     <label className="farmshift-form-label">Số điện thoại *</label>
                     <input
@@ -521,8 +527,8 @@ export const GeneralSettingsView = () => {
       {/* ── Tab 3: Phân vai trò chung ─────────────────────── */}
       {activeTab === 'roles' && (
         <div className={`farmshift-card ${styles.roleSection}`}>
-          <div className="farmshift-card-header">
-            <div>
+          <div className={`farmshift-card-header ${styles.roleHeader}`}>
+            <div className={styles.roleHeaderText}>
               <h3 className="farmshift-card-title">Phân quyền chức năng theo vị trí công việc (RBAC)</h3>
               <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
                 Ma trận kiểm soát truy cập 7 phân hệ nghiệp vụ áp dụng đồng bộ trên API, giao diện và Trợ lý AI.
@@ -566,8 +572,8 @@ export const GeneralSettingsView = () => {
             })}
           </div>
 
-          <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
+          <div className={`farmshift-table-container ${styles.rbacTableWrap}`} style={{ border: 'none' }}>
+            <table className={`farmshift-table ${styles.rbacTable}`}>
               <thead>
                 <tr>
                   <th>Phân hệ nghiệp vụ</th>
@@ -580,23 +586,23 @@ export const GeneralSettingsView = () => {
               <tbody>
                 {RBAC_DOMAINS.map((row) => (
                   <tr key={row.domain}>
-                    <td><strong>{row.domain}</strong></td>
-                    <td>
+                    <td className={styles.rbacDomainCell}><strong>{row.domain}</strong></td>
+                    <td className={styles.rbacRoleCell} data-label="Chủ trang trại">
                       <span className={`farmshift-badge ${badgeClassFor(row.owner.variant)}`}>
                         {row.owner.label}
                       </span>
                     </td>
-                    <td>
+                    <td className={styles.rbacRoleCell} data-label="Kế toán">
                       <span className={`farmshift-badge ${badgeClassFor(row.accountant.variant)}`}>
                         {row.accountant.label}
                       </span>
                     </td>
-                    <td>
+                    <td className={styles.rbacRoleCell} data-label="Công nhân">
                       <span className={`farmshift-badge ${badgeClassFor(row.worker.variant)}`}>
                         {row.worker.label}
                       </span>
                     </td>
-                    <td className={styles.guardrailText}>{row.guardrail}</td>
+                    <td className={`${styles.guardrailText} ${styles.rbacGuardrailCell}`} data-label="Quy tắc bảo mật">{row.guardrail}</td>
                   </tr>
                 ))}
               </tbody>
@@ -608,7 +614,7 @@ export const GeneralSettingsView = () => {
       {/* ── Tab 4: Thông báo cá nhân & Cảnh báo ─────────────── */}
       {activeTab === 'notifications' && (
         <div className="farmshift-card" style={{ maxWidth: '800px' }}>
-          <div className="farmshift-card-header">
+          <div className={`farmshift-card-header ${styles.notifHeader}`}>
             <div>
               <h3 className="farmshift-card-title">Cấu hình kênh &amp; Loại thông báo hệ thống</h3>
               <p style={{ fontSize: '13.5px', color: 'var(--color-muted)', margin: '4px 0 0 0' }}>
