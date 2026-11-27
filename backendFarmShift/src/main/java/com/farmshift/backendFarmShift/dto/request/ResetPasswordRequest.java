@@ -11,6 +11,7 @@ public class ResetPasswordRequest {
 
     @NotBlank(message = "Email is required")
     @Email(message = "Email must be a valid email address")
+    @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
 
     /** 6-digit OTP delivered to the user's inbox. */

@@ -93,6 +93,11 @@ class LoginUnitTest {
         assertFalse(validator.validate(request(email, "123456")).isEmpty(), "Email length must not exceed the documented limit.");
     }
 
+    @Test void loginPasswordOver100CharactersIsRejectedByValidation() {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        assertFalse(validator.validate(request("mienbinh@smartfarm.com", "P".repeat(255))).isEmpty());
+    }
+
     static LoginRequest request(String email, String password) {
         LoginRequest request = new LoginRequest(); request.setEmail(email); request.setPassword(password); return request;
     }

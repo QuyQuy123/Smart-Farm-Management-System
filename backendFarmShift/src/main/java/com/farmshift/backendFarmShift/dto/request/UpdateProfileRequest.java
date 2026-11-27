@@ -3,6 +3,7 @@ package com.farmshift.backendFarmShift.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,10 +13,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UpdateProfileRequest {
     @jakarta.validation.constraints.Email(message = "Email không hợp lệ")
-    @jakarta.validation.constraints.Size(min = 1, max = 50)
+    @Size(min = 1, max = 50)
     private String email;
     
     @NotBlank(message = "Full name is required")
+    @Size(max = 255, message = "Full name must not exceed 255 characters")
     private String fullName;
     
     private String avatarUrl;

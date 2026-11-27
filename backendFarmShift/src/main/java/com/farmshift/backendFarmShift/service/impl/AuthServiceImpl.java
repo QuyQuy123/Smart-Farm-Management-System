@@ -203,6 +203,9 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 3. Load account and verify it is active before consuming OTP
+        if (request.getNewPassword() != null && request.getNewPassword().chars().anyMatch(Character::isWhitespace)) {
+            throw new BadRequestException("Password must not contain whitespace.");
+        }
         Account account = accountRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Account not found for email: " + email));
