@@ -4,12 +4,16 @@ import com.farmshift.backendFarmShift.dto.request.EmployeeCreateRequest;
 import com.farmshift.backendFarmShift.dto.request.EmployeeUpdateRequest;
 import com.farmshift.backendFarmShift.dto.response.ApiResponse;
 import com.farmshift.backendFarmShift.dto.response.EmployeeResponse;
+import com.farmshift.backendFarmShift.security.JwtProvider;
 import com.farmshift.backendFarmShift.service.EmployeeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.security.Principal;
 import java.util.List;
 
 /**
@@ -38,6 +43,9 @@ import java.util.List;
 public class EmployeeController {
 
     private final EmployeeService employeeService;
+
+    @Autowired(required = false)
+    private JwtProvider jwtProvider;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<EmployeeResponse>>> getEmployees(
@@ -74,9 +82,26 @@ public class EmployeeController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<EmployeeResponse>> updateEmployee(
             @PathVariable Long id,
-            @Valid @RequestBody EmployeeUpdateRequest request) {
+            @Valid @RequestBody EmployeeUpdateRequest request,
+            Principal principal) {
+
+        EmployeeResponse before = (principal != null && jwtProvider != null)
+                ? employeeService.getEmployeeById(id)
+                : null;
+        EmployeeResponse updated = employeeService.updateEmployee(id, request);
+        if (before != null
+                && principal.getName().equalsIgnoreCase(before.getEmail())
+                && updated != null
+                && updated.getEmail() != null
+                && !principal.getName().equalsIgnoreCase(updated.getEmail())) {
+            var authentication = new UsernamePasswordAuthenticationToken(
+                    updated.getEmail(),
+                    null,
+                    List.of(new SimpleGrantedAuthority(updated.getRoleName())));
+            updated.setToken(jwtProvider.generateToken(authentication));
+        }
 
         return ResponseEntity.ok(ApiResponse.success(
-                "Employee updated successfully", employeeService.updateEmployee(id, request)));
+                "Employee updated successfully", updated));
     }
 }

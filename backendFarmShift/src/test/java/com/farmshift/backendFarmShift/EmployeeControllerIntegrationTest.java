@@ -54,6 +54,7 @@ class EmployeeControllerIntegrationTest {
 
     @MockitoBean private JavaMailSender mailSender;
 
+    private Long ownerId;
     private Long workerId;
 
     @BeforeEach
@@ -66,7 +67,7 @@ class EmployeeControllerIntegrationTest {
         ensureRole(RoleNames.ACCOUNTANT, "Kế toán");
         Role worker = ensureRole(RoleNames.FARM_WORKER, "Công nhân");
 
-        saveAccount(OWNER_EMAIL, "Miền Bính", owner, "0988111222");
+        ownerId = saveAccount(OWNER_EMAIL, "Miền Bính", owner, "0988111222").getId();
         workerId = saveAccount(WORKER_EMAIL, "Lê Công Nhân", worker, "0966333444").getId();
     }
 
@@ -273,5 +274,34 @@ class EmployeeControllerIntegrationTest {
 
         mockMvc.perform(get("/api/employees/{id}", 999_999L).header("Authorization", auth))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Owner updating own email via /api/employees/{id} receives a fresh JWT token that authenticates subsequent requests")
+    void ownerUpdatesOwnEmailReceivesNewToken() throws Exception {
+        String auth = token(OWNER_EMAIL);
+
+        EmployeeUpdateRequest update = EmployeeUpdateRequest.builder()
+                .fullName("Miền Bính Updated")
+                .email("owner.updated@farmshift.local")
+                .phone("0988111222")
+                .build();
+
+        MvcResult result = mockMvc.perform(put("/api/employees/{id}", ownerId)
+                        .header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("owner.updated@farmshift.local"))
+                .andExpect(jsonPath("$.data.token").isNotEmpty())
+                .andReturn();
+
+        String newToken = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("token").asText();
+
+        mockMvc.perform(get("/api/user/profile").header("Authorization", "Bearer " + newToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("owner.updated@farmshift.local"))
+                .andExpect(jsonPath("$.data.fullName").value("Miền Bính Updated"));
     }
 }
