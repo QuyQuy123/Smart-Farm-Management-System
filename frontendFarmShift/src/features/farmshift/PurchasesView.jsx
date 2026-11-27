@@ -33,6 +33,8 @@ import { listMeasurementUnits } from '../../services/measurementUnitService';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './PurchasesView.module.css';
 import { PurchaseRowActions } from './PurchaseRowActions';
+import { CurrencyInput } from '../../components/CurrencyInput/CurrencyInput';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import { ConfirmStockImport } from './ConfirmStockImport';
 import { PrintablePurchaseVoucher } from './PrintablePurchaseVoucher';
 import { PurchaseInvoiceTemplate } from './PurchaseInvoiceTemplate';
@@ -475,26 +477,92 @@ export const PurchasesView = () => {
     };
   }, [stopCamera]);
 
-  // Escape key closes open modals
+  const isPaymentDirty = Boolean(
+    showPaymentModal && (
+      String(paymentAmount) !== String(selectedOrder?.debtAmount ?? '') ||
+      Boolean(paymentNote?.trim())
+    )
+  );
+  const isPoDirty = Boolean(
+    newPo.supplierId ||
+    newPo.referenceCode?.trim() ||
+    newPo.note?.trim() ||
+    newPo.items?.some(it => it.name?.trim() || Number(it.price) > 0)
+  );
+  const isSupplierDirty = Boolean(
+    supplierModal && supplierModal.mode !== 'delete' && (
+      supplierModal.mode === 'create'
+        ? (
+            supplierForm.name?.trim() ||
+            supplierForm.representative?.trim() ||
+            supplierForm.phone?.trim() ||
+            supplierForm.email?.trim() ||
+            supplierForm.address?.trim() ||
+            supplierForm.taxCode?.trim() ||
+            supplierForm.bankName?.trim() ||
+            supplierForm.bankAccount?.trim() ||
+            supplierForm.note?.trim() ||
+            (supplierForm.tagIds?.length || 0) > 0
+          )
+        : (
+            supplierForm.name !== (supplierModal.item?.name || '') ||
+            supplierForm.representative !== (supplierModal.item?.representative || '') ||
+            supplierForm.phone !== (supplierModal.item?.phone || '') ||
+            supplierForm.email !== (supplierModal.item?.email || '') ||
+            supplierForm.address !== (supplierModal.item?.address || '') ||
+            supplierForm.taxCode !== (supplierModal.item?.taxCode || '') ||
+            supplierForm.bankName !== (supplierModal.item?.bankName || '') ||
+            supplierForm.bankAccount !== (supplierModal.item?.bankAccount || '') ||
+            supplierForm.paymentPolicy !== (supplierModal.item?.paymentPolicy || 'Trả theo đơn') ||
+            supplierForm.note !== (supplierModal.item?.note || '') ||
+            JSON.stringify([...(supplierForm.tagIds || [])].sort()) !== JSON.stringify([...(supplierModal.item?.tagIds || [])].sort())
+          )
+    )
+  );
+  const isTagDirty = Boolean(
+    tagModal && tagModal.mode !== 'delete' && (
+      tagModal.mode === 'create'
+        ? (
+            tagForm.name?.trim() ||
+            tagForm.description?.trim() ||
+            (tagForm.color && tagForm.color !== '#019788')
+          )
+        : (
+            tagForm.name !== (tagModal.item?.name || '') ||
+            tagForm.color !== (tagModal.item?.color || '#019788') ||
+            tagForm.description !== (tagModal.item?.description || '')
+          )
+    )
+  );
+
+  // Escape key closes open modals (blocks dirty form modals to prevent data loss)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         if (showPaymentModal) {
-          setShowPaymentModal(false);
-          setPaymentError('');
+          if (!isPaymentDirty) {
+            setShowPaymentModal(false);
+            setPaymentError('');
+          }
         } else if (showOcrModal) {
           if (!ocrLoading) handleCloseOcrModal();
         } else if (showAddModal) {
-          setShowAddModal(false);
-          setPoErrors({});
-          setOcrBanner(false); setIsOcrDraft(false);
-          setOcrWarnings([]);
+          if (!isPoDirty) {
+            setShowAddModal(false);
+            setPoErrors({});
+            setOcrBanner(false); setIsOcrDraft(false);
+            setOcrWarnings([]);
+          }
         } else if (supplierModal) {
-          setSupplierModal(null);
-          setSupplierErrors({});
+          if (!isSupplierDirty) {
+            setSupplierModal(null);
+            setSupplierErrors({});
+          }
         } else if (tagModal) {
-          setTagModal(null);
-          setTagErrors({});
+          if (!isTagDirty) {
+            setTagModal(null);
+            setTagErrors({});
+          }
         } else if (selectedOrder) {
           setSelectedOrder(null);
         }
@@ -502,7 +570,7 @@ export const PurchasesView = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showPaymentModal, showOcrModal, showAddModal, supplierModal, tagModal, selectedOrder, ocrLoading, handleCloseOcrModal]);
+  }, [showPaymentModal, showOcrModal, showAddModal, supplierModal, tagModal, selectedOrder, ocrLoading, handleCloseOcrModal, isPaymentDirty, isPoDirty, isSupplierDirty, isTagDirty]);
 
   // Helper to clear PO item error for a specific row and field
   const clearItemError = (idx, field) => {
@@ -1959,7 +2027,7 @@ export const PurchasesView = () => {
         <div
           className="farmshift-modal-backdrop"
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
+            if (e.target === e.currentTarget && !isPaymentDirty) {
               setShowPaymentModal(false);
               setPaymentError('');
             }
@@ -1985,17 +2053,15 @@ export const PurchasesView = () => {
                 </div>
                 <div className="farmshift-form-group">
                   <label htmlFor="pay-amount" className="farmshift-form-label">Số tiền thanh toán lần này (VNĐ) *</label>
-                  <input
+                  <CurrencyInput
                     id="pay-amount"
-                    type="number"
-                    className={`farmshift-form-control ${paymentError ? 'has-error' : ''}`}
+                    inputClassName={`farmshift-form-control ${paymentError ? 'has-error' : ''}`}
                     value={paymentAmount}
                     onChange={(e) => {
                       setPaymentAmount(e.target.value);
                       if (paymentError) setPaymentError('');
                     }}
                     required
-                    max={selectedOrder.debtAmount}
                   />
                   {paymentError && (
                     <div className="farmshift-field-error">
@@ -2038,7 +2104,7 @@ export const PurchasesView = () => {
         <div
           className="farmshift-modal-backdrop"
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
+            if (e.target === e.currentTarget && !isPoDirty) {
               setShowAddModal(false);
               setOcrBanner(false); setIsOcrDraft(false);
             }
@@ -2397,14 +2463,12 @@ export const PurchasesView = () => {
                           )}
                         </div>
                         <div>
-                          <input
-                            type="number"
+                          <QuantityInput
+                            allowDecimal
                             placeholder="Số lượng"
                             onBlur={() => validatePoField('qty', idx)}
-                            className={`farmshift-form-control ${itemErr.qty ? 'has-error' : ''}`}
+                            inputClassName={`farmshift-form-control ${itemErr.qty ? 'has-error' : ''}`}
                             value={row.qty}
-                            min="0.1"
-                            step="any"
                             onChange={(e) => {
                               const updated = [...newPo.items];
                               updated[idx].qty = e.target.value;
@@ -2576,13 +2640,11 @@ export const PurchasesView = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px', padding: '12px 14px', backgroundColor: 'var(--color-surface-soft)', borderRadius: 'var(--rounded-md)', border: '1px solid var(--color-hairline)' }}>
                       <div className="farmshift-form-group">
                         <label htmlFor="po-partial-paid" className="farmshift-form-label">Số tiền trả trước (VNĐ) <span className={styles.requiredMark}>*</span></label>
-                        <input
+                        <CurrencyInput
                           id="po-partial-paid"
-                        onBlur={() => validatePoField('paidAmount')}
-                          type="number"
+                          onBlur={() => validatePoField('paidAmount')}
                           placeholder="Nhập số tiền trả trước..."
-                          min="1"
-                          className={`farmshift-form-control ${poErrors.paidAmount ? 'has-error' : ''}`}
+                          inputClassName={`farmshift-form-control ${poErrors.paidAmount ? 'has-error' : ''}`}
                           value={newPo.paidAmount || ''}
                           onChange={(e) => {
                             setNewPo({ ...newPo, paidAmount: e.target.value });
@@ -2696,13 +2758,11 @@ export const PurchasesView = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '14px' }}>
                     <div className="farmshift-form-group">
                       <label htmlFor="po-discount-amount" className="farmshift-form-label">Chiết khấu giảm giá (VNĐ)</label>
-                      <input
+                      <CurrencyInput
                         id="po-discount-amount"
                         onBlur={() => validatePoField('discountAmount')}
-                        type="number"
                         placeholder="0"
-                        min="0"
-                        className={`farmshift-form-control ${poErrors.discountAmount ? 'has-error' : ''}`}
+                        inputClassName={`farmshift-form-control ${poErrors.discountAmount ? 'has-error' : ''}`}
                         value={newPo.discountAmount || ''}
                         onChange={(e) => {
                           setNewPo({ ...newPo, discountAmount: e.target.value });
@@ -2714,13 +2774,11 @@ export const PurchasesView = () => {
                     </div>
                     <div className="farmshift-form-group">
                       <label htmlFor="po-other-cost" className="farmshift-form-label">Chi phí khác / Vận chuyển (VNĐ)</label>
-                      <input
+                      <CurrencyInput
                         id="po-other-cost"
                         onBlur={() => validatePoField('otherCost')}
-                        type="number"
                         placeholder="0"
-                        min="0"
-                        className={`farmshift-form-control ${poErrors.otherCost ? 'has-error' : ''}`}
+                        inputClassName={`farmshift-form-control ${poErrors.otherCost ? 'has-error' : ''}`}
                         value={newPo.otherCost || ''}
                         onChange={(e) => {
                           setNewPo({ ...newPo, otherCost: e.target.value });
@@ -3229,7 +3287,7 @@ export const PurchasesView = () => {
           className="farmshift-modal-backdrop"
           style={{ zIndex: 1200 }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
+            if (e.target === e.currentTarget && !isSupplierDirty) {
               setSupplierModal(null);
               setSupplierErrors({});
             }
@@ -3479,7 +3537,7 @@ export const PurchasesView = () => {
         <div
           className="farmshift-modal-backdrop"
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
+            if (e.target === e.currentTarget && !isTagDirty) {
               setTagModal(null);
               setTagErrors({});
             }

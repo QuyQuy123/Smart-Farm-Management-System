@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listBrands, createBrand, updateBrand, deleteBrand } from '../../services/brandService';
 import { listProductTypes } from '../../services/productTypeService';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './WarehouseCategoriesView.module.css';
 
 const errorMessage = error => error.response?.data?.message || 'Không thể kết nối máy chủ. Vui lòng thử lại.';
@@ -77,10 +78,17 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
     }
   };
 
+  const isDirty = !readOnly && !deleting && (
+    name !== (brand?.name || '') ||
+    productType !== (brand?.productType || '') ||
+    quantity !== (brand?.quantity !== undefined && brand?.quantity !== null ? String(brand.quantity) : '0') ||
+    note !== (brand?.note || '')
+  );
+
   return (
     <dialog ref={dialog} className={styles.dialog} aria-labelledby="brand-modal-title"
-      onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-      onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+      onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }}
+      onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}>
       <section className={`${styles.modal} ${styles.modalWide}`}>
         <header className={styles.modalHeader}>
           <h2 id="brand-modal-title">{title}</h2>
@@ -153,11 +161,9 @@ function BrandDialog({ mode, brand, onClose, onSaved, canEdit }) {
                 {mode !== 'create' && (
                   <div className={`${styles.formField} ${styles.fullWidth}`}>
                     <label htmlFor="brand-quantity">Số lượng</label>
-                    <input
+                    <QuantityInput
                       id="brand-quantity"
-                      type="number"
-                      min="0"
-                      className="farmshift-form-control"
+                      inputClassName="farmshift-form-control"
                       placeholder="0"
                       value={quantity}
                       onChange={event => setQuantity(event.target.value)}

@@ -6,6 +6,9 @@ import {
 } from '../../services/cycleDiseaseService';
 import { Dialog } from './FarmAreaDialogs';
 import { DRINKING_MEDICINE_METHODS, MEDICINE_METHODS, apiErrorMessage, formatAmount, formatDay, labelOf, todayIso } from './farmAreaOptions';
+import { CurrencyInput } from '../../components/CurrencyInput/CurrencyInput';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
+import { formatInventoryOption, formatStockAfterExport } from '../../utils/selectFormatters';
 import styles from './DiseaseLogPanel.module.css';
 
 const TREATMENT_METHODS = [
@@ -374,7 +377,8 @@ export function DiseaseLogPanel({
             </article>)}
           </div>}
 
-    {modal?.type === 'createDisease' && <Dialog title="Khai báo đợt bệnh mới" labelId="create-disease-title" busy={busy} onClose={() => setModal(null)}>
+    {modal?.type === 'createDisease' && <Dialog title="Khai báo đợt bệnh mới" labelId="create-disease-title" busy={busy}
+      isDirty={Boolean(modal.form.diseaseName || modal.form.affectedQuantity || modal.form.symptoms)} onClose={() => setModal(null)}>
       <form onSubmit={submitCreateDisease} noValidate>
         <div className={styles.formBox}>
           {modal.error && <p className={styles.error} role="alert">{modal.error}</p>}
@@ -391,7 +395,7 @@ export function DiseaseLogPanel({
             </div>
             <div className={styles.field}>
               <label htmlFor="disease-affected">Số con bị ảnh hưởng</label>
-              <input id="disease-affected" type="number" min="1" className="farmshift-form-control" placeholder="VD: 50"
+              <QuantityInput id="disease-affected" suffix="con" inputClassName="farmshift-form-control" placeholder="VD: 50"
                 value={modal.form.affectedQuantity} onChange={e => setModal(c => ({ ...c, form: { ...c.form, affectedQuantity: e.target.value } }))} />
             </div>
           </div>
@@ -416,7 +420,8 @@ export function DiseaseLogPanel({
       </form>
     </Dialog>}
 
-    {modal?.type === 'addTreatment' && <Dialog title={`Ghi dùng thuốc · ${modal.disease.diseaseName}`} labelId="add-treatment-title" busy={busy} onClose={() => setModal(null)}>
+    {modal?.type === 'addTreatment' && <Dialog title={`Ghi dùng thuốc · ${modal.disease.diseaseName}`} labelId="add-treatment-title" busy={busy}
+      isDirty={Boolean(modal.form.stockQuantity || modal.form.medicineName || modal.form.manualCost || modal.form.dosageText)} onClose={() => setModal(null)}>
       <form onSubmit={submitAddTreatment} noValidate>
         <div className={styles.formBox}>
           {modal.error && <p className={styles.error} role="alert">{modal.error}</p>}
@@ -436,22 +441,37 @@ export function DiseaseLogPanel({
             </div>
           </div>
 
-          {modal.form.sourceMode === 'STOCK' && sources.length > 0 ? <div className={styles.grid2}>
-            <div className={styles.field}>
-              <label htmlFor="treatment-item">Chọn thuốc trong kho *</label>
-              <select id="treatment-item" className="farmshift-form-control" value={modal.form.inventoryItemId}
-                onChange={e => setModal(c => ({ ...c, form: { ...c.form, inventoryItemId: e.target.value } }))}>
-                {sources.map(src => <option key={src.itemId} value={src.itemId}>
-                  {src.productName} ({src.warehouseName} · còn {formatAmount(src.availableStock)} {src.unitName})
-                </option>)}
-              </select>
-            </div>
-            <div className={styles.field}>
-              <label htmlFor="treatment-qty">Số lượng xuất kho *</label>
-              <input id="treatment-qty" type="number" min="0.001" step="0.01" className="farmshift-form-control"
-                value={modal.form.stockQuantity} onChange={e => setModal(c => ({ ...c, form: { ...c.form, stockQuantity: e.target.value } }))} />
-            </div>
-          </div> : <div className={styles.grid2}>
+          {modal.form.sourceMode === 'STOCK' && sources.length > 0 ? (() => {
+            const selectedSrc = sources.find(s => String(s.itemId) === String(modal.form.inventoryItemId)) || sources[0];
+            const stockPreview = selectedSrc
+              ? formatStockAfterExport(selectedSrc.availableStock, modal.form.stockQuantity, selectedSrc.unitName)
+              : { text: '' };
+            return <div className={styles.grid2}>
+              <div className={styles.field}>
+                <label htmlFor="treatment-item">Chọn thuốc trong kho *</label>
+                <select id="treatment-item" className="farmshift-form-control" value={modal.form.inventoryItemId}
+                  onChange={e => setModal(c => ({ ...c, form: { ...c.form, inventoryItemId: e.target.value } }))}>
+                  {sources.map(src => <option key={src.itemId} value={src.itemId} disabled={Number(src.availableStock || 0) <= 0}>
+                    {formatInventoryOption(src)}{src.warehouseName ? ` (${src.warehouseName})` : ''}
+                  </option>)}
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="treatment-qty">Số lượng xuất kho *</label>
+                <QuantityInput
+                  id="treatment-qty"
+                  allowDecimal
+                  suffix={selectedSrc?.unitName || ''}
+                  max={selectedSrc?.availableStock}
+                  showMaxButton={Boolean(selectedSrc?.availableStock > 0)}
+                  helper={stockPreview.text}
+                  inputClassName="farmshift-form-control"
+                  value={modal.form.stockQuantity}
+                  onChange={e => setModal(c => ({ ...c, form: { ...c.form, stockQuantity: e.target.value } }))}
+                />
+              </div>
+            </div>;
+          })() : <div className={styles.grid2}>
             <div className={styles.field}>
               <label htmlFor="treatment-med-name">Tên thuốc ngoài kho *</label>
               <input id="treatment-med-name" className="farmshift-form-control" maxLength={200} placeholder="VD: Toltrazuril 2.5%"
@@ -459,7 +479,7 @@ export function DiseaseLogPanel({
             </div>
             {canFinance && <div className={styles.field}>
               <label htmlFor="treatment-manual-cost">Tiền thuốc (VNĐ)</label>
-              <input id="treatment-manual-cost" type="number" min="0" step="1000" className="farmshift-form-control" placeholder="VD: 150000"
+              <CurrencyInput id="treatment-manual-cost" inputClassName="farmshift-form-control" placeholder="VD: 150.000"
                 value={modal.form.manualCost} onChange={e => setModal(c => ({ ...c, form: { ...c.form, manualCost: e.target.value } }))} />
             </div>}
           </div>}
@@ -490,6 +510,7 @@ export function DiseaseLogPanel({
       title={`Cập nhật tiền thuốc · ${modal.treatment.medicineName}`}
       labelId="edit-treatment-cost-title"
       busy={busy}
+      isDirty={String(modal.form.manualCost ?? '') !== String(modal.treatment.totalCost ?? '')}
       onClose={() => setModal(null)}
     >
       <form onSubmit={submitEditTreatmentCost} noValidate>
@@ -500,14 +521,10 @@ export function DiseaseLogPanel({
           </p>
           <div className={styles.field}>
             <label htmlFor="edit-treatment-manual-cost">Tiền thuốc (VNĐ) *</label>
-            <input
+            <CurrencyInput
               id="edit-treatment-manual-cost"
-              type="number"
-              min="0"
-              max="99999999999999"
-              step="1000"
-              className="farmshift-form-control"
-              placeholder="VD: 150000"
+              inputClassName="farmshift-form-control"
+              placeholder="VD: 150.000"
               value={modal.form.manualCost}
               onChange={e => setModal(c => ({ ...c, error: '', form: { ...c.form, manualCost: e.target.value } }))}
             />

@@ -8,6 +8,7 @@ import { fileService } from '../../services/fileService';
 import { apiErrorMessage, formatAmount, formatDay, todayIso } from './farmAreaOptions';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './BarnJournal.module.css';
 
 /** Nguyên nhân hay gặp, bấm để ghi nhanh vào ghi chú. */
@@ -176,8 +177,16 @@ function LossForm({ detail, barnName, onSaved }) {
       </label>}
       <label className="farmshift-form-group">
         <span className="farmshift-form-label">Số con</span>
-        <input className="farmshift-form-control" type="number" min="1" step="1" inputMode="numeric" placeholder="VD: 5"
-          value={form.quantity} onChange={event => set('quantity', event.target.value)} />
+        <QuantityInput
+          inputClassName="farmshift-form-control"
+          suffix="con"
+          placeholder="VD: 5"
+          value={form.quantity}
+          onChange={event => set('quantity', event.target.value)}
+          warning={flock && Number(form.quantity) > 0 && Number(form.quantity) <= flock.quantity && Number(form.quantity) > flock.quantity * 0.05
+            ? 'Hao hụt vượt quá 5% đàn trong ngày. Vui lòng kiểm tra lại số con.'
+            : ''}
+        />
         {errors.quantity ? <small className={styles.error}>{errors.quantity}</small>
           : flock && <small className={styles.hint}>Đàn {flock.code} còn {num(flock.quantity)} con</small>}
       </label>
@@ -245,14 +254,27 @@ function WeightForm({ detail, latest, onSaved }) {
       </label>
       <label className="farmshift-form-group">
         <span className="farmshift-form-label">Số con cân</span>
-        <input className="farmshift-form-control" type="number" min="1" step="1" inputMode="numeric" value={form.sampleSize}
-          onChange={event => set('sampleSize', event.target.value)} />
+        <QuantityInput
+          inputClassName="farmshift-form-control"
+          suffix="con"
+          value={form.sampleSize}
+          onChange={event => set('sampleSize', event.target.value)}
+        />
         {errors.sampleSize && <small className={styles.error}>{errors.sampleSize}</small>}
       </label>
       <label className="farmshift-form-group">
         <span className="farmshift-form-label">Tổng khối lượng (kg)</span>
-        <input className="farmshift-form-control" type="number" min="0" step="0.01" inputMode="decimal" placeholder="VD: 13,5"
-          value={form.totalKg} onChange={event => set('totalKg', event.target.value)} />
+        <QuantityInput
+          allowDecimal
+          inputClassName="farmshift-form-control"
+          suffix="kg"
+          placeholder="VD: 13,5"
+          value={form.totalKg}
+          onChange={event => set('totalKg', event.target.value)}
+          warning={avg != null && avg > 6 && avg <= 500
+            ? `Cân bình quân cao bất thường (${formatAmount(avg)} kg/con). Vui lòng kiểm tra lại.`
+            : ''}
+        />
         {errors.totalKg && <small className={styles.error}>{errors.totalKg}</small>}
       </label>
     </div>

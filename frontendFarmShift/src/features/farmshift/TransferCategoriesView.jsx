@@ -29,9 +29,14 @@ function CategoryDialog({ mode, item, onClose, onSaved }) {
       onSaved(deleting ? 'Đã xóa danh mục phiếu.' : 'Đã lưu danh mục phiếu.');
     } catch (error) { setError(message(error)); setSaving(false); }
   }
+  const isDirty = !viewing && !deleting && (
+    type !== (TRANSFER_TYPES[item?.type] || item?.type || '') ||
+    name !== (item?.name || '') ||
+    description !== (item?.description || '')
+  );
   return <dialog ref={ref} className={styles.dialog} aria-labelledby="transfer-category-title"
-    onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-    onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}>
     <section className={styles.modal}>
       <header className={styles.modalHeader}><h2 id="transfer-category-title">{({ create: 'Thêm danh mục phiếu', edit: 'Chỉnh sửa danh mục phiếu', view: 'Chi tiết danh mục phiếu', delete: 'Xóa danh mục phiếu' })[mode]}</h2><button type="button" className={styles.iconButton} aria-label="Đóng" disabled={saving} onClick={onClose}><X size={20} /></button></header>
       <form onSubmit={submit}><div className={styles.modalBody}>

@@ -10,6 +10,7 @@ import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
 import { AreaTabs } from './AreaTabs';
 import { apiErrorMessage, formatAmount, formatDay } from './farmAreaOptions';
+import { formatBarnOption, sortBarnsForOperation } from '../../utils/selectFormatters';
 import styles from './CycleHistoryView.module.css';
 
 const money = value => (value == null ? '—' : `${Math.round(Number(value)).toLocaleString('vi-VN')}đ`);
@@ -209,7 +210,7 @@ export function CycleHistoryView() {
           <label htmlFor="hist-barn">Chuồng nuôi</label>
           <select id="hist-barn" className="farmshift-form-control" value={filters.barnId} onChange={e => setFilter('barnId', e.target.value)}>
             <option value="">Tất cả chuồng</option>
-            {visibleBarns.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {sortBarnsForOperation(visibleBarns).map(b => <option key={b.id} value={b.id}>{formatBarnOption(b)}</option>)}
           </select>
         </div>
         <div className={styles.filterField}>

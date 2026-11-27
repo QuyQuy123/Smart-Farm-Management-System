@@ -9,6 +9,8 @@ import styles from './Modal.module.css';
  * @param {()=>void} onClose
  * @param {string}   title
  * @param {string}   size   — 'sm'|'md'|'lg'
+ * @param {boolean}  isDirty — prevents accidental dismissal when clicking backdrop
+ * @param {boolean}  preventBackdropClose — always block backdrop click dismissal
  */
 export const Modal = ({
   isOpen,
@@ -17,14 +19,18 @@ export const Modal = ({
   children,
   footer,
   size = 'md',
+  isDirty = false,
+  preventBackdropClose = false,
 }) => {
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e) => {
+      if (e.key === 'Escape' && !isDirty && !preventBackdropClose) onClose();
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isDirty, preventBackdropClose]);
 
   // Lock body scroll
   useEffect(() => {
@@ -34,8 +40,13 @@ export const Modal = ({
 
   if (!isOpen) return null;
 
+  const handleBackdropClick = () => {
+    if (isDirty || preventBackdropClose) return;
+    onClose();
+  };
+
   return (
-    <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
+    <div className={styles.overlay} onClick={handleBackdropClick} role="dialog" aria-modal="true">
       <div
         className={`${styles.panel} ${styles[size]}`}
         onClick={e => e.stopPropagation()}

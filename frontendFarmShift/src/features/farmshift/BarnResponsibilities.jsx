@@ -72,7 +72,19 @@ function ResponsibilityDialog({ target, workers, onClose, onSaved }) {
       setSaving(false);
     }
   };
-  return <Dialog title={`Công nhân phụ trách · ${(barn || area).name}`} labelId="responsibility-dialog-title" busy={saving} onClose={onClose} wide={!barn} className={styles.assignmentDialog}>
+  const [initialSnapshot] = useState(() => JSON.stringify({
+    inherited: Boolean(barn?.inherited),
+    chosen: (barn || area).workers.map(worker => worker.id).sort(),
+    applyToAll: area.barns.every(item => item.inherited),
+    barnSelections: Object.fromEntries(area.barns.map(item => [item.id, item.workers.map(worker => worker.id).sort()])),
+  }));
+  const isDirty = JSON.stringify({
+    inherited,
+    chosen: [...chosen].sort(),
+    applyToAll,
+    barnSelections: Object.fromEntries(Object.entries(barnSelections).map(([k, v]) => [k, [...v].sort()])),
+  }) !== initialSnapshot;
+  return <Dialog title={`Công nhân phụ trách · ${(barn || area).name}`} labelId="responsibility-dialog-title" busy={saving} isDirty={isDirty} onClose={onClose} wide={!barn} className={styles.assignmentDialog}>
     <form onSubmit={submit}>
       <div className={styles.dialogBody}>
         <p className={styles.intro}>{barn ? `Thuộc ${area.name}. Chọn kế thừa hoặc phân công riêng cho chuồng này.`

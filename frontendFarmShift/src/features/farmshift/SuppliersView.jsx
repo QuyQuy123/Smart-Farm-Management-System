@@ -74,9 +74,15 @@ export function SupplierDialog({ mode, supplier, onClose, onSaved }) {
   };
   const detail = debtHistory || supplier || {};
   const ledgerRows = Array.isArray(debtHistory?.ledger) ? debtHistory.ledger : [];
+  const isDirty = !readOnly && !deleting && (
+    name !== (supplier?.name || '') ||
+    representative !== (supplier?.representative || '') ||
+    phone !== (supplier?.phone || '') ||
+    productTypeId !== String(supplier?.productTypeId || '')
+  );
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="supplier-title"
-    onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-    onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}>
     <section className={`${styles.modal} ${readOnly ? styles.modalWide : ''}`}>
       <header className={styles.modalHeader}><h2 id="supplier-title">{title}</h2><button type="button" className={styles.iconButton} onClick={onClose} disabled={saving} aria-label="Đóng"><X size={20} /></button></header>
       <form onSubmit={submit}>

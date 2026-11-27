@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { listMeasurementUnits, createMeasurementUnit, updateMeasurementUnit, deleteMeasurementUnit } from '../../services/measurementUnitService';
 import { USAGE_UNITS, contentText } from './farmAreaOptions';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './WarehouseCategoriesView.module.css';
 
 const formatDate = value => value ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) : '—';
@@ -49,9 +50,17 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
     } catch (error) { setError(errorMessage(error)); setSaving(false); }
   };
 
+  const isDirty = !readOnly && !deleting && (
+    name !== (category?.name || '') ||
+    code !== (category?.code || '') ||
+    description !== (category?.description || '') ||
+    contentQuantity !== (category?.contentQuantity == null ? '' : String(category.contentQuantity)) ||
+    contentUnit !== (category?.contentUnit || '')
+  );
+
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="measurement-unit-title"
-    onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}
-    onClick={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    onCancel={event => { event.preventDefault(); if (!saving && !isDirty) onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget && !saving && !isDirty) onClose(); }}>
     <section className={`${styles.modal} ${styles.unitModal}`}>
       <header className={styles.modalHeader}>
         <h2 id="measurement-unit-title">{title}</h2>
@@ -68,7 +77,7 @@ function CategoryDialog({ mode, category, onClose, onSaved, canEdit }) {
             <input id="measurement-unit-name" className="farmshift-form-control" placeholder="Ví dụ: Kilôgam" value={name} onChange={event => setName(event.target.value)} required maxLength={150} readOnly={readOnly} disabled={saving} />
             <label htmlFor="measurement-unit-content">Quy cách: 1 {name.trim() || 'đơn vị'} chứa</label>
             <div className={styles.unitConversionRow}>
-              <input id="measurement-unit-content" className="farmshift-form-control" type="number" min="0" step="0.001" inputMode="decimal"
+              <QuantityInput id="measurement-unit-content" allowDecimal inputClassName="farmshift-form-control"
                 placeholder="Ví dụ: 25" value={contentQuantity} onChange={event => setContentQuantity(event.target.value)} readOnly={readOnly} disabled={saving} />
               <select aria-label="Đơn vị quy cách" className="farmshift-form-control" value={contentUnit} onChange={event => setContentUnit(event.target.value)}
                 disabled={readOnly || saving}>

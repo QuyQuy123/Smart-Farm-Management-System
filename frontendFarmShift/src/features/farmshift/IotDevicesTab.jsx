@@ -6,6 +6,7 @@ import {
   Bell, Sliders
 } from 'lucide-react';
 import { StockTempChart } from '../../components/StockTempChart';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 
 export const IotDevicesTab = ({
   iotToast,
@@ -483,10 +484,9 @@ export const IotDevicesTab = ({
               <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--color-hairline)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ fontSize: '13.5px', color: 'var(--color-muted)' }}>Ngưỡng nhiệt tự kích hoạt quạt:</span>
-                  <input
-                    type="number"
-                    step="0.5"
-                    style={{ width: '60px', padding: '4px 6px', fontSize: '14px', borderRadius: '4px', border: '1px solid var(--color-hairline)', textAlign: 'center' }}
+                  <QuantityInput
+                    allowDecimal
+                    style={{ width: '60px', padding: '4px 6px', fontSize: '14px', borderRadius: '4px', border: '1px solid var(--color-hairline)', textAlign: 'center', minHeight: '30px' }}
                     value={b.tempThreshold}
                     onChange={(e) => handleSetThreshold(barnName, 'tempThreshold', e.target.value)}
                   />

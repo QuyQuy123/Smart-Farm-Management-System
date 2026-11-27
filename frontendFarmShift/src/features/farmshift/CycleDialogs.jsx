@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { AlertCircle, Info } from 'lucide-react';
 import { Dialog, FieldError } from './FarmAreaDialogs';
 import { apiErrorMessage } from './farmAreaOptions';
+import { CurrencyInput } from '../../components/CurrencyInput/CurrencyInput';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './AreasView.module.css';
 
 // Validation (400) and duplicate-name (409) responses carry { field: message } in data.
@@ -31,7 +33,24 @@ export function FormDialog({ title, intro, warning, fields: allFields, initial, 
     });
     return next;
   };
-  const set = (key, value) => { setValues(current => reconcile({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: undefined })); };
+  const set = (key, value) => {
+    const next = reconcile({ ...values, [key]: value });
+    setValues(next);
+    const liveErrors = validate ? validate(next) : null;
+    setErrors(current => {
+      const updated = { ...current };
+      updated[key] = liveErrors && String(value ?? '').trim() !== '' ? (liveErrors[key] || undefined) : undefined;
+      Object.keys(current).forEach(existingKey => {
+        if (existingKey !== key && current[existingKey]) {
+          updated[existingKey] = liveErrors?.[existingKey] || undefined;
+        }
+      });
+      if (key === 'importDate' && liveErrors && String(next.ageAtImport ?? '').trim() !== '') {
+        updated.ageAtImport = liveErrors.ageAtImport || undefined;
+      }
+      return updated;
+    });
+  };
   const fields = allFields.filter(field => !field.visible || field.visible(values));
 
   const submit = async event => {
@@ -64,11 +83,32 @@ export function FormDialog({ title, intro, warning, fields: allFields, initial, 
     if (field.render) return field.render(common, value => set(field.key, value));
     if (field.type === 'select') return <select {...common}>{optionsOf(field, values).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
     if (field.type === 'textarea') return <textarea {...common} rows={3} maxLength={1000} placeholder={field.placeholder} />;
-    return <input {...common} type={field.type || 'text'} min={field.min} max={field.max} step={field.step} placeholder={field.placeholder}
-      inputMode={field.type === 'number' ? (field.step && String(field.step).includes('.') ? 'decimal' : 'numeric') : undefined} />;
+    if (field.type === 'currency' || field.key === 'unitPrice' || field.key === 'amount' || field.key === 'price') {
+      const { className, ...rest } = common;
+      return <CurrencyInput {...rest} inputClassName={className} suffix={field.suffix ?? 'đ'} showWords={field.showWords !== false} placeholder={field.placeholder} />;
+    }
+    if (field.type === 'number') {
+      const { className, ...rest } = common;
+      const allowDecimal = Boolean(field.step && String(field.step).includes('.'));
+      return (
+        <QuantityInput
+          {...rest}
+          inputClassName={className}
+          allowDecimal={allowDecimal}
+          suffix={field.suffix || ''}
+          max={field.max}
+          showMaxButton={Boolean(field.showMaxButton)}
+          suppressMaxError={Boolean(validate)}
+          placeholder={field.placeholder}
+        />
+      );
+    }
+    return <input {...common} type={field.type || 'text'} min={field.min} max={field.max} step={field.step} placeholder={field.placeholder} />;
   };
 
-  return <Dialog title={title} labelId="cycle-form-title" busy={saving} onClose={onClose} wide>
+  const isDirty = JSON.stringify(values) !== JSON.stringify(initial);
+
+  return <Dialog title={title} labelId="cycle-form-title" busy={saving} isDirty={isDirty} onClose={onClose} wide>
     <form onSubmit={submit} noValidate>
       <div className={styles.modalBody}>
         {error && <p role="alert" className={styles.error}><AlertCircle size={16} />{error}</p>}

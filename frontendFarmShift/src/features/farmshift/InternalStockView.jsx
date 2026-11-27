@@ -28,6 +28,9 @@ import { PrintableInternalVoucher } from './PrintableInternalVoucher';
 import styles from './InternalStockView.module.css';
 import { dataCache, getPersistedTab, setPersistedTab } from '../../services/dataCache';
 import { useViewport } from '../../hooks/useViewport';
+import { CurrencyInput } from '../../components/CurrencyInput/CurrencyInput';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
+import { formatInventoryOption, formatStockAfterExport } from '../../utils/selectFormatters';
 import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable';
 import { MobileFilterSheet } from '../../components/common/MobileFilterSheet';
 
@@ -658,15 +661,18 @@ export const InternalStockView = () => {
                               aria-label={`Chọn hàng hóa dòng ${idx + 1}`}
                             >
                               <option value="">-- Chọn hàng hóa --</option>
-                              {availableItems.map(item => (
-                                <option key={item.id} value={item.id}>
-                                  {item.productName || item.name} ({item.unitName || item.unit || 'Kg'}) - Lô #{item.id}{!isWorker && ` - ${Number(item.price || 0).toLocaleString('vi-VN')} đ`} - Tồn: {Number(item.stock || 0).toLocaleString('vi-VN')}
-                                </option>
-                              ))}
+                              {availableItems.map(item => {
+                                const outOfStock = Number(item.stock || 0) <= 0;
+                                return (
+                                  <option key={item.id} value={item.id} disabled={outOfStock}>
+                                    {formatInventoryOption(item)} · Lô #{item.id}{!isWorker && ` · ${Number(item.price || 0).toLocaleString('vi-VN')} đ`}
+                                  </option>
+                                );
+                              })}
                             </select>
                             {it.inventoryItemId && (voucherForm.movementType === 'EXPORT' || voucherForm.movementType === 'TRANSFER') && (
                               <div className={styles.stockIndicator}>
-                                Khả dụng: {it.availableStock.toLocaleString('vi-VN')} {it.unitName}
+                                {formatStockAfterExport(it.availableStock, it.quantity, it.unitName).text}
                               </div>
                             )}
                           </td>
@@ -674,12 +680,12 @@ export const InternalStockView = () => {
                             {it.unitName || '—'}
                           </td>
                           <td>
-                            <input
-                              type="number"
-                              min="0.001"
-                              step="any"
+                            <QuantityInput
+                              allowDecimal
                               required
-                              className={it.error ? styles.inputError : ''}
+                              max={it.inventoryItemId ? it.availableStock : undefined}
+                              showMaxButton={Boolean(it.inventoryItemId && Number(it.availableStock) > 0)}
+                              inputClassName={it.error ? styles.inputError : ''}
                               value={it.quantity}
                               onChange={e => handleQuantityChange(idx, e.target.value)}
                               aria-label={`Số lượng dòng ${idx + 1}`}
@@ -692,10 +698,9 @@ export const InternalStockView = () => {
                           </td>
                           {!isWorker && (
                             <td>
-                              <input
-                                type="number"
-                                min="0"
-                                step="100"
+                              <CurrencyInput
+                                showWords={false}
+                                suffix=""
                                 value={it.unitPrice}
                                 onChange={e => handleUnitPriceChange(idx, e.target.value)}
                                 style={{ textAlign: 'right' }}

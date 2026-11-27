@@ -5,13 +5,15 @@ import { MemoryRouter } from 'react-router-dom';
 import { SalesView } from '../features/farmshift/SalesView';
 import { extractWeightSlip, confirmWeightSlip } from '../services/weightSlipService';
 import { createSalesOrder, listSalesCustomers, listSalesOrders, paySalesOrders } from '../services/salesCustomerService';
+import { listBarns } from '../services/farmAreaService';
+import { listCycles } from '../services/cycleService';
 
 vi.mock('../layouts/FarmShiftLayout', () => ({ FarmShiftLayout: ({ children, actions }) => <main>{actions}{children}</main> }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { email: 'owner@test.local' } }) }));
 vi.mock('../services/localSalesStorage', () => ({ readLocalSales: () => [] }));
 vi.mock('../services/salesCustomerService', () => ({ listSalesCustomers: vi.fn(async () => []), listSalesOrders: vi.fn(async () => []), createSalesOrder: vi.fn(), updateSalesOrder: vi.fn(), paySalesOrders: vi.fn() }));
-vi.mock('../services/farmAreaService', () => ({ listBarns: async () => [{ id: 1, name: 'Chuồng A', areaName: 'Khu A' }] }));
-vi.mock('../services/cycleService', () => ({ listCycles: async () => [{ id: 2, code: 'L000002' }] }));
+vi.mock('../services/farmAreaService', () => ({ listBarns: vi.fn(async () => [{ id: 1, name: 'Chuồng A', areaName: 'Khu A' }]) }));
+vi.mock('../services/cycleService', () => ({ listCycles: vi.fn(async () => [{ id: 2, code: 'L000002' }]) }));
 vi.mock('../features/farmshift/SalesInvoiceTemplate', () => ({ SalesInvoiceTemplate: () => null }));
 vi.mock('../services/weightSlipService', () => ({ extractWeightSlip: vi.fn(), confirmWeightSlip: vi.fn(), previewWeightSlip: vi.fn() }));
 const objectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
@@ -143,4 +145,22 @@ it('offers file upload when camera access is denied', async () => {
   } finally {
     if (previous) Object.defineProperty(navigator, 'mediaDevices', previous); else delete navigator.mediaDevices;
   }
+});
+
+it('resolves headcount from BarnDto.currentQuantity for cycle option label and Tất cả quick button', async () => {
+  listBarns.mockResolvedValueOnce([
+    { id: 2, name: 'Chuồng Trống', areaName: 'Khu A', currentQuantity: 0 },
+    { id: 1, name: 'Chuồng A1', areaName: 'Khu A', currentQuantity: 1500, activeCycleCode: 'L000010' },
+  ]);
+  listCycles.mockImplementation(async (barnId) => (
+    barnId === 1 ? [{ id: 20, code: 'L000010', cycleNumber: 1 }] : []
+  ));
+  render(<MemoryRouter initialEntries={['/sales?tab=create']}><SalesView /></MemoryRouter>);
+  const option = await screen.findByRole('option', { name: 'Khu A - Chuồng A1 - L000010 (Còn 1.500 con)' });
+  expect(option).toBeInTheDocument();
+  const select = option.closest('select');
+  fireEvent.change(select, { target: { value: '20' } });
+  const maxBtn = await screen.findByRole('button', { name: 'Tất cả' });
+  fireEvent.click(maxBtn);
+  expect(screen.getByPlaceholderText('VD: 1000')).toHaveValue(1500);
 });

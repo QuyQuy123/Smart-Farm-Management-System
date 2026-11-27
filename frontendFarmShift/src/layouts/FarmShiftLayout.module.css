@@ -717,7 +717,7 @@
     margin-right: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    padding: 14px 12px calc(92px + env(safe-area-inset-bottom)) 12px !important;
+    padding: 14px 12px calc(148px + env(safe-area-inset-bottom)) 12px !important;
   }
 
   :global(.farmshift-ai-fab) {

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Clock, Droplets, RotateCcw, Scissors, Settings, SlidersHorizontal, Syringe, Thermometer, Utensils, Pill } from 'lucide-react';
 import { METHODS, formatAmount, labelOf, todayIso } from './farmAreaOptions';
+import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
+import { formatInventoryOption } from '../../utils/selectFormatters';
 import styles from './DailyPlanCard.module.css';
 
 const SECTIONS = [
@@ -141,7 +143,11 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
               if (errors[task.key]) setErrors(current => ({ ...current, [task.key]: undefined }));
             }}>
             <option value="">Chọn kho xuất...</option>
-            {task.stockSources.map(source => <option key={source.itemId} value={source.itemId}>{source.warehouseName} · còn {formatAmount(source.stock)} {source.unitName}</option>)}
+            {task.stockSources.map(source => (
+              <option key={source.itemId} value={source.itemId} disabled={Number(source.stock || 0) <= 0}>
+                {formatInventoryOption({ name: source.warehouseName, stock: source.stock, unitName: source.unitName })}
+              </option>
+            ))}
           </select>
         </label>}
         {done && <small className={styles.doneLine}>
@@ -155,7 +161,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         {errors[task.key] && <small role="alert" className={styles.error}>{errors[task.key]}</small>}
         {isEditing && <div className={styles.editor}>
           {MEASURED.includes(task.category) && <label>Lượng thực tế ({task.unit || 'đơn vị'})
-            <input type="number" min="0" step="0.001" inputMode="decimal" className="farmshift-form-control" value={editing.quantity}
+            <QuantityInput allowDecimal suffix={task.unit || ''} inputClassName="farmshift-form-control" value={editing.quantity}
               onChange={event => setEditing({ ...editing, quantity: event.target.value })} autoFocus />
             {task.category === 'FEED' && (() => {
               const bagUnitKg = (task.plannedQuantity > 0 && task.plannedStock > 0)
@@ -249,8 +255,9 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
     {showHeader && <header className={styles.header}>
       <div>
         <h3>{plan.barnName} <span>· {plan.areaName}</span></h3>
-        <p>{formatAmount(plan.headcount)} con · ngày tuổi {ages.length > 1 ? `${ages[0]}–${ages[ages.length - 1]}` : ages[0] ?? '—'}
-          {plan.flocks.length > 1 && ` · ${plan.flocks.length} đàn`}</p>
+        <p>{Number(plan.headcount) > 0
+          ? <>{formatAmount(plan.headcount)} con · ngày tuổi {ages.length > 1 ? `${ages[0]}–${ages[ages.length - 1]}` : ages[0] ?? '—'}{plan.flocks.length > 1 && ` · ${plan.flocks.length} đàn`}</>
+          : 'Chưa nhập đàn'}</p>
         {plan.workers && <p className={styles.workers}>Phụ trách: {plan.workers.length ? plan.workers.map(worker => worker.fullName).join(', ') : 'chưa phân công'}</p>}
       </div>
       <div className={styles.progress} aria-label={`Đã xong ${doneTotal}/${total} việc`}>

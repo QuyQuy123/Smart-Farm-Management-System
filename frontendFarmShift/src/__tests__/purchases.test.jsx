@@ -694,6 +694,24 @@ describe('PurchasesView Component - Full 3-Tab Suite', () => {
         expect(screen.queryByText('Chi tiết hóa đơn NH000000')).not.toBeInTheDocument();
       });
     });
+
+    it('blocks backdrop click and Escape on dirty create PO modal', async () => {
+      renderComponent();
+      await screen.findByText('NH000000');
+
+      fireEvent.click(screen.getByRole('button', { name: /Tạo đơn nhập hàng/i }));
+      expect(await screen.findByText('Tạo mới đơn nhập hàng')).toBeInTheDocument();
+
+      const noteInput = screen.getByPlaceholderText(/Nhập ghi chú cho đơn nhập hàng/i);
+      fireEvent.change(noteInput, { target: { value: 'Dữ liệu chưa lưu' } });
+
+      const backdrop = document.querySelector('.farmshift-modal-backdrop');
+      fireEvent.click(backdrop);
+      expect(screen.getByText('Tạo mới đơn nhập hàng')).toBeInTheDocument();
+
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(screen.getByText('Tạo mới đơn nhập hàng')).toBeInTheDocument();
+    });
   });
 
   /* ===============================================================
