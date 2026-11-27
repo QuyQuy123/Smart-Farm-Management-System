@@ -153,3 +153,6 @@
 
 .eventTable { width: 100%; border-collapse: collapse; font-size: 13px; }
 .eventTable th, .eventTable td { padding: 12px; text-align: left; border-bottom: 1px solid #e6ece8; min-width: 110px; }
+
+.detail + .environment { margin-top: 24px; }
+.eventTable td:nth-child(3) { overflow-wrap: anywhere; }

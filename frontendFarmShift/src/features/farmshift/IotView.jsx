@@ -333,7 +333,6 @@ export function IotView() {
               <div className={styles.monitoring}>
                 <PhoneCamera key={barn.id} barn={barn}><CameraScreen barnName={barn.name} /></PhoneCamera>
                 <IotEnvironment key={`environment:${barn.id}`} barnName={barn.name} readings={sensorReadings} connected={connection === 'connected'} history={temperatureHistory} liveHistory={liveTemperatures} />
-                <IotEventLog key={`events:${barn.id}`} barnId={barn.id} revision={eventRevision} />
                 {logError && <p role="alert">{logError}</p>}
                 {failedEvents.length > 0 && <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={retryingLogs} onClick={retryEventLogs}>Lưu lại {failedEvents.length} nhật ký chưa lưu</button>}
               </div>
@@ -380,6 +379,7 @@ export function IotView() {
                 })}
               </section>
             </div>
+                <IotEventLog key={`events:${barn.id}`} barnId={barn.id} revision={eventRevision} />
           </> : <>
             <div className={styles.overviewHeading}><div><span className={styles.eyebrow}>GIÁM SÁT TRANG TRẠI</span><h2>Camera theo khu nuôi</h2><p>Theo dõi từng chuồng và mở nhanh bảng điều khiển thiết bị.</p></div>
               <label className={styles.search}><Search size={18} /><input aria-label="Tìm khu hoặc chuồng" placeholder="Tìm khu, chuồng..." value={query} onChange={event => setQuery(event.target.value)} /></label></div>
