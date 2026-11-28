@@ -25,17 +25,16 @@ const dateLabel = time => new Intl.DateTimeFormat('vi-VN', {
 }).format(time);
 
 export function IotEnvironment({ barnName, readings = {}, connected = false, history = [], liveHistory = [] }) {
-  const [range, setRange] = useState('live');
+  const [range, setRange] = useState('hour');
   const [display, setDisplay] = useState('sensors');
   const [clock, setClock] = useState(Date.now);
   const [selected, setSelected] = useState(null);
   const live = range === 'live';
   useEffect(() => {
-    if (!live) return;
     const timer = setInterval(() => setClock(Date.now()), 3000);
     return () => clearInterval(timer);
-  }, [live]);
-  const duration = live ? 60_000 : (range === 'day' ? 1 : 7) * 86400000;
+  }, []);
+  const duration = live ? 60_000 : 60 * 60 * 1000;
   const end = live ? Math.max(clock, liveHistory.at(-1)?.time ?? clock) : clock;
   const start = end - duration;
   const recent = (live ? liveHistory : history).filter(point => point.time >= start && point.time <= end);
@@ -48,7 +47,7 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
   const x = time => 55 + (time - start) / duration * 610;
   const y = value => 190 - (value - low) / (high - low) * 155;
   return <section className={styles.environment} aria-label={`Môi trường ${barnName}`}>
-    <header className={styles.environmentHeading}><div><h3>Môi trường chuồng nuôi</h3><p>Theo dõi nhiệt độ và độ ẩm · {barnName}</p></div><span className={styles.sensorStatus}>{!connected ? 'Thiết bị phần cứng chưa kết nối' : Object.keys(readings).length ? 'Đã nhận số đo ESP32' : 'Đang chờ số đo ESP32'}</span></header>
+    <header className={styles.environmentHeading}><div><h3>Môi trường chuồng nuôi</h3><p>Theo dõi nhiệt độ và độ ẩm · {barnName}</p></div><span className={styles.sensorStatus}>{!connected ? 'Thiết bị phần cứng chưa kết nối' : Object.keys(readings).length ? 'Đã nhận số đo' : 'Đang chờ số đo ESP32'}</span></header>
     <div className={styles.sensorGrid}>
       {[1, 3].flatMap(channel => [
         { key: `temp${channel}`, label: 'Nhiệt độ hiện tại', unit: '°C', Icon: Thermometer, color: styles.temperatureIcon },
@@ -62,11 +61,10 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
       </article>))}
     </div>
     <div className={styles.chartPanel}>
-      <header className={styles.chartHeading}><div><h4><TrendingUp size={18} />Diễn biến nhiệt độ</h4><p>Số đo từ thiết bị phần cứng được lưu trên trình duyệt này</p></div>
+      <header className={styles.chartHeading}><div><h4><TrendingUp size={18} />Diễn biến nhiệt độ</h4><p>Lưu số đo 1 giờ gần nhất trên trình duyệt này</p></div>
         <div className={styles.chartRanges} role="group" aria-label="Khoảng thời gian biểu đồ">
           <button type="button" aria-pressed={live} onClick={() => { setClock(Date.now()); setRange('live'); setSelected(null); }}>Trực tiếp</button>
-          <button type="button" aria-pressed={range === 'day'} onClick={() => { setClock(Date.now()); setRange('day'); setSelected(null); }}>24 giờ</button>
-          <button type="button" aria-pressed={range === 'week'} onClick={() => { setClock(Date.now()); setRange('week'); setSelected(null); }}>7 ngày</button>
+          <button type="button" aria-pressed={range === 'hour'} onClick={() => { setClock(Date.now()); setRange('hour'); setSelected(null); }}>1 giờ gần nhất</button>
         </div></header>
       <div className={styles.chartRanges} role="group" aria-label="Dữ liệu biểu đồ nhiệt độ">
         <button type="button" aria-pressed={!isAverage} onClick={() => { setDisplay('sensors'); setSelected(null); }}>Từng cảm biến</button>
@@ -95,7 +93,7 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
           {[0, 1, 2, 3, 4].map(index => {
             const time = start + index * duration / 4;
             const options = live ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
-              : range === 'day' ? { hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: '2-digit' };
+              : { hour: '2-digit', minute: '2-digit' };
             return <text key={index} x={x(time)} y="220" textAnchor="middle">{new Intl.DateTimeFormat('vi-VN', { ...options, timeZone: 'Asia/Bangkok' }).format(time)}</text>;
           })}
           {Object.entries(colors).map(([sensor, color]) => {
@@ -111,7 +109,7 @@ export function IotEnvironment({ barnName, readings = {}, connected = false, his
           <span key={sensor}><i style={{ background: color }} />{seriesLabel(sensor)}</span>)}</footer>
       </> : <div className={styles.chartEmpty}><Thermometer size={30} strokeWidth={1.4} />
         <strong>{isAverage ? 'Chưa đủ số đo để tính trung bình' : 'Chưa có lịch sử nhiệt độ'}</strong>
-        <p>{isAverage ? 'Cần số đo của cả hai cảm biến trong vòng 1 giây.' : 'Biểu đồ bắt đầu ghi khi web nhận số đo từ ESP32.'}</p>
+        <p>{isAverage ? 'Cần số đo của cả hai cảm biến trong vòng 1 giây.' : 'Biểu đồ ghi số đo khi ứng dụng đang mở và kết nối thiết bị.'}</p>
       </div>}
     </div>
   </section>;
