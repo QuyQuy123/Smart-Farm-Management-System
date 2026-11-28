@@ -25,7 +25,7 @@ const dateLabel = time => new Intl.DateTimeFormat('vi-VN', {
 }).format(time);
 
 export function IotEnvironment({ barnName, readings = {}, connected = false, history = [], liveHistory = [] }) {
-  const [range, setRange] = useState('hour');
+  const [range, setRange] = useState('live');
   const [display, setDisplay] = useState('sensors');
   const [clock, setClock] = useState(Date.now);
   const [selected, setSelected] = useState(null);

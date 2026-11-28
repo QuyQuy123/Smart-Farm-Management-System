@@ -413,18 +413,30 @@ describe('ReportsView refactored 4-tab analytics', () => {
     expect(screen.getByText('L000010')).toBeInTheDocument();
     expect(screen.getByText('L000020')).toBeInTheDocument();
 
+    expect(screen.queryByRole('columnheader', { name: 'Tỷ lệ sống' })).not.toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText('Lọc trạng thái lứa'), { target: { value: 'CLOSED' } });
     expect(screen.queryByText('L000010')).not.toBeInTheDocument();
     expect(screen.getByText('L000020')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Xem tổng kết lứa L000020' }));
     const drawer = await screen.findByTestId('cycle-summary-drawer');
+    expect(drawer).toHaveAttribute('role', 'dialog');
+    expect(drawer).not.toHaveAttribute('aria-modal', 'true');
+    expect(document.body.style.overflow).not.toBe('hidden');
     expect(within(drawer).getByText('L000020 · Nhà B2')).toBeInTheDocument();
     expect(within(drawer).getByText('Tổng quan Tài chính')).toBeInTheDocument();
     expect(within(drawer).getByText('Chi phí thuốc & Lịch sử bệnh')).toBeInTheDocument();
     expect(within(drawer).getByRole('link', { name: /Mở trang chuồng/i })).toHaveAttribute('href', '/barns/2?cycle=20');
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Đóng chi tiết lứa' }));
+    expect(screen.queryByTestId('cycle-summary-drawer')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xem tổng kết lứa L000020' }));
+    const reopened = await screen.findByTestId('cycle-summary-drawer');
+    fireEvent.pointerDown(within(reopened).getByText('Tổng quan Tài chính'));
+    expect(reopened).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByRole('heading', { name: 'Danh sách Lứa nuôi & Hiệu suất Kỹ thuật' }));
     expect(screen.queryByTestId('cycle-summary-drawer')).not.toBeInTheDocument();
   });
 

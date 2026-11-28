@@ -75,11 +75,6 @@ export function PerformanceCyclesTab({
       ),
     },
     {
-      key: 'survivalRate',
-      label: 'Tỷ lệ sống',
-      render: (val) => `${fmtNum(val, 1)}%`,
-    },
-    {
       key: 'fcr',
       label: 'FCR',
       render: (val) => (val != null ? <strong>{fmtNum(val, 2)}</strong> : '—'),
@@ -149,7 +144,7 @@ export function PerformanceCyclesTab({
         </div>
       )}
 
-      <div className="farmshift-card">
+      <div className={`farmshift-card ${styles.performanceList}`}>
         <div className={styles.sectionToolbar}>
           <div className={styles.sectionTitleGroup}>
             <h3 className={styles.sectionTitle}>Danh sách Lứa nuôi &amp; Hiệu suất Kỹ thuật</h3>
@@ -178,7 +173,7 @@ export function PerformanceCyclesTab({
           data={pagedCycles}
           rowKey={(row, idx) => row.cycleId ?? row.cycleCode ?? idx}
           mode="card-on-mobile"
-          tableClassName={styles.compactTable}
+          tableClassName={`${styles.compactTable} ${styles.performanceTable}`}
           onRowClick={(row) => setSelectedCycle(row)}
           emptyState="Chưa có lứa nuôi phù hợp với bộ lọc hiện tại."
           pagination={{

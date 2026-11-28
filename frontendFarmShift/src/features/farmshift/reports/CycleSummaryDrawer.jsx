@@ -1,22 +1,26 @@
 // src/features/farmshift/reports/CycleSummaryDrawer.jsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Stethoscope, X } from 'lucide-react';
 import styles from '../ReportsView.module.css';
 import { fmtDate, fmtNum, fmtVnd } from './reportUtils';
 
 export function CycleSummaryDrawer({ cycle, growthRow, harvestRow, onClose }) {
+  const panelRef = useRef(null);
   useEffect(() => {
     if (!cycle) return undefined;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const onKeyDown = (e) => {
       if (e.key === 'Escape') onClose?.();
     };
+    const onOutsideClick = (e) => {
+      if (!panelRef.current?.contains(e.target)) onClose?.();
+    };
     document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onOutsideClick);
     return () => {
-      document.body.style.overflow = prevOverflow;
       document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onOutsideClick);
     };
   }, [cycle, onClose]);
 
@@ -42,17 +46,15 @@ export function CycleSummaryDrawer({ cycle, growthRow, harvestRow, onClose }) {
   const medicineAmount = cycle.hasSeparateMedicine ? Number(cycle.medicineCost || 0) : null;
   const preventiveMedCost = medicineAmount != null ? Math.max(0, medicineAmount - diseaseMedCost) : null;
 
-  return (
+  return createPortal(
     <div
       className={styles.drawerOverlay}
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Chi tiết tổng kết lứa ${cycle.cycleCode}`}
     >
       <aside
+        ref={panelRef}
         className={styles.drawerPanel}
-        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label={`Chi tiết tổng kết lứa ${cycle.cycleCode}`}
         data-testid="cycle-summary-drawer"
       >
         <header className={styles.drawerHeader}>
@@ -195,6 +197,6 @@ export function CycleSummaryDrawer({ cycle, growthRow, harvestRow, onClose }) {
           </button>
         </footer>
       </aside>
-    </div>
+    </div>, document.body
   );
 }
