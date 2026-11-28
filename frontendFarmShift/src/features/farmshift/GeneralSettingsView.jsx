@@ -567,7 +567,7 @@ export const GeneralSettingsView = () => {
           </div>
 
           <div className="farmshift-table-container" style={{ border: 'none' }}>
-            <table className="farmshift-table">
+            <table className={`farmshift-table ${styles.permissionTable}`}>
               <thead>
                 <tr>
                   <th>Phân hệ nghiệp vụ</th>
@@ -580,23 +580,23 @@ export const GeneralSettingsView = () => {
               <tbody>
                 {RBAC_DOMAINS.map((row) => (
                   <tr key={row.domain}>
-                    <td><strong>{row.domain}</strong></td>
-                    <td>
+                    <td data-label="Phân hệ nghiệp vụ"><strong>{row.domain}</strong></td>
+                    <td data-label="Chủ trang trại (OWNER)">
                       <span className={`farmshift-badge ${badgeClassFor(row.owner.variant)}`}>
                         {row.owner.label}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Kế toán (ACCOUNTANT)">
                       <span className={`farmshift-badge ${badgeClassFor(row.accountant.variant)}`}>
                         {row.accountant.label}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Công nhân (WORKER)">
                       <span className={`farmshift-badge ${badgeClassFor(row.worker.variant)}`}>
                         {row.worker.label}
                       </span>
                     </td>
-                    <td className={styles.guardrailText}>{row.guardrail}</td>
+                    <td data-label="Quy tắc bảo mật thực thi" className={styles.guardrailText}>{row.guardrail}</td>
                   </tr>
                 ))}
               </tbody>

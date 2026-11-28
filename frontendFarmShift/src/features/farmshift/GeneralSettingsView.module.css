@@ -13,6 +13,7 @@
 }
 
 .roleSection {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -33,6 +34,8 @@
 }
 
 .roleCard {
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 16px;
   border: 1px solid var(--color-hairline);
   border-radius: var(--rounded-md);
@@ -43,6 +46,7 @@
 }
 
 .roleCardTop {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -100,6 +104,61 @@
   font-size: 13.5px;
   line-height: 1.45;
   color: var(--color-body);
+}
+
+.permissionTable {
+  table-layout: fixed;
+  min-width: 0;
+}
+
+.permissionTable th,
+.permissionTable td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 12px;
+}
+
+.permissionTable th:first-child { width: 16%; }
+.permissionTable th:last-child { width: 24%; }
+.permissionTable :global(.farmshift-badge) {
+  white-space: normal;
+  max-width: 100%;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+@media (max-width: 767px) {
+  .permissionTable { display: block; }
+  .roleSection :global(.farmshift-card-header) { flex-wrap: wrap; }
+  .roleHeaderActions, .roleHeaderActions button { max-width: 100%; white-space: normal; }
+  .permissionTable thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .permissionTable tbody { display: block; padding: 12px; }
+  .permissionTable tr {
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid var(--color-hairline);
+    border-radius: 12px;
+  }
+  .permissionTable td {
+    display: block;
+    width: auto;
+    padding: 10px 12px;
+  }
+  .permissionTable td:first-child { background: var(--color-surface-soft); border-radius: 12px 12px 0 0; }
+  .permissionTable td:not(:first-child)::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-muted);
+  }
 }
 
 .webPushCard {
