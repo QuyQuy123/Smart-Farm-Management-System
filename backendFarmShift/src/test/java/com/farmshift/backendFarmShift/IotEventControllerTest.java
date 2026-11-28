@@ -38,12 +38,16 @@ class IotEventControllerTest {
         }
         var controller = new IotEventController(jdbc, barns);
         var first = controller.list(1L, 0, worker).getData();
-        assertEquals(20, first.size());
+        assertEquals(5, first.size());
         assertTrue(first.get(0).occurredAt().isAfter(first.get(1).occurredAt()));
         assertEquals(30.0, first.get(0).temperature1());
         assertNull(first.get(0).temperature3());
-        assertEquals(1, controller.list(1L, 1, worker).getData().size());
-        verify(barns, times(2)).get(1L, "worker@example.com");
+        var second = controller.list(1L, 1, worker).getData();
+        assertEquals(5, second.size());
+        assertTrue(first.get(4).occurredAt().isAfter(second.get(0).occurredAt()));
+        assertEquals(1, controller.list(1L, 4, worker).getData().size());
+        assertTrue(controller.list(1L, 5, worker).getData().isEmpty());
+        verify(barns, times(4)).get(1L, "worker@example.com");
     }
 
     @Test

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics } from '../../services/esp32MqttService';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Plus, Search, Trash2, Warehouse } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Plus, Search, Trash2, Warehouse } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { FARM_AREAS_CHANGED, listBarns, listFarmAreas } from '../../services/farmAreaService';
 import { useOptionalNotification } from '../../context/NotificationContext';
@@ -11,7 +11,6 @@ import { Dialog } from './FarmAreaDialogs';
 import { api } from '../../utils/api';
 import { IotEventLog } from './IotEventLog';
 import { IotEnvironment } from './IotEnvironment';
-import { MediaCamera } from './MediaCamera';
 import styles from './IotView.module.css';
 
 const TYPES = {
@@ -24,14 +23,6 @@ const defaultDevices = () => [
   { id: 'light', name: 'Hệ thống Đèn chiếu sáng', type: 'LIGHT', relay: 2, enabled: false, power: '' },
   { id: 'water', name: 'Hệ thống phun sương', type: 'WATER', relay: 3, enabled: false, power: '' },
 ];
-
-function CameraScreen({ barnName }) {
-  return <div className={styles.camera} aria-label={`Camera ${barnName}`}>
-    <span className={styles.cameraBadge}><span />Chưa kết nối</span>
-    <div><Camera size={38} strokeWidth={1.3} /><strong>Camera</strong><span>{barnName}</span></div>
-    <small>Hình ảnh sẽ hiển thị khi camera được kết nối</small>
-  </div>;
-}
 
 function DeviceDialog({ device, devices, onClose, onSave }) {
   const [form, setForm] = useState(device || { name: '', type: 'FAN', power: '' });
@@ -326,12 +317,12 @@ export function IotView() {
         : barnId && !barn ? <div className={styles.state}>Không tìm thấy chuồng.<button className="farmshift-btn farmshift-btn-secondary" onClick={() => setParams({})}>Về tổng quan</button></div>
           : barn ? <>
             <div className={styles.detailHeading}>
-              <button type="button" className={styles.back} onClick={() => setParams({})}><ArrowLeft size={18} />Tất cả camera</button>
+              <button type="button" className={styles.back} onClick={() => setParams({})}><ArrowLeft size={18} />Tất cả chuồng</button>
               <div><h2>{barn.name}</h2><p>{data.areas.find(area => area.id === barn.areaId)?.name || barn.areaName}</p></div>
+              <span className={`${styles.connectionBadge} ${connection === 'connected' ? styles.connected : ''}`}><span />{connection === 'connected' ? 'Đã kết nối' : connection === 'connecting' ? 'Đang kết nối…' : 'Chưa kết nối'}</span>
             </div>
             <div className={styles.detail}>
               <div className={styles.monitoring}>
-                <MediaCamera key={barn.id} barn={barn} />
                 <IotEnvironment key={`environment:${barn.id}`} barnName={barn.name} readings={sensorReadings} connected={connection === 'connected'} history={temperatureHistory} liveHistory={liveTemperatures} />
                 {logError && <p role="alert">{logError}</p>}
                 {failedEvents.length > 0 && <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={retryingLogs} onClick={retryEventLogs}>Lưu lại {failedEvents.length} nhật ký chưa lưu</button>}
@@ -381,14 +372,16 @@ export function IotView() {
             </div>
                 <IotEventLog key={`events:${barn.id}`} barnId={barn.id} revision={eventRevision} />
           </> : <>
-            <div className={styles.overviewHeading}><div><span className={styles.eyebrow}>GIÁM SÁT TRANG TRẠI</span><h2>Camera theo khu nuôi</h2><p>Theo dõi từng chuồng và mở nhanh bảng điều khiển thiết bị.</p></div>
+            <div className={styles.overviewHeading}><div><span className={styles.eyebrow}>GIÁM SÁT & ĐIỀU KHIỂN</span><h2>Thiết bị IoT theo khu nuôi</h2><p>Chọn chuồng để theo dõi môi trường, điều khiển thiết bị và xem nhật ký.</p></div>
               <label className={styles.search}><Search size={18} /><input aria-label="Tìm khu hoặc chuồng" placeholder="Tìm khu, chuồng..." value={query} onChange={event => setQuery(event.target.value)} /></label></div>
-            <div className={styles.stats}><span><strong>{data.areas.length}</strong> khu nuôi</span><span><strong>{data.barns.length}</strong> chuồng / camera</span><span><span className={styles.statusDot} />Chờ kết nối thiết bị</span></div>
+            <div className={styles.stats}><span><strong>{data.areas.length}</strong> khu nuôi</span><span><strong>{data.barns.length}</strong> chuồng</span><span>Chọn chuồng để xem trạng thái thiết bị</span></div>
             {groups.filter(area => area.barns.length || !query).map(area => <section key={area.id} className={styles.area} aria-label={area.name}>
               <header><span className={styles.areaIcon}><Warehouse size={20} /></span><h3>{area.name}</h3><span>{area.barns.length} chuồng</span></header>
               {area.barns.length === 0 ? <p className={styles.empty}>Khu này chưa có chuồng.</p> : <div className={styles.grid}>{area.barns.map(item => <article key={item.id} className={styles.barn}>
-                <CameraScreen barnName={item.name} /><div className={styles.cardSensors}><span>Nhiệt độ <strong>— °C</strong></span><span>Độ ẩm <strong>— %</strong></span></div><footer><div><h4>{item.name}</h4><small>Mở chi tiết để xem camera trực tiếp</small></div>
-                  <button type="button" aria-label={`Xem chi tiết ${item.name}`} onClick={() => setParams({ barn: String(item.id) })}>Xem chi tiết<ChevronRight size={17} /></button></footer>
+                <div className={styles.barnHeading}><span className={styles.barnIcon}><Warehouse size={24} /></span><div><h4>{item.name}</h4><small>{area.name}</small></div></div>
+                <div className={styles.barnFeatures}><span><Fan size={15} />Quạt gió</span><span><Lightbulb size={15} />Chiếu sáng</span><span><Droplets size={15} />Phun sương</span></div>
+                <footer><small>Môi trường · Thiết bị · Nhật ký</small>
+                  <button type="button" aria-label={`Xem chi tiết ${item.name}`} onClick={() => setParams({ barn: String(item.id) })}>Mở điều khiển<ChevronRight size={17} /></button></footer>
               </article>)}</div>}
             </section>)}
             {data.areas.length === 0 && <p className={styles.state}>Chưa có khu nuôi. Tạo khu nuôi và chuồng trong menu Khu nuôi để bắt đầu.</p>}

@@ -33,6 +33,27 @@ beforeEach(() => {
 });
 const open = () => render(<MemoryRouter><IotView /></MemoryRouter>);
 
+it('pages activation history five events at a time', async () => {
+  const events = Array.from({ length: 6 }, (_, id) => ({
+    id, deviceName: `Quạt ${id}`, relay: 4, mode: 'MANUAL',
+    occurredAt: '2026-01-01T00:00:00Z', actor: 'owner@example.com',
+  }));
+  api.get.mockImplementation((url, { params }) => Promise.resolve({
+    data: { data: events.slice(params.page * 5, (params.page + 1) * 5) },
+  }));
+  render(<IotEventLog barnId={11} revision={0} />);
+  await screen.findByText('Đã gửi lệnh bật Quạt 0 · Relay 4');
+  expect(screen.getAllByRole('row')).toHaveLength(6);
+  expect(screen.getByRole('button', { name: 'Trang trước' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Trang sau' }));
+  await screen.findByText('Đã gửi lệnh bật Quạt 5 · Relay 4');
+  expect(screen.getAllByRole('row')).toHaveLength(2);
+  expect(screen.getByRole('button', { name: 'Trang sau' })).toBeDisabled();
+  expect(api.get).toHaveBeenLastCalledWith('/barns/11/iot-events', { params: { page: 1 }, skipCache: true });
+  fireEvent.click(screen.getByRole('button', { name: 'Trang trước' }));
+  await screen.findByText('Đã gửi lệnh bật Quạt 0 · Relay 4');
+});
+
 it('automates a configured fan and yields to its manual switch', async () => {
   const publishRelay = vi.fn().mockResolvedValue(undefined);
   let receive;
@@ -67,18 +88,19 @@ it('automates a configured fan and yields to its manual switch', async () => {
 it('opens only the requested barn when following the environment shortcut', async () => {
   render(<MemoryRouter initialEntries={['/iot?barn=11']}><IotView /></MemoryRouter>);
   expect(await screen.findByRole('region', { name: 'Thiết bị Chuồng A1' })).toBeInTheDocument();
-  expect(screen.getByLabelText('Camera Chuồng A1')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Camera Chuồng A1')).not.toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Môi trường Chuồng A1' })).toBeInTheDocument();
   expect(screen.queryByLabelText('Camera Chuồng B1')).not.toBeInTheDocument();
   expect(screen.queryByText('Camera theo khu nuôi')).not.toBeInTheDocument();
 });
 
-it('groups database barns under their areas and filters camera cards', async () => {
+it('groups database barns under their areas and filters device cards', async () => {
   open();
   const mia = await screen.findByRole('region', { name: 'Khu Mía' });
   expect(within(mia).getByRole('button', { name: 'Xem chi tiết Chuồng A1' })).toBeInTheDocument();
   expect(within(mia).queryByText('Chuồng B1')).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Camera Chuồng B1')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Camera Chuồng B1')).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Thiết bị IoT theo khu nuôi' })).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Tìm khu hoặc chuồng'), { target: { value: 'B1' } });
   expect(screen.queryByRole('button', { name: 'Xem chi tiết Chuồng A1' })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Xem chi tiết Chuồng B1' })).toBeInTheDocument();
@@ -96,7 +118,7 @@ it('sends commands for assigned relays individually and as a group', async () =>
   const fanName = 'Bật tắt toàn bộ Quạt gió';
   await screen.findByText('Đã kết nối thiết bị phần cứng');
   expect(screen.getByRole('switch', { name: fanName })).toBeEnabled();
-  fireEvent.click(screen.getByRole('button', { name: 'Tất cả camera' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Tất cả chuồng' }));
   fireEvent.click(screen.getByRole('button', { name: 'Xem chi tiết Chuồng B1' }));
   await screen.findByText(/Đã kết nối thiết bị phần cứng/);
   expect(screen.getByRole('switch', { name: fanName })).toHaveAttribute('aria-checked', 'false');
@@ -131,7 +153,7 @@ it('sends commands for assigned relays individually and as a group', async () =>
   fireEvent.click(within(card).getByRole('button', { name: 'Xóa' }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Xóa thiết bị' }));
   expect(screen.queryByRole('heading', { name: 'Đèn mới' })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Tất cả camera' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Tất cả chuồng' }));
   fireEvent.click(screen.getByRole('button', { name: 'Xem chi tiết Chuồng A1' }));
   await screen.findByText('Đã kết nối thiết bị phần cứng');
   expect(screen.getByRole('switch', { name: fanName })).toBeEnabled();
