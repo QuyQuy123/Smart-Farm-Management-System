@@ -4,6 +4,7 @@ import { listBrands } from '../../services/brandService';
 import { listMeasurementUnits } from '../../services/measurementUnitService';
 import { createInventoryItem, updateInventoryItem, deleteInventoryItem } from '../../services/inventoryItemService';
 import { fileService } from '../../services/fileService';
+import { formatPackagedStock, } from '../../utils/inventoryGroups';
 import { formatShortVietnameseCurrency } from '../../utils/selectFormatters';
 import styles from './WarehouseCategoriesView.module.css';
 
@@ -137,7 +138,7 @@ export const InventoryItemDialog = ({ mode, item, warehouse, canSeeFinance = tru
             </div>
           )}
           <div className={styles.formField}>
-          <label htmlFor="inventory-stock">Tồn kho</label><input id="inventory-stock" className="farmshift-form-control" value={item?.stock ?? 0} readOnly />
+          <label htmlFor="inventory-stock">Tồn kho</label><input id="inventory-stock" className="farmshift-form-control" value={formatPackagedStock(item) || (item?.stock ?? 0)} readOnly />
           </div>
           <div className={styles.formField}>
           <label htmlFor="inventory-brand">Nhãn hiệu</label>

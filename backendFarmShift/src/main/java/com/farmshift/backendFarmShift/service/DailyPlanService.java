@@ -83,7 +83,8 @@ public class DailyPlanService {
             Map<Long, List<CycleOpenedFeed>> openedFeedsByCycle,
             List<InventoryItem> preloadedInventory,
             Map<Long, Set<Long>> barnStoreIds,
-            LocalTime firstMeal
+            LocalTime firstMeal,
+            Map<String, String> namesByEmail
     ) { }
 
     /** Phiếu việc của mọi chuồng đang có lứa nuôi trong một ngày (mặc định hôm nay). */
@@ -130,7 +131,7 @@ public class DailyPlanService {
                         .thenComparing(cycle -> cycle.getBarn().getName()))
                 .toList();
         if (cycles.isEmpty()) {
-            return new PlanBatchContext(workersByBarn, List.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), null, null, null);
+            return new PlanBatchContext(workersByBarn, List.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), null, null, null, Map.of());
         }
 
         List<Long> cycleIds = new ArrayList<>(cycles.size());
@@ -156,10 +157,12 @@ public class DailyPlanService {
         }
 
         Map<LocalDate, Map<Long, List<DailyTaskLog>>> logsByDateAndCycle = new HashMap<>();
+        List<String> doneEmails = new ArrayList<>();
         for (DailyTaskLog log : logRepository.findAllWithDetailsByCycleIdInAndTaskDateBetween(cycleIds, rangeFrom, rangeTo)) {
             logsByDateAndCycle.computeIfAbsent(log.getTaskDate(), ignored -> new HashMap<>())
                     .computeIfAbsent(log.getCycle().getId(), ignored -> new ArrayList<>())
                     .add(log);
+            if (log.getDoneBy() != null) doneEmails.add(log.getDoneBy());
         }
 
         Map<LocalDate, Map<Long, List<WorkBoard.AssignedTask>>> assignedByDateAndBarn =
@@ -171,8 +174,10 @@ public class DailyPlanService {
                 routineChecksByDateAndCycle.computeIfAbsent(rc.getCheckDate(), ignored -> new HashMap<>())
                         .computeIfAbsent(rc.getCycle().getId(), ignored -> new ArrayList<>())
                         .add(rc);
+                if (rc.getDoneBy() != null) doneEmails.add(rc.getDoneBy());
             }
         }
+        Map<String, String> namesByEmail = workAssignment.namesByEmail(doneEmails);
 
         Map<Long, List<CycleOpenedFeed>> openedFeedsByCycle = new HashMap<>();
         if (resolveStock) {
@@ -191,7 +196,7 @@ public class DailyPlanService {
 
         return new PlanBatchContext(workersByBarn, cycles, flocksByCycle, programsById, movementsByCycle,
                 logsByDateAndCycle, assignedByDateAndBarn, routineChecksByDateAndCycle, openedFeedsByCycle,
-                preloadedInventory, barnStoreIds, firstMeal);
+                preloadedInventory, barnStoreIds, firstMeal, namesByEmail);
     }
 
     private List<BarnDayPlan> buildPlansForDay(PlanBatchContext ctx, LocalDate day, boolean canSeeFinance, boolean resolveStock) {
@@ -217,7 +222,8 @@ public class DailyPlanService {
                     dayAssignedByBarn.getOrDefault(cycle.getBarn().getId(), List.of()),
                     ctx.openedFeedsByCycle().getOrDefault(cycle.getId(), List.of()),
                     dayRoutineChecks.getOrDefault(cycle.getId(), List.of()),
-                    ctx.firstMeal());
+                    ctx.firstMeal(),
+                    ctx.namesByEmail());
             if (!mapped.flocks().isEmpty() || !mapped.tasks().isEmpty() || !mapped.assignedTasks().isEmpty() || !mapped.routineTasks().isEmpty()) {
                 result.add(mapped);
             }
@@ -876,14 +882,24 @@ public class DailyPlanService {
         List<CycleOpenedFeed> openedFeeds = day.equals(today()) || cycle.getStatus() == CycleStatus.ACTIVE
                 ? openedFeedRepository.findAllByCycleIdAndRemainingKgGreaterThanOrderByIdAsc(cycle.getId(), BigDecimal.ZERO)
                 : List.of();
+        List<DailyTaskLog> allLogs = logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day);
+        List<BarnRoutineTaskCheck> routineChecks = routineCheckRepository.findAllByCycleIdAndCheckDate(cycle.getId(), day);
+        List<String> doneEmails = new ArrayList<>();
+        for (DailyTaskLog log : allLogs) {
+            if (log.getDoneBy() != null) doneEmails.add(log.getDoneBy());
+        }
+        for (BarnRoutineTaskCheck rc : routineChecks) {
+            if (rc.getDoneBy() != null) doneEmails.add(rc.getDoneBy());
+        }
         return responseWithData(
                 cycle, day, plan, canSeeFinance, true, null, null,
-                logRepository.findAllByCycleIdAndTaskDate(cycle.getId(), day),
+                allLogs,
                 workAssignment.workersOf(cycle.getBarn().getId()),
                 workAssignment.tasksOf(cycle.getBarn().getId(), day, workerEmail),
                 openedFeeds,
-                routineCheckRepository.findAllByCycleIdAndCheckDate(cycle.getId(), day),
-                farmService.firstMealTime());
+                routineChecks,
+                farmService.firstMealTime(),
+                workAssignment.namesByEmail(doneEmails));
     }
 
     private BarnDayPlan responseWithData(
@@ -895,7 +911,8 @@ public class DailyPlanService {
             List<WorkBoard.AssignedTask> assignedTasks,
             List<CycleOpenedFeed> openedFeeds,
             List<BarnRoutineTaskCheck> routineChecks,
-            LocalTime firstMeal) {
+            LocalTime firstMeal,
+            Map<String, String> namesByEmail) {
         Barn barn = cycle.getBarn();
         Map<Long, FlockDay> flocks = new LinkedHashMap<>();
         for (FlockDay flockDay : plan.flocks()) flocks.put(flockDay.flock().getId(), flockDay);
@@ -987,7 +1004,7 @@ public class DailyPlanService {
                         return new BarnDayPlan.Share(entry.getKey(), flockCode(flockDay.flock()), flockDay.age(), flockDay.heads(),
                                 task.unknown ? null : entry.getValue());
                     }).toList(),
-                    log == null ? null : done(log, canSeeFinance),
+                    log == null ? null : done(log, canSeeFinance, namesByEmail),
                     task.sources.stream().map(lots -> new BarnDayPlan.StockSource(lots.getFirst().getId(),
                             lots.getFirst().getWarehouse().getName(), stockUnit(lots.getFirst()), sourceStock(lots))).toList(),
                     averagePrice, plannedCost, openedFeedKg, bagsToOpen));
@@ -999,7 +1016,7 @@ public class DailyPlanService {
                     log.getInventoryItem() == null ? null : stockUnit(log.getInventoryItem()),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getId(),
                     log.getInventoryItem() == null ? null : log.getInventoryItem().getProduct().getName(), null, null, null, null,
-                    "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance), List.of(), null, null, null, null));
+                    "Không còn trong kế hoạch hiện tại.", List.of(), done(log, canSeeFinance, namesByEmail), List.of(), null, null, null, null));
         }
         if (resolveStock) {
             remainingByItem.forEach((id, need) -> {
@@ -1026,7 +1043,7 @@ public class DailyPlanService {
             seenRoutineCodes.add(code);
             BarnRoutineTaskCheck rc = checksByCode.get(code);
             BarnDayPlan.RoutineDone done = rc == null ? null
-                    : new BarnDayPlan.RoutineDone(rc.getId(), rc.getDoneBy(), rc.getDoneAt(), rc.getNote());
+                    : new BarnDayPlan.RoutineDone(rc.getId(), rc.getDoneBy(), WorkAssignmentService.resolveName(rc.getDoneBy(), namesByEmail), rc.getDoneAt(), rc.getNote());
             routineTasks.add(new BarnDayPlan.RoutineTask(code, BarnRoutineTaskCatalog.titleOf(code), done));
         }
         for (BarnRoutineTaskCheck rc : checksByCode.values()) {
@@ -1034,7 +1051,7 @@ public class DailyPlanService {
                 routineTasks.add(new BarnDayPlan.RoutineTask(
                         rc.getTaskCode(),
                         rc.getTaskTitle(),
-                        new BarnDayPlan.RoutineDone(rc.getId(), rc.getDoneBy(), rc.getDoneAt(), rc.getNote())));
+                        new BarnDayPlan.RoutineDone(rc.getId(), rc.getDoneBy(), WorkAssignmentService.resolveName(rc.getDoneBy(), namesByEmail), rc.getDoneAt(), rc.getNote())));
             }
         }
         return new BarnDayPlan(cycle.getId(), cycleCode(cycle), barn.getId(), barn.getName(), barn.getArea().getName(), day,
@@ -1066,10 +1083,10 @@ public class DailyPlanService {
         });
     }
 
-    private static BarnDayPlan.Done done(DailyTaskLog log, boolean canSeeFinance) {
+    private static BarnDayPlan.Done done(DailyTaskLog log, boolean canSeeFinance, Map<String, String> namesByEmail) {
         return new BarnDayPlan.Done(log.getId(), log.getActualQuantity(), log.getStockQuantity(),
                 canSeeFinance ? log.getUnitPrice() : null, canSeeFinance ? log.getCost() : null, log.isDeviated(), log.getNote(),
-                log.getDoneBy(), log.getDoneAt());
+                log.getDoneBy(), WorkAssignmentService.resolveName(log.getDoneBy(), namesByEmail), log.getDoneAt());
     }
 
     /** Định mức cho 1 con hiển thị trên phiếu, ví dụ "85 g/con/ngày" hoặc "80–85 g/con/ngày" khi các đàn khác mức. */

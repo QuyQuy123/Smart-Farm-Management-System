@@ -243,4 +243,102 @@ class CycleHistoryIntegrationTest {
                 .andExpect(jsonPath("$.data[0].profit").doesNotExist())
                 .andExpect(jsonPath("$.data[0].costPerKg").doesNotExist());
     }
+
+    @Test
+    @WithMockUser(username = "owner@farm.test", authorities = "ROLE_FARM_OWNER")
+    void linksTransferredClosedCyclesWithSharedBatchGroupKeyAndTransferLinks() throws Exception {
+        Barn barnA2 = new Barn();
+        barnA2.setArea(areaA);
+        barnA2.setName("Chuồng A2");
+        barnA2.setNameKey("chuồng a2");
+        barnA2.setCapacity(1000);
+        barnA2.setStatus(BarnStatus.INACTIVE);
+        barnA2 = barnRepository.save(barnA2);
+
+        FarmingCycle srcCycle = new FarmingCycle();
+        srcCycle.setBarn(barnA1);
+        srcCycle.setCycleNumber(3);
+        srcCycle.setStartDate(today.minusDays(80));
+        srcCycle.setEndDate(today.minusDays(1));
+        srcCycle.setStatus(CycleStatus.CLOSED);
+        srcCycle = cycleRepository.save(srcCycle);
+
+        FarmingCycle dstCycle = new FarmingCycle();
+        dstCycle.setBarn(barnA2);
+        dstCycle.setCycleNumber(1);
+        dstCycle.setStartDate(today.minusDays(50));
+        dstCycle.setEndDate(today.minusDays(1));
+        dstCycle.setStatus(CycleStatus.CLOSED);
+        dstCycle = cycleRepository.save(dstCycle);
+
+        Flock srcFlock = new Flock();
+        srcFlock.setCycle(srcCycle);
+        srcFlock.setName("Lô gốc 1000");
+        srcFlock.setGender(FlockGender.MIXED);
+        srcFlock.setSourceType(FlockSource.PURCHASE);
+        srcFlock.setImportDate(today.minusDays(80));
+        srcFlock.setAgeAtImport(1);
+        srcFlock.setImportQuantity(1000);
+        srcFlock.setImportAvgWeight(new BigDecimal("0.042"));
+        srcFlock.setUnitPrice(new BigDecimal("10000.00"));
+        srcFlock.setQuantity(0);
+        srcFlock.setStatus(FlockStatus.ARCHIVED);
+        srcFlock.setProgram(programA);
+        srcFlock = flockRepository.save(srcFlock);
+
+        Flock dstFlock = new Flock();
+        dstFlock.setCycle(dstCycle);
+        dstFlock.setName("Lô tách 500");
+        dstFlock.setGender(FlockGender.MIXED);
+        dstFlock.setSourceType(FlockSource.TRANSFER);
+        dstFlock.setSourceFlock(srcFlock);
+        dstFlock.setImportDate(today.minusDays(50));
+        dstFlock.setAgeAtImport(31);
+        dstFlock.setImportQuantity(500);
+        dstFlock.setImportAvgWeight(new BigDecimal("0.900"));
+        dstFlock.setUnitPrice(new BigDecimal("10000.00"));
+        dstFlock.setQuantity(0);
+        dstFlock.setStatus(FlockStatus.ARCHIVED);
+        dstFlock.setProgram(programA);
+        dstFlock = flockRepository.save(dstFlock);
+
+        FlockMovement mImp = new FlockMovement();
+        mImp.setFlock(srcFlock);
+        mImp.setType(FlockMovementType.IMPORT);
+        mImp.setMovementDate(today.minusDays(80));
+        mImp.setQuantity(1000);
+        mImp.setWeightKg(new BigDecimal("42.000"));
+        movementRepository.save(mImp);
+
+        FlockMovement mOut = new FlockMovement();
+        mOut.setFlock(srcFlock);
+        mOut.setType(FlockMovementType.TRANSFER_OUT);
+        mOut.setMovementDate(today.minusDays(50));
+        mOut.setQuantity(500);
+        mOut.setWeightKg(new BigDecimal("450.000"));
+        mOut.setRelatedFlock(dstFlock);
+        movementRepository.save(mOut);
+
+        FlockMovement mIn = new FlockMovement();
+        mIn.setFlock(dstFlock);
+        mIn.setType(FlockMovementType.TRANSFER_IN);
+        mIn.setMovementDate(today.minusDays(50));
+        mIn.setQuantity(500);
+        mIn.setWeightKg(new BigDecimal("450.000"));
+        mIn.setRelatedFlock(srcFlock);
+        movementRepository.save(mIn);
+
+        long expectedRoot = Math.min(srcCycle.getId(), dstCycle.getId());
+        String expectedKey = "G-" + expectedRoot;
+
+        mvc.perform(get("/api/cycles/history").param("search", "Lứa thứ"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.cycleId==" + srcCycle.getId() + ")].batchGroupKey").value(expectedKey))
+                .andExpect(jsonPath("$.data[?(@.cycleId==" + dstCycle.getId() + ")].batchGroupKey").value(expectedKey))
+                .andExpect(jsonPath("$.data[?(@.cycleId==" + srcCycle.getId() + ")].transferredOut").value(500))
+                .andExpect(jsonPath("$.data[?(@.cycleId==" + srcCycle.getId() + ")].transferLinks[0].direction").value("OUT"))
+                .andExpect(jsonPath("$.data[?(@.cycleId==" + srcCycle.getId() + ")].transferLinks[0].barnName").value("Chuồng A2"))
+                .andExpect(jsonPath("$.data[?(@.cycleId==" + dstCycle.getId() + ")].transferLinks[0].direction").value("IN"))
+                .andExpect(jsonPath("$.data[?(@.cycleId==" + dstCycle.getId() + ")].transferLinks[0].barnName").value("Chuồng A1"));
+    }
 }

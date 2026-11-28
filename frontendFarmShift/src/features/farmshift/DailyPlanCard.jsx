@@ -152,7 +152,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         </label>}
         {done && <small className={styles.doneLine}>
           <Check size={13} />Xong lúc {time(done.doneAt)}{!compact && <>
-          {` · ${done.doneBy}`}
+          {` · ${done.doneByName || done.doneBy}`}
           {done.actualQuantity != null && (done.deviated || task.plannedQuantity == null || Number(done.actualQuantity) !== Number(task.plannedQuantity) || task.category === 'FEED')
             && ` · thực tế ${doneActualText(done, task, roundFeed)}`}
           {done.cost != null && Number(done.cost) > 0 && ` · ${money(done.cost)}`}
@@ -221,7 +221,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
         </small>}
         {task.note && !compact && <small>{task.note}</small>}
         {task.done && <small className={styles.doneLine}><Check size={13} />Xong lúc {time(task.done.doneAt)}
-          {!compact && ` · ${task.done.doneBy}`}{!compact && task.done.note && ` · ${task.done.note}`}</small>}
+          {!compact && ` · ${task.done.doneByName || task.done.doneBy}`}{!compact && task.done.note && ` · ${task.done.note}`}</small>}
         {errors[assignedKey(task)] && <small role="alert" className={styles.error}>{errors[assignedKey(task)]}</small>}
       </div>
       {canAct && mine && onConfirmAssigned && <div className={styles.actions}>
@@ -239,7 +239,7 @@ export function DailyPlanCard({ plan, userEmail, role, busyKey, onConfirm, onUnd
       <div className={styles.info}>
         <strong>{item.title}</strong>
         {item.done && <small className={styles.doneLine}><Check size={13} />Xong lúc {time(item.done.doneAt)}
-          {!compact && ` · ${item.done.doneBy}`}{!compact && item.done.note && ` · ${item.done.note}`}</small>}
+          {!compact && ` · ${item.done.doneByName || item.done.doneBy}`}{!compact && item.done.note && ` · ${item.done.note}`}</small>}
         {errors[`R:${item.code}`] && <small role="alert" className={styles.error}>{errors[`R:${item.code}`]}</small>}
       </div>
       {canAct && onToggleRoutine && <div className={styles.actions}>

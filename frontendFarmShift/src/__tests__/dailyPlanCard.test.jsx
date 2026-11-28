@@ -207,4 +207,47 @@ describe('DailyPlanCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cài đặt việc hằng ngày của chuồng' }));
     expect(onConfigureRoutine).toHaveBeenCalledWith(current);
   });
+
+  it('displays doneByName instead of raw email on completed tasks while keeping doneBy for undo', () => {
+    const today = todayIso();
+    const doneFeed = {
+      ...plan.tasks[0],
+      done: { id: 10, doneBy: 'tuan@smartfarm.com', doneByName: 'Lê Minh Tuấn', doneAt: `${today}T07:05:00`, actualQuantity: 850, deviated: false },
+    };
+    const assigned = {
+      id: 77,
+      title: 'Kiểm tra bạt che',
+      note: '',
+      dueTime: null,
+      assignee: { id: 7, fullName: 'Lê Minh Tuấn', email: 'tuan@smartfarm.com' },
+      done: { doneBy: 'tuan@smartfarm.com', doneByName: 'Lê Minh Tuấn', doneAt: `${today}T07:10:00`, note: '' },
+    };
+    const routineTasks = [
+      { code: 'CLEAN_FEEDERS', title: 'Vệ sinh máng', done: { id: 1, doneBy: 'hiepgacute1989@gmail.com', doneByName: 'Admin', doneAt: `${today}T22:19:00`, note: null } },
+    ];
+
+    render(
+      <DailyPlanCard
+        plan={{ ...plan, date: today, tasks: [doneFeed], assignedTasks: [assigned], routineTasks }}
+        role="ROLE_FARM_WORKER"
+        userEmail="tuan@smartfarm.com"
+        busyKey={null}
+        onConfirm={vi.fn()}
+        onUndo={vi.fn()}
+        onConfirmAssigned={vi.fn()}
+        onUndoAssigned={vi.fn()}
+        onToggleRoutine={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText(/Lê Minh Tuấn/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/Admin/)).toBeInTheDocument();
+    expect(screen.queryByText(/tuan@smartfarm\.com/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/hiepgacute1989@gmail\.com/)).not.toBeInTheDocument();
+    // canUndo still matches raw doneBy email for worker's own tasks
+    expect(screen.getByRole('button', { name: 'Hoàn tác Cữ 1/3 · Higro 02' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hoàn tác Kiểm tra bạt che' })).toBeInTheDocument();
+    // Cannot undo someone else's routine task
+    expect(screen.queryByRole('button', { name: 'Hoàn tác Vệ sinh máng' })).not.toBeInTheDocument();
+  });
 });

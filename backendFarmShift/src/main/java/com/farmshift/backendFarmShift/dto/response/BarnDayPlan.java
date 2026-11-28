@@ -19,7 +19,7 @@ public record BarnDayPlan(Long cycleId, String cycleCode, Long barnId, String ba
 
     public record RoutineTask(String code, String title, RoutineDone done) {}
 
-    public record RoutineDone(Long id, String doneBy, LocalDateTime doneAt, String note) {}
+    public record RoutineDone(Long id, String doneBy, String doneByName, LocalDateTime doneAt, String note) {}
 
     /** Đàn có mặt trong chuồng ngày đó (số con cuối ngày, đã trừ hao hụt / xuất bán / chuyển đi). */
     public record FlockLine(Long flockId, String code, String name, String programName, int ageDays, int quantity) {
@@ -50,6 +50,6 @@ public record BarnDayPlan(Long cycleId, String cycleCode, Long barnId, String ba
     }
 
     public record Done(Long id, BigDecimal actualQuantity, BigDecimal stockQuantity, BigDecimal unitPrice, BigDecimal cost,
-                       boolean deviated, String note, String doneBy, LocalDateTime doneAt) {
+                       boolean deviated, String note, String doneBy, String doneByName, LocalDateTime doneAt) {
     }
 }

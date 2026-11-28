@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, History, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, History, RotateCcw } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { useAuth } from '../../context/AuthContext';
 import { listBarns, listFarmAreas } from '../../services/farmAreaService';
@@ -11,6 +11,7 @@ import { ResponsiveDataTable } from '../../components/common/ResponsiveDataTable
 import { AreaTabs } from './AreaTabs';
 import { apiErrorMessage, formatAmount, formatDay } from './farmAreaOptions';
 import { formatBarnOption, sortBarnsForOperation } from '../../utils/selectFormatters';
+import { flattenGroupedRows, groupClosedCycles } from '../../utils/cycleHistoryGroups';
 import styles from './CycleHistoryView.module.css';
 
 const money = value => (value == null ? '—' : `${Math.round(Number(value)).toLocaleString('vi-VN')}đ`);
@@ -28,6 +29,8 @@ export function CycleHistoryView() {
 
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [revision, setRevision] = useState(0);
+  const [viewMode, setViewMode] = useState('grouped');
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [areas, setAreas] = useState([]);
   const [barns, setBarns] = useState([]);
   const [programs, setPrograms] = useState([]);
@@ -89,24 +92,75 @@ export function CycleHistoryView() {
     return { totalCycles, totalHarvested, totalDiseases, avgFcr, totalDiseaseCost, totalProfit };
   }, [rows, canFinance]);
 
+  const groupedItems = useMemo(() => groupClosedCycles(rows, canFinance), [rows, canFinance]);
+  const hasTransferGroups = useMemo(() => groupedItems.some(item => item.isGroupRow), [groupedItems]);
+  const tableRows = useMemo(() => (
+    viewMode === 'grouped'
+      ? flattenGroupedRows(groupedItems, expandedGroups)
+      : rows.map(row => ({ ...row, isGroupRow: false, rowKey: String(row.cycleId) }))
+  ), [viewMode, groupedItems, expandedGroups, rows]);
+
+  const toggleGroup = key => setExpandedGroups(current => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
+
   const columns = useMemo(() => {
     const base = [
       {
         key: 'cycle',
         label: 'Lứa nuôi',
         primary: true,
-        render: (_, row) => <div className={styles.cycleTitle}>
-          <strong>Lứa thứ {row.cycleNumber}</strong>
-          <small>{row.cycleCode}{row.breeds?.length ? ` · ${row.breeds.join(', ')}` : ''}</small>
-        </div>,
+        render: (_, row) => {
+          if (row.isGroupRow) {
+            const isOpen = expandedGroups.has(row.batchGroupKey);
+            return <div className={styles.cycleTitle}>
+              <div className={styles.groupRowHeader}>
+                <button
+                  type="button"
+                  className={styles.groupRowBtn}
+                  aria-expanded={isOpen}
+                  aria-label={`${isOpen ? 'Thu gọn' : 'Mở'} lô tách đàn ${row.barnNames.join(' + ')}`}
+                  onClick={() => toggleGroup(row.batchGroupKey)}
+                >
+                  {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
+                <strong>Lô tách đàn ({row.members.length} chuồng)</strong>
+                <span className={styles.groupBadge}>Gộp lô</span>
+              </div>
+              <small>{row.members.map(m => m.cycleCode).join(' + ')}{row.breeds?.length ? ` · ${row.breeds.join(', ')}` : ''}</small>
+            </div>;
+          }
+          return <div className={`${styles.cycleTitle} ${row.isGroupChild ? styles.childIndent : ''}`}>
+            <strong>{row.isGroupChild ? `↳ Lứa thứ ${row.cycleNumber}` : `Lứa thứ ${row.cycleNumber}`}</strong>
+            <small>{row.cycleCode}{row.breeds?.length ? ` · ${row.breeds.join(', ')}` : ''}</small>
+            {row.transferLinks?.length > 0 && <div className={styles.transferBadges}>
+              {row.transferLinks.map(link => (
+                <span key={`${link.direction}-${link.cycleId}`} className={styles.transferBadge}>
+                  {link.direction === 'IN' ? `Tách từ ${link.barnName} (${link.cycleCode})` : `Tách sang ${link.barnName} (${link.cycleCode})`}
+                </span>
+              ))}
+            </div>}
+          </div>;
+        },
       },
       {
         key: 'location',
         label: 'Khu / Chuồng',
-        render: (_, row) => <>
-          <strong>{row.barnName}</strong>
-          <span className={styles.sub}>{row.areaName || '—'}</span>
-        </>,
+        render: (_, row) => {
+          if (row.isGroupRow) {
+            return <>
+              <strong>{row.barnNames.join(' + ')}</strong>
+              <span className={styles.sub}>{row.areaNames.join(', ') || '—'}</span>
+            </>;
+          }
+          return <>
+            <strong>{row.barnName}</strong>
+            <span className={styles.sub}>{row.areaName || '—'}</span>
+          </>;
+        },
       },
       {
         key: 'dates',
@@ -167,13 +221,22 @@ export function CycleHistoryView() {
       key: 'actions',
       label: 'Chi tiết',
       isAction: true,
-      render: (_, row) => <Link to={`/barns/${row.barnId}?cycle=${row.cycleId}`} className={styles.detailLink}>
-        <Eye size={14} />Xem chi tiết
-      </Link>,
+      render: (_, row) => {
+        if (row.isGroupRow) {
+          const isOpen = expandedGroups.has(row.batchGroupKey);
+          return <button type="button" className={styles.detailLink} onClick={() => toggleGroup(row.batchGroupKey)}>
+            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {isOpen ? 'Thu gọn' : `Xem ${row.members.length} chuồng`}
+          </button>;
+        }
+        return <Link to={`/barns/${row.barnId}?cycle=${row.cycleId}`} className={styles.detailLink}>
+          <Eye size={14} />Xem chi tiết
+        </Link>;
+      },
     });
 
     return base;
-  }, [canFinance]);
+  }, [canFinance, expandedGroups]);
 
   const setFilter = (key, value) => setFilters(current => {
     if (key === 'areaId') return { ...current, areaId: value, barnId: '' };
@@ -196,6 +259,24 @@ export function CycleHistoryView() {
           <h2><History size={20} />Tổng hợp lịch sử lứa nuôi đã kết thúc</h2>
           <p>So sánh hiệu quả kỹ thuật, tỷ lệ sống, FCR, lịch sử đợt bệnh{canFinance ? ' và lãi/lỗ thực hiện' : ''} của tất cả lứa nuôi đã chốt toàn trại.</p>
         </div>
+        {hasTransferGroups && (
+          <div className={styles.viewToggle} role="group" aria-label="Chế độ xem lịch sử lứa">
+            <button
+              type="button"
+              className={viewMode === 'grouped' ? styles.viewToggleActive : ''}
+              onClick={() => setViewMode('grouped')}
+            >
+              Gộp theo lô tách đàn
+            </button>
+            <button
+              type="button"
+              className={viewMode === 'flat' ? styles.viewToggleActive : ''}
+              onClick={() => setViewMode('flat')}
+            >
+              Xem từng chuồng
+            </button>
+          </div>
+        )}
       </header>
 
       <section className={styles.filterBar} aria-label="Bộ lọc lịch sử lứa nuôi">
@@ -255,8 +336,8 @@ export function CycleHistoryView() {
       <section className={styles.tableCard}>
         {loading ? <p className={styles.empty} role="status">Đang tải lịch sử lứa nuôi...</p>
           : error ? <p className={styles.error} role="alert">{error}</p>
-            : rows.length === 0 ? <p className={styles.empty}>Không có lứa nuôi đã kết thúc nào khớp bộ lọc.</p>
-              : <ResponsiveDataTable columns={columns} data={rows} rowKey="cycleId" />}
+            : tableRows.length === 0 ? <p className={styles.empty}>Không có lứa nuôi đã kết thúc nào khớp bộ lọc.</p>
+              : <ResponsiveDataTable columns={columns} data={tableRows} rowKey="rowKey" />}
       </section>
     </div>
   </FarmShiftLayout>;

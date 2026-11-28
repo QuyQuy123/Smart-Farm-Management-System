@@ -99,4 +99,88 @@ describe('CycleHistoryView (OPS-03)', () => {
     expect(screen.queryByRole('link', { name: 'Danh sách khu nuôi' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Xem chi tiết/ })).toHaveAttribute('href', '/barns/10?cycle=42');
   });
+
+  it('groups transferred closed cycles by batchGroupKey with net math, expands children, and toggles flat view', async () => {
+    const srcCycle = {
+      ...sampleRow(true),
+      cycleId: 101,
+      cycleCode: 'L000101',
+      cycleNumber: 1,
+      barnId: 10,
+      barnName: 'Nhà A1',
+      startDate: '2026-09-01',
+      endDate: '2026-11-25',
+      totalIn: 10000,
+      transferredOut: 5000,
+      harvestedQuantity: 4800,
+      deaths: 200,
+      culls: 0,
+      survivalRate: 96.0,
+      feedKg: 19200,
+      weightGainKg: 9600,
+      fcr: 2.0,
+      harvestedWeightKg: 9600,
+      avgHarvestWeightKg: 2.0,
+      diseaseCount: 1,
+      totalDiseaseMedicineCost: 500000,
+      totalCost: 300000000,
+      revenue: 480000000,
+      profit: 180000000,
+      batchGroupKey: 'G-101',
+      transferLinks: [{ direction: 'OUT', cycleId: 102, cycleCode: 'L000102', barnId: 11, barnName: 'Nhà A2', quantity: 5000 }],
+    };
+    const dstCycle = {
+      ...sampleRow(true),
+      cycleId: 102,
+      cycleCode: 'L000102',
+      cycleNumber: 1,
+      barnId: 11,
+      barnName: 'Nhà A2',
+      startDate: '2026-09-25',
+      endDate: '2026-11-26',
+      totalIn: 5000,
+      transferredOut: 0,
+      harvestedQuantity: 4700,
+      deaths: 300,
+      culls: 0,
+      survivalRate: 94.0,
+      feedKg: 20000,
+      weightGainKg: 9400,
+      fcr: 2.13,
+      harvestedWeightKg: 9400,
+      avgHarvestWeightKg: 2.0,
+      diseaseCount: 0,
+      totalDiseaseMedicineCost: 0,
+      totalCost: 310000000,
+      revenue: 470000000,
+      profit: 160000000,
+      batchGroupKey: 'G-101',
+      transferLinks: [{ direction: 'IN', cycleId: 101, cycleCode: 'L000101', barnId: 10, barnName: 'Nhà A1', quantity: 5000 }],
+    };
+    cycleService.listClosedCycleHistory.mockResolvedValue([dstCycle, srcCycle]);
+
+    render(<MemoryRouter><CycleHistoryView /></MemoryRouter>);
+
+    // 1. Default grouped mode combines into 1 batch row without double-counting the 5,000 transferred birds
+    expect(await screen.findByText('Lô tách đàn (2 chuồng)')).toBeInTheDocument();
+    expect(screen.getByText('Nhà A1 + Nhà A2')).toBeInTheDocument();
+    expect(screen.getByText('10.000 / 9.500 con')).toBeInTheDocument();
+    // Combined FCR = (19200 + 20000) / (9600 + 9400) = 39200 / 19000 = 2.06
+    expect(screen.getAllByText('2,06').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('340.000.000đ').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('↳ Lứa thứ 1')).not.toBeInTheDocument();
+
+    // 2. Expand group -> reveals both child rows with transfer badges and detail links
+    fireEvent.click(screen.getByRole('button', { name: /Xem 2 chuồng/ }));
+    expect(screen.getAllByText('↳ Lứa thứ 1')).toHaveLength(2);
+    expect(screen.getByText('Tách sang Nhà A2 (L000102)')).toBeInTheDocument();
+    expect(screen.getByText('Tách từ Nhà A1 (L000101)')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Xem chi tiết/ })).toHaveLength(2);
+
+    // 3. Switch to flat mode -> shows both cycles ungrouped with transfer badges
+    fireEvent.click(screen.getByRole('button', { name: 'Xem từng chuồng' }));
+    expect(screen.queryByText('Lô tách đàn (2 chuồng)')).not.toBeInTheDocument();
+    expect(screen.getByText('Tách sang Nhà A2 (L000102)')).toBeInTheDocument();
+    expect(screen.getByText('Tách từ Nhà A1 (L000101)')).toBeInTheDocument();
+  });
 });

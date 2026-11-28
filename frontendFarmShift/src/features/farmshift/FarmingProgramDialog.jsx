@@ -130,9 +130,38 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     setDraft(current => ({ ...current, [key]: value }));
     setErrors(current => ({ ...current, fields: { ...current.fields, [key]: undefined } }));
   };
+  const validateHeaderField = key => {
+    const found = validateProgram(draft);
+    setErrors(current => {
+      const nextFields = { ...current.fields };
+      if (key === 'targetWeightMin' || key === 'targetWeightMax') {
+        nextFields.targetWeightMin = found.fields.targetWeightMin;
+        nextFields.targetWeightMax = found.fields.targetWeightMax;
+      } else {
+        nextFields[key] = found.fields[key];
+      }
+      return { ...current, fields: nextFields };
+    });
+  };
+  const blockMinus = event => {
+    if (event.key === '-') event.preventDefault();
+  };
   const setStep = (index, key, value) => {
     setDirty(true);
-    setDraft(current => ({ ...current, steps: current.steps.map((step, i) => (i === index ? { ...step, [key]: value } : step)) }));
+    setDraft(current => ({
+      ...current,
+      steps: current.steps.map((step, i) => {
+        if (i !== index) return step;
+        const nextStep = { ...step, [key]: value };
+        if (key === 'unit' && ['VACCINE', 'MEDICINE', 'DRINKING_MEDICINE'].includes(step.category) && step.inventoryItemId) {
+          const chosenItem = items.find(item => String(item.id) === String(step.inventoryItemId));
+          if (chosenItem && !itemFitsStep(chosenItem, step.category, value)) {
+            nextStep.inventoryItemId = '';
+          }
+        }
+        return nextStep;
+      }),
+    }));
     setErrors(current => ({ ...current, steps: { ...current.steps, [index]: undefined } }));
   };
   const addStep = () => {
@@ -233,8 +262,19 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
       onSaved(editing ? `Đã cập nhật chương trình ${payload.name}.` : `Đã tạo chương trình ${payload.name}.`);
     } catch (requestError) {
       const data = requestError.response?.data?.data;
-      if (data && typeof data === 'object' && !Array.isArray(data) && data.name) setErrors({ fields: { name: data.name }, steps: {} });
-      else setError(apiErrorMessage(requestError));
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const mapped = {};
+        for (const key of ['name', 'breed', 'durationDays', 'targetWeightMin', 'targetWeightMax', 'description', 'steps']) {
+          if (data[key]) mapped[key] = data[key];
+        }
+        if (Object.keys(mapped).length) {
+          setErrors({ fields: mapped, steps: {} });
+        } else {
+          setError(apiErrorMessage(requestError));
+        }
+      } else {
+        setError(apiErrorMessage(requestError));
+      }
       setSaving(false);
     }
   };
@@ -247,30 +287,40 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
   const headerInput = (key, props = {}) => {
     const cls = `farmshift-form-control ${errors.fields[key] ? styles.invalid : ''}`;
     if (props.type === 'number') {
-      const { type: _type, min: _min, max, step, ...rest } = props;
+      const { type: _type, min: _min, max, step, onBlur, onKeyDown, ...rest } = props;
       return <QuantityInput id={`program-${key}`} inputClassName={cls} allowDecimal={Boolean(step && String(step).includes('.'))} max={max}
-        value={draft[key]} onChange={event => setField(key, event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields[key])} {...rest} />;
+        suppressMaxError={Boolean(errors.fields[key])} value={draft[key]} onChange={event => setField(key, event.target.value)}
+        onBlur={event => { validateHeaderField(key); onBlur?.(event); }}
+        onKeyDown={event => { blockMinus(event); onKeyDown?.(event); }}
+        disabled={saving} aria-invalid={Boolean(errors.fields[key])} {...rest} />;
     }
+    const { onBlur, ...rest } = props;
     return <input id={`program-${key}`} className={cls}
-      value={draft[key]} onChange={event => setField(key, event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields[key])} {...props} />;
+      value={draft[key]} onChange={event => setField(key, event.target.value)}
+      onBlur={event => { validateHeaderField(key); onBlur?.(event); }}
+      disabled={saving} aria-invalid={Boolean(errors.fields[key])} {...rest} />;
   };
 
   const rows = draft.steps.map((step, index) => ({ step, index })).filter(row => row.step.category === tab);
   const category = STEP_CATEGORIES.find(item => item.value === tab);
+  const parsedDuration = Number(draft.durationDays);
+  const maxAgeDay = Number.isInteger(parsedDuration) && parsedDuration >= 1 && parsedDuration <= 365 ? parsedDuration : 365;
 
   const cell = (row, [key, label, kind, extra]) => {
+    const rowInvalid = Boolean(errors.steps[row.index]);
     const common = {
       'aria-label': `${label} dòng ${row.index + 1}`,
+      'aria-invalid': rowInvalid,
       value: row.step[key],
       disabled: saving,
-      className: 'farmshift-form-control',
+      className: `farmshift-form-control ${rowInvalid ? styles.invalid : ''}`,
       onChange: event => setStep(row.index, key, event.target.value),
     };
     if (kind === 'select') return <select {...common}>{extra.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
     if (kind === 'pick' && row.step.category === 'FEED') {
       const known = feedOptions.some(option => option.name === row.step.name);
-      return <select aria-label={common['aria-label']} className="farmshift-form-control" value={row.step.name} disabled={saving || itemsLoading}
-        aria-invalid={Boolean(errors.steps[row.index])} onChange={event => {
+      return <select aria-label={common['aria-label']} className={common.className} value={row.step.name} disabled={saving || itemsLoading}
+        aria-invalid={rowInvalid} onChange={event => {
           const option = feedOptions.find(opt => opt.name === event.target.value);
           const candidates = option?.items || [];
           const selected = candidates.find(item => String(item.id) === String(row.step.inventoryItemId))
@@ -285,20 +335,22 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
     }
     if (kind === 'pick') {
       return <StockNamePicker label={common['aria-label']} value={row.step.name} itemId={row.step.inventoryItemId} placeholder={extra}
-        options={uniqueByName(itemsForStep(items, row.step.category, row.step.unit), row.step.inventoryItemId)} disabled={saving} invalid={Boolean(errors.steps[row.index])}
+        options={uniqueByName(itemsForStep(items, row.step.category, row.step.unit), row.step.inventoryItemId)} disabled={saving} invalid={rowInvalid}
         onChange={({ name, inventoryItemId }) => {
           setStep(row.index, 'name', name);
           setStep(row.index, 'inventoryItemId', inventoryItemId);
         }} />;
     }
-    if (kind === 'unit') return <input {...common} list="program-medicine-units" />;
-    if (kind === 'drinkingUnit') return <input {...common} list="program-drinking-units" />;
+    if (kind === 'unit') return <input {...common} maxLength={50} list="program-medicine-units" />;
+    if (kind === 'drinkingUnit') return <input {...common} maxLength={50} list="program-drinking-units" />;
     if (kind === 'number') {
       const { className, ...rest } = common;
-      return <QuantityInput {...rest} inputClassName={className} allowDecimal
+      const isMeals = key === 'mealsPerDay';
+      return <QuantityInput {...rest} inputClassName={className} allowDecimal={String(extra).includes('.')}
+        max={isMeals ? 8 : undefined} suppressMaxError={isMeals} onKeyDown={blockMinus}
         placeholder={key === 'quantity' && row.step.category === 'FEED' ? 'g/con/ngày' : undefined} />;
     }
-    return <input {...common} placeholder={extra} maxLength={200} />;
+    return <input {...common} placeholder={extra} maxLength={key === 'unit' ? 50 : 200} />;
   };
 
   return <Dialog title={editing ? 'Chỉnh sửa chương trình nuôi' : 'Tạo chương trình nuôi'} labelId="farming-program-title" busy={saving} isDirty={dirty} onClose={onClose} wide className={styles.editor}>
@@ -313,14 +365,19 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
           <div className={styles.twoThirds}>
             <label htmlFor="program-targetWeightMin">Cân xuất chuồng (kg)</label>
             <div className={styles.range}>
-              {headerInput('targetWeightMin', { type: 'number', min: 0, step: 0.01, placeholder: 'Từ, ví dụ 1.8' })}
+              {headerInput('targetWeightMin', { type: 'number', min: 0.01, max: 20, step: 0.01, placeholder: 'Từ, ví dụ 1.8' })}
               <span aria-hidden="true">–</span>
-              {headerInput('targetWeightMax', { type: 'number', min: 0, step: 0.01, placeholder: 'Đến, ví dụ 2.3', 'aria-label': 'Cân xuất chuồng đến (kg)' })}
+              {headerInput('targetWeightMax', { type: 'number', min: 0.01, max: 20, step: 0.01, placeholder: 'Đến, ví dụ 2.3', 'aria-label': 'Cân xuất chuồng đến (kg)' })}
             </div>
             <FieldError message={errors.fields.targetWeightMin || errors.fields.targetWeightMax} />
           </div>
-          {header('description', 'Mô tả', <textarea id="program-description" className="farmshift-form-control" rows={2} maxLength={1000} value={draft.description}
-            onChange={event => setField('description', event.target.value)} disabled={saving} placeholder="Ví dụ: Quy trình 90 ngày, 3 giai đoạn cám & lịch uống thuốc" />, false, 'fullRow')}
+          {header('description', 'Mô tả', <textarea id="program-description"
+            className={`farmshift-form-control ${errors.fields.description ? styles.invalid : ''}`}
+            rows={2} maxLength={1000} value={draft.description}
+            onChange={event => setField('description', event.target.value)}
+            onBlur={() => validateHeaderField('description')}
+            aria-invalid={Boolean(errors.fields.description)}
+            disabled={saving} placeholder="Ví dụ: Quy trình 90 ngày, 3 giai đoạn cám & lịch uống thuốc" />, false, 'fullRow')}
         </div>
 
         <h3 className={styles.blockTitle}>Nội dung theo ngày tuổi</h3>
@@ -362,22 +419,30 @@ export function FarmingProgramDialog({ program, onClose, onSaved }) {
         <div className={styles.stepTableWrap}>
           <table className={`${styles.stepTable} ${tab === 'FEED' ? styles.feedTable : ''}`}>
             {tab === 'FEED' && <colgroup>
-              <col style={{ width: '9%' }} /><col style={{ width: '9%' }} />
-              <col style={{ width: '34%' }} /><col style={{ width: '14%' }} />
-              <col style={{ width: '10%' }} /><col style={{ width: '19%' }} /><col style={{ width: '5%' }} />
+              <col style={{ width: '10%' }} /><col style={{ width: '10%' }} />
+              <col style={{ width: '28%' }} /><col style={{ width: '17%' }} />
+              <col style={{ width: '11%' }} /><col style={{ width: '19%' }} /><col style={{ width: '5%' }} />
             </colgroup>}
             <thead><tr><th>Từ ngày</th><th>Đến ngày</th>{COLUMNS[tab].map(column => <th key={column[0]}>{column[1]}</th>)}<th>Ghi chú</th><th /></tr></thead>
             <tbody>
               {rows.length === 0 ? <tr><td colSpan={COLUMNS[tab].length + 4} className={styles.emptyRow}>Chưa có {category.item}. Bấm "Thêm dòng" để thêm.</td></tr>
                 : rows.map(row => <Fragment key={row.index}><tr className={errors.steps[row.index] ? styles.rowError : ''}>
-                  <td><QuantityInput aria-label={`Từ ngày dòng ${row.index + 1}`} inputClassName="farmshift-form-control" value={row.step.dayFrom}
+                  <td data-label="Từ ngày" data-role="day"><QuantityInput aria-label={`Từ ngày dòng ${row.index + 1}`}
+                    inputClassName={`farmshift-form-control ${errors.steps[row.index] ? styles.invalid : ''}`}
+                    aria-invalid={Boolean(errors.steps[row.index])}
+                    max={maxAgeDay} suppressMaxError onKeyDown={blockMinus}
+                    value={row.step.dayFrom}
                     onChange={event => setStep(row.index, 'dayFrom', event.target.value)} disabled={saving} /></td>
-                  <td><QuantityInput aria-label={`Đến ngày dòng ${row.index + 1}`} inputClassName="farmshift-form-control" value={row.step.dayTo}
+                  <td data-label="Đến ngày" data-role="day"><QuantityInput aria-label={`Đến ngày dòng ${row.index + 1}`}
+                    inputClassName={`farmshift-form-control ${errors.steps[row.index] ? styles.invalid : ''}`}
+                    aria-invalid={Boolean(errors.steps[row.index])}
+                    max={maxAgeDay} suppressMaxError onKeyDown={blockMinus}
+                    value={row.step.dayTo}
                     onChange={event => setStep(row.index, 'dayTo', event.target.value)} disabled={saving} /></td>
-                  {COLUMNS[tab].map(column => <td key={column[0]}>{cell(row, column)}</td>)}
-                  <td><input aria-label={`Ghi chú dòng ${row.index + 1}`} className="farmshift-form-control" value={row.step.note} maxLength={1000}
+                  {COLUMNS[tab].map(column => <td key={column[0]} data-label={column[1]} data-role={column[0] === 'name' ? 'full' : 'field'}>{cell(row, column)}</td>)}
+                  <td data-label="Ghi chú" data-role="full"><input aria-label={`Ghi chú dòng ${row.index + 1}`} className="farmshift-form-control" value={row.step.note} maxLength={1000}
                     onChange={event => setStep(row.index, 'note', event.target.value)} disabled={saving} /></td>
-                  <td><button type="button" className={styles.iconButton} aria-label={`Xóa dòng ${row.index + 1}`} onClick={() => removeStep(row.index)} disabled={saving}><Trash2 size={15} /></button></td>
+                  <td data-role="action"><button type="button" className={styles.iconButton} aria-label={`Xóa dòng ${row.index + 1}`} onClick={() => removeStep(row.index)} disabled={saving}><Trash2 size={15} /></button></td>
                 </tr>
                 {errors.steps[row.index] && <tr className={styles.rowMessageRow}><td colSpan={COLUMNS[tab].length + 4} role="alert">{errors.steps[row.index]}</td></tr>}
                 </Fragment>)}

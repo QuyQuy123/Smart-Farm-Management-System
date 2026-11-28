@@ -16,6 +16,9 @@ public interface FlockRepository extends JpaRepository<Flock, Long> {
     @EntityGraph(attributePaths = {"cycle", "program", "supplier"})
     List<Flock> findByCycleIdInOrderByImportDateAscIdAsc(List<Long> cycleIds);
 
+    @EntityGraph(attributePaths = {"cycle", "cycle.barn"})
+    List<Flock> findWithCycleAndBarnByIdIn(java.util.Collection<Long> ids);
+
     List<Flock> findAllByCycleIdOrderByImportDateAscIdAsc(Long cycleId);
 
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)

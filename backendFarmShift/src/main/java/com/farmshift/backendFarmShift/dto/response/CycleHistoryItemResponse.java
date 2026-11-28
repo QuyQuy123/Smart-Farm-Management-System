@@ -36,5 +36,18 @@ public record CycleHistoryItemResponse(
         BigDecimal totalCost,
         BigDecimal revenue,
         BigDecimal profit,
-        BigDecimal costPerKg
-) { }
+        BigDecimal costPerKg,
+        BigDecimal weightGainKg,
+        int transferredOut,
+        String batchGroupKey,
+        List<TransferLink> transferLinks
+) {
+    public record TransferLink(
+            String direction,
+            Long cycleId,
+            String cycleCode,
+            Long barnId,
+            String barnName,
+            int quantity
+    ) { }
+}
