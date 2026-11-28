@@ -8,7 +8,7 @@ import { listWarehouseCategories, WAREHOUSE_CATEGORIES_CHANGED } from '../../ser
 import { sortWarehouseCategories } from '../../utils/warehouseCategoryOrder';
 import { listInventoryItems } from '../../services/inventoryItemService';
 import { INVENTORY_CHANGED } from '../../utils/inventoryEvents';
-import { groupInventoryItems, inventoryStockKg } from '../../utils/inventoryGroups';
+import { formatPackagedStock, groupInventoryItems, inventoryStockKg, splitPackagedStock } from '../../utils/inventoryGroups';
 import { InventoryItemDialog } from './InventoryItemDialog';
 import { filterWarehouses, warehouseAreas } from './farmAreaOptions';
 import { AreaWarehouseFilter } from './AreaWarehouseFilter';
@@ -226,7 +226,8 @@ export const InventoryView = () => {
             renderMobileCard={(item) => {
               const isOpen = expanded.has(item.key);
               const kgVal = inventoryStockKg(item);
-              const stockLabel = `${stockQuantity(item.stock)} ${item.unitName || ''}`.trim();
+              const packagedText = formatPackagedStock(item);
+              const stockLabel = packagedText || `${stockQuantity(item.stock)} ${item.unitName || ''}`.trim();
               return (
                 <div className={styles.invMobileCard}>
                   <div className={styles.invMobileHeader} onClick={() => toggleHistory(item.key)}>
@@ -286,7 +287,20 @@ export const InventoryView = () => {
         <tr>
           {!isTablet && <td><div className={styles.inventoryImage}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} width={56} height={56} loading={index < 8 ? 'eager' : 'lazy'} decoding="async" /> : <Package size={25} color="#008577" />}</div></td>}
           <td><div className={styles.inventoryGroupName}><button type="button" className={styles.iconButton} aria-label={`${expanded.has(item.key) ? 'Thu gọn' : 'Mở'} lịch sử ${item.name}`} aria-expanded={expanded.has(item.key)} aria-controls={`inventory-history-${item.id}`} onClick={() => toggleHistory(item.key)}>{expanded.has(item.key) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button><strong>{item.name}</strong></div></td>
-          {canSeeFinance && <td title="Trung bình cộng đơn giá các lần nhập">{money(item.price)}</td>}<td><span className={styles.count}>{stockQuantity(item.stock)}</span></td>
+          {canSeeFinance && <td title="Trung bình cộng đơn giá các lần nhập">{money(item.price)}</td>}
+          <td>{(() => {
+            const breakdown = splitPackagedStock(item);
+            if (!breakdown?.hasRemainder) return <span className={styles.count}>{stockQuantity(item.stock)}</span>;
+            return (
+              <div
+                className={styles.stockCell}
+                title={`${breakdown.whole > 0 ? `${stockQuantity(breakdown.whole)} ${breakdown.unitLabel} nguyên + ` : ''}1 ${breakdown.unitLabel} lẻ ${breakdown.remainderText}`}
+              >
+                {breakdown.whole > 0 && <span className={styles.count}>{`${stockQuantity(breakdown.whole)} ${breakdown.unitLabel}`}</span>}
+                <span className={styles.partialBagBadge}>{`1 ${breakdown.unitLabel} lẻ ${breakdown.remainderText}`}</span>
+              </div>
+            );
+          })()}</td>
           <td title={inventoryStockKg(item) == null ? 'Chưa có quy cách khối lượng phù hợp' : `1 ${item.unitName || 'đơn vị'} = ${quantity(inventoryStockKg({ ...item, stock: 1 }))} kg`}>{inventoryStockKg(item) == null ? '—' : `${stockQuantity(inventoryStockKg(item))} kg`}</td>
           <td>{item.unitName || '—'}</td>{!isTablet && <td>{item.brandName || '—'}</td>}
           <td>{item.lots.length === 1 ? actions(item.lots[0]) : <button type="button" className={styles.iconButton} title="Xem lịch sử nhập" aria-label={`Xem ${item.name}`} onClick={() => toggleHistory(item.key)}><Eye size={16} /></button>}</td>

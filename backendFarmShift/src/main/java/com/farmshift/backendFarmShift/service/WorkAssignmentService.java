@@ -51,6 +51,7 @@ public class WorkAssignmentService {
         Map<Long, List<Account>> workersByBarn = responsibilities.effectiveByBarn();
         List<WorkTask> tasks = taskRepository.findActiveOn(day);
         Map<Long, WorkTaskCheck> checks = checksFor(tasks, day);
+        Map<String, String> namesByEmail = namesByEmail(checks.values().stream().map(WorkTaskCheck::getDoneBy).toList());
         Map<Long, List<WorkTask>> tasksByBarn = tasks.stream()
                 .collect(Collectors.groupingBy(task -> task.getBarn().getId(), LinkedHashMap::new, Collectors.toList()));
         Map<Long, Long> activeCycles = cycleRepository.findAllByStatus(CycleStatus.ACTIVE).stream()
@@ -61,7 +62,7 @@ public class WorkAssignmentService {
                 .map(barn -> new WorkBoard.BarnAssignment(barn.getId(), barn.getName(), barn.getArea().getId(), barn.getArea().getName(),
                         activeCycles.get(barn.getId()), barn.getCurrentQuantity(),
                         workersByBarn.getOrDefault(barn.getId(), List.of()).stream().map(WorkAssignmentService::ref).toList(),
-                        tasksByBarn.getOrDefault(barn.getId(), List.of()).stream().map(task -> response(task, checks.get(task.getId()))).toList(),
+                        tasksByBarn.getOrDefault(barn.getId(), List.of()).stream().map(task -> response(task, checks.get(task.getId()), namesByEmail)).toList(),
                         BarnRoutineTaskCatalog.enabledCodes(barn)))
                 .toList();
 
@@ -96,7 +97,7 @@ public class WorkAssignmentService {
         WorkTask task = new WorkTask();
         task.setCreatedBy(user);
         apply(task, request);
-        return response(taskRepository.saveAndFlush(task), null);
+        return response(taskRepository.saveAndFlush(task), null, Map.of());
     }
 
     @Transactional
@@ -114,7 +115,9 @@ public class WorkAssignmentService {
             throw new BadRequestException("Đã có ngày làm xong sau " + format(end) + ", không rút ngắn việc về trước ngày đó được.", "WORK_TASK_HAS_CHECKS");
         }
         apply(task, request);
-        return response(taskRepository.saveAndFlush(task), checkRepository.findByTaskIdAndCheckDate(id, today()).orElse(null));
+        WorkTaskCheck check = checkRepository.findByTaskIdAndCheckDate(id, today()).orElse(null);
+        Map<String, String> names = check == null ? Map.of() : namesByEmail(List.of(check.getDoneBy()));
+        return response(taskRepository.saveAndFlush(task), check, names);
     }
 
     @Transactional
@@ -143,7 +146,8 @@ public class WorkAssignmentService {
         check.setNote(clean(request.note()));
         check.setDoneBy(user);
         check.setDoneAt(LocalDateTime.now(VN_ZONE));
-        return response(task, checkRepository.saveAndFlush(check));
+        WorkTaskCheck saved = checkRepository.saveAndFlush(check);
+        return response(task, saved, namesByEmail(List.of(saved.getDoneBy())));
     }
 
     /** Hoàn tác: chủ trại hoàn tác mọi việc; công nhân chỉ hoàn tác việc của mình trong hôm nay. */
@@ -157,7 +161,7 @@ public class WorkAssignmentService {
         }
         checkRepository.delete(check);
         checkRepository.flush();
-        return response(task, null);
+        return response(task, null, Map.of());
     }
 
     // ---------------------------------------------------------------- used by the daily plan
@@ -194,7 +198,8 @@ public class WorkAssignmentService {
         List<WorkTask> tasks = taskRepository.findActiveOnForBarn(barnId, date).stream()
                 .filter(task -> workerEmail == null || task.getAssignee().getEmail().equalsIgnoreCase(workerEmail)).toList();
         Map<Long, WorkTaskCheck> checks = checksFor(tasks, date);
-        return tasks.stream().map(task -> response(task, checks.get(task.getId()))).toList();
+        Map<String, String> namesByEmail = namesByEmail(checks.values().stream().map(WorkTaskCheck::getDoneBy).toList());
+        return tasks.stream().map(task -> response(task, checks.get(task.getId()), namesByEmail)).toList();
     }
 
     public Map<Long, List<WorkBoard.AssignedTask>> tasksByBarn(Collection<Long> barnIds, LocalDate date, String workerEmail) {
@@ -215,10 +220,13 @@ public class WorkAssignmentService {
         }
         List<Long> taskIds = tasks.stream().map(WorkTask::getId).toList();
         Map<LocalDate, Map<Long, WorkTaskCheck>> checksByDate = new HashMap<>();
+        List<String> doneEmails = new ArrayList<>();
         for (WorkTaskCheck check : checkRepository.findAllByTaskIdInAndCheckDateBetween(taskIds, from, to)) {
             checksByDate.computeIfAbsent(check.getCheckDate(), ignored -> new HashMap<>())
                     .put(check.getTask().getId(), check);
+            if (check.getDoneBy() != null) doneEmails.add(check.getDoneBy());
         }
+        Map<String, String> namesByEmail = namesByEmail(doneEmails);
         Map<LocalDate, Map<Long, List<WorkBoard.AssignedTask>>> result = new LinkedHashMap<>();
         for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
             Map<Long, WorkTaskCheck> dayChecks = checksByDate.getOrDefault(day, Map.of());
@@ -226,12 +234,34 @@ public class WorkAssignmentService {
             for (WorkTask task : tasks) {
                 if (!day.isBefore(task.getStartDate()) && !day.isAfter(task.getEndDate())) {
                     byBarn.computeIfAbsent(task.getBarn().getId(), ignored -> new ArrayList<>())
-                            .add(response(task, dayChecks.get(task.getId())));
+                            .add(response(task, dayChecks.get(task.getId()), namesByEmail));
                 }
             }
             result.put(day, byBarn);
         }
         return result;
+    }
+
+    public Map<String, String> namesByEmail(Collection<String> emails) {
+        if (emails == null || emails.isEmpty()) return Map.of();
+        Set<String> needed = new HashSet<>();
+        for (String email : emails) {
+            if (email != null && !email.isBlank()) needed.add(email.toLowerCase(Locale.ROOT));
+        }
+        if (needed.isEmpty()) return Map.of();
+        Map<String, String> result = new HashMap<>();
+        for (Account account : accountRepository.findAll()) {
+            if (account.getEmail() != null) {
+                String key = account.getEmail().toLowerCase(Locale.ROOT);
+                if (needed.contains(key)) result.put(key, name(account));
+            }
+        }
+        return result;
+    }
+
+    public static String resolveName(String email, Map<String, String> names) {
+        if (email == null || email.isBlank() || names == null || names.isEmpty()) return email;
+        return names.getOrDefault(email.toLowerCase(Locale.ROOT), email);
     }
 
     // ---------------------------------------------------------------- helpers
@@ -274,10 +304,10 @@ public class WorkAssignmentService {
                 .collect(Collectors.toMap(check -> check.getTask().getId(), Function.identity()));
     }
 
-    private static WorkBoard.AssignedTask response(WorkTask task, WorkTaskCheck check) {
+    private static WorkBoard.AssignedTask response(WorkTask task, WorkTaskCheck check, Map<String, String> namesByEmail) {
         return new WorkBoard.AssignedTask(task.getId(), task.getBarn().getId(), task.getTitle(), task.getNote(), task.getStartDate(),
                 task.getEndDate(), task.getDueTime(), ref(task.getAssignee()),
-                check == null ? null : new WorkBoard.Done(check.getDoneBy(), check.getDoneAt(), check.getNote()));
+                check == null ? null : new WorkBoard.Done(check.getDoneBy(), resolveName(check.getDoneBy(), namesByEmail), check.getDoneAt(), check.getNote()));
     }
 
     private static WorkBoard.WorkerRef ref(Account account) {

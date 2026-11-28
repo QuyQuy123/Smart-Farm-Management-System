@@ -32,3 +32,42 @@ export function inventoryStockKg(item) {
   return factor && Number.isFinite(content) && content > 0 && Number.isFinite(stock)
     ? Math.round(stock * content * factor * 1e6) / 1e6 : null;
 }
+
+/** Splits packaged mass inventory stock into whole packages plus remainder weight (e.g. 25 bao + 1 bao lẻ 7,5 kg). */
+export function splitPackagedStock(item) {
+  if (!item || !['KG', 'G'].includes(item.unitContentUnit)) return null;
+  const content = Number(item.unitContentQuantity);
+  const stock = Number(item.stock);
+  if (!Number.isFinite(content) || content <= 0 || !Number.isFinite(stock) || stock < 0) return null;
+  const inGrams = item.unitContentUnit === 'G' && content < 1000;
+  const remainderUnit = inGrams ? 'g' : 'kg';
+  const unitPerPkg = inGrams ? content : (item.unitContentUnit === 'G' ? content * 0.001 : content);
+  let whole = Math.floor(stock + 1e-9);
+  const rawRemainder = (stock - whole) * unitPerPkg;
+  let remainder = Math.round(rawRemainder * 10) / 10;
+  if (remainder >= unitPerPkg) {
+    whole += 1;
+    remainder = 0;
+  }
+  const unitLabel = String(item.unitName || '').trim().split(/[\s(]/)[0].toLocaleLowerCase('vi') || 'bao';
+  const remainderText = remainder > 0
+    ? `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(remainder)} ${remainderUnit}`
+    : '';
+  return {
+    whole,
+    hasRemainder: remainder > 0,
+    remainder,
+    remainderUnit,
+    remainderText,
+    unitLabel,
+  };
+}
+
+export function formatPackagedStock(item) {
+  const breakdown = splitPackagedStock(item);
+  if (!breakdown || !breakdown.hasRemainder) return null;
+  const wholeText = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(breakdown.whole);
+  return breakdown.whole > 0
+    ? `${wholeText} ${breakdown.unitLabel} (1 ${breakdown.unitLabel} lẻ ${breakdown.remainderText})`
+    : `1 ${breakdown.unitLabel} lẻ ${breakdown.remainderText}`;
+}

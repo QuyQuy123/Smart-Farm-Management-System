@@ -26,6 +26,6 @@ public record WorkBoard(LocalDate date, List<WorkerSummary> workers, List<BarnAs
                                WorkerRef assignee, Done done) {
     }
 
-    public record Done(String doneBy, LocalDateTime doneAt, String note) {
+    public record Done(String doneBy, String doneByName, LocalDateTime doneAt, String note) {
     }
 }

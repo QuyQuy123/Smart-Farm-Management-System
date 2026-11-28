@@ -26,11 +26,13 @@ describe('Inventory warehouse category tabs', () => {
     listInventoryItems.mockResolvedValue([{ ...item, stock: 97.72 }]);
     await act(async () => { window.dispatchEvent(new Event(INVENTORY_CHANGED)); });
     expect(await screen.findByText('2.443 kg')).toBeInTheDocument();
-    expect(screen.getByText('97,7')).toBeInTheDocument();
+    expect(screen.getByText('97 bao')).toBeInTheDocument();
+    expect(screen.getByText('1 bao lẻ 18 kg')).toBeInTheDocument();
     listInventoryItems.mockResolvedValue([{ ...item, stock: 93.1618 }]);
     await act(async () => { window.dispatchEvent(new Event(INVENTORY_CHANGED)); });
     expect(await screen.findByText('2.329 kg')).toBeInTheDocument();
-    expect(screen.getByText('93,2')).toBeInTheDocument();
+    expect(screen.getByText('93 bao')).toBeInTheDocument();
+    expect(screen.getByText('1 bao lẻ 4 kg')).toBeInTheDocument();
   });
   beforeEach(() => {
     vi.resetAllMocks();

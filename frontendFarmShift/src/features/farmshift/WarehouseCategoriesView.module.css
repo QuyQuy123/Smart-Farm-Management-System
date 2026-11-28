@@ -42,6 +42,8 @@
 .description { max-width: 380px; white-space: normal; overflow-wrap: anywhere; color: #71818a; }
 .table td:nth-child(2) { max-width: 260px; white-space: normal; overflow-wrap: anywhere; }
 .count { display: inline-block; min-width: 24px; text-align: center; border-radius: 6px; padding: 3px 7px; background: #f0f4f6; color: #536b76; }
+.stockCell { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.partialBagBadge { display: inline-block; padding: 2px 7px; border-radius: 6px; background: #fff7e6; color: #9a5b00; border: 1px solid #f5dfa8; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
 .date { white-space: nowrap; color: #607781; }
 .actions { display: flex; gap: 6px; }
 .iconButton { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; padding: 0; border: 1px solid #e2eae7; border-radius: 8px; background: #fff; color: #607781; cursor: pointer; }

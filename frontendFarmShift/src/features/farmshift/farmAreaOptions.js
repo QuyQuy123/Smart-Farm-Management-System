@@ -216,11 +216,18 @@ export const validateProgram = draft => {
   const fields = {};
   const steps = {};
   const duration = Number(draft.durationDays);
-  if (!draft.name.trim()) fields.name = 'Vui lòng nhập tên chương trình.';
-  if (!draft.breed.trim()) fields.breed = 'Vui lòng nhập giống gà.';
+  const nameTrimmed = draft.name.trim();
+  const breedTrimmed = draft.breed.trim();
+  const descTrimmed = (draft.description || '').trim();
+  if (!nameTrimmed) fields.name = 'Vui lòng nhập tên chương trình.';
+  else if (nameTrimmed.length > 150) fields.name = 'Tên chương trình không quá 150 ký tự.';
+  if (!breedTrimmed) fields.breed = 'Vui lòng nhập giống gà.';
+  else if (breedTrimmed.length > 100) fields.breed = 'Tên giống không quá 100 ký tự.';
+  if (descTrimmed.length > 1000) fields.description = 'Mô tả không quá 1000 ký tự.';
   if (!isWhole(draft.durationDays) || duration < 1 || duration > 365) fields.durationDays = 'Thời gian nuôi từ 1 đến 365 ngày.';
   ['targetWeightMin', 'targetWeightMax'].forEach(key => {
-    if (draft[key] !== '' && !(Number(draft[key]) > 0 && Number(draft[key]) <= 20)) fields[key] = 'Cân nặng từ 0,01 đến 20 kg.';
+    const val = Number(draft[key]);
+    if (draft[key] !== '' && !(Number.isFinite(val) && val >= 0.01 && val <= 20)) fields[key] = 'Cân nặng từ 0,01 đến 20 kg.';
   });
   if (!fields.targetWeightMin && !fields.targetWeightMax && draft.targetWeightMin !== '' && draft.targetWeightMax !== ''
     && Number(draft.targetWeightMin) > Number(draft.targetWeightMax)) fields.targetWeightMax = 'Cân nặng tối đa phải lớn hơn hoặc bằng tối thiểu.';
@@ -228,11 +235,17 @@ export const validateProgram = draft => {
   draft.steps.forEach((step, index) => {
     const from = Number(step.dayFrom);
     const to = Number(step.dayTo);
+    const stepNameTrimmed = step.name.trim();
+    const stepUnitTrimmed = (step.unit || '').trim();
+    const stepNoteTrimmed = (step.note || '').trim();
     let message;
-    if (!step.name.trim()) message = 'Vui lòng nhập tên nội dung.';
-    else if (!isWhole(step.dayFrom) || !isWhole(step.dayTo) || from < 1 || to < 1) message = 'Ngày tuổi phải là số nguyên từ 1.';
+    if (!stepNameTrimmed) message = step.category === 'FEED' ? 'Vui lòng chọn loại cám.' : 'Vui lòng nhập tên nội dung.';
+    else if (stepNameTrimmed.length > 200) message = 'Tên nội dung không quá 200 ký tự.';
+    else if (stepNoteTrimmed.length > 1000) message = 'Ghi chú không quá 1000 ký tự.';
+    else if (!isWhole(step.dayFrom) || !isWhole(step.dayTo) || from < 1 || to < 1 || from > 365 || to > 365) message = 'Ngày tuổi phải là số nguyên từ 1 đến 365.';
     else if (from > to) message = 'Ngày tuổi bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.';
     else if (!fields.durationDays && to > duration) message = `Ngày tuổi ${to} vượt thời gian nuôi ${duration} ngày.`;
+    else if (stepUnitTrimmed.length > 50) message = 'Đơn vị không quá 50 ký tự.';
     else if (step.category === 'FEED') {
       if (!isWhole(step.mealsPerDay) || Number(step.mealsPerDay) < 1 || Number(step.mealsPerDay) > 8) {
         message = 'Cần định mức (g/con/ngày) lớn hơn 0 và số cữ ăn từ 1 đến 8.';
@@ -241,16 +254,28 @@ export const validateProgram = draft => {
       } else if (Number(step.quantity) > MAX_STEP_QUANTITY) {
         message = 'Định mức vượt giới hạn tối đa cho phép.';
       }
-    } else if (step.category === 'VACCINE' && !VACCINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng vắc-xin.';
-    else if (step.category === 'VACCINE' && step.quantity !== '' && step.quantity != null && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
-    else if (step.category === 'MEDICINE' && !MEDICINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng thuốc (trộn cám hoặc pha nước).';
-    else if (step.category === 'MEDICINE' && (!positive(step.quantity) || !step.unit.trim())) message = 'Cần liều lượng và đơn vị (ví dụ 2 g/kg cám).';
+    } else if (step.category === 'VACCINE') {
+      if (!VACCINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng vắc-xin.';
+      else if (step.inventoryItemId && !positive(step.quantity)) message = 'Cần nhập liều lượng lớn hơn 0 để tính số lọ vắc-xin.';
+      else if (step.quantity !== '' && step.quantity != null) {
+        const qty = Number(step.quantity);
+        if (!Number.isFinite(qty) || qty <= 0) message = 'Liều lượng phải lớn hơn 0.';
+        else if (qty > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
+      }
+    } else if (step.category === 'MEDICINE' && !MEDICINE_METHODS.some(item => item.value === step.method)) message = 'Chọn cách dùng thuốc (trộn cám hoặc pha nước).';
+    else if (step.category === 'MEDICINE' && (!positive(step.quantity) || !stepUnitTrimmed)) message = 'Cần liều lượng và đơn vị (ví dụ 2 g/kg cám).';
     else if (step.category === 'MEDICINE' && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
     else if (step.category === 'DRINKING_MEDICINE' && !DRINKING_MEDICINE_METHODS.some(item => item.value === step.method)) message = 'Chọn phương thức uống thuốc (bình xách tay hoặc hệ thống uống tự động).';
-    else if (step.category === 'DRINKING_MEDICINE' && (!positive(step.quantity) || !step.unit.trim())) message = 'Cần liều lượng và đơn vị (ví dụ 0,5 gói/1000 con, 1 g/lít nước).';
+    else if (step.category === 'DRINKING_MEDICINE' && (!positive(step.quantity) || !stepUnitTrimmed)) message = 'Cần liều lượng và đơn vị (ví dụ 0,5 gói/1000 con, 1 g/lít nước).';
     else if (step.category === 'DRINKING_MEDICINE' && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
-    else if (step.category === 'CARE_PROCEDURE' && step.quantity !== '' && step.quantity != null && Number(step.quantity) > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
-    else if (step.category === 'TEMPERATURE' && !(step.tempMin !== '' && step.tempMax !== ''
+    else if (step.category === 'CARE_PROCEDURE') {
+      if (step.method && !CARE_PROCEDURE_METHODS.some(item => item.value === step.method)) message = 'Phương thức thủ thuật chăm sóc không hợp lệ.';
+      else if (step.quantity !== '' && step.quantity != null) {
+        const qty = Number(step.quantity);
+        if (!Number.isFinite(qty) || qty < 0) message = 'Định mức không được âm.';
+        else if (qty > MAX_STEP_QUANTITY) message = 'Liều lượng vượt giới hạn tối đa cho phép.';
+      }
+    } else if (step.category === 'TEMPERATURE' && !(step.tempMin !== '' && step.tempMax !== ''
       && Number(step.tempMin) >= 10 && Number(step.tempMax) <= 45 && Number(step.tempMin) < Number(step.tempMax))) {
       message = 'Nhiệt độ phải từ 10 đến 45°C và thấp nhất phải nhỏ hơn cao nhất.';
     }

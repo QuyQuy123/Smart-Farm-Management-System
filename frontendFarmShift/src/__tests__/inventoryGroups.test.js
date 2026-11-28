@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupInventoryItems, inventoryStockKg } from '../utils/inventoryGroups';
+import { formatPackagedStock, groupInventoryItems, inventoryStockKg, splitPackagedStock } from '../utils/inventoryGroups';
 
 describe('inventory summaries', () => {
   it('keeps package and kg balances consistent after feeding and undo', () => {
@@ -10,6 +10,22 @@ describe('inventory summaries', () => {
     expect(inventoryStockKg({ stock: 2, unitContentQuantity: 500, unitContentUnit: 'G' })).toBe(1);
     expect(inventoryStockKg({ stock: 2, unitContentQuantity: 25, unitContentUnit: 'L' })).toBeNull();
     expect(inventoryStockKg({ stock: 2 })).toBeNull();
+  });
+
+  it('splits packaged mass stock into whole bags and partial bag weight', () => {
+    const bag = { unitName: 'Bao (25kg)', unitContentQuantity: 25, unitContentUnit: 'KG' };
+    expect(splitPackagedStock({ ...bag, stock: 29 })).toEqual({
+      whole: 29, hasRemainder: false, remainder: 0, remainderUnit: 'kg', remainderText: '', unitLabel: 'bao',
+    });
+    expect(formatPackagedStock({ ...bag, stock: 29 })).toBeNull();
+    expect(formatPackagedStock({ ...bag, stock: 5.3 })).toBe('5 bao (1 bao lẻ 7,5 kg)');
+    expect(formatPackagedStock({ ...bag, stock: 0.3 })).toBe('1 bao lẻ 7,5 kg');
+    expect(splitPackagedStock({ ...bag, stock: 99.99996 })).toEqual({
+      whole: 100, hasRemainder: false, remainder: 0, remainderUnit: 'kg', remainderText: '', unitLabel: 'bao',
+    });
+    expect(formatPackagedStock({ unitName: 'Gói 50g', unitContentQuantity: 50, unitContentUnit: 'G', stock: 5.5 })).toBe('5 gói (1 gói lẻ 25 g)');
+    expect(splitPackagedStock({ stock: 2, unitContentQuantity: 25, unitContentUnit: 'L' })).toBeNull();
+    expect(formatPackagedStock({ stock: 2 })).toBeNull();
   });
   const base = { warehouseId: 1, productId: 10, name: 'Cám', unitId: 1 };
   it('averages receipt prices equally, including depleted receipts, using original invoice prices', () => {
