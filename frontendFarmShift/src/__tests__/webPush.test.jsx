@@ -18,6 +18,7 @@ import { GeneralSettingsView } from '../features/farmshift/GeneralSettingsView';
 import { IotView } from '../features/farmshift/IotView';
 import { listBarns, listFarmAreas } from '../services/farmAreaService';
 import { connectEsp32, ESP32_TOPIC_PREFIX } from '../services/esp32MqttService';
+import { stopIotSession } from '../services/iotSession';
 
 vi.mock('../utils/api', () => ({
   api: {
@@ -164,6 +165,7 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
   });
 
   afterEach(() => {
+    stopIotSession();
     vi.restoreAllMocks();
   });
 
@@ -348,7 +350,7 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
     );
 
     // Configure Fan automatic threshold & send high temperature from ESP32 sensors
-    await screen.findByText('Đã kết nối thiết bị phần cứng');
+    await screen.findByText('Đã kết nối');
     expect(screen.queryByRole('button', { name: /Bật thông báo ĐT|Đang bật thông báo ĐT/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Gửi thử/i })).not.toBeInTheDocument();
     const group = screen.getByRole('switch', { name: 'Bật tắt toàn bộ Quạt gió' }).closest('article');
@@ -399,7 +401,7 @@ describe('Web Push Notifications (VAPID + Service Worker)', () => {
       </MemoryRouter>
     );
 
-    await screen.findByText('Đã kết nối thiết bị phần cứng');
+    await screen.findByText('Đã kết nối');
     const group = screen.getByRole('switch', { name: 'Bật tắt toàn bộ Quạt gió' }).closest('article');
     group.querySelector('details').open = true;
     fireEvent.click(within(group).getByRole('button', { name: 'Chỉnh sửa' }));

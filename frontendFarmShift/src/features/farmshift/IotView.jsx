@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { connectEsp32, ESP32_TOPIC_PREFIX, relayStatusTopics } from '../../services/esp32MqttService';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { getIotSnapshot, getLatestIotReadings, publishIotRelay, startIotSession, subscribeIotSession } from '../../services/iotSession';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Plus, Search, Trash2, Warehouse } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Droplets, Fan, Lightbulb, Pencil, Search, Trash2, Warehouse } from 'lucide-react';
 import { FarmShiftLayout } from '../../layouts/FarmShiftLayout';
 import { FARM_AREAS_CHANGED, listBarns, listFarmAreas } from '../../services/farmAreaService';
 import { useOptionalNotification } from '../../context/NotificationContext';
@@ -11,8 +11,6 @@ import { Dialog } from './FarmAreaDialogs';
 import { api } from '../../utils/api';
 import { IotEventLog } from './IotEventLog';
 import { IotEnvironment } from './IotEnvironment';
-import { PhoneCamera } from './PhoneCamera';
-import { QuantityInput } from '../../components/QuantityInput/QuantityInput';
 import styles from './IotView.module.css';
 
 const TYPES = {
@@ -26,20 +24,10 @@ const defaultDevices = () => [
   { id: 'water', name: 'Hệ thống phun sương', type: 'WATER', relay: 3, enabled: false, power: '' },
 ];
 
-function CameraScreen({ barnName }) {
-  return <div className={styles.camera} aria-label={`Camera ${barnName}`}>
-    <span className={styles.cameraBadge}><span />Chưa kết nối</span>
-    <div><Camera size={38} strokeWidth={1.3} /><strong>Camera</strong><span>{barnName}</span></div>
-    <small>Hình ảnh sẽ hiển thị khi camera được kết nối</small>
-  </div>;
-}
-
 function DeviceDialog({ device, devices, onClose, onSave }) {
-  const [initialForm] = useState(() => device || { name: '', type: 'FAN', power: '' });
-  const [form, setForm] = useState(() => device || { name: '', type: 'FAN', power: '' });
+  const [form, setForm] = useState(device || { name: '', type: 'FAN', power: '' });
   const set = (key, value) => setForm(current => ({ ...current, [key]: value }));
-  const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
-  return <Dialog title={device ? 'Chỉnh sửa thiết bị' : 'Thêm thiết bị'} labelId="iot-device-title" isDirty={isDirty} onClose={onClose}>
+  return <Dialog title={device ? 'Chỉnh sửa thiết bị' : 'Thêm thiết bị'} labelId="iot-device-title" onClose={onClose}>
     <form onSubmit={event => {
       event.preventDefault();
       if (form.name.trim()) onSave({ ...form, name: form.name.trim() });
@@ -59,7 +47,7 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
             disabled={devices.some(item => item.id !== device?.id && item.relay === relay)}>Relay {relay}</option>)}
         </select>
         <label htmlFor="iot-power">Công suất (kW, không bắt buộc)</label>
-        <QuantityInput id="iot-power" allowDecimal suffix="kW" inputClassName="farmshift-form-control" value={form.power} onChange={event => set('power', event.target.value)} />
+        <input id="iot-power" className="farmshift-form-control" type="number" min="0" step="0.01" value={form.power} onChange={event => set('power', event.target.value)} />
         <small>Chọn relay theo dây đang nối trên ESP32.</small>
         </>}
         <div className={styles.automaticControl}>
@@ -76,7 +64,7 @@ function DeviceDialog({ device, devices, onClose, onSave }) {
         </>}
         {form.automatic && form.type !== 'LIGHT' && <>
           <label htmlFor="iot-temperature">Bật khi nhiệt độ vượt (°C)</label>
-          <QuantityInput id="iot-temperature" allowDecimal suffix="°C" required inputClassName="farmshift-form-control"
+          <input id="iot-temperature" className="farmshift-form-control" type="number" required step="0.1"
             value={form.threshold ?? (form.type === 'FAN' ? 40 : 42)} onChange={event => set('threshold', event.target.value)} />
           {form.type !== 'FAN' && <small>Tính theo trung bình hai cảm biến. Tắt khi giảm xuống thấp hơn ngưỡng ít nhất 1 °C.</small>}
         </>}
@@ -115,8 +103,8 @@ export function IotView() {
     return () => window.removeEventListener(FARM_AREAS_CHANGED, reload);
   }, []);
   const barn = data.barns.find(item => String(item.id) === barnId);
-  const mqtt = useRef(null);
-  const latestReadings = useRef({});
+  const { connection, readings: sensorReadings, relayStates, history: temperatureHistory, error: sessionError } = useSyncExternalStore(subscribeIotSession, getIotSnapshot);
+  useEffect(() => { startIotSession(); }, []);
   const [eventRevision, setEventRevision] = useState(0);
   const [logError, setLogError] = useState('');
   const [failedEvents, setFailedEvents] = useState([]);
@@ -137,7 +125,7 @@ export function IotView() {
   const publishDevice = useCallback(async (device, enabled, mode = 'MANUAL') => {
     const occurredAt = new Date().toISOString();
     const temperature = sensor => {
-      const point = latestReadings.current[sensor];
+      const point = getLatestIotReadings()[sensor];
       return point && !point.retained && Date.now() - point.time <= 15000 ? point.value : null;
     };
     const event = enabled && ['FAN', 'WATER'].includes(device.type) ? {
@@ -146,7 +134,7 @@ export function IotView() {
       temperature1: temperature('temp1'), temperature3: temperature('temp3'),
     } : null;
     const targetBarn = barnId;
-    await mqtt.current.publishRelay(device.relay, enabled ? 'ON' : 'OFF');
+    await publishIotRelay(device.relay, enabled ? 'ON' : 'OFF');
     if (event) {
       try {
         await api.post(`/barns/${targetBarn}/iot-events`, event);
@@ -160,85 +148,10 @@ export function IotView() {
   }, [barnId]);
   const autoCommands = useRef(new Map());
   const [automationTime, setAutomationTime] = useState(Date.now);
-  const [connection, setConnection] = useState('disconnected');
-  const [relayStates, setRelayStates] = useState({});
-  const [sensorReadings, setSensorReadings] = useState({});
-  const [liveTemperatures, setLiveTemperatures] = useState([]);
-  const [temperatureHistory, setTemperatureHistory] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('farmshift-esp32-temperature') || '[]');
-      return Array.isArray(saved) ? saved.filter(point => point && Number.isFinite(point.time)
-        && Number.isFinite(point.value) && ['temp1', 'temp3'].includes(point.sensor)
-        && point.time >= Date.now() - 7 * 86400000) : [];
-    } catch { return []; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('farmshift-esp32-temperature', JSON.stringify(temperatureHistory)); } catch { /* In-memory history remains available. */ }
-  }, [temperatureHistory]);
+  const liveTemperatures = temperatureHistory;
   const [mqttError, setMqttError] = useState('');
-  const hasBarn = Boolean(barn);
-  useEffect(() => {
-    if (!hasBarn) return;
-    let cancelled = false;
-    latestReadings.current = {};
-    setSensorReadings({});
-    setLiveTemperatures([]);
-    const refresh = setInterval(() => {
-      const time = Date.now();
-      const entries = Object.entries(latestReadings.current);
-      setSensorReadings(Object.fromEntries(entries.map(([key, point]) => [key, point.value])));
-      const points = entries.filter(([key, point]) => key.startsWith('temp') && !point.retained && time - point.time <= 15000)
-        .map(([sensor, point]) => ({ sensor, time: point.time, value: point.value }));
-      setLiveTemperatures(current => [...current.filter(point => point.time >= time - 60000
-        && !points.some(next => next.sensor === point.sensor && next.time === point.time)), ...points]);
-      setTemperatureHistory(current => {
-        const additions = points.filter(point => {
-          const last = current.findLast(item => item.sensor === point.sensor);
-          return !last || point.time - last.time >= 5 * 60000;
-        });
-        return additions.length ? [...current.filter(point => point.time >= time - 7 * 86400000), ...additions] : current;
-      });
-    }, 3000);
-    connectEsp32({
-      onConnection: status => {
-        if (cancelled) return;
-        setConnection(status);
-        if (status !== 'connected') {
-          latestReadings.current = {};
-          autoCommands.current.clear();
-          setRelayStates({});
-          setSensorReadings({});
-        }
-        else setMqttError('');
-      },
-      onMessage: ({ topic, payload, retained }) => {
-        if (cancelled) return;
-        const value = payload.trim();
-        const sensor = ['temp1', 'humi1', 'temp3', 'humi3'].find(key => topic === `${ESP32_TOPIC_PREFIX}/${key}`);
-        if (sensor && value && Number.isFinite(Number(value))) {
-          latestReadings.current[sensor] = { value: Number(value), time: Date.now(), retained: Boolean(retained) };
-        }
-        const relay = relayStatusTopics.indexOf(topic) + 1;
-        const state = payload.trim();
-        if (!cancelled && relay && ['ON', 'OFF'].includes(state)) {
-          setRelayStates(current => ({ ...current, [relay]: state === 'ON' }));
-        }
-      },
-      onError: () => { if (!cancelled) setMqttError('Không thể kết nối thiết bị phần cứng.'); },
-    }).then(client => {
-      if (cancelled) client.disconnect();
-      else mqtt.current = client;
-    }).catch(() => { if (!cancelled) setMqttError('Không thể khởi tạo kết nối thiết bị phần cứng.'); });
-    return () => {
-      cancelled = true;
-      clearInterval(refresh);
-      latestReadings.current = {};
-      mqtt.current?.disconnect();
-      mqtt.current = null;
-    };
-  }, [hasBarn, barnId]);
   async function send(devices, enabled) {
-    if (connection !== 'connected' || !mqtt.current) return;
+    if (connection !== 'connected') return;
     setMqttError('');
     const results = await Promise.allSettled(devices.filter(device => relayStates[device.relay] !== enabled).map(device => publishDevice(device, enabled)));
     if (results.some(result => result.status === 'rejected')) setMqttError('Không gửi được một số lệnh đến thiết bị phần cứng. Kiểm tra trạng thái từng relay trước khi thử lại.');
@@ -254,12 +167,12 @@ export function IotView() {
   }, [automaticEnabled, barnId]);
 
   useEffect(() => {
-    if (!barn || connection !== 'connected' || !mqtt.current || !automaticEnabled) return;
+    if (!barn || connection !== 'connected' || !automaticEnabled) return;
     const now = automationTime;
     const localTime = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(now);
-    const latest = ['temp1', 'temp3'].map(sensor => liveTemperatures.findLast(point => point.sensor === sensor));
+    const latest = ['temp1', 'temp3'].map(sensor => ({ ...getLatestIotReadings()[sensor], sensor }));
     for (const device of devices) {
       if (!device.automatic || !device.relay) continue;
       let desired;
@@ -269,7 +182,7 @@ export function IotView() {
         if (on === off) continue;
         desired = on < off ? localTime >= on && localTime < off : localTime >= on || localTime < off;
       } else {
-        if (latest.some(point => !point || sensorReadings[point.sensor] === undefined || now - point.time > 15_000)) continue;
+        if (latest.some(point => !Number.isFinite(point.value) || point.retained || sensorReadings[point.sensor] === undefined || now - point.time > 15_000)) continue;
         const average = (latest[0].value + latest[1].value) / 2;
         const threshold = Number(device.threshold ?? (device.type === 'FAN' ? 40 : 42));
         if (average > threshold) {
@@ -329,21 +242,21 @@ export function IotView() {
         : barnId && !barn ? <div className={styles.state}>Không tìm thấy chuồng.<button className="farmshift-btn farmshift-btn-secondary" onClick={() => setParams({})}>Về tổng quan</button></div>
           : barn ? <>
             <div className={styles.detailHeading}>
-              <button type="button" className={styles.back} onClick={() => setParams({})}><ArrowLeft size={18} />Tất cả camera</button>
+              <button type="button" className={styles.back} onClick={() => setParams({})}><ArrowLeft size={18} />Tất cả chuồng</button>
               <div><h2>{barn.name}</h2><p>{data.areas.find(area => area.id === barn.areaId)?.name || barn.areaName}</p></div>
+              <span className={`${styles.connectionBadge} ${connection === 'connected' ? styles.connected : ''}`}><span />{connection === 'connected' ? 'Đã kết nối' : connection === 'connecting' ? 'Đang kết nối…' : 'Chưa kết nối'}</span>
             </div>
             <div className={styles.detail}>
               <div className={styles.monitoring}>
-                <PhoneCamera key={barn.id} barn={barn}><CameraScreen barnName={barn.name} /></PhoneCamera>
                 <IotEnvironment key={`environment:${barn.id}`} barnName={barn.name} readings={sensorReadings} connected={connection === 'connected'} history={temperatureHistory} liveHistory={liveTemperatures} />
                 {logError && <p role="alert">{logError}</p>}
                 {failedEvents.length > 0 && <button type="button" className="farmshift-btn farmshift-btn-secondary" disabled={retryingLogs} onClick={retryEventLogs}>Lưu lại {failedEvents.length} nhật ký chưa lưu</button>}
               </div>
               <section className={styles.controls} aria-label={`Thiết bị ${barn.name}`}>
-                <header><div><h3>Điều khiển thiết bị</h3><p>{connection === 'connected' ? 'Đã kết nối thiết bị phần cứng' : connection === 'connecting' ? 'Đang kết nối thiết bị phần cứng…' : 'Thiết bị phần cứng chưa kết nối'}</p></div>
-                  <button type="button" className="farmshift-btn farmshift-btn-mint" onClick={() => setModal({ kind: 'add' })}><Plus size={17} />Thêm thiết bị</button></header>
-                {mqttError && <p role="alert">{mqttError}</p>}
-                {devices.length === 0 && <p className={styles.state}>Chưa có thiết bị. Nhấn “Thêm thiết bị” để bắt đầu.</p>}
+                <header><div><h3>Điều khiển thiết bị</h3></div>
+                </header>
+                {(mqttError || sessionError) && <p role="alert">{mqttError || sessionError}</p>}
+                {devices.length === 0 && <p className={styles.state}>Chưa có thiết bị.</p>}
                 {['FAN', 'LIGHT', 'WATER'].map(type => {
                   const members = devices.filter(device => device.type === type);
                   if (!members.length) return null;
@@ -384,14 +297,16 @@ export function IotView() {
             </div>
                 <IotEventLog key={`events:${barn.id}`} barnId={barn.id} revision={eventRevision} />
           </> : <>
-            <div className={styles.overviewHeading}><div><span className={styles.eyebrow}>GIÁM SÁT TRANG TRẠI</span><h2>Camera theo khu nuôi</h2><p>Theo dõi từng chuồng và mở nhanh bảng điều khiển thiết bị.</p></div>
+            <div className={styles.overviewHeading}><div><span className={styles.eyebrow}>GIÁM SÁT & ĐIỀU KHIỂN</span><h2>Thiết bị IoT theo khu nuôi</h2><p>Chọn chuồng để theo dõi môi trường, điều khiển thiết bị và xem nhật ký.</p></div>
               <label className={styles.search}><Search size={18} /><input aria-label="Tìm khu hoặc chuồng" placeholder="Tìm khu, chuồng..." value={query} onChange={event => setQuery(event.target.value)} /></label></div>
-            <div className={styles.stats}><span><strong>{data.areas.length}</strong> khu nuôi</span><span><strong>{data.barns.length}</strong> chuồng / camera</span><span><span className={styles.statusDot} />Chờ kết nối thiết bị</span></div>
+            <div className={styles.stats}><span><strong>{data.areas.length}</strong> khu nuôi</span><span><strong>{data.barns.length}</strong> chuồng</span><span>Chọn chuồng để xem trạng thái thiết bị</span></div>
             {groups.filter(area => area.barns.length || !query).map(area => <section key={area.id} className={styles.area} aria-label={area.name}>
               <header><span className={styles.areaIcon}><Warehouse size={20} /></span><h3>{area.name}</h3><span>{area.barns.length} chuồng</span></header>
               {area.barns.length === 0 ? <p className={styles.empty}>Khu này chưa có chuồng.</p> : <div className={styles.grid}>{area.barns.map(item => <article key={item.id} className={styles.barn}>
-                <CameraScreen barnName={item.name} /><div className={styles.cardSensors}><span>Nhiệt độ <strong>— °C</strong></span><span>Độ ẩm <strong>— %</strong></span></div><footer><div><h4>{item.name}</h4><small>Camera chưa kết nối</small></div>
-                  <button type="button" aria-label={`Xem chi tiết ${item.name}`} onClick={() => setParams({ barn: String(item.id) })}>Xem chi tiết<ChevronRight size={17} /></button></footer>
+                <div className={styles.barnHeading}><span className={styles.barnIcon}><Warehouse size={24} /></span><div><h4>{item.name}</h4><small>{area.name}</small></div></div>
+                <div className={styles.barnFeatures}><span><Fan size={15} />Quạt gió</span><span><Lightbulb size={15} />Chiếu sáng</span><span><Droplets size={15} />Phun sương</span></div>
+                <footer><small>Môi trường · Thiết bị · Nhật ký</small>
+                  <button type="button" aria-label={`Xem chi tiết ${item.name}`} onClick={() => setParams({ barn: String(item.id) })}>Mở điều khiển<ChevronRight size={17} /></button></footer>
               </article>)}</div>}
             </section>)}
             {data.areas.length === 0 && <p className={styles.state}>Chưa có khu nuôi. Tạo khu nuôi và chuồng trong menu Khu nuôi để bắt đầu.</p>}

@@ -53,10 +53,10 @@ public class IotEventController {
         int safePage = Math.max(0, Math.min(page, 100000));
         return ApiResponse.success("Nhật ký bật thiết bị", jdbc.query("""
             SELECT * FROM iot_activation_events WHERE barn_id=?
-            ORDER BY occurred_at DESC, id DESC LIMIT 20 OFFSET ?
+            ORDER BY occurred_at DESC, id DESC LIMIT 5 OFFSET ?
             """, (rs, row) -> new Event(rs.getObject("id", UUID.class), rs.getString("device_name"),
             rs.getString("device_type"), rs.getInt("relay"), rs.getString("mode"),
             rs.getObject("temperature1", Double.class), rs.getObject("temperature3", Double.class),
-            rs.getTimestamp("occurred_at").toInstant(), rs.getString("actor")), barnId, safePage * 20));
+            rs.getTimestamp("occurred_at").toInstant(), rs.getString("actor")), barnId, safePage * 5));
     }
 }

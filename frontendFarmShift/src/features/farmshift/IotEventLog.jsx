@@ -8,7 +8,7 @@ export function IotEventLog({ barnId, revision }) {
   const [page, setPage] = useState(0);
   const [reload, setReload] = useState(0);
   const [state, setState] = useState({ loading: true, rows: [], error: '' });
-  useEffect(() => { setPage(0); }, [revision]);
+  useEffect(() => { setPage(0); }, [barnId, revision]);
   useEffect(() => {
     let cancelled = false;
     setState({ loading: true, rows: [], error: '' });
@@ -38,8 +38,8 @@ export function IotEventLog({ barnId, revision }) {
       </table></div>}
     <div className={styles.deviceActions}>
       <button type="button" disabled={page === 0 || state.loading} onClick={() => setPage(value => value - 1)}>Trang trước</button>
-      <span>Trang {page + 1}</span>
-      <button type="button" disabled={state.rows.length < 20 || state.loading} onClick={() => setPage(value => value + 1)}>Trang sau</button>
+      <span aria-live="polite">Trang {page + 1} · 5 sự kiện / trang</span>
+      <button type="button" disabled={state.rows.length < 5 || state.loading || !!state.error} onClick={() => setPage(value => value + 1)}>Trang sau</button>
     </div>
   </section>;
 }
